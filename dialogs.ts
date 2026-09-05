@@ -1,12 +1,12 @@
 /**
  * The Account dialog: who you are on scmjs.dev, what is left, what you have stored, the
  * ledger, and the buttons — sign in, top up, manage on the site, sign out — plus the
- * plugin's two ticks and the server address under a Settings fold. One dialog for the
- * guest and the account: the head and the buttons change with the state, everything
- * else stays where it is.
+ * plugin's ticks under a Settings fold: the AI features and the status-bar cell. One
+ * dialog for the guest and the account: the head and the buttons change with the
+ * state, everything else stays where it is.
  */
 import type { DialogHandle } from "@scm-js/plugin-api";
-import { DEFAULT_SERVER_URL, SITE_URL } from "./account";
+import { SERVER_QUERY, SITE_URL } from "./account";
 import { describeError, formatBytes, formatUsd, signInGives } from "./client";
 import { append, clear, h, shortDay, styled, type Ctx } from "./ui";
 
@@ -116,26 +116,20 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
 
       /* Settings. */
       const settings = account.store.get();
-      const shareBox = w.checkbox("Let other plugins use this sign-in (the AI plugin follows it instead of asking you to sign in again)", { value: settings.share, onChange: (v) => { account.store.set({ share: v }); } });
+      const aiBox = w.checkbox("Use the AI features (Tools ▸ AI, the assistant, the AI buttons in the editor's dialogs)", { value: settings.ai, onChange: (v) => { account.store.set({ ai: v }); } });
       const statusBox = w.checkbox("Show my status in the status bar", { value: settings.statusItem, onChange: (v) => { account.store.set({ statusItem: v }); } });
-      const serverField = w.text({ value: settings.serverUrl, placeholder: DEFAULT_SERVER_URL, onChange: (v) => { account.store.set({ serverUrl: v.trim() || DEFAULT_SERVER_URL }); } });
-      const test = w.button("Test", { onClick: async () => {
-        test.setBusy(true);
-        try { await account.connect(); say(`${account.server()} answered.`, "ok"); }
-        catch (err) { say(describeError(err), "error"); }
-        finally { test.setBusy(false); }
-      } });
       const settingsFold = h("details", null,
         h("summary", null, "Settings"),
         h("div", { style: "padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px" },
-          shareBox, statusBox,
-          w.form([{ label: "Server", field: serverField }]),
-          h("div", { className: "sd-btns" }, test, h("span", { className: "sd-hint" }, `${DEFAULT_SERVER_URL} unless you run an ai-server of your own. The session is kept in this browser and sent only there.`)),
+          aiBox,
+          h("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools ▸ AI ▸ Options… has the quality and the assistant's settings."),
+          statusBox,
+          account.overridden() ? h("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} — a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null,
         ),
       );
 
       root.append(head, buttons, storageBox, ledgerBox, settingsFold, status,
-        h("div", { className: "sd-hint" }, `The server keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else. Delete all of it from the account page at ${SITE_URL}.`));
+        h("div", { className: "sd-hint" }, `scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else, never a prompt or a card. Delete all of it from the account page at ${SITE_URL}.`));
 
       render();
       const off = account.onChange(render);

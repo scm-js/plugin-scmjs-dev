@@ -1,37 +1,55 @@
 /**
- * The account behind everything: which server, which session, and what the server last
- * said about it. `AccountManager` owns the three ways a session comes about — a free
- * trial the first time something needs one, a sign-in through a provider in a popup, a
- * session already in storage from last time — and every consumer reads the same
- * `AccountState`: the status bar, the Account dialog, the map storage dialogs, and
- * the other plugins through the `scmjs-dev.account` service (`contract.d.ts`), which
- * is a thin face over this class.
+ * The account behind everything: which session, and what the server last said about
+ * it. `AccountManager` owns the three ways a session comes about — a free trial the
+ * first time an AI feature needs one, a sign-in through a provider in a popup, a session
+ * already in storage from last time — and every consumer reads the same
+ * `AccountState`: the status bar, the Account dialog, the map storage dialogs, the AI
+ * dialogs' balance line, and other plugins through the `scmjs-dev.account` service
+ * (`contract.d.ts`), which is a thin face over this class.
  *
  * Settings are the plugin's own `api.storage` (listed in Preferences ▸ Browser storage
- * under the plugin): the server address, the session, the device id the one trial is
- * keyed by, and the two ticks in the Account dialog.
+ * under the plugin): the session, the device id the one trial is keyed by, the ticks in
+ * the Account dialog, and the AI options. The server is `https://api.scmjs.dev` and
+ * there is no field for it: `serverOverride` is the one way to point a development
+ * build elsewhere, a `?scmjs-server=` query on the editor's address.
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { AccountKind, AccountState, ScmjsAccountService } from "./contract";
-import type { AccountsInfo, AccountView, LedgerEntry, StorageView } from "./protocol";
+import type { AccountsInfo, AccountView, Allowance, LedgerEntry, StorageView } from "./protocol";
 import { formatUsd, ScmjsClient, ScmjsError } from "./client";
 
 export const DEFAULT_SERVER_URL = "https://api.scmjs.dev";
 export const SITE_URL = "https://scmjs.dev";
 
+/** How hard the model works: `quick` is the cheapest setting, `standard` the one tuned for each feature, `thorough` the highest. */
+export type Quality = "quick" | "standard" | "thorough";
+
 export interface Settings {
+  /** The server; `DEFAULT_SERVER_URL` unless `serverOverride` set another for development. */
   serverUrl: string;
   /** The session the server issued (a trial's or a signed-in account's). */
   session: string;
   /** A random id made once, for the one free trial a browser gets. */
   deviceId: string;
-  /** Hold the sign-in out to other plugins as the `scmjs-dev.account` service. */
-  share: boolean;
   /** The cell in the status bar. */
   statusItem: boolean;
+  /** The AI features: the Tools ▸ AI menu, the assistant, the buttons in the editor's dialogs. Off leaves the account and the map storage. */
+  ai: boolean;
+  quality: Quality;
+  /** Show the model's reasoning summary while it works. */
+  showThinking: boolean;
+  /** Rounds of tool calls the assistant may make for one message before it stops and asks. */
+  maxRounds: number;
+  /** Send a picture of the visible area with every assistant message. */
+  attachView: boolean;
+  /** The assistant floats over the map (the default) or lives in the right dock under the built-in panels. */
+  dockAssistant: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", share: true, statusItem: true };
+export const DEFAULT_SETTINGS: Settings = {
+  serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
+  ai: true, quality: "standard", showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false,
+};
 
 const KEY = "settings";
 
@@ -48,11 +66,36 @@ export interface SettingsStore {
   set(patch: Partial<Settings>): void;
 }
 
-export function settingsStore(api: PluginApi): SettingsStore {
+/** The query parameter that points a development build at another server; empty goes back to scmjs.dev. */
+export const SERVER_QUERY = "scmjs-server";
+
+/**
+ * The server address the settings should hold, given the editor's query string: a
+ * `?scmjs-server=http://localhost:8080` sets one, `?scmjs-server=` clears it, and no
+ * parameter keeps what is stored. There is no field for this in any dialog on purpose —
+ * it is for running the server on your own machine, not something a user is asked.
+ */
+export function serverOverride(search: string, stored: string): string {
+  const params = new URLSearchParams(search);
+  if (!params.has(SERVER_QUERY)) return stored.trim() || DEFAULT_SERVER_URL;
+  const given = (params.get(SERVER_QUERY) ?? "").trim();
+  if (!given) return DEFAULT_SERVER_URL;
+  try {
+    const u = new URL(given);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return DEFAULT_SERVER_URL;
+    return given.replace(/\/+$/, "");
+  } catch {
+    return DEFAULT_SERVER_URL;
+  }
+}
+
+export function settingsStore(api: PluginApi, search = typeof location !== "undefined" ? location.search : ""): SettingsStore {
   const stored = api.storage.get<Partial<Settings>>(KEY, {});
   let current: Settings = { ...DEFAULT_SETTINGS, ...stored };
-  if (!current.serverUrl.trim()) current.serverUrl = DEFAULT_SERVER_URL;
+  current.serverUrl = serverOverride(search, current.serverUrl);
   if (!current.deviceId) current.deviceId = newDeviceId();
+  if (!(current.maxRounds >= 1)) current.maxRounds = DEFAULT_SETTINGS.maxRounds;
+  if (!["quick", "standard", "thorough"].includes(current.quality)) current.quality = "standard";
   api.storage.set(KEY, current);
   return {
     get: () => current,
@@ -94,6 +137,9 @@ export class AccountManager {
     this.store = store;
     this.client = client;
     this.deps = deps;
+    // An AI request with no session starts the trial first, and the balance follows every result.
+    client.prepare = () => this.ensureSession();
+    client.onRemaining = (r) => this.noteRemaining(r);
   }
 
   /* ── Reading ──────────────────────────────────────────── */
@@ -103,6 +149,7 @@ export class AccountManager {
     return this.view?.kind === "account" ? "account" : "trial";
   }
 
+  signedIn(): boolean { return this.kind() === "account"; }
   current(): AccountView | null { return this.view; }
   offers(): AccountsInfo | null { return this.info; }
   ledger(): LedgerEntry[] { return this.ledgerRows; }
@@ -110,6 +157,8 @@ export class AccountManager {
   storage(): StorageView | null { return this.view?.storage ?? null; }
   serverUrl(): string { return this.client.base(); }
   session(): string { return this.store.get().session; }
+  /** Whether the server is one a `?scmjs-server=` query named rather than scmjs.dev. */
+  overridden(): boolean { return this.store.get().serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL; }
 
   state(): AccountState {
     return { kind: this.kind(), account: this.view, storage: this.storage(), offers: this.info };
@@ -122,21 +171,28 @@ export class AccountManager {
 
   private changed() { const s = this.state(); for (const l of this.listeners) { try { l(s); } catch (err) { console.error("[scmjs.dev] listener failed", err); } } }
 
-  /** One line for the status bar and the dialogs' head. */
+  /** One line for the status bar's tooltip and the AI dialogs' foot. */
   summary(): string {
     const v = this.view;
     switch (this.kind()) {
-      case "guest": return "Not signed in";
-      case "trial": return v ? `Free trial · ${formatUsd(v.balanceUsd)} left` : "Free trial";
-      default: return v ? `${v.name ?? "Signed in"} · ${v.unlimited ? "no balance is kept" : formatUsd(v.balanceUsd)}` : "Signed in";
+      case "guest": return "Not signed in · the first AI request starts a free trial";
+      case "trial": return v ? `Free trial · ${formatUsd(v.balanceUsd)} left · sign in to keep it and get more` : "Free trial";
+      default: {
+        if (!v) return "Signed in";
+        if (v.unlimited) return `${v.name ?? "Signed in"} · no balance is kept`;
+        const credit = v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.creditUsd)} of it credit)` : "";
+        const resets = v.resetsAt ? ` · refills ${shortDay(v.resetsAt)}` : "";
+        return `${v.name ?? "Signed in"} · ${formatUsd(v.balanceUsd)} left${credit}${resets}`;
+      }
     }
   }
 
   /* ── The server ───────────────────────────────────────── */
 
   /**
-   * Ask the server what it offers and what it thinks of the session. Run at activation
-   * and whenever the dialog opens; a session the server no longer knows is dropped.
+   * Ask the server what it offers and what it thinks of the session. Run when the
+   * dialog opens, before a sign-in, and at activation only when a session is stored;
+   * a session the server no longer knows is dropped.
    */
   async connect(): Promise<void> {
     const info = await this.client.info();
@@ -172,6 +228,11 @@ export class AccountManager {
     const weekly = Math.max(0, Math.min(this.view.weeklyUsd, balanceUsd));
     this.view = { ...this.view, balanceUsd: cents(balanceUsd), weeklyUsd: cents(weekly), creditUsd: cents(Math.max(0, balanceUsd - weekly)) };
     this.changed();
+  }
+
+  /** The allowance a recipe result carries: the balance, when there is one. */
+  noteRemaining(r: Allowance): void {
+    if (r.balanceUsd !== undefined) this.noteBalance(r.balanceUsd);
   }
 
   noteStorage(storage: StorageView): void {
@@ -283,4 +344,9 @@ export class AccountManager {
       noteBalance: (usd) => this.noteBalance(usd),
     };
   }
+}
+
+function shortDay(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }

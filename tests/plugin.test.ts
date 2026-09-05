@@ -47,7 +47,7 @@ describe("the client", () => {
     const e1 = await client.account().catch((e: unknown) => e);
     expect(e1).toBeInstanceOf(ScmjsError);
     expect((e1 as ScmjsError).code).toBe("unauthorized");
-    expect(describeError(e1)).toBe("The session has ended: That session has ended.");
+    expect(describeError(e1)).toBe("The session has ended: That session has ended. Sign in again from the Account menu.");
     const e2 = await client.createMap(new Uint8Array([1]), { fileName: "a.scx" }).catch((e: unknown) => e);
     expect((e2 as ScmjsError).code).toBe("storage_full");
     expect(describeError(e2)).toMatch(/past its 250 MB/);
@@ -56,7 +56,7 @@ describe("the client", () => {
     const offline = new ScmjsClient(() => ({ serverUrl: "https://api.example", session: "" }), (async () => { throw new TypeError("Failed to fetch"); }) as typeof fetch);
     const e4 = await offline.info().catch((e: unknown) => e);
     expect((e4 as ScmjsError).code).toBe("network");
-    expect(describeError(e4)).toBe("The server could not be reached: Failed to fetch");
+    expect(describeError(e4)).toBe("scmjs.dev could not be reached: Failed to fetch. Check your connection and try again.");
   });
 
   it("uploads a map as multipart with the fields beside the file, and reads a revision's file back", async () => {
@@ -127,7 +127,7 @@ describe("the account manager", () => {
     const seen: string[] = [];
     account.onChange((s) => seen.push(s.kind));
     expect(account.kind()).toBe("guest");
-    expect(account.summary()).toBe("Not signed in");
+    expect(account.summary()).toBe("Not signed in · the first AI request starts a free trial");
     await account.connect();
     expect(account.offers()?.maps).toBe(true);
     expect(account.state()).toMatchObject({ kind: "guest", account: null, storage: null });
@@ -136,7 +136,7 @@ describe("the account manager", () => {
     expect(state.trials).toBe(1);
     expect(account.kind()).toBe("trial");
     expect(store.get().session).toBe("sess_trial");
-    expect(account.summary()).toBe("Free trial · $0.50 left");
+    expect(account.summary()).toBe("Free trial · $0.50 left · sign in to keep it and get more");
     expect(seen).toEqual(["guest", "trial"]);
     // A fresh browser (new store) that the server refuses hears "sign in".
     const other = memoryStore();
@@ -174,7 +174,7 @@ describe("the account manager", () => {
     expect(handler).toBeNull();
     await account.refresh();
     expect(account.ledger()).toHaveLength(1);
-    expect(account.summary()).toBe("Zergling · $1.50");
+    expect(account.summary()).toBe("Zergling · $1.50 left ($0.50 of it credit)");
     account.noteBalance(1.2);
     expect(account.current()).toMatchObject({ balanceUsd: 1.2, weeklyUsd: 1, creditUsd: 0.2 });
     const service = account.service(() => {});

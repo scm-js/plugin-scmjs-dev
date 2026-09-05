@@ -1,7 +1,7 @@
 /**
  * scmjs.dev — a plugin for the scmJS map editor (https://github.com/jeany55/scm-js).
  *
- * Your scmjs.dev account, in the editor:
+ * Your scmjs.dev account in the editor, and the AI that comes with it:
  *
  * - **Account** menu (top level, before Help): Sign in…, Account…, My Maps…, Save to
  *   scmjs.dev…, Sign out. The two map items are under File as well, beside Open Recent
@@ -9,21 +9,29 @@
  * - A cell in the **status bar**: "Sign in to scmjs.dev" as a guest, your name and
  *   balance once signed in. A click opens the Account dialog.
  * - The **Account dialog** (`dialogs.ts`): status, balance and when it refills, storage
- *   used, the ledger, top-up, the site's account page, sign out, and the settings.
+ *   used, the ledger, top-up, the site's account page, sign out, and the settings —
+ *   among them the one tick that turns the AI features off.
  * - **Map storage** (`maps.ts`): maps kept on the account with numbered revisions and
  *   notes, opened back into the editor.
+ * - The **AI features** (`ai/`): Tools ▸ AI — a whole scenario from a sentence, a map
+ *   laid out from a prompt, an area redone, triggers written and explained, names,
+ *   briefings, a review, string rewrites, and an assistant beside the map that reads
+ *   and edits everything in it with you — plus the AI buttons inside the editor's own
+ *   dialogs. The first request starts a free trial with no sign-in; `ai/install.ts`
+ *   puts them in and takes them out.
  * - The **`scmjs-dev.account` service** (`contract.d.ts`): the sign-in held out to
- *   other plugins through `api.services`, so the AI plugin follows this one instead of
- *   keeping a session of its own. Off with the tick in the Account dialog's settings.
+ *   other plugins through `api.services`.
  *
- * Everything reaches one server, `https://api.scmjs.dev` unless the settings say
- * otherwise (the same ai-server the AI plugin talks to: https://github.com/scm-js/ai-server).
- * `client.ts` is its typed client, `account.ts` the session and the state, `protocol.ts`
- * the wire shapes copied from the server. Every menu item that reaches the network carries
- * the plugin's mark.
+ * Everything reaches one server, `https://api.scmjs.dev` (an ai-server,
+ * https://github.com/scm-js/ai-server); there is no setting for it, only the
+ * `?scmjs-server=` query for running one on your own machine (`account.ts`).
+ * `client.ts` is its typed client, `account.ts` the session and the state,
+ * `protocol.ts` the wire shapes copied from the server. Nothing is sent before you
+ * ask: with no session stored the plugin makes no request at startup.
  */
 import type { Disposable, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import { AccountManager, settingsStore } from "./account";
+import { installAi } from "./ai/install";
 import { formatUsd, ScmjsClient } from "./client";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
@@ -110,20 +118,28 @@ export function activate(api: PluginApi) {
   syncStatus();
   account.onChange(syncStatus);
 
-  /* The service for other plugins, provided while the tick says so. */
-  let provided: Disposable | null = null;
-  const syncService = () => {
-    const want = store.get().share;
-    if (want && !provided) provided = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
-    else if (!want && provided) { provided.dispose(); provided = null; }
+  /* The service for other plugins. */
+  const provided: Disposable = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
+
+  /* The AI features, in while the tick says so. */
+  let ai: (() => void) | null = null;
+  const syncAi = () => {
+    const want = store.get().ai;
+    if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
+    else if (!want && ai) { ai(); ai = null; }
   };
-  syncService();
-  // The settings ticks live in the dialog; check them after every change of state and on a timer-free path: the store's set.
+  syncAi();
+
+  // The settings ticks live in the dialogs; every write goes through the store's set, so that is where the surfaces follow.
   const set = store.set;
-  store.set = (patch) => { set(patch); syncService(); syncStatus(); };
+  store.set = (patch) => { set(patch); syncAi(); syncStatus(); };
 
-  /* What the server says about the session, once at activation; a failure is quiet — the dialog will say. */
-  void account.connect().then(() => (account.session() ? account.refresh() : null)).catch(() => {});
+  /*
+   * A session from last time is refreshed so the status bar shows the balance; with none
+   * there is nothing to ask and nothing is sent — a plugin the editor ships must not
+   * reach the network before the user does.
+   */
+  if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { status?.remove(); provided?.dispose(); };
+  return () => { ai?.(); status?.remove(); provided.dispose(); };
 }
