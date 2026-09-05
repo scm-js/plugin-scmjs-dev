@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="scmjs.dev">
+  <!-- A person in a ring: the account. Gold like the editor's accent for the ring, teal for
+       the head and shoulders, so it reads at 14 px beside a menu item and in the status bar. -->
+  <circle cx="12" cy="12" r="10" fill="none" stroke="#e6b95c" stroke-width="2"/>
+  <circle cx="12" cy="9.5" r="3.2" fill="#4fd1c5"/>
+  <path d="M5.8 18.4c1.2-3 3.5-4.4 6.2-4.4s5 1.4 6.2 4.4A8.5 8.5 0 0 1 12 20.5a8.5 8.5 0 0 1-6.2-2.1z" fill="#4fd1c5"/>
+</svg>

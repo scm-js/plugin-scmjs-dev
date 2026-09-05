@@ -1,0 +1,12 @@
+{
+  "name": "scmjs.dev",
+  "id": "scmjs-dev",
+  "version": "0.1.0",
+  "description": "Your scmjs.dev account in the editor: sign in from the Account menu or the status bar, see your balance, usage and storage, keep maps with revisions and notes on your account, and let the AI plugin use the same sign-in.",
+  "author": "Jeany",
+  "homepage": "https://github.com/scm-js/plugin-scmjs-dev",
+  "entry": "plugin.ts",
+  "build": "dist/plugin.js",
+  "icon": "icon.svg",
+  "api": 1
+}
