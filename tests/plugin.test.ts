@@ -103,7 +103,7 @@ describe("the account manager", () => {
     "GET /v1/info": (init) => {
       const auth = ((init.headers ?? {}) as Record<string, string>).Authorization;
       const signedIn = auth === `Bearer ${state.session}` && state.account;
-      return json({ name: "Test", version: "1", accounts: { providers: [{ id: "discord", name: "Discord" }], trial: true, trialUsd: 0.5, weeklyUsd: 1, packs: [], accountUrl: "https://api.example/account", maps: true }, caller: signedIn ? { kind: "user", remaining: {}, account: state.account } : { kind: "anonymous", remaining: {} } });
+      return json({ name: "Test", version: "1", accounts: { providers: [{ id: "discord", name: "Discord" }], trial: true, trialUsd: 0.5, signupUsd: 0.5, weeklyUsd: 1, packs: [], accountUrl: "https://api.example/account", maps: true }, caller: signedIn ? { kind: "user", remaining: {}, account: state.account } : { kind: "anonymous", remaining: {} } });
     },
     "POST /v1/trial": () => {
       if (state.trials++ > 0) return json({ error: { code: "forbidden", message: "This browser has had its trial." } }, 403);

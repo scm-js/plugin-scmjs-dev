@@ -200,7 +200,7 @@ export class AccountManager {
       this.changed();
     } catch (err) {
       if (err instanceof ScmjsError && (err.code === "forbidden" || err.code === "rate_limited")) {
-        throw new ScmjsError("budget_exceeded", `${err.message} Sign in to scmjs.dev for a weekly allowance.`);
+        throw new ScmjsError("budget_exceeded", `${err.message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.`);
       }
       throw err;
     }

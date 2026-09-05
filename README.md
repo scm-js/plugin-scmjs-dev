@@ -29,7 +29,7 @@ and press **Add**. To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@
   away.
 - **The Account dialog.** As a guest: what signing in gives you, a button per provider
   (Discord to start with), and the free trial. Signed in: your name and role, the balance
-  with the weekly allowance and purchased credit told apart and the day it refills, the
+  with any weekly allowance and the credit told apart and the day it refills, the
   map storage used against your cap, the recent activity from the server's ledger, and
   buttons to top up, manage the account on scmjs.dev (link another provider, delete
   everything), open My Maps, and sign out. Under *Settings*: the two ticks below and the

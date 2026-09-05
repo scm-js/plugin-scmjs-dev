@@ -52,7 +52,9 @@ export interface AccountsInfo {
   trial: boolean;
   /** Dollars a trial starts with. */
   trialUsd: number;
-  /** The default role's weekly allowance, for the sign-in pitch. */
+  /** Dollars of credit an account gets once, at its first sign-in — withheld from an account that looks like a second one; 0 for none. */
+  signupUsd: number;
+  /** The default role's weekly allowance, for the sign-in pitch; 0 when the role has none. */
   weeklyUsd: number;
   /** Credit packs on sale; empty when the server takes no payments. */
   packs: CreditPack[];
@@ -80,11 +82,11 @@ export interface AccountView {
   role: string;
   /** The role has no balance: nothing is checked or charged. */
   unlimited?: boolean;
-  /** Weekly allowance left plus purchased credit. */
+  /** Weekly allowance left plus credit (sign-up and purchased). */
   balanceUsd: number;
   weeklyUsd: number;
   creditUsd: number;
-  /** When the weekly allowance next fills, ISO 8601; absent for a trial. */
+  /** When the weekly allowance next fills, ISO 8601; absent for a trial and for a role with no allowance. */
   resetsAt?: string;
   /** Provider ids linked to the account. */
   providers: string[];
@@ -189,7 +191,7 @@ export interface RevisionPatch {
 
 export interface LedgerEntry {
   at: string;
-  kind: "trial" | "weekly" | "charge" | "purchase" | "adjust";
+  kind: "trial" | "signup" | "weekly" | "charge" | "purchase" | "adjust";
   /** Signed dollars. */
   usd: number;
   note: string;
@@ -221,6 +223,8 @@ export interface AuthMessage {
   type: "scmjs-ai-auth";
   session: string;
   account: AccountView;
+  /** Something the person should read — the sign-up credit was withheld, and why. The callback page shows it too. */
+  notice?: string;
 }
 
 export interface AccountResponse {

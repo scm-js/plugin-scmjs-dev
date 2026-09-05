@@ -7,7 +7,7 @@
  */
 import type { DialogHandle } from "@scm-js/plugin-api";
 import { DEFAULT_SERVER_URL, SITE_URL } from "./account";
-import { describeError, formatBytes, formatUsd } from "./client";
+import { describeError, formatBytes, formatUsd, signInGives } from "./client";
 import { append, clear, h, shortDay, styled, type Ctx } from "./ui";
 
 /** A used-of-cap bar with its caption. */
@@ -41,17 +41,17 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         const rows: [string, Node | string][] = [];
         if (s.kind === "guest") {
           rows.push(["Status", h("span", { className: "sd-big" }, "Not signed in")]);
-          if (s.offers) rows.push(["", h("span", { className: "sd-hint" }, s.offers.trial ? `A free trial of ${formatUsd(s.offers.trialUsd)} needs no sign-in. Signing in gives ${formatUsd(s.offers.weeklyUsd)} a week, refilled every Monday, and room to keep maps on your account.` : `Signing in gives ${formatUsd(s.offers.weeklyUsd)} a week, refilled every Monday, and room to keep maps on your account.`)]);
+          if (s.offers) rows.push(["", h("span", { className: "sd-hint" }, `${s.offers.trial ? `A free trial of ${formatUsd(s.offers.trialUsd)} needs no sign-in. ` : ""}Signing in ${signInGives(s.offers)}, and room to keep maps on your account.`)]);
         } else if (s.kind === "trial") {
           rows.push(["Status", h("span", { className: "sd-big" }, "Free trial")]);
           if (v) rows.push(["Balance", `${formatUsd(v.balanceUsd)} left`]);
-          rows.push(["", h("span", { className: "sd-hint" }, "A trial is one browser, once. Sign in to keep what is left, get a weekly allowance, and store maps.")]);
+          rows.push(["", h("span", { className: "sd-hint" }, "A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps.")]);
         } else {
           rows.push(["Signed in as", h("span", { className: "sd-big" }, v?.name ?? "you")]);
           if (v) {
             rows.push(["Role", `${v.role}${v.unlimited ? " · no balance is kept" : ""}`]);
             if (!v.unlimited) {
-              rows.push(["Balance", `${formatUsd(v.balanceUsd)}${v.creditUsd > 0 ? ` (${formatUsd(v.weeklyUsd)} weekly + ${formatUsd(v.creditUsd)} purchased)` : ""}`]);
+              rows.push(["Balance", `${formatUsd(v.balanceUsd)}${v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.weeklyUsd)} weekly + ${formatUsd(v.creditUsd)} credit)` : ""}`]);
               if (v.resetsAt) rows.push(["Refills", `${shortDay(v.resetsAt)}, to ${formatUsd(Math.max(v.weeklyUsd, s.offers?.weeklyUsd ?? 0))}`]);
             }
             if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
