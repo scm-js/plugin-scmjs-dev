@@ -744,6 +744,8 @@ export interface LayoutPlan {
   grid: string[];
   bases: BasePlan[];
   ramps: RampPlan[];
+  /** Bridges to fit over water, from the shape language's `bridge` statements. */
+  bridges?: BridgePlan[];
   /** Decoration by category name, scattered over the cells whose legend characters are listed. */
   doodads: DoodadPlan[];
   /** Units by StarEdit name. */
@@ -757,7 +759,83 @@ export interface MapPlan extends LayoutPlan {
   name: string;
   description: string;
   symmetry: SymmetryMode;
+  /**
+   * With language "shapes": the statements the terrain is compiled from. The server sends
+   * them with an empty grid; the plugin compiles them at one tile per cell before rendering.
+   */
+  shapes?: Shape[];
 }
+/* ── The shape language (`map-plan` with language "shapes") ── */
+
+/**
+ * The way a ramp goes down. The game's ramps descend toward the south-west or the
+ * south-east and nowhere else, so high ground must lie north of the ground it opens onto.
+ */
+export type RampSide = "sw" | "se";
+
+/** A terrain pair a tileset has ramps for: `low` one height below `high`. */
+export interface RampPair {
+  low: number;
+  high: number;
+}
+
+/**
+ * One statement of the shape language, in map tiles; the plugin paints them in order,
+ * later ones over earlier ones, and compiles the result to a one-tile grid. Which
+ * fields matter depends on `op`:
+ * - `ground`: `terrain` — the whole map.
+ * - `rect`: `terrain`, `x`, `y`, `w`, `h`, optional `cut` (isometric corner cuts, in rows).
+ * - `diamond` / `ellipse`: `terrain`, `cx`, `cy`, `rx`, `ry`.
+ * - `polygon`: `terrain`, `points`.
+ * - `stroke`: `terrain`, `points`, `width` — a band along a polyline: a river, a road, a wall.
+ * - `border`: `terrain`, `width` — a band around the map's edge.
+ * - `plateau`: like `rect`, plus `ramps`: the lower corners that carry a ramp down; the
+ *   plugin cuts those corners into a diagonal edge, paints the pair the tileset has ramps
+ *   for there, and fits the ramp doodad after painting.
+ * - `lane`: `terrain`, `points`, `width`, optional `wall` and `wallWidth` — a walkable
+ *   band with a band of `wall` either side.
+ * - `ramp`: `x`, `y`, `side` — a ramp on an existing cliff near there.
+ * - `bridge`: `x`, `y`, `along` — a bridge over water at that tile; the plugin paints a
+ *   diagonal channel of water there (running the way `along` says, six tiles wide, the
+ *   only channel the game's bridges span), its banks in the ground the bridges stand on,
+ *   and fits the bridge doodad after painting.
+ */
+export interface Shape {
+  op: "ground" | "rect" | "diamond" | "ellipse" | "polygon" | "stroke" | "border" | "plateau" | "lane" | "ramp" | "bridge";
+  terrain?: number;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  cx?: number;
+  cy?: number;
+  rx?: number;
+  ry?: number;
+  points?: [number, number][];
+  width?: number;
+  cut?: number;
+  ramps?: RampSide[];
+  side?: RampSide;
+  /** bridge: the diagonal the water runs along — "se" down-right, "sw" down-left. */
+  along?: RampSide;
+  wall?: number;
+  wallWidth?: number;
+}
+
+/** A bridge the plan wants near a tile, over water running along that diagonal. */
+export interface BridgePlan {
+  x: number;
+  y: number;
+  along: RampSide;
+}
+
+/** What a tileset's bridges stand on and span, and how wide a channel (in tiles, across the diagonal) they fit. */
+export interface BridgePair {
+  ground: number;
+  water: number;
+  channel?: number;
+}
+
 
 export interface BasePlan {
   kind: "main" | "natural" | "third" | "expansion" | "island";
@@ -782,6 +860,9 @@ export interface RampPlan {
   y: number;
   /** Which way the ramp goes *down*. */
   direction: Direction;
+  /** The terrains the ramp joins, when the plan knows them (a compiled shape plan does); the renderer samples the ground otherwise. */
+  low?: number;
+  high?: number;
 }
 
 export interface DoodadPlan {
@@ -789,6 +870,8 @@ export interface DoodadPlan {
   category: string;
   /** Legend characters of the cells to decorate. */
   on: string;
+  /** Under the shape language, which has no legend: the terrains to decorate, by id. */
+  terrains?: number[];
   /** 0 (none) … 1 (as many as fit). */
   density: number;
 }
@@ -829,6 +912,15 @@ export interface MapPlanInput {
   symmetry: SymmetryMode | "auto";
   /** Tiles per cell; the plugin picks 4 for a 128 map. */
   cellSize: number;
+  /**
+   * "grid" (the default): the model paints a grid of cells. "shapes": it writes shape
+   * statements — far fewer tokens, and ramps and lanes drawn by the plugin's compiler.
+   */
+  language?: "grid" | "shapes";
+  /** With "shapes": the terrain pairs this tileset has ramps for, so plateaus that need a way down use them. */
+  rampPairs?: RampPair[];
+  /** With "shapes": what this tileset's bridges stand on and span; absent when it has none. */
+  bridgePair?: BridgePair;
   /** A refinement round: the previous plan, what the plugin found rendering it, and a picture. */
   previous?: {
     plan: MapPlan;

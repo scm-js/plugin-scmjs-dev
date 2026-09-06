@@ -51,7 +51,7 @@ export interface Checked<P extends LayoutPlan> {
  */
 export function checkPlan<P extends LayoutPlan>(input: P, ctx: PlanContext): Checked<P> {
   const problems: string[] = [];
-  const plan: P = { ...input, legend: { ...input.legend }, grid: [...(input.grid ?? [])], bases: [...(input.bases ?? [])], ramps: [...(input.ramps ?? [])], doodads: [...(input.doodads ?? [])], units: [...(input.units ?? [])], locations: [...(input.locations ?? [])], notes: [...(input.notes ?? [])] };
+  const plan: P = { ...input, legend: { ...input.legend }, grid: [...(input.grid ?? [])], bases: [...(input.bases ?? [])], ramps: [...(input.ramps ?? [])], bridges: (input.bridges ?? []).filter((b) => typeof b.x === "number" && typeof b.y === "number").map((b) => ({ x: Math.round(b.x), y: Math.round(b.y), along: b.along === "sw" ? "sw" : "se" })), doodads: [...(input.doodads ?? [])], units: [...(input.units ?? [])], locations: [...(input.locations ?? [])], notes: [...(input.notes ?? [])] };
   const known = new Set(ctx.terrains.map((t) => t.id));
   const fallback = ctx.terrains[0]?.id ?? 0;
 
@@ -340,11 +340,11 @@ export function hashString(s: string): number {
 /**
  * Where a plan's decoration goes: for each entry, up to `density` × the number of
  * matching cells × 0.4 doodads of the category, each dropped at a random tile of a
- * random matching cell, kept when its whole footprint lies on matching cells (so trees
- * stay off the paths) and touches nothing placed before. `occupied(rect)` lets the
- * caller keep bases and units clear.
+ * random matching cell, kept when its whole footprint — and `margin` tiles around it —
+ * lies on matching cells (so trees stay off the paths and shore doodads off the sand) and
+ * touches nothing placed before. `occupied(rect)` lets the caller keep bases and units clear.
  */
-export function scatterDoodads(plan: LayoutPlan, ctx: PlanContext, categories: ReadonlyMap<string, readonly DoodadChoice[]>, occupied: (r: TileRect) => boolean): { placed: PlacedDoodad[]; problems: string[] } {
+export function scatterDoodads(plan: LayoutPlan, ctx: PlanContext, categories: ReadonlyMap<string, readonly DoodadChoice[]>, occupied: (r: TileRect) => boolean, margin = 0): { placed: PlacedDoodad[]; problems: string[] } {
   const placed: PlacedDoodad[] = [];
   const taken: TileRect[] = [];
   const problems: string[] = [];
@@ -365,8 +365,10 @@ export function scatterDoodads(plan: LayoutPlan, ctx: PlanContext, categories: R
       const ty = cell.y0 + Math.floor(random() * plan.cellSize);
       const foot: TileRect = { x0: tx, y0: ty, x1: tx + d.width, y1: ty + d.height };
       if (foot.x1 > ctx.width || foot.y1 > ctx.height) continue;
+      // The footprint and a margin around it must lie on the cells asked for: the brush rounds a shore to the
+      // lattice, so a doodad at a cell's edge would otherwise stand on the wrong ground — a rock in the water on the sand.
       let onAllowed = true;
-      for (let y = foot.y0; y < foot.y1 && onAllowed; y++) for (let x = foot.x0; x < foot.x1; x++) if (!entry.on.includes(charAt(plan, ctx.originX, ctx.originY, x, y))) { onAllowed = false; break; }
+      for (let y = foot.y0 - margin; y < foot.y1 + margin && onAllowed; y++) for (let x = foot.x0 - margin; x < foot.x1 + margin; x++) if (!entry.on.includes(charAt(plan, ctx.originX, ctx.originY, x, y))) { onAllowed = false; break; }
       if (!onAllowed) continue;
       if (taken.some((t) => overlaps(t, foot)) || occupied(foot)) continue;
       taken.push(foot);

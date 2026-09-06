@@ -22,12 +22,12 @@ import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlanInput, type UmsDesi
 import { doodadCategoryNames, terrainVocab, unitNames } from "../facts";
 import { guideFor } from "../guides";
 import { START_LOCATION, TILE, centreOf } from "../layout";
+import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
 import { hasScriptPlugin, scriptBridge, type CompileResult } from "../script";
 import { toolkitContext, addSystem } from "../tools/ums";
 import { paramsOf, systemKinds, ToolkitError } from "../ums";
 import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
-import { cellSizeFor } from "./generate";
 import { openReview } from "./review";
 
 const SIZES = [64, 96, 128, 160, 192, 256];
@@ -325,7 +325,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             const input: MapPlanInput = {
               prompt: layoutPrompt(d), width: cur.width, height: cur.height, tileset: cur.tileset,
               terrains: terrainVocab(api), doodadCategories: doodadCategoryNames(api), unitNames: unitNames(api),
-              players: Math.max(1, humans.length), symmetry: ["madness", "arena", "diplomacy"].includes(d.genre) ? "auto" : "none", cellSize: cellSizeFor(cur.width, cur.height),
+              players: Math.max(1, humans.length), symmetry: "none", cellSize: 1,
+              // The shape language: statements the plugin compiles, with the ramps the tileset really has.
+              language: "shapes", rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) ?? undefined,
             };
             const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
             if (!r) throw new Error(runner.lastError ?? "no plan came back");

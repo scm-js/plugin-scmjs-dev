@@ -14,8 +14,13 @@ import {
   baseFootprint, checkPlan, chooseRamp, enforceSymmetry, paintGroups, placeBases, scatterDoodads, unitRect, usableSymmetry,
   type DoodadChoice, type PlanContext,
 } from "./plan";
+import { bridgePairOf, bridgesOf, fitDoodad, fitRamp, rampPairsOf, rampsOf } from "./ramps";
+import { shapesToLayout } from "./shapes";
 import type { LayoutPlan, MapPlan, TerrainVocab } from "../protocol";
 import type { TileRect } from "./grid";
+
+/** Tiles of matching ground a scattered doodad must have around it. */
+const DOODAD_MARGIN = 2;
 
 
 export interface RenderOptions {
@@ -33,7 +38,7 @@ export interface Rendered {
   /** Refusals, unknown names, mended plan fields, and Check Map's issues afterwards. */
   findings: string[];
   /** What was placed, for the summary line. */
-  placed: { diamonds: number; tiles: number; starts: number; resources: number; ramps: number; doodads: number; units: number; locations: number };
+  placed: { diamonds: number; tiles: number; starts: number; resources: number; ramps: number; bridges: number; doodads: number; units: number; locations: number };
 }
 
 /** The plan's area in tiles, clamped to the map. */
@@ -61,8 +66,17 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   if (!info) return null;
   const terrains: TerrainVocab[] = api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable }));
   const ctx: PlanContext = { terrains, width: info.width, height: info.height, originX: options.originX, originY: options.originY };
+  const tilesetRamps = rampsOf(api);
+  const tilesetBridges = bridgesOf(api);
+  const findings: string[] = [];
+  // A shape plan is compiled to a one-tile grid first; from there on it is a plan like any other.
+  if ("shapes" in input && input.shapes?.length) {
+    const compiled = shapesToLayout(input as MapPlan, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) });
+    input = compiled.plan;
+    findings.push(...compiled.findings);
+  }
   const checked = checkPlan(input, ctx);
-  const findings = [...checked.problems];
+  findings.push(...checked.problems);
   let plan: LayoutPlan = checked.plan;
   const symmetry = "symmetry" in checked.plan ? usableSymmetry((checked.plan as MapPlan).symmetry, info.width, info.height) : "none";
   if ("symmetry" in checked.plan) {
@@ -74,7 +88,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   const hasTileset = api.tileset.isLoaded();
   const categories = doodadChoices(api);
   const ramps = [...categories.entries()].filter(([name]) => /ramp/i.test(name)).flatMap(([, list]) => list);
-  const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, doodads: 0, units: 0, locations: 0 };
+  const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, bridges: 0, doodads: 0, units: 0, locations: 0 };
 
   const result = api.document.edit(options.label, (tx) => {
     if (options.clearArea) clearArea(api, tx, area);
@@ -133,15 +147,36 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
       if (refusedHere > 0 || short > 0) findings.push(`${b.kind} base at ${b.hall.x},${b.hall.y}${b.player ? ` (player ${b.player})` : ""}: ${refusedHere > 0 ? `${refusedHere} resource${refusedHere === 1 ? "" : "s"} refused by the terrain there` : ""}${refusedHere > 0 && short > 0 ? ", " : ""}${short > 0 ? `${short} did not fit on the ring` : ""}`);
     }
 
-    // Ramps.
+    // Ramps: where the editor's own check says one fits, near where the plan asked — the terrain is painted by now,
+    // so the cliffs the brush drew are what is measured. Without the check (an older editor) the old guess by footprint.
+    const canCheck = typeof api.query.doodadPlacement === "function" && tilesetRamps.length > 0;
+    let guessed = 0;
     for (const r of plan.ramps) {
+      if (canCheck) {
+        const fit = fitRamp(r, tilesetRamps, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true);
+        if (!fit) { findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: no ramp of this tileset fits the cliff near there (a ramp needs a straight diagonal edge facing south-west or south-east, between ground it has a ramp for)`); continue; }
+        const index = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+        if (index < 0) findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: ${fit.name} was refused at ${fit.tx},${fit.ty}`);
+        else { placed.ramps++; occupied.push({ x0: fit.tx, y0: fit.ty, x1: fit.tx + fit.width, y1: fit.ty + fit.height }); }
+        continue;
+      }
       const choice = chooseRamp(r.direction, r.x, r.y, ramps);
       if (!choice) { findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: this tileset has no ramp doodads, so it is left for you to place`); continue; }
       const index = tx.placeDoodad(choice.doodadId, choice.tx, choice.ty);
       if (index < 0) findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: ${choice.name} does not fit there`);
-      else { placed.ramps++; occupied.push({ x0: choice.tx, y0: choice.ty, x1: choice.tx + choice.width, y1: choice.ty + choice.height }); }
+      else { placed.ramps++; guessed++; occupied.push({ x0: choice.tx, y0: choice.ty, x1: choice.tx + choice.width, y1: choice.ty + choice.height }); }
     }
-    if (plan.ramps.length > 0 && placed.ramps > 0) findings.push(`${placed.ramps} ramp${placed.ramps === 1 ? "" : "s"} placed by footprint; check their direction against the cliffs`);
+    if (guessed > 0) findings.push(`${guessed} ramp${guessed === 1 ? "" : "s"} placed by footprint; check their direction against the cliffs`);
+
+    // Bridges, the same way: the tileset's bridges tried around the site, on the shores the brush drew.
+    for (const b of plan.bridges ?? []) {
+      if (!canCheck || tilesetBridges.length === 0) { findings.push(`bridge at ${b.x},${b.y}: ${tilesetBridges.length === 0 ? "this tileset has no bridges" : "the editor cannot check doodad placement"}; left for you to place`); continue; }
+      const fit = fitDoodad(b, tilesetBridges, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true, { dx: 14, dy: 10 });
+      if (!fit) { findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel six tiles wide)`); continue; }
+      const index = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+      if (index < 0) findings.push(`bridge at ${b.x},${b.y}: ${fit.name} was refused at ${fit.tx},${fit.ty}`);
+      else { placed.bridges++; occupied.push({ x0: fit.tx, y0: fit.ty, x1: fit.tx + fit.width, y1: fit.ty + fit.height }); }
+    }
 
     // Units by name (before decoration, so it keeps clear of them).
     for (const u of plan.units) {
@@ -161,7 +196,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
     }
 
     // Decoration.
-    const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1));
+    const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1), DOODAD_MARGIN);
     findings.push(...scattered.problems);
     for (const d of scattered.placed) if (tx.placeDoodad(d.doodadId, d.tx, d.ty) >= 0) placed.doodads++;
 
@@ -213,6 +248,7 @@ export function summarizeRender(r: Rendered): string {
   if (p.starts) parts.push(`${p.starts} start location${p.starts === 1 ? "" : "s"}`);
   if (p.resources) parts.push(`${p.resources} resources`);
   if (p.ramps) parts.push(`${p.ramps} ramp${p.ramps === 1 ? "" : "s"}`);
+  if (p.bridges) parts.push(`${p.bridges} bridge${p.bridges === 1 ? "" : "s"}`);
   if (p.doodads) parts.push(`${p.doodads} doodads`);
   if (p.units) parts.push(`${p.units} unit${p.units === 1 ? "" : "s"}`);
   if (p.locations) parts.push(`${p.locations} location${p.locations === 1 ? "" : "s"}`);

@@ -77,9 +77,13 @@ different under "Change the design first". A location parameter may carry `{p}` 
 player number ("Spawn {p}", "Armory {p}"): the system is then built once per player, so
 one spawn or shop entry serves everyone. Build folds the design away and goes step by
 step, each step a row that passes or fails on its own: the map, the terrain and the named
-locations (through Generate Map's planner — the long step, with its clock and the model's
-reasoning under the rows), players and forces, every system, the
-objectives and briefing, the name, Check Map. Systems the *toolkit* knows — hyper triggers,
+locations (the long step, with its clock and the model's reasoning under the rows),
+players and forces, every system, the objectives and briefing, the name, Check Map. The
+terrain comes as *shapes* — plateaus, lanes, rivers, arenas in map tiles — which the
+plugin compiles and the editor's brush draws, so a lane is continuous and a plateau that
+asks for a ramp gets one where the editor's placement check says the ramp fits (ramps go
+down south-west or south-east, as the game's do); bridges the same way, over a channel
+painted for them, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers,
 spawn cycles, kill-to-cash, income, waves, lives, shops, heal spots, respawn, teleports,
 kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, rescue by
 touch — are built by code from their parameters, instantly and the same way every time;

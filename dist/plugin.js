@@ -2070,7 +2070,7 @@ function directionAngle(d) {
 }
 function checkPlan(input, ctx) {
   const problems = [];
-  const plan = { ...input, legend: { ...input.legend }, grid: [...input.grid ?? []], bases: [...input.bases ?? []], ramps: [...input.ramps ?? []], doodads: [...input.doodads ?? []], units: [...input.units ?? []], locations: [...input.locations ?? []], notes: [...input.notes ?? []] };
+  const plan = { ...input, legend: { ...input.legend }, grid: [...input.grid ?? []], bases: [...input.bases ?? []], ramps: [...input.ramps ?? []], bridges: (input.bridges ?? []).filter((b) => typeof b.x === "number" && typeof b.y === "number").map((b) => ({ x: Math.round(b.x), y: Math.round(b.y), along: b.along === "sw" ? "sw" : "se" })), doodads: [...input.doodads ?? []], units: [...input.units ?? []], locations: [...input.locations ?? []], notes: [...input.notes ?? []] };
   const known = new Set(ctx.terrains.map((t) => t.id));
   const fallback = ctx.terrains[0]?.id ?? 0;
   plan.cellSize = Math.max(1, Math.floor(plan.cellSize || 1));
@@ -2312,7 +2312,7 @@ function hashString(s) {
   }
   return h3 >>> 0;
 }
-function scatterDoodads(plan, ctx, categories, occupied) {
+function scatterDoodads(plan, ctx, categories, occupied, margin = 0) {
   const placed = [];
   const taken = [];
   const problems = [];
@@ -2337,7 +2337,7 @@ function scatterDoodads(plan, ctx, categories, occupied) {
       const foot = { x0: tx, y0: ty, x1: tx + d.width, y1: ty + d.height };
       if (foot.x1 > ctx.width || foot.y1 > ctx.height) continue;
       let onAllowed = true;
-      for (let y = foot.y0; y < foot.y1 && onAllowed; y++) for (let x = foot.x0; x < foot.x1; x++) if (!entry.on.includes(charAt(plan, ctx.originX, ctx.originY, x, y))) {
+      for (let y = foot.y0 - margin; y < foot.y1 + margin && onAllowed; y++) for (let x = foot.x0 - margin; x < foot.x1 + margin; x++) if (!entry.on.includes(charAt(plan, ctx.originX, ctx.originY, x, y))) {
         onAllowed = false;
         break;
       }
@@ -2365,7 +2365,451 @@ function unitRect(px, py, w, h3) {
   return { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
 }
 
+// ai/ramps.ts
+function rampDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
+  const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
+  const out = [];
+  for (const d of doodads) {
+    if (!d.ramp || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    d.required.forEach((g, i) => {
+      const t = byGroup.get(g);
+      if (!t) return;
+      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
+      e.sx += i % d.width;
+      e.sy += Math.floor(i / d.width);
+      e.n++;
+      flats.set(t.id, e);
+    });
+    const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
+    if (list2.length === 0) continue;
+    let lo = list2[0], hi = list2.find((e) => e.t.height > lo.t.height) ?? null;
+    let side;
+    if (hi) {
+      side = lo.sx / lo.n < hi.sx / hi.n ? "sw" : "se";
+    } else {
+      const only = list2[0];
+      const centre = (d.width - 1) / 2;
+      const stripped = only.t.height === 0 ? null : byName2.get((only.t.name ?? "").replace(/^high\s+/i, "").toLowerCase());
+      const other = only.t.height === 0 ? byName2.get(`high ${only.t.name?.toLowerCase() ?? ""}`) ?? null : stripped && stripped.id !== only.t.id ? stripped : lowest && lowest.id !== only.t.id ? lowest : null;
+      if (!other) continue;
+      if (only.t.height === 0) {
+        lo = only;
+        hi = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "sw" : "se";
+      } else {
+        hi = only;
+        lo = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "se" : "sw";
+      }
+    }
+    if (hi.t.height <= lo.t.height) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, low: lo.t.id, high: hi.t.id, side });
+  }
+  return out;
+}
+var VERIFIED_RAMPS = {
+  badlands: [["Dirt", "High Dirt"]],
+  jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
+  desert: [["Dirt", "High Dirt"]],
+  twilight: [["Dirt", "High Dirt"]],
+  install: [["Substructure", "Floor"]],
+  ashworld: [["Dirt", "High Dirt"]],
+  platform: [["Low Platform", "Platform"]],
+  ice: []
+};
+var VERIFIED_BRIDGES = {
+  jungle: { ground: "Dirt", water: "Water", channel: 5 },
+  platform: { ground: "Low Platform", water: "Space", channel: 5 }
+};
+function rampPairs(ramps, tileset, types) {
+  const out = [];
+  for (const r of ramps) if (!out.some((p) => p.low === r.low && p.high === r.high)) out.push({ low: r.low, high: r.high });
+  if (!tileset || !types) return out;
+  const verified = VERIFIED_RAMPS[tileset];
+  if (!verified) return out;
+  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
+  return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
+}
+function rampsOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return rampDoodads(doodads, api.terrain.types());
+}
+function rampPairsOf(api) {
+  return rampPairs(rampsOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function bridgeDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const out = [];
+  for (const d of doodads) {
+    if (!/bridge/i.test(d.category) || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    for (const g of d.required) {
+      const t = byGroup.get(g);
+      if (t) {
+        const e = flats.get(t.id) ?? { t, n: 0 };
+        e.n++;
+        flats.set(t.id, e);
+      }
+    }
+    const list2 = [...flats.values()];
+    const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
+    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
+    const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
+    if (!water || !ground) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
+  }
+  return out;
+}
+function bridgePair(bridges, tileset, types) {
+  if (!bridges.length) return null;
+  if (tileset && types) {
+    const v = VERIFIED_BRIDGES[tileset];
+    if (!v) return null;
+    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
+    return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
+  }
+  return { ground: bridges[0].ground, water: bridges[0].water };
+}
+function bridgesOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return bridgeDoodads(doodads, api.terrain.types());
+}
+function bridgePairOf(api) {
+  return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
+  let best = null;
+  let bestD = Infinity;
+  for (const r of candidates) {
+    for (let ty = Math.round(site.y - r.height / 2) - window2.dy; ty <= Math.round(site.y - r.height / 2) + window2.dy; ty++) {
+      for (let tx = Math.round(site.x - r.width / 2) - window2.dx; tx <= Math.round(site.x - r.width / 2) + window2.dx; tx++) {
+        if (tx < 0 || ty < 0) continue;
+        const cx = tx + r.width / 2, cy = ty + r.height / 2;
+        const d = (cx - site.x) ** 2 + (cy - site.y) ** 2;
+        if (d >= bestD) continue;
+        if (!fits(r.id, tx, ty)) continue;
+        best = { doodadId: r.id, tx, ty, name: r.name, width: r.width, height: r.height };
+        bestD = d;
+      }
+    }
+  }
+  return best;
+}
+function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
+  const side = site.direction === "se" ? "se" : "sw";
+  return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
+}
+
+// ai/shapes.ts
+var BRIDGE_CHANNEL = 5;
+var BRIDGE_REACH = 14;
+var RAMP_CUT = 7;
+var DEFAULT_CUT = 2;
+var RAMP_APRON = 22;
+function compileShapes(shapes, ctx) {
+  const { width, height } = ctx;
+  const cells = new Int32Array(width * height).fill(-1);
+  const findings = [];
+  const ramps = [];
+  const bridges = [];
+  const known = new Map(ctx.terrains.map((t) => [t.id, t]));
+  const put = (x, y, id) => {
+    if (x >= 0 && y >= 0 && x < width && y < height) cells[y * width + x] = id;
+  };
+  const terrainOf = (s, what) => {
+    if (typeof s.terrain !== "number" || !known.has(s.terrain)) {
+      findings.push(`${what} names terrain ${s.terrain}, which this tileset lacks; skipped`);
+      return null;
+    }
+    return s.terrain;
+  };
+  shapes.forEach((s, i) => {
+    const what = `shape ${i + 1} (${s.op})`;
+    switch (s.op) {
+      case "ground": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        cells.fill(id);
+        return;
+      }
+      case "rect":
+      case "plateau": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const r = rectOf3(s);
+        if (!r) {
+          findings.push(`${what} has no size; skipped`);
+          return;
+        }
+        const cut = Math.max(0, Math.round(s.cut ?? DEFAULT_CUT));
+        const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
+        const cuts = { nw: cut, ne: cut, sw: sides.includes("sw") ? Math.max(cut, RAMP_CUT) : cut, se: sides.includes("se") ? Math.max(cut, RAMP_CUT) : cut };
+        fillCutRect(r, cuts, (x, y) => put(x, y, id));
+        for (const side of sides) {
+          const pair = pairFor(id, ctx, known);
+          if (!pair) {
+            findings.push(`${what}: this tileset has no ramp for ground of that height; the ${side} corner is cut but no ramp will fit`);
+            continue;
+          }
+          const site = rampSite(r, cuts, side);
+          const edge = rampEdge(r, cuts, side);
+          strokePolyline(edge, RAMP_APRON, (x, y) => {
+            if (x < 0 || y < 0 || x >= width || y >= height) return;
+            put(x, y, insideCutRect(r, cuts, x, y) ? pair.high : pair.low);
+          });
+          ramps.push({ x: site.x, y: site.y, direction: side, low: pair.low, high: pair.high });
+        }
+        return;
+      }
+      case "diamond": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        if (!radii(s)) {
+          findings.push(`${what} has no radii; skipped`);
+          return;
+        }
+        forDiamond(s.cx, s.cy, s.rx, s.ry, (x, y) => put(x, y, id));
+        return;
+      }
+      case "ellipse": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        if (!radii(s)) {
+          findings.push(`${what} has no radii; skipped`);
+          return;
+        }
+        const { cx, cy, rx, ry } = s;
+        for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+          const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
+          if (dx * dx + dy * dy <= 1) put(x, y, id);
+        }
+        return;
+      }
+      case "polygon": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const pts = pointsOf(s);
+        if (pts.length < 3) {
+          findings.push(`${what} needs three points; skipped`);
+          return;
+        }
+        fillPolygon(pts, (x, y) => put(x, y, id));
+        return;
+      }
+      case "stroke":
+      case "lane": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const pts = pointsOf(s);
+        if (pts.length < 2) {
+          findings.push(`${what} needs two points; skipped`);
+          return;
+        }
+        const w = Math.max(1, s.width ?? 4);
+        if (s.op === "lane" && typeof s.wall === "number") {
+          if (!known.has(s.wall)) findings.push(`${what} names wall terrain ${s.wall}, which this tileset lacks; laid without walls`);
+          else {
+            const ww = Math.max(1, s.wallWidth ?? 3);
+            strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall));
+          }
+        }
+        strokePolyline(pts, w, (x, y) => put(x, y, id));
+        return;
+      }
+      case "border": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const t = Math.max(1, Math.round(s.width ?? 2));
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (x < t || y < t || x >= width - t || y >= height - t) put(x, y, id);
+        return;
+      }
+      case "ramp": {
+        if (typeof s.x !== "number" || typeof s.y !== "number") {
+          findings.push(`${what} has no position; skipped`);
+          return;
+        }
+        const side = s.side === "se" ? "se" : "sw";
+        const x = Math.round(s.x), y = Math.round(s.y);
+        const pair = pairAround(cells, width, height, x, y, ctx, known);
+        if (pair) forDiamond(x, y, 8, 4, (px, py) => {
+          if (px < 0 || py < 0 || px >= width || py >= height) return;
+          const here = cells[py * width + px];
+          const h3 = known.get(here)?.height;
+          if (h3 === known.get(pair.high).height) put(px, py, pair.high);
+          else if (h3 === known.get(pair.low).height) put(px, py, pair.low);
+        });
+        else findings.push(`${what}: no cliff between two heights the tileset has a ramp for lies near ${x},${y}; the renderer will look for one`);
+        ramps.push({ x, y, direction: side, ...pair ? { low: pair.low, high: pair.high } : {} });
+        return;
+      }
+      case "bridge": {
+        if (typeof s.x !== "number" || typeof s.y !== "number") {
+          findings.push(`${what} has no position; skipped`);
+          return;
+        }
+        const pair = ctx.bridgePair ?? null;
+        if (!pair) {
+          findings.push(`${what}: this tileset has no bridges; skipped`);
+          return;
+        }
+        const along = s.along === "sw" ? "sw" : "se";
+        const x = Math.round(s.x), y = Math.round(s.y);
+        const d = along === "se" ? [2, 1] : [-2, 1];
+        const line = [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+        const channel = pair.channel ?? BRIDGE_CHANNEL;
+        strokePolyline(line, channel + 2 * 8, (px, py) => put(px, py, pair.ground));
+        strokePolyline(line, channel, (px, py) => put(px, py, pair.water));
+        bridges.push({ x, y, along });
+        return;
+      }
+      default:
+        findings.push(`shape ${i + 1} has an op "${String(s.op)}" the compiler does not know; skipped`);
+    }
+  });
+  return { cells, ramps, bridges, findings };
+}
+function shapesToLayout(plan, ctx) {
+  const compiled = compileShapes(plan.shapes ?? [], ctx);
+  const ids = /* @__PURE__ */ new Map();
+  const legend = {};
+  const charFor = (id) => {
+    let ch = ids.get(id);
+    if (ch === void 0) {
+      ch = LEGEND_CHARS[ids.size] ?? "?";
+      ids.set(id, ch);
+      legend[ch] = id;
+    }
+    return ch;
+  };
+  const rows = [];
+  for (let y = 0; y < ctx.height; y++) {
+    let row = "";
+    for (let x = 0; x < ctx.width; x++) {
+      const id = compiled.cells[y * ctx.width + x];
+      row += id < 0 ? "?" : charFor(id);
+    }
+    rows.push(row);
+  }
+  const doodads = plan.doodads.map((d) => ({ ...d, on: d.on || [...new Set((d.terrains ?? []).filter((id) => ids.has(id)).map((id) => ids.get(id)))].join("") }));
+  const out = {
+    ...plan,
+    cellSize: 1,
+    columns: ctx.width,
+    rows: ctx.height,
+    legend,
+    grid: rows,
+    ramps: [...compiled.ramps, ...plan.ramps],
+    bridges: [...compiled.bridges, ...plan.bridges ?? []],
+    doodads,
+    symmetry: "none"
+  };
+  return { plan: out, findings: compiled.findings };
+}
+function rectOf3(s) {
+  if (typeof s.x !== "number" || typeof s.y !== "number" || typeof s.w !== "number" || typeof s.h !== "number" || s.w <= 0 || s.h <= 0) return null;
+  return { x0: Math.round(s.x), y0: Math.round(s.y), x1: Math.round(s.x + s.w), y1: Math.round(s.y + s.h) };
+}
+function radii(s) {
+  return typeof s.cx === "number" && typeof s.cy === "number" && typeof s.rx === "number" && typeof s.ry === "number" && s.rx > 0 && s.ry > 0;
+}
+function pointsOf(s) {
+  return (s.points ?? []).filter((p) => Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number").map((p) => [p[0], p[1]]);
+}
+function uniqueSides(sides) {
+  const out = [];
+  for (const s of sides) if ((s === "sw" || s === "se") && !out.includes(s)) out.push(s);
+  return out;
+}
+function insideCutRect(r, cuts, x, y) {
+  if (x < r.x0 || y < r.y0 || x >= r.x1 || y >= r.y1) return false;
+  const l = x - r.x0, rt = r.x1 - 1 - x, t = y - r.y0, b = r.y1 - 1 - y;
+  if (l + 2 * t < 2 * cuts.nw - 1) return false;
+  if (rt + 2 * t < 2 * cuts.ne - 1) return false;
+  if (l + 2 * b < 2 * cuts.sw - 1) return false;
+  if (rt + 2 * b < 2 * cuts.se - 1) return false;
+  return true;
+}
+function fillCutRect(r, cuts, put) {
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) if (insideCutRect(r, cuts, x, y)) put(x, y);
+}
+function rampEdge(r, cuts, side) {
+  const c2 = side === "sw" ? cuts.sw : cuts.se;
+  return side === "sw" ? [[r.x0, r.y1 - c2], [r.x0 + 2 * c2, r.y1]] : [[r.x1 - 2 * c2, r.y1], [r.x1, r.y1 - c2]];
+}
+function rampSite(r, cuts, side) {
+  const c2 = side === "sw" ? cuts.sw : cuts.se;
+  return side === "sw" ? { x: r.x0 + c2, y: r.y1 - Math.ceil(c2 / 2) } : { x: r.x1 - 1 - c2, y: r.y1 - Math.ceil(c2 / 2) };
+}
+function forDiamond(cx, cy, rx, ry, put) {
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+    if (Math.abs(x + 0.5 - cx) / rx + Math.abs(y + 0.5 - cy) / ry <= 1) put(x, y);
+  }
+}
+function fillPolygon(pts, put) {
+  const ys = pts.map((p) => p[1]);
+  const y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
+  for (let y = y0; y <= y1; y++) {
+    const cy = y + 0.5;
+    const xs = [];
+    for (let i = 0; i < pts.length; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
+      if (ay === by) continue;
+      if (cy >= Math.min(ay, by) && cy < Math.max(ay, by)) xs.push(ax + (cy - ay) * (bx - ax) / (by - ay));
+    }
+    xs.sort((a2, b) => a2 - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) for (let x = Math.floor(xs[i]); x < Math.ceil(xs[i + 1]); x++) if (x + 0.5 >= xs[i] && x + 0.5 <= xs[i + 1]) put(x, y);
+  }
+}
+function strokePolyline(pts, width, put) {
+  const half = width / 2;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    const x0 = Math.floor(Math.min(ax, bx) - half) - 1, x1 = Math.ceil(Math.max(ax, bx) + half) + 1;
+    const y0 = Math.floor(Math.min(ay, by) - half) - 1, y1 = Math.ceil(Math.max(ay, by) + half) + 1;
+    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+      const dx = px - (ax + t * vx), dy = py - (ay + t * vy);
+      if (dx * dx + dy * dy <= half * half) put(x, y);
+    }
+  }
+}
+function pairFor(terrain, ctx, known) {
+  const h3 = known.get(terrain)?.height;
+  return ctx.rampPairs.find((p) => p.high === terrain) ?? ctx.rampPairs.find((p) => known.get(p.high)?.height === h3) ?? null;
+}
+function pairAround(cells, width, height, x, y, ctx, known) {
+  const heights = /* @__PURE__ */ new Map();
+  for (let dy = -4; dy <= 4; dy++) for (let dx = -8; dx <= 8; dx++) {
+    const px = x + dx, py = y + dy;
+    if (px < 0 || py < 0 || px >= width || py >= height) continue;
+    const h3 = known.get(cells[py * width + px])?.height;
+    if (h3 !== void 0) heights.set(h3, (heights.get(h3) ?? 0) + 1);
+  }
+  const present = [...heights.keys()].sort((a2, b) => a2 - b);
+  for (let i = 0; i + 1 < present.length; i++) {
+    const lo = present[i], hi = present[i + 1];
+    if (hi - lo !== 1) continue;
+    const pair = ctx.rampPairs.find((p) => known.get(p.low)?.height === lo && known.get(p.high)?.height === hi);
+    if (pair) return pair;
+  }
+  return null;
+}
+
 // ai/render.ts
+var DOODAD_MARGIN = 2;
 function planRect(plan, originX, originY, width, height) {
   return {
     x0: Math.max(0, originX),
@@ -2384,8 +2828,16 @@ function renderPlan(api, input, options) {
   if (!info) return null;
   const terrains = api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable }));
   const ctx = { terrains, width: info.width, height: info.height, originX: options.originX, originY: options.originY };
+  const tilesetRamps = rampsOf(api);
+  const tilesetBridges = bridgesOf(api);
+  const findings = [];
+  if ("shapes" in input && input.shapes?.length) {
+    const compiled = shapesToLayout(input, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) });
+    input = compiled.plan;
+    findings.push(...compiled.findings);
+  }
   const checked = checkPlan(input, ctx);
-  const findings = [...checked.problems];
+  findings.push(...checked.problems);
   let plan = checked.plan;
   const symmetry = "symmetry" in checked.plan ? usableSymmetry(checked.plan.symmetry, info.width, info.height) : "none";
   if ("symmetry" in checked.plan) {
@@ -2397,7 +2849,7 @@ function renderPlan(api, input, options) {
   const hasTileset = api.tileset.isLoaded();
   const categories = doodadChoices(api);
   const ramps = [...categories.entries()].filter(([name]) => /ramp/i.test(name)).flatMap(([, list2]) => list2);
-  const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, doodads: 0, units: 0, locations: 0 };
+  const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, bridges: 0, doodads: 0, units: 0, locations: 0 };
   const result = api.document.edit(options.label, (tx) => {
     if (options.clearArea) clearArea(api, tx, area);
     if (!hasTileset) {
@@ -2461,7 +2913,23 @@ function renderPlan(api, input, options) {
       const short = b.layout.short.minerals + b.layout.short.geysers;
       if (refusedHere > 0 || short > 0) findings.push(`${b.kind} base at ${b.hall.x},${b.hall.y}${b.player ? ` (player ${b.player})` : ""}: ${refusedHere > 0 ? `${refusedHere} resource${refusedHere === 1 ? "" : "s"} refused by the terrain there` : ""}${refusedHere > 0 && short > 0 ? ", " : ""}${short > 0 ? `${short} did not fit on the ring` : ""}`);
     }
+    const canCheck = typeof api.query.doodadPlacement === "function" && tilesetRamps.length > 0;
+    let guessed = 0;
     for (const r of plan.ramps) {
+      if (canCheck) {
+        const fit = fitRamp(r, tilesetRamps, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true);
+        if (!fit) {
+          findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: no ramp of this tileset fits the cliff near there (a ramp needs a straight diagonal edge facing south-west or south-east, between ground it has a ramp for)`);
+          continue;
+        }
+        const index2 = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+        if (index2 < 0) findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: ${fit.name} was refused at ${fit.tx},${fit.ty}`);
+        else {
+          placed.ramps++;
+          occupied.push({ x0: fit.tx, y0: fit.ty, x1: fit.tx + fit.width, y1: fit.ty + fit.height });
+        }
+        continue;
+      }
       const choice = chooseRamp(r.direction, r.x, r.y, ramps);
       if (!choice) {
         findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: this tileset has no ramp doodads, so it is left for you to place`);
@@ -2471,10 +2939,28 @@ function renderPlan(api, input, options) {
       if (index < 0) findings.push(`ramp at ${r.x},${r.y} going ${r.direction}: ${choice.name} does not fit there`);
       else {
         placed.ramps++;
+        guessed++;
         occupied.push({ x0: choice.tx, y0: choice.ty, x1: choice.tx + choice.width, y1: choice.ty + choice.height });
       }
     }
-    if (plan.ramps.length > 0 && placed.ramps > 0) findings.push(`${placed.ramps} ramp${placed.ramps === 1 ? "" : "s"} placed by footprint; check their direction against the cliffs`);
+    if (guessed > 0) findings.push(`${guessed} ramp${guessed === 1 ? "" : "s"} placed by footprint; check their direction against the cliffs`);
+    for (const b of plan.bridges ?? []) {
+      if (!canCheck || tilesetBridges.length === 0) {
+        findings.push(`bridge at ${b.x},${b.y}: ${tilesetBridges.length === 0 ? "this tileset has no bridges" : "the editor cannot check doodad placement"}; left for you to place`);
+        continue;
+      }
+      const fit = fitDoodad(b, tilesetBridges, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true, { dx: 14, dy: 10 });
+      if (!fit) {
+        findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel six tiles wide)`);
+        continue;
+      }
+      const index = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+      if (index < 0) findings.push(`bridge at ${b.x},${b.y}: ${fit.name} was refused at ${fit.tx},${fit.ty}`);
+      else {
+        placed.bridges++;
+        occupied.push({ x0: fit.tx, y0: fit.ty, x1: fit.tx + fit.width, y1: fit.ty + fit.height });
+      }
+    }
     for (const u of plan.units) {
       const id = unitIdByName(api, u.unit);
       if (id === null) {
@@ -2496,7 +2982,7 @@ function renderPlan(api, input, options) {
       const hgt = size ? Math.max(1, Math.round(size.height / TILE2)) : 1;
       occupied.push(unitRect(px, py, w, hgt));
     }
-    const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1));
+    const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1), DOODAD_MARGIN);
     findings.push(...scattered.problems);
     for (const d of scattered.placed) if (tx.placeDoodad(d.doodadId, d.tx, d.ty) >= 0) placed.doodads++;
     for (const l of plan.locations) {
@@ -2542,6 +3028,7 @@ function summarizeRender(r) {
   if (p.starts) parts.push(`${p.starts} start location${p.starts === 1 ? "" : "s"}`);
   if (p.resources) parts.push(`${p.resources} resources`);
   if (p.ramps) parts.push(`${p.ramps} ramp${p.ramps === 1 ? "" : "s"}`);
+  if (p.bridges) parts.push(`${p.bridges} bridge${p.bridges === 1 ? "" : "s"}`);
   if (p.doodads) parts.push(`${p.doodads} doodads`);
   if (p.units) parts.push(`${p.units} unit${p.units === 1 ? "" : "s"}`);
   if (p.locations) parts.push(`${p.locations} location${p.locations === 1 ? "" : "s"}`);
@@ -6109,8 +6596,12 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               doodadCategories: doodadCategoryNames(api),
               unitNames: unitNames(api),
               players: Math.max(1, humans.length),
-              symmetry: ["madness", "arena", "diplomacy"].includes(d.genre) ? "auto" : "none",
-              cellSize: cellSizeFor(cur.width, cur.height)
+              symmetry: "none",
+              cellSize: 1,
+              // The shape language: statements the plugin compiles, with the ramps the tileset really has.
+              language: "shapes",
+              rampPairs: rampPairsOf(api),
+              bridgePair: bridgePairOf(api) ?? void 0
             };
             const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
             if (!r) throw new Error(runner.lastError ?? "no plan came back");
