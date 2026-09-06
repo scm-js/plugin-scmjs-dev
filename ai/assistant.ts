@@ -378,7 +378,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
               onToolUse: (id, name) => { setPhase("tools", `${name.replace(/_/g, " ")}…`); pendingRows.set(id, addTool(byName.get(name), `${name}(…)`, true)); },
               onProgress: () => { if (phase === "waiting" || phase === "thinking") tickClock(); },
             }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
-            state.spent = (state.spent ?? 0) + r.usage.costUsd;
+            state.spent = (state.spent ?? 0) + (r.usage.chargedUsd ?? r.usage.costUsd);
             setCost();
             // Kept exactly as returned — thinking blocks included — and sent back unchanged next
             // turn, since the model refuses to continue a tool-using turn without them.

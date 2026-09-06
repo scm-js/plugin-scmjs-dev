@@ -127,7 +127,7 @@ var Ledger = class {
   listeners = /* @__PURE__ */ new Set();
   add(usage) {
     this.totals.calls++;
-    this.totals.costUsd += usage.costUsd;
+    this.totals.costUsd += usage.chargedUsd ?? usage.costUsd;
     this.totals.inputTokens += usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
     this.totals.outputTokens += usage.outputTokens;
     for (const l of this.listeners) l();
@@ -5064,7 +5064,7 @@ function openAssistant(ctx, state) {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
             }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
-            state.spent = (state.spent ?? 0) + r.usage.costUsd;
+            state.spent = (state.spent ?? 0) + (r.usage.chargedUsd ?? r.usage.costUsd);
             setCost();
             const answer = r.output.content;
             state.messages.push({ role: "assistant", content: answer });

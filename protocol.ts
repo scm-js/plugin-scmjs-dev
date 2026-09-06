@@ -123,6 +123,8 @@ export interface Usage {
   cacheWrite1hTokens?: number;
   /** The server's estimate from its price table. */
   costUsd: number;
+  /** What the caller was actually charged, when the server absorbed part of the cost (`cache.absorbWrites`). */
+  chargedUsd?: number;
   /** Wall-clock milliseconds the upstream call took. */
   durationMs: number;
 }
@@ -473,12 +475,14 @@ export interface CallRecord {
   id: number;
   at: string;
   requestId: string;
-  recipe: RecipeName;
+  /** A recipe, or `warmup` for the server's own keep-alive reads (`cache.keepWarm`). */
+  recipe: RecipeName | "warmup";
   conversation: string | null;
   turn: number | null;
   /** 0 for the request's first call; 1 for a repair turn. */
   callIndex: number;
-  callerKind: "anonymous" | "token" | "user" | "byok";
+  /** `server` is the server itself: a keep-alive read on its own key. */
+  callerKind: "anonymous" | "token" | "user" | "byok" | "server";
   callerName: string | null;
   userId: string | null;
   /** The model asked for, and the one that answered (a fallback may have). */

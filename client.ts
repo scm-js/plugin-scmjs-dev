@@ -159,7 +159,7 @@ export class Ledger {
 
   add(usage: Usage) {
     this.totals.calls++;
-    this.totals.costUsd += usage.costUsd;
+    this.totals.costUsd += usage.chargedUsd ?? usage.costUsd;
     this.totals.inputTokens += usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens;
     this.totals.outputTokens += usage.outputTokens;
     for (const l of this.listeners) l();
