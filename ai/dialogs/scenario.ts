@@ -18,10 +18,11 @@
  * calls rather than a long conversation — and what it did is a list, not a transcript.
  */
 import type { TilesetId } from "@scm-js/plugin-api";
-import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlanInput, type UmsDesign, type UmsDesignInput } from "../../protocol";
+import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlan, type MapPlanInput, type UmsDesign, type UmsDesignInput } from "../../protocol";
 import { doodadCategoryNames, terrainVocab, unitNames } from "../facts";
 import { guideFor } from "../guides";
 import { START_LOCATION, TILE, centreOf } from "../layout";
+import { buildPreset, presetSpecs, PresetError } from "../presets";
 import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
 import { hasScriptPlugin, scriptBridge, type CompileResult } from "../script";
@@ -255,6 +256,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           systemKinds: systemKinds(),
           scriptPlugin: hasScriptPlugin(api),
           guide: guideFor(state.prompt)?.text,
+          presets: presetSpecs(),
         };
         designBox.before(runner.el);
         try {
@@ -318,10 +320,34 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const kinds = new Set(systemKinds().map((k) => k.kind));
 
         const steps: Step[] = [];
+        const preset = d.layout?.preset ? d.layout : null;
         steps.push({
-          label: "Terrain and locations",
-          hint: "scmjs.dev plans the layout; this takes a few minutes",
+          label: preset ? `Terrain and locations (${preset.preset} preset)` : "Terrain and locations",
+          hint: preset ? "" : "scmjs.dev plans the layout; this takes a few minutes",
           run: async () => {
+            // A preset lays the terrain out here, in a second; only a layout no preset describes goes to the planner.
+            let plan: MapPlan;
+            if (preset) {
+              try {
+                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans });
+                plan = { ...built.plan, name: d.name, description: d.description };
+                findings.push(...built.notes.map((n) => `${preset.preset}: ${n}`));
+              } catch (err) {
+                if (err instanceof PresetError) throw new Error(err.problems.join("; "));
+                throw err;
+              }
+            } else {
+              plan = await planTerrain();
+            }
+            const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
+            if (!rendered) throw new Error("the plan could not be rendered");
+            findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
+            placeMissingLocations();
+            return summarizeRender(rendered);
+          },
+        });
+        /** The planner's terrain for a layout no preset describes. */
+        const planTerrain = async (): Promise<MapPlan> => {
             const input: MapPlanInput = {
               prompt: layoutPrompt(d), width: cur.width, height: cur.height, tileset: cur.tileset,
               terrains: terrainVocab(api), doodadCategories: doodadCategoryNames(api), unitNames: unitNames(api),
@@ -331,10 +357,10 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             };
             const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
             if (!r) throw new Error(runner.lastError ?? "no plan came back");
-            const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
-            if (!rendered) throw new Error("the plan could not be rendered");
-            findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
-            // A location the design needs that the plan did not make is put at the centre, named, and reported — the systems still build.
+            return r.output;
+        };
+        /** A location the design needs that the plan did not make is put at the centre, named, and reported — the systems still build. */
+        const placeMissingLocations = () => {
             const have = new Set(api.document.scenario()!.locations.map((_, i) => api.names.location(i).toLowerCase()));
             const missing = locationNames.filter((n) => !have.has(n.toLowerCase()));
             if (missing.length) {
@@ -346,9 +372,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
               });
               findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4×4 boxes; move them where they belong`);
             }
-            return summarizeRender(rendered);
-          },
-        });
+        };
         steps.push({
           label: "Players and forces",
           run: async () => {

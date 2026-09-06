@@ -4535,7 +4535,7 @@ var CUR = "Current Player";
 var c = {
   always: () => "Always()",
   deaths: (p, unit, cmp, n2) => `Deaths(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
-  bring: (p, unit, loc, cmp, n2) => `Bring(${q(player(p))}, ${q(unit)}, ${q(loc)}, ${cmp}, ${n2})`,
+  bring: (p, unit, loc2, cmp, n2) => `Bring(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${cmp}, ${n2})`,
   command: (p, unit, cmp, n2) => `Command(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
   kill: (p, unit, cmp, n2) => `Kill(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
   score: (p, score, cmp, n2) => `Score(${q(player(p))}, ${score}, ${cmp}, ${n2})`,
@@ -4548,7 +4548,7 @@ var c = {
 var a = {
   preserve: () => "Preserve Trigger()",
   wait: (ms) => `Wait(${ms})`,
-  create: (p, unit, n2, loc) => `Create Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc)})`,
+  create: (p, unit, n2, loc2) => `Create Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
   setDeaths: (p, unit, mod, n2) => `Set Deaths(${q(player(p))}, ${q(unit)}, ${mod}, ${n2})`,
   setResources: (p, mod, n2, res) => `Set Resources(${q(player(p))}, ${mod}, ${n2}, ${res})`,
   setScore: (p, mod, n2, score) => `Set Score(${q(player(p))}, ${mod}, ${n2}, ${score})`,
@@ -4556,23 +4556,23 @@ var a = {
   objectives: (s) => `Set Mission Objectives(${q(s)})`,
   victory: () => "Victory()",
   defeat: () => "Defeat()",
-  killAt: (p, unit, n2, loc) => `Kill Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc)})`,
-  removeAt: (p, unit, n2, loc) => `Remove Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc)})`,
+  killAt: (p, unit, n2, loc2) => `Kill Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  removeAt: (p, unit, n2, loc2) => `Remove Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
   move: (p, unit, n2, from, to) => `Move Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(from)}, ${q(to)})`,
   order: (p, unit, from, to, order) => `Order(${q(player(p))}, ${q(unit)}, ${q(from)}, ${q(to)}, ${order})`,
-  hp: (p, unit, pct, n2, loc) => `Modify Unit Hit Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc)})`,
-  shields: (p, unit, pct, n2, loc) => `Modify Unit Shield Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc)})`,
+  hp: (p, unit, pct, n2, loc2) => `Modify Unit Hit Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
+  shields: (p, unit, pct, n2, loc2) => `Modify Unit Shield Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
   lbKills: (label, unit) => `Leader Board Kills(${q(label)}, ${q(unit)})`,
   lbControl: (label, unit) => `Leader Board Control(${q(label)}, ${q(unit)})`,
   lbResources: (label, res) => `Leader Board Resources(${q(label)}, ${res})`,
   lbPoints: (label, score) => `Leader Board Points(${q(label)}, ${score})`,
   countdown: (mod, s) => `Set Countdown Timer(${mod}, ${s})`,
   alliance: (p, status) => `Set Alliance Status(${q(player(p))}, ${status})`,
-  give: (from, to, unit, n2, loc) => `Give Units to Player(${q(player(from))}, ${q(player(to))}, ${q(unit)}, ${n2}, ${q(loc)})`,
-  ping: (loc) => `Minimap Ping(${q(loc)})`,
-  center: (loc) => `Center View(${q(loc)})`,
+  give: (from, to, unit, n2, loc2) => `Give Units to Player(${q(player(from))}, ${q(player(to))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  ping: (loc2) => `Minimap Ping(${q(loc2)})`,
+  center: (loc2) => `Center View(${q(loc2)})`,
   setSwitch: (name, action) => `Set Switch(${q(name)}, ${action})`,
-  invincible: (p, unit, loc, state) => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc)}, ${state})`
+  invincible: (p, unit, loc2, state) => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${state})`
 };
 var isTemplate = (value) => /\{p\}/.test(value);
 var fillTemplate = (value, p) => value.replace(/\{p\}/g, String(p));
@@ -4728,14 +4728,14 @@ var KINDS = [
       const counter = dc.take("the spawn timer");
       const triggers = [];
       for (const p of players2) {
-        const loc = fillTemplate(location2, p);
+        const loc2 = fillTemplate(location2, p);
         const attackLoc = fillTemplate(attack, p);
         if (attack) r.location("attack", attackLoc);
         const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
         const conditions = [c.deaths(p, counter, "At least", cycles)];
         if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
-        const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc)];
-        if (attack) actions.push(a.order(owner, unit, loc, attackLoc, "attack"));
+        const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc2)];
+        if (attack) actions.push(a.order(owner, unit, loc2, attackLoc, "attack"));
         actions.push(a.preserve());
         triggers.push(trigger([p], conditions, actions));
         triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
@@ -5257,9 +5257,9 @@ var TRIM_TO = 40;
 var KEEP_IMAGES = 2;
 function trimHistory(messages, keep = KEEP_MESSAGES, to = TRIM_TO) {
   if (messages.length <= keep) return messages;
-  let start = Math.max(0, messages.length - Math.min(to, keep));
-  while (start < messages.length && (messages[start].role !== "user" || messages[start].content.some((c2) => c2.type === "tool_result"))) start++;
-  return pruneImages(messages.slice(start), KEEP_IMAGES);
+  let start2 = Math.max(0, messages.length - Math.min(to, keep));
+  while (start2 < messages.length && (messages[start2].role !== "user" || messages[start2].content.some((c2) => c2.type === "tool_result"))) start2++;
+  return pruneImages(messages.slice(start2), KEEP_IMAGES);
 }
 function pruneImages(messages, keepLast) {
   let seen = 0;
@@ -6294,6 +6294,210 @@ Change this: ${state.refine.trim()}` : state.prompt,
   });
 }
 
+// ai/presets.ts
+var PresetError = class extends Error {
+  problems;
+  constructor(problems) {
+    super(problems.join("; "));
+    this.name = "PresetError";
+    this.problems = problems;
+  }
+};
+var WATER = /water|lava|tar|space|ice$|magma/i;
+var DRESS = /ruins|mud|rocky|crags|moguls|flagstone|shale|asphalt|plating|crushed/i;
+function terrainRoles(ctx) {
+  const t = ctx.terrains;
+  const flats0 = t.filter((x) => x.height === 0 && x.buildable);
+  const ground = t.find((x) => x.height === 0 && x.buildable && /^(dirt|jungle|snow|space|grass|substructure)$/i.test(x.name)) ?? flats0[0] ?? t[0];
+  const water = t.find((x) => x.height === 0 && !x.buildable && WATER.test(x.name)) ?? null;
+  const pair = ctx.rampPairs.find((p) => p.low === ground.id) ?? ctx.rampPairs[0];
+  const high = pair ? pair.high : t.find((x) => x.height > 0 && x.buildable)?.id ?? ground.id;
+  const dress = t.find((x) => x.height === 0 && DRESS.test(x.name))?.id ?? ground.id;
+  return { ground: ground.id, water: water?.id ?? null, high, dress };
+}
+var Reader2 = class {
+  problems = [];
+  params;
+  spec;
+  constructor(params, spec) {
+    this.params = params;
+    this.spec = spec;
+  }
+  raw(name) {
+    const v = this.params[name];
+    return v === void 0 || v.trim() === "" ? void 0 : v.trim();
+  }
+  int(name, fallback, lo, hi) {
+    const v = this.raw(name);
+    if (v === void 0) return fallback;
+    const cleaned = v.replace(/[^0-9.-]/g, "");
+    const n2 = cleaned === "" ? NaN : Number(cleaned);
+    if (!Number.isFinite(n2)) {
+      this.problems.push(`"${name}" should be a number, not "${v}"`);
+      return fallback;
+    }
+    return Math.max(lo, Math.min(hi, Math.round(n2)));
+  }
+  choice(name, options, fallback) {
+    const v = this.raw(name)?.toLowerCase();
+    if (v === void 0) return fallback;
+    const hit = options.find((o) => o.toLowerCase() === v);
+    if (!hit) {
+      this.problems.push(`"${name}" should be one of ${options.join(", ")}, not "${v}"`);
+      return fallback;
+    }
+    return hit;
+  }
+  finish() {
+    for (const k of Object.keys(this.params)) if (!this.spec.params.some((p) => p.name === k)) this.problems.push(`"${k}" is not a parameter of ${this.spec.id}`);
+    if (this.problems.length) throw new PresetError(this.problems.map((p) => `${this.spec.id}: ${p}`));
+  }
+};
+var P2 = (name, description, required = false) => ({ name, description, required });
+var loc = (name, x0, y0, w, h3) => ({ name, x0: Math.round(x0), y0: Math.round(y0), x1: Math.round(x0 + w), y1: Math.round(y0 + h3) });
+var start = (player2, x, y) => ({ unit: "Start Location", player: player2, x: Math.round(x), y: Math.round(y) });
+function campSpots(n2, W, H, size, margin) {
+  const nw = { x: margin, y: margin, south: false, ramp: "se" };
+  const ne = { x: W - margin - size, y: margin, south: false, ramp: "sw" };
+  const sw = { x: margin, y: H - margin - size, south: true, ramp: "se" };
+  const se = { x: W - margin - size, y: H - margin - size, south: true, ramp: "sw" };
+  const edges = [
+    { x: (W - size) / 2, y: margin, south: false, ramp: "se" },
+    { x: (W - size) / 2, y: H - margin - size, south: true, ramp: "sw" },
+    { x: margin, y: (H - size) / 2, south: false, ramp: "se" },
+    { x: W - margin - size, y: (H - size) / 2, south: false, ramp: "sw" }
+  ];
+  const all = n2 === 2 ? [nw, se] : [nw, ne, sw, se, ...edges];
+  return all.slice(0, Math.max(1, Math.min(8, n2)));
+}
+var PRESETS2 = [
+  {
+    spec: {
+      id: "corner-camps",
+      description: "One raised camp per player around the edge of the map (corners first), each with a single ramp down that faces south (the game's ramps go no other way), a road from the ramp to a central arena, and water or open ground between. Madness, hero survival, free-for-all arenas.",
+      params: [
+        P2("camps", "how many camps, 2\u20138 (default: the human players)"),
+        P2("campSize", "a camp's side in tiles (default 28)"),
+        P2("arena", "the arena's width in tiles (default a third of the map)"),
+        P2("between", "what fills the ground between camps and arena: water (default), open, or rocks"),
+        P2("roads", "yes (default) or no: a road of plain ground from each ramp to the arena")
+      ],
+      locations: ["Base {p}", "Spawn {p}", "Beacon {p}", "Arena", "Centre"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const camps = r.int("camps", Math.max(2, Math.min(8, ctx.humans.length || 2)), 2, 8);
+      const size = r.int("campSize", 28, 16, Math.floor(Math.min(W, H) / 3));
+      const arena = r.int("arena", Math.round(Math.min(W, H) / 3), 12, Math.floor(Math.min(W, H) / 2));
+      const between = r.choice("between", ["water", "open", "rocks"], "water");
+      const roads = r.choice("roads", ["yes", "no"], "yes") === "yes";
+      const margin = 3;
+      const fill = between === "water" && roles.water !== null ? roles.water : between === "rocks" ? roles.dress : roles.ground;
+      const cx = W / 2, cy = H / 2;
+      const shapes = [{ op: "ground", terrain: fill }];
+      const locations = [];
+      const units = [];
+      const spots = campSpots(camps, W, H, size, margin);
+      if (roads) for (const s of spots) {
+        const foot = s.ramp === "se" ? [s.x + size - RAMP_CUT - 2, s.y + size + 2] : [s.x + RAMP_CUT + 2, s.y + size + 2];
+        const via = s.south ? [[foot[0], Math.min(H - 6, foot[1] + 8)], [cx + (s.x < cx ? -arena / 2 - 6 : arena / 2 + 6), Math.min(H - 6, foot[1] + 8)]] : [];
+        shapes.push({ op: "stroke", terrain: roles.ground, points: [[foot[0], foot[1]], ...via, [cx, cy]], width: 10 });
+      }
+      shapes.push({ op: "diamond", terrain: roles.ground, cx, cy, rx: arena / 2 + 6, ry: arena / 4 + 3 });
+      shapes.push({ op: "diamond", terrain: roles.dress, cx, cy, rx: arena / 2, ry: arena / 4 });
+      spots.forEach((s, i) => {
+        const p = ctx.humans[i] ?? i + 1;
+        shapes.push({ op: "plateau", terrain: roles.high, x: s.x, y: s.y, w: size, h: size, ramps: [s.ramp] });
+        locations.push(loc(`Base ${p}`, s.x, s.y, size, size));
+        const spawnX = s.ramp === "se" ? s.x + size - RAMP_CUT * 2 - 8 : s.x + RAMP_CUT * 2 + 2;
+        locations.push(loc(`Spawn ${p}`, spawnX, s.y + size - RAMP_CUT - 8, 6, 6));
+        locations.push(loc(`Beacon ${p}`, s.ramp === "se" ? s.x + 3 : s.x + size - 6, s.y + 3, 3, 3));
+        units.push([start(p, s.x + size / 2, s.y + size / 2 - 2)]);
+      });
+      locations.push(loc("Arena", cx - arena / 2, cy - arena / 4, arena, arena / 2));
+      locations.push(loc("Centre", cx - 4, cy - 3, 8, 6));
+      const notes = [`${camps} camp${camps === 1 ? "" : "s"} of ${size}\xD7${size}, ramps facing south as the game's do; the southern camps' roads run around to the arena`];
+      if (between === "water" && roles.water === null) notes.push("this tileset has no water; open ground between the camps instead");
+      return { shapes, locations, units: units.flat(), notes };
+    }
+  },
+  {
+    spec: {
+      id: "lanes",
+      description: "Lanes for a defense: each lane a walkable band from a spawn at the north edge to one goal at the south, walled by water or cliff so the waves stay in it, with a build yard for each player beside the lanes and a hire pad by each yard. Tower defense, marine defense, sunken defense.",
+      params: [
+        P2("lanes", "how many lanes, 1\u20134 (default 2)"),
+        P2("laneWidth", "the lane's width in tiles (default 5)"),
+        P2("wall", "what walls the lanes: water (default) or cliff"),
+        P2("bends", "yes or no (default): a bend in each lane")
+      ],
+      locations: ["Spawn {n}", "Lane {n} Mid", "Goal", "Yard {p}", "Pad {p}"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const lanes = r.int("lanes", 2, 1, 4);
+      const width = r.int("laneWidth", 5, 3, 10);
+      const wall = r.choice("wall", ["water", "cliff"], "water");
+      const bends = r.choice("bends", ["yes", "no"], "no") === "yes";
+      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
+      const shapes = [{ op: "ground", terrain: roles.ground }];
+      const locations = [];
+      const units = [];
+      const goalW = Math.min(W - 8, 12 * lanes + 8);
+      const goalX = W / 2 - goalW / 2, goalY = H - 14;
+      const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
+      laneXs.forEach((lx, i) => {
+        const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : i % 2 ? -1 : 1) * Math.min(14, W / 8);
+        const pts = bends ? [[lx, 4], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]] : [[lx, 4], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]];
+        shapes.push({ op: "lane", terrain: roles.ground, points: pts, width, wall: wallTerrain, wallWidth: 3 });
+        locations.push(loc(`Spawn ${i + 1}`, lx - 4, 2, 8, 8));
+        locations.push(loc(`Lane ${i + 1} Mid`, (bends ? bendX : lx) - width, H / 2 - 4, width * 2, 8));
+      });
+      shapes.push({ op: "rect", terrain: roles.dress, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
+      locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
+      const strips = [];
+      for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));
+      ctx.humans.forEach((p, i) => {
+        const sx = strips[i % strips.length], sy = 16 + Math.floor(i / strips.length) * 30;
+        const yw = 14, yh = 12;
+        locations.push(loc(`Yard ${p}`, sx - yw / 2, sy, yw, yh));
+        locations.push(loc(`Pad ${p}`, sx - 2, sy + yh + 2, 4, 3));
+        units.push(start(p, sx, sy + yh / 2));
+      });
+      return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
+    }
+  }
+];
+function presetSpecs() {
+  return PRESETS2.map((p) => p.spec);
+}
+function buildPreset(id, params, ctx) {
+  const preset = PRESETS2.find((p) => p.spec.id === id);
+  if (!preset) throw new PresetError([`no layout preset called "${id}" (the plugin has ${PRESETS2.map((p) => p.spec.id).join(", ")})`]);
+  const r = new Reader2(params, preset.spec);
+  const roles = terrainRoles(ctx);
+  const out = preset.build(r, ctx, roles);
+  r.finish();
+  const plan = {
+    name: "",
+    description: "",
+    symmetry: "none",
+    cellSize: 1,
+    columns: ctx.width,
+    rows: ctx.height,
+    legend: {},
+    grid: [],
+    shapes: out.shapes,
+    bases: [],
+    ramps: [],
+    doodads: [],
+    units: out.units,
+    locations: out.locations,
+    notes: out.notes
+  };
+  return { plan, notes: out.notes };
+}
+
 // ai/dialogs/scenario.ts
 var SIZES2 = [64, 96, 128, 160, 192, 256];
 var TILESETS2 = [
@@ -6545,7 +6749,8 @@ Change this: ${state.refine.trim()}` : state.prompt;
           unitNames: unitNames(api),
           systemKinds: systemKinds(),
           scriptPlugin: hasScriptPlugin(api),
-          guide: guideFor(state.prompt)?.text
+          guide: guideFor(state.prompt)?.text,
+          presets: presetSpecs()
         };
         designBox.before(runner.el);
         try {
@@ -6608,45 +6813,65 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const locationNames2 = d.locations.map((l) => l.name);
         const kinds = new Set(systemKinds().map((k) => k.kind));
         const steps = [];
+        const preset = d.layout?.preset ? d.layout : null;
         steps.push({
-          label: "Terrain and locations",
-          hint: "scmjs.dev plans the layout; this takes a few minutes",
+          label: preset ? `Terrain and locations (${preset.preset} preset)` : "Terrain and locations",
+          hint: preset ? "" : "scmjs.dev plans the layout; this takes a few minutes",
           run: async () => {
-            const input = {
-              prompt: layoutPrompt(d),
-              width: cur.width,
-              height: cur.height,
-              tileset: cur.tileset,
-              terrains: terrainVocab(api),
-              doodadCategories: doodadCategoryNames(api),
-              unitNames: unitNames(api),
-              players: Math.max(1, humans.length),
-              symmetry: "none",
-              cellSize: 1,
-              // The shape language: statements the plugin compiles, with the ramps the tileset really has.
-              language: "shapes",
-              rampPairs: rampPairsOf(api),
-              bridgePair: bridgePairOf(api) ?? void 0
-            };
-            const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
-            if (!r) throw new Error(runner.lastError ?? "no plan came back");
-            const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
+            let plan;
+            if (preset) {
+              try {
+                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans });
+                plan = { ...built.plan, name: d.name, description: d.description };
+                findings.push(...built.notes.map((n2) => `${preset.preset}: ${n2}`));
+              } catch (err) {
+                if (err instanceof PresetError) throw new Error(err.problems.join("; "));
+                throw err;
+              }
+            } else {
+              plan = await planTerrain();
+            }
+            const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
-            const have = new Set(api.document.scenario().locations.map((_, i) => api.names.location(i).toLowerCase()));
-            const missing = locationNames2.filter((n2) => !have.has(n2.toLowerCase()));
-            if (missing.length) {
-              api.document.edit("AI: missing locations", (tx) => {
-                missing.forEach((name, i) => {
-                  const cx = Math.floor(cur.width / 2) + i % 4 * 5 - 8, cy = Math.floor(cur.height / 2) + Math.floor(i / 4) * 5 - 8;
-                  tx.addLocation({ left: cx * TILE2, top: cy * TILE2, right: (cx + 4) * TILE2, bottom: (cy + 4) * TILE2 }, name);
-                });
-              });
-              findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4\xD74 boxes; move them where they belong`);
-            }
+            placeMissingLocations();
             return summarizeRender(rendered);
           }
         });
+        const planTerrain = async () => {
+          const input = {
+            prompt: layoutPrompt(d),
+            width: cur.width,
+            height: cur.height,
+            tileset: cur.tileset,
+            terrains: terrainVocab(api),
+            doodadCategories: doodadCategoryNames(api),
+            unitNames: unitNames(api),
+            players: Math.max(1, humans.length),
+            symmetry: "none",
+            cellSize: 1,
+            // The shape language: statements the plugin compiles, with the ramps the tileset really has.
+            language: "shapes",
+            rampPairs: rampPairsOf(api),
+            bridgePair: bridgePairOf(api) ?? void 0
+          };
+          const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
+          if (!r) throw new Error(runner.lastError ?? "no plan came back");
+          return r.output;
+        };
+        const placeMissingLocations = () => {
+          const have = new Set(api.document.scenario().locations.map((_, i) => api.names.location(i).toLowerCase()));
+          const missing = locationNames2.filter((n2) => !have.has(n2.toLowerCase()));
+          if (missing.length) {
+            api.document.edit("AI: missing locations", (tx) => {
+              missing.forEach((name, i) => {
+                const cx = Math.floor(cur.width / 2) + i % 4 * 5 - 8, cy = Math.floor(cur.height / 2) + Math.floor(i / 4) * 5 - 8;
+                tx.addLocation({ left: cx * TILE2, top: cy * TILE2, right: (cx + 4) * TILE2, bottom: (cy + 4) * TILE2 }, name);
+              });
+            });
+            findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4\xD74 boxes; move them where they belong`);
+          }
+        };
         steps.push({
           label: "Players and forces",
           run: async () => {
@@ -6674,8 +6899,8 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               api.document.edit("AI: start locations", (tx) => {
                 missing.forEach((p, i) => {
                   const named = scn.locations.findIndex((l, li) => new RegExp(`\\b(start|spawn|base|home)\\s*${p}\\b`, "i").test(api.names.location(li)) && l.left !== l.right);
-                  const loc = named >= 0 ? scn.locations[named] : null;
-                  const c2 = loc ? centreOf({ x: Math.floor(Math.min(loc.left, loc.right) / TILE2), y: Math.floor(Math.min(loc.top, loc.bottom) / TILE2), w: Math.max(1, Math.round(Math.abs(loc.right - loc.left) / TILE2)), h: Math.max(1, Math.round(Math.abs(loc.bottom - loc.top) / TILE2)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE2, y: Math.floor(cur.height / 2) * TILE2 };
+                  const loc2 = named >= 0 ? scn.locations[named] : null;
+                  const c2 = loc2 ? centreOf({ x: Math.floor(Math.min(loc2.left, loc2.right) / TILE2), y: Math.floor(Math.min(loc2.top, loc2.bottom) / TILE2), w: Math.max(1, Math.round(Math.abs(loc2.right - loc2.left) / TILE2)), h: Math.max(1, Math.round(Math.abs(loc2.bottom - loc2.top) / TILE2)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE2, y: Math.floor(cur.height / 2) * TILE2 };
                   tx.placeUnit(START_LOCATION, p - 1, c2.x, c2.y);
                 });
               });
@@ -6827,7 +7052,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
 }
 
 // ai/dialogs/strings.ts
-var PRESETS2 = [
+var PRESETS3 = [
   { label: "Translate to\u2026", text: "Translate every string to " },
   { label: "Fix spelling and grammar", text: "Fix spelling, grammar and punctuation; change nothing else." },
   { label: "Shorten", text: "Shorten each string as much as it can bear without losing its meaning." },
@@ -6924,7 +7149,7 @@ function openStrings(ctx) {
         w.group(
           "Instruction",
           instruction,
-          h("div", { className: "ai-chips" }, ...PRESETS2.map((p) => h("button", { type: "button", className: "ai-chip", onClick: () => {
+          h("div", { className: "ai-chips" }, ...PRESETS3.map((p) => h("button", { type: "button", className: "ai-chip", onClick: () => {
             instruction.value = p.text;
             instruction.focus();
           } }, p.label))),

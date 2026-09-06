@@ -670,6 +670,28 @@ export interface UmsDesignInput {
   scriptPlugin: boolean;
   /** The genre guide the plugin picked for the prompt, when it has one. */
   guide?: string;
+  /** The layouts the plugin can lay out by itself; the design picks one when it fits, else the planner writes the terrain. */
+  presets?: LayoutPresetSpec[];
+}
+
+/**
+ * A layout the plugin lays out itself from a few numbers — the terrain of a family of
+ * scenarios (corner camps around an arena, lanes from spawns to a goal) as a stored
+ * shape program, so a design that fits one needs no terrain call at all. Sent with the
+ * design request like the toolkit's kinds; the design names one in `layout`.
+ */
+export interface LayoutPresetSpec {
+  id: string;
+  description: string;
+  params: { name: string; description: string; required: boolean }[];
+  /** The locations the preset makes, with `{p}` for a player number and `{n}` for a lane number. */
+  locations: string[];
+}
+
+/** The design's choice of preset and its parameters, or none for a layout the planner must write. */
+export interface DesignLayout {
+  preset: string;
+  params: { key: string; value: string }[];
 }
 
 export interface DesignPlayer {
@@ -714,6 +736,8 @@ export interface UmsDesign {
   forces: DesignForce[];
   /** The prompt handed to `map-plan`: the terrain, and every location and unit the systems need, by name. */
   layoutBrief: string;
+  /** A preset the plugin lays out from the parameters, when one fits; absent means the planner writes the terrain from the brief. */
+  layout?: DesignLayout;
   /** The locations the brief must produce, with what each is for. */
   locations: { name: string; purpose: string }[];
   systems: DesignSystem[];
