@@ -3196,6 +3196,9 @@ var Runner = class {
   startedAt = 0;
   label = "";
   thought = "";
+  written = 0;
+  tail = "";
+  lastNamed = "";
   controller = null;
   ctx;
   /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
@@ -3226,6 +3229,9 @@ var Runner = class {
     this.startedAt = Date.now();
     this.label = label;
     this.thought = "";
+    this.written = 0;
+    this.tail = "";
+    this.lastNamed = "";
     this.lastError = null;
     this.status.cancel(() => this.abort(), "Stop");
     clear(this.thinkingBody);
@@ -3258,6 +3264,20 @@ var Runner = class {
       this.latest.hidden = false;
       this.latest.scrollTop = this.latest.scrollHeight;
     }
+  }
+  /**
+   * A piece of the answer itself. A design or a plan is JSON the dialog cannot use until
+   * it is whole, but its size and the last thing named in it ("Zergling tide") say what
+   * the model is writing — and when it reasons without a summary, this is all there is.
+   */
+  addDelta(text) {
+    this.written += text.length;
+    this.tail = (this.tail + text).slice(-600);
+    const names = [...this.tail.matchAll(/"name"\s*:\s*"((?:[^"\\]|\\.)+)"/g)];
+    const last = names.length ? names[names.length - 1][1] : this.lastNamed;
+    this.lastNamed = last;
+    this.latest.textContent = `Writing the answer\u2026 ${this.written >= 1e3 ? `${(this.written / 1e3).toFixed(1)}k` : this.written} characters${last ? ` \xB7 ${last}` : ""}`;
+    this.latest.hidden = false;
   }
   settle() {
     if (this.timer !== null) {
@@ -3322,6 +3342,10 @@ async function runRecipe(ctx, runner, name, input, hooks = {}) {
       onThinking: (t) => {
         runner.addThinking(t);
         hooks.onThinking?.(t);
+      },
+      onDelta: (t) => {
+        runner.addDelta(t);
+        hooks.onDelta?.(t);
       },
       signal: runner.signal
     }, options);

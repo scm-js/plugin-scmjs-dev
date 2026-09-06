@@ -181,6 +181,9 @@ export class Runner {
   private startedAt = 0;
   private label = "";
   private thought = "";
+  private written = 0;
+  private tail = "";
+  private lastNamed = "";
   private controller: AbortController | null = null;
   private readonly ctx: Ctx;
   /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
@@ -208,6 +211,9 @@ export class Runner {
     this.startedAt = Date.now();
     this.label = label;
     this.thought = "";
+    this.written = 0;
+    this.tail = "";
+    this.lastNamed = "";
     this.lastError = null;
     // "Stop", not Cancel: Cancel in a dialog means leaving it, and this leaves the dialog where it is.
     this.status.cancel(() => this.abort(), "Stop");
@@ -240,6 +246,22 @@ export class Runner {
     const paragraphs = this.thought.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
     const current = paragraphs[paragraphs.length - 1] ?? "";
     if (current) { this.latest.textContent = current; this.latest.hidden = false; this.latest.scrollTop = this.latest.scrollHeight; }
+  }
+
+  /**
+   * A piece of the answer itself. A design or a plan is JSON the dialog cannot use until
+   * it is whole, but its size and the last thing named in it ("Zergling tide") say what
+   * the model is writing — and when it reasons without a summary, this is all there is.
+   */
+  addDelta(text: string) {
+    this.written += text.length;
+    this.tail = (this.tail + text).slice(-600);
+    const names = [...this.tail.matchAll(/"name"\s*:\s*"((?:[^"\\]|\\.)+)"/g)];
+    const last = names.length ? names[names.length - 1][1] : this.lastNamed;
+    this.lastNamed = last;
+    // The reasoning line stays while the model is still reasoning; once the answer flows it takes the line over.
+    this.latest.textContent = `Writing the answer… ${this.written >= 1000 ? `${(this.written / 1000).toFixed(1)}k` : this.written} characters${last ? ` · ${last}` : ""}`;
+    this.latest.hidden = false;
   }
 
   private settle() {
@@ -316,6 +338,7 @@ export async function runRecipe<N extends RecipeName>(ctx: Ctx, runner: Runner, 
     const r = await ctx.client.run(name, input, {
       ...rest,
       onThinking: (t) => { runner.addThinking(t); hooks.onThinking?.(t); },
+      onDelta: (t) => { runner.addDelta(t); hooks.onDelta?.(t); },
       signal: runner.signal,
     }, options);
     runner.finish(r.usage);
