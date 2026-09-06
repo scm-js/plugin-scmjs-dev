@@ -1003,12 +1003,15 @@ export interface AgentInput {
   /** Facts about the open map, refreshed every turn. */
   facts: MapFacts;
   /**
-   * The reference the plugin built for this map — the tileset's terrains, the unit table
-   * with sizes and costs, the trigger vocabulary, the text format, the editor's
-   * conventions. Stable from turn to turn (the server caches it as part of the prompt),
-   * so send the same text until the map or the tileset changes.
+   * The reference the plugin built — the editor's conventions, the unit table, the
+   * trigger vocabulary, the tileset's terrains, the map's own names. Stable from turn to
+   * turn (the server caches it as part of the prompt), so send the same text until the
+   * map or the tileset changes. As a list, each entry is its own cached block, in order
+   * from the most widely shared to the most specific: what is the same for every map
+   * first (cached once for everyone), then the tileset's, then this map's, so a change
+   * to the map rewrites only the last. Up to three entries.
    */
-  reference?: string;
+  reference?: string | string[];
 }
 
 export interface AgentOutput {

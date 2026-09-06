@@ -1162,7 +1162,8 @@ function gatherReference(api) {
     const d = t.defaults ?? t;
     units.push({
       id: t.id,
-      name: t.customName ? `${t.name} [${api.names.unit(t.id)}]` : t.name,
+      name: t.name,
+      ...t.customName ? { customName: api.names.unit(t.id) } : {},
       race: races[String(api.data.race(t.id)).toLowerCase()] ?? "-",
       width: size.width,
       height: size.height,
@@ -1178,12 +1179,16 @@ function gatherReference(api) {
     });
   }
   const sig = (name, args) => ({ name, args: args.map((a2) => ({ label: a2.label, kind: a2.kind })) });
+  const starts = new Set(api.query.startLocations().map((s) => s.owner));
+  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
   return {
     mapName: info?.name ?? "",
+    description: info?.description ?? "",
     width: info?.width ?? 0,
     height: info?.height ?? 0,
     tileset: api.tileset.name(),
     versionLabel: api.settings.version()?.label ?? "",
+    players: players2,
     terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
     doodadCategories: api.palette.doodadCategories().map((c2) => ({ name: c2.name, doodads: c2.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
     units,
@@ -1218,30 +1223,24 @@ while (true) {                       // structured code compiles to death-counte
   if (wave >= 10) Defeat();
   Wait(2000);
 }`;
-function buildReference(p) {
+function buildReferenceLayers(p) {
+  return [gameLayer(p), tilesetLayer(p), mapLayer(p)];
+}
+function gameLayer(p) {
   const out = [];
-  out.push(`# Reference for "${p.mapName || "this map"}" \u2014 ${p.width} \xD7 ${p.height} tiles, tileset ${p.tileset}, ${p.versionLabel}`);
+  out.push("# Reference: the editor and the game");
   out.push("");
   out.push("## Conventions");
   out.push("- Tools take tile coordinates (x right, y down, 0-based) and tile rects x0,y0 inclusive to x1,y1 exclusive. A unit's position is its centre.");
   out.push(`- Players in tools are 1\u20138; 12 is Neutral (resources, critters). Settings tools also take "default" for a table's default column.`);
-  out.push("- Names are the editor's: units and terrains as listed below, locations and switches as the map names them. Ids are accepted where names are.");
+  out.push("- Names are the editor's: units and terrains as listed, locations and switches as the map names them. Ids are accepted where names are.");
   out.push("- Every writing tool is one undo step (settings changes are transactions outside undo). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
+  out.push('- The reference tool has the long tables this block leaves out: unit stats, costs and weapons (part "units"); every doodad by category ("doodads"); every trigger condition, action and briefing action with its arguments and their values, and the AI scripts ("triggers"). Read "triggers" before writing triggers you have not written in this conversation.');
   out.push("");
-  out.push("## Terrains of this tileset (paint_terrain ids; height 0 low, 1 mid, 2 high)");
-  for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
-  out.push("");
-  out.push("## Doodads (place_doodads takes a name or id; scatter_doodads takes a category)");
-  for (const c2 of p.doodadCategories) {
-    const names = c2.doodads.slice(0, 60).map((d) => `${d.name} ${d.width}\xD7${d.height}`);
-    out.push(`- ${c2.name} (${c2.doodads.length}): ${names.join(", ")}${c2.doodads.length > 60 ? ", \u2026" : ""}`);
-  }
-  if (p.sprites.length) out.push(`- Pure sprites (place_sprites kind "pure"): ${p.sprites.map((g) => `${g.label} (${g.count})`).join(", ")}`);
-  out.push("");
-  out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
+  out.push(`## Units (id: name | race | size in tiles | kind). Stats, costs and weapons: reference "units"; unit_type shows the map's own values.`);
   for (const u of p.units) {
     const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
-    out.push(`${u.id}: ${u.name} | ${u.race} | ${u.width}\xD7${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
+    out.push(`${u.id}: ${u.name} | ${u.race} | ${u.width}\xD7${u.height} | ${kind}`);
   }
   out.push("");
   out.push("## Upgrades (set_upgrade)");
@@ -1250,47 +1249,104 @@ function buildReference(p) {
   out.push("## Technologies (set_tech)");
   out.push(p.techs.map((t) => `${t.id} ${t.name}`).join("; "));
   out.push("");
-  out.push("## Trigger conditions (name(argument: kind, \u2026))");
-  for (const c2 of p.conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
-  out.push("");
-  out.push("## Trigger actions");
-  for (const a2 of p.actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-  out.push("");
-  out.push("## Briefing actions");
-  for (const a2 of p.briefingActions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-  out.push("");
-  out.push("## Argument values by kind");
-  for (const c2 of p.choices) if (c2.labels.length) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
-  out.push("- unit: a unit name from the table above, or the groups Any unit, Men, Buildings, Factories");
-  out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
-  if (p.aiScripts.length) {
-    out.push("");
-    out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`);
-  }
+  out.push(`## Trigger conditions: ${p.conditions.map((c2) => c2.name).join("; ")}`);
+  out.push(`## Trigger actions: ${p.actions.map((a2) => a2.name).join("; ")}`);
+  out.push(`## Briefing actions: ${p.briefingActions.map((a2) => a2.name).join("; ")}`);
   out.push("");
   out.push("## Text trigger format (list_triggers_text, add_triggers_text, replace_trigger)");
-  out.push("One Trigger block per trigger: the players it runs for in the header, conditions and actions one per line ending in a semicolon, names in double quotes, enumerated values bare. A leading `;` disables a line. Example:");
+  out.push('One Trigger block per trigger: the players it runs for in the header, conditions and actions one per line ending in a semicolon, names in double quotes, enumerated values bare (their spellings are in reference "triggers"). A leading `;` disables a line. Example:');
   out.push("```");
   out.push(TEXT_FORMAT);
   out.push("```");
   out.push("");
   out.push("## Trigger script (compile_script, build_script)");
-  out.push(`A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals. ${p.hasScript ? "This map already has a script: build_script replaces its block, so send the whole script back with your changes." : "This map has no script yet."}`);
+  out.push("A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals.");
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");
   return out.join("\n");
 }
+function tilesetLayer(p) {
+  const out = [];
+  out.push(`# Reference: the ${p.tileset} tileset`);
+  out.push("");
+  out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
+  for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
+  out.push("");
+  out.push('## Doodad categories (scatter_doodads takes a category; place_doodads a name or id \u2014 the names are in reference "doodads")');
+  out.push(p.doodadCategories.map((c2) => `${c2.name} (${c2.doodads.length})`).join("; "));
+  if (p.sprites.length) out.push(`- Pure sprites (place_sprites kind "pure"): ${p.sprites.map((g) => `${g.label} (${g.count})`).join(", ")}`);
+  return out.join("\n");
+}
+function mapLayer(p) {
+  const out = [];
+  out.push(`# Reference: "${p.mapName || "this map"}" \u2014 ${p.width} \xD7 ${p.height} tiles, tileset ${p.tileset}, ${p.versionLabel}`);
+  out.push(`Description: ${p.description || "(none)"}`);
+  out.push(`Players (${p.players.length}):`);
+  for (const line of p.players) out.push(`  ${line}`);
+  const renamed = p.units.filter((u) => u.customName);
+  if (renamed.length) {
+    out.push("Units this map renames (use either name):");
+    for (const u of renamed) out.push(`  ${u.id}: ${u.name} is called "${u.customName}"`);
+  }
+  out.push(p.hasScript ? "This map has a trigger script: build_script replaces its block, so send the whole script back with your changes." : "This map has no trigger script yet.");
+  return out.join("\n");
+}
+var REFERENCE_PARTS = ["units", "doodads", "triggers"];
+function buildReferenceDetail(p, part) {
+  const out = [];
+  switch (part) {
+    case "units":
+      out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
+      for (const u of p.units) {
+        const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
+        out.push(`${u.id}: ${u.name}${u.customName ? ` ("${u.customName}" here)` : ""} | ${u.race} | ${u.width}\xD7${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
+      }
+      break;
+    case "doodads":
+      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)`);
+      for (const c2 of p.doodadCategories) out.push(`- ${c2.name} (${c2.doodads.length}): ${c2.doodads.map((d) => `${d.name} [${d.id}] ${d.width}\xD7${d.height}`).join(", ")}`);
+      break;
+    case "triggers":
+      out.push("## Trigger conditions (name(argument: kind, \u2026))");
+      for (const c2 of p.conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Trigger actions");
+      for (const a2 of p.actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Briefing actions");
+      for (const a2 of p.briefingActions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Argument values by kind");
+      for (const c2 of p.choices) if (c2.labels.length) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
+      out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
+      out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
+      if (p.aiScripts.length) {
+        out.push("");
+        out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`);
+      }
+      break;
+  }
+  return out.join("\n");
+}
 var cache = /* @__PURE__ */ new WeakMap();
-function referenceFor(api) {
+function cached(api) {
   const scn = api.document.scenario();
   if (!scn) return void 0;
   const tileset = api.tileset.name();
   const hit = cache.get(scn);
-  if (hit && hit.tileset === tileset) return hit.text;
-  const text = buildReference(gatherReference(api));
-  cache.set(scn, { tileset, text });
-  return text;
+  if (hit && hit.tileset === tileset) return hit;
+  const parts = gatherReference(api);
+  const entry = { tileset, parts, layers: buildReferenceLayers(parts) };
+  cache.set(scn, entry);
+  return entry;
+}
+function referenceFor(api) {
+  return cached(api)?.layers;
+}
+function referenceDetailFor(api, part) {
+  const c2 = cached(api);
+  return c2 ? buildReferenceDetail(c2.parts, part) : void 0;
 }
 
 // ai/tools/common.ts
@@ -2848,6 +2904,15 @@ async function openRegion(ctx, preset) {
 // ai/tools/read.ts
 function readTools() {
   return [
+    {
+      def: { name: "reference", description: 'The long tables the reference block leaves out. part "units": every unit type with hit points, shields, armour, costs, build time and weapons. "doodads": every doodad of this tileset by category, with ids and sizes. "triggers": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, \u2026) and the AI scripts. Read "triggers" once before writing triggers.', inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] } }, ["part"]) },
+      writes: false,
+      run: (input, { api }) => {
+        const part = str(input.part);
+        if (!REFERENCE_PARTS.includes(part)) return `part must be one of ${REFERENCE_PARTS.join(", ")}.`;
+        return capResult(referenceDetailFor(api, part) ?? "No map is open.", 8e4);
+      }
+    },
     {
       def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, the players (type, race, colour, force, start location) and the forces, whether it has a trigger script.", inputSchema: obj({}) },
       writes: false,

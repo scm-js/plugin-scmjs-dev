@@ -2,11 +2,21 @@
 import { sampleGrid } from "../grid";
 import { scriptBridge } from "../script";
 import { imageInput } from "../facts";
+import { REFERENCE_PARTS, referenceDetailFor } from "../reference";
 import { terrainAtTile } from "../dialogs/region";
 import { byName, capResult, hasRect, num, obj, ownerName, ownerOf, plural, rectOf, rectSchema, str, TILE, unitIdByName, type Tool } from "./common";
 
 export function readTools(): Tool[] {
   return [
+    {
+      def: { name: "reference", description: "The long tables the reference block leaves out. part \"units\": every unit type with hit points, shields, armour, costs, build time and weapons. \"doodads\": every doodad of this tileset by category, with ids and sizes. \"triggers\": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, …) and the AI scripts. Read \"triggers\" once before writing triggers.", inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] } }, ["part"]) },
+      writes: false,
+      run: (input, { api }) => {
+        const part = str(input.part) as (typeof REFERENCE_PARTS)[number];
+        if (!REFERENCE_PARTS.includes(part)) return `part must be one of ${REFERENCE_PARTS.join(", ")}.`;
+        return capResult(referenceDetailFor(api, part) ?? "No map is open.", 80_000);
+      },
+    },
     {
       def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, the players (type, race, colour, force, start location) and the forces, whether it has a trigger script.", inputSchema: obj({}) },
       writes: false,

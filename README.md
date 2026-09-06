@@ -152,12 +152,16 @@ step, and a settings change is a transaction outside undo, as in StarEdit, marke
 the row. After a turn that changed the map the panel says what changed and offers to
 undo that turn's edits in one press.
 
-With every message the model gets the map's current state — the players, counts,
-locations, what you have selected or marked, where the view is, the top of the undo stack
-— and, once per map, a reference block: the tileset's terrains, the doodads, the unit
-table with sizes, costs and weapons, the trigger vocabulary with every argument's values,
-the text trigger format and the script language. The server caches it, so the second
-message costs little more than the words you typed. Right-click on the map and choose
+With every message the model gets the map's current state — counts, locations, what you
+have selected or marked, where the view is, the top of the undo stack — and a reference in
+three parts that the server keeps in its prompt cache: what every map shares (the editor's
+conventions, the unit table, the trigger vocabulary, the text format and the script
+language), the tileset's terrains and doodad categories, and this map's own names,
+players and description. The first two are the same for everyone, so they are cached once
+for the whole server; only the last is rewritten when the map changes, and the second
+message of a chat costs little more than the words you typed. The long tables — unit
+stats and weapons, every doodad, every trigger argument and its values — are behind a
+tool the model reads when a task needs them. Right-click on the map and choose
 *Ask AI about this…* to start a message about the spot, the marked area or the selection.
 The picture tick sends a screenshot of the visible area with the message. Each message also
 carries an id for the chat and its turn number, so the server's log can tell one chat's
