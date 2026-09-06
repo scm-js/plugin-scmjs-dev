@@ -97,6 +97,14 @@ export interface RecipeOptions {
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   /** Ask for the model's reasoning summary in `thinking` events. */
   thinking?: boolean;
+  /**
+   * An id the caller makes for a conversation and keeps for its life (the assistant's
+   * chat, until it is cleared), and how many requests it has made in it. Only the
+   * server's call log reads them: they let one chat's calls be followed and its cache
+   * behaviour explained. Up to 64 characters.
+   */
+  conversation?: string;
+  turn?: number;
 }
 
 export interface RecipeRequest<N extends RecipeName = RecipeName> {
@@ -111,6 +119,8 @@ export interface Usage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  /** The part of the writes that went on the one-hour cache, when any did. */
+  cacheWrite1hTokens?: number;
   /** The server's estimate from its price table. */
   costUsd: number;
   /** Wall-clock milliseconds the upstream call took. */
@@ -454,6 +464,90 @@ export interface AdminLedgerList {
   entries: AdminLedgerEntry[];
   /** The last row's id, for `before`. */
   next?: number;
+}
+
+/* ── The call log (`GET /v1/admin/calls…`) ──────────────── */
+
+/** One upstream call, as the server logged it. */
+export interface CallRecord {
+  id: number;
+  at: string;
+  requestId: string;
+  recipe: RecipeName;
+  conversation: string | null;
+  turn: number | null;
+  /** 0 for the request's first call; 1 for a repair turn. */
+  callIndex: number;
+  callerKind: "anonymous" | "token" | "user" | "byok";
+  callerName: string | null;
+  userId: string | null;
+  /** The model asked for, and the one that answered (a fallback may have). */
+  model: string;
+  servedModel: string;
+  effort: string;
+  thinking: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  cacheWrite5mTokens: number;
+  cacheWrite1hTokens: number;
+  costUsd: number;
+  durationMs: number;
+  stopReason: string | null;
+  refusal: string | null;
+  /** Anthropic's reason the cache missed, when diagnostics were on: `messages_changed`, `system_changed`, `tools_changed`, `model_changed`, `previous_message_not_found`, `unavailable`. */
+  cacheMiss: string | null;
+  cacheMissTokens: number | null;
+  messageCount: number;
+  systemChars: number;
+  referenceChars: number;
+  imageBytes: number;
+  toolCount: number;
+  toolUses: string[];
+  messageId: string | null;
+  ok: boolean;
+  error: string | null;
+  /** The request and answer, for callers in `logging.promptsFor`; asked for with `?prompt=1`. */
+  prompt?: unknown;
+}
+
+/** `GET /v1/admin/calls?since=&recipe=&conversation=&user=&limit=&before=&prompt=` — newest first. */
+export interface AdminCallList {
+  calls: CallRecord[];
+  /** The last row's id, for `before`. */
+  next?: number;
+}
+
+/** One line of the summary: a recipe, a model, a day, or the whole. */
+export interface CallStats {
+  key: string;
+  calls: number;
+  requests: number;
+  conversations: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWrite5mTokens: number;
+  cacheWrite1hTokens: number;
+  /** Cache reads over all input the cache could have covered: reads / (reads + writes + uncached). */
+  cacheHitRate: number;
+  avgDurationMs: number;
+  refusals: number;
+  errors: number;
+  /** Calls that were the start of a conversation, or whose previous message was not found. */
+  cacheMisses: Record<string, number>;
+}
+
+/** `GET /v1/admin/calls/summary?since=` — `since` is `7d`, `24h`, or an ISO date; the last seven days by default. */
+export interface AdminCallSummary {
+  since: string;
+  total: CallStats;
+  byRecipe: CallStats[];
+  byModel: CallStats[];
+  byDay: CallStats[];
+  byCaller: CallStats[];
 }
 
 export interface InfoResponse {

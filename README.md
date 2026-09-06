@@ -159,8 +159,10 @@ table with sizes, costs and weapons, the trigger vocabulary with every argument'
 the text trigger format and the script language. The server caches it, so the second
 message costs little more than the words you typed. Right-click on the map and choose
 *Ask AI about this…* to start a message about the spot, the marked area or the selection.
-The picture tick sends a screenshot of the visible area with the message. It stops after
-the rounds of tool calls the Options allow (24 by default) and offers to continue.
+The picture tick sends a screenshot of the visible area with the message. Each message also
+carries an id for the chat and its turn number, so the server's log can tell one chat's
+requests from another's; Clear starts a new id. It stops after the rounds of tool calls
+the Options allow (24 by default) and offers to continue.
 
 **Inside the editor's own dialogs.** Map Properties gets *Suggest a name*, which fills the
 name and description fields from what is on the map (OK writes them, as always). The

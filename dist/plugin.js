@@ -4637,6 +4637,11 @@ function chipsFor(layer, selected, triggers) {
   return chips2;
 }
 var QUICK_PROMPTS = chipsFor("terrain", 0, 0);
+function newConversationId() {
+  const c2 = globalThis.crypto;
+  if (c2?.randomUUID) return c2.randomUUID();
+  return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 var PHASE_LABELS = { idle: "Ready", waiting: "Waiting for the model", thinking: "Thinking", writing: "Writing", tools: "Working on the map", stopped: "Stopped", failed: "Failed" };
 var isText = (c2) => c2.type === "text";
 function intentOverlay(api) {
@@ -4801,6 +4806,8 @@ function openAssistant(ctx, state) {
       more.hidden = true;
       const clearButton = w.button("Clear", { ghost: true, title: "Forget the conversation", onClick: () => {
         state.messages = [];
+        state.conversation = void 0;
+        state.turn = 0;
         chat.replaceChildren();
         more.hidden = true;
         setPhase("idle");
@@ -4931,6 +4938,9 @@ function openAssistant(ctx, state) {
               }
             };
             state.messages = trimHistory(state.messages);
+            state.conversation ??= newConversationId();
+            const turn = state.turn ?? 0;
+            state.turn = turn + 1;
             const r = await ctx.client.run("agent", {
               messages: state.messages,
               tools: toolList.map((t) => t.def),
@@ -4961,7 +4971,7 @@ function openAssistant(ctx, state) {
               onProgress: () => {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
-            }, recipeOptions(ctx.settings()));
+            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
             state.spent = (state.spent ?? 0) + r.usage.costUsd;
             setCost();
             const answer = r.output.content;

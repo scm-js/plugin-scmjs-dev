@@ -97,6 +97,18 @@ export interface AssistantState {
   prefill?: string;
   /** What this panel has cost, across opens. */
   spent?: number;
+  /**
+   * An id for this conversation and how many requests it has made, sent with each one so
+   * the server's call log can follow the chat; a new id when the chat is cleared.
+   */
+  conversation?: string;
+  turn?: number;
+}
+
+function newConversationId(): string {
+  const c = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export interface AssistantHandle {
@@ -241,7 +253,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
       stop.hidden = true;
       const more = w.button("Continue", { onClick: () => void submit("Continue.") });
       more.hidden = true;
-      const clearButton = w.button("Clear", { ghost: true, title: "Forget the conversation", onClick: () => { state.messages = []; chat.replaceChildren(); more.hidden = true; setPhase("idle"); } });
+      const clearButton = w.button("Clear", { ghost: true, title: "Forget the conversation", onClick: () => { state.messages = []; state.conversation = undefined; state.turn = 0; chat.replaceChildren(); more.hidden = true; setPhase("idle"); } });
       const copyButton = w.button("Copy", { ghost: true, title: "Copy the transcript as text", onClick: () => { void navigator.clipboard?.writeText(transcript()).then(() => { phaseDetail.textContent = "Transcript copied."; }); } });
       const attach = w.checkbox("Picture", { value: ctx.settings().attachView, title: "Send a picture of the visible area with the message" });
       input.addEventListener("keydown", (e) => {
@@ -346,6 +358,9 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
             const pendingRows = new Map<string, ReturnType<typeof addTool>>();
             const paint = () => { renderQueued = false; if (stream.el) { stream.el.replaceChildren(renderMarkdown(streamed), h("span", { className: "ai-caret" })); scroll(); } };
             state.messages = trimHistory(state.messages);
+            state.conversation ??= newConversationId();
+            const turn = state.turn ?? 0;
+            state.turn = turn + 1;
             const r = await ctx.client.run("agent", {
               messages: state.messages,
               tools: toolList.map((t) => t.def),
@@ -362,7 +377,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
               },
               onToolUse: (id, name) => { setPhase("tools", `${name.replace(/_/g, " ")}…`); pendingRows.set(id, addTool(byName.get(name), `${name}(…)`, true)); },
               onProgress: () => { if (phase === "waiting" || phase === "thinking") tickClock(); },
-            }, recipeOptions(ctx.settings()));
+            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
             state.spent = (state.spent ?? 0) + r.usage.costUsd;
             setCost();
             // Kept exactly as returned — thinking blocks included — and sent back unchanged next
