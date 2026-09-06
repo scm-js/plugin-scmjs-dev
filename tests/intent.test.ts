@@ -60,6 +60,15 @@ describe("the scenario workflow's helpers", () => {
     expect(prompt).toContain("Four corner bases.");
     expect(prompt).toContain("- Spawn 1: player 1's spawn");
     expect(prompt).toContain("1 human player (player 1)");
+    // Over the cap: the purposes go first, then the brief's tail — never the location names or the rule.
+    const long = { ...design, layoutBrief: "B".repeat(600), locations: Array.from({ length: 20 }, (_, i) => ({ name: `Spot ${i + 1}`, purpose: "P".repeat(80) })) };
+    const trimmed = layoutPrompt(long, 1500);
+    expect(trimmed.length).toBeLessThanOrEqual(1500);
+    expect(trimmed).toContain("- Spot 20");
+    expect(trimmed).not.toContain("PPPP");
+    expect(trimmed).toContain("1 human player");
+    expect(layoutPrompt(long, 900)).toContain("…");
+    expect(layoutPrompt(long).length).toBeLessThan(4000);
     expect(paramsToText([{ key: "a", value: "1" }, { key: "b", value: "x, y" }])).toBe("a=1; b=x, y");
     expect(textToParams(" a = 1 ;b=x, y; flag")).toEqual([{ key: "a", value: "1" }, { key: "b", value: "x, y" }, { key: "flag", value: "" }]);
   });

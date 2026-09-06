@@ -18,7 +18,7 @@
  * calls rather than a long conversation — and what it did is a list, not a transcript.
  */
 import type { TilesetId } from "@scm-js/plugin-api";
-import type { DesignSystem, MapPlanInput, UmsDesign, UmsDesignInput } from "../../protocol";
+import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlanInput, type UmsDesign, type UmsDesignInput } from "../../protocol";
 import { doodadCategoryNames, terrainVocab, unitNames } from "../facts";
 import { guideFor } from "../guides";
 import { START_LOCATION, TILE, centreOf } from "../layout";
@@ -56,17 +56,29 @@ export function terrainEffort(quality: string): "low" | "medium" | "high" | unde
   return quality === "quick" ? "low" : quality === "thorough" ? "high" : "medium";
 }
 
-/** The `map-plan` prompt a design's layout brief becomes: the brief, then every location the systems need, then the scenario rule. */
-export function layoutPrompt(design: UmsDesign): string {
-  const lines = [design.layoutBrief.trim(), ""];
-  if (design.locations.length) {
-    lines.push("Locations to create, by name (the triggers refer to them — every one must be in the plan's `locations`):");
-    for (const l of design.locations) lines.push(`- ${l.name}: ${l.purpose}`);
-    lines.push("");
-  }
+/**
+ * The `map-plan` prompt a design's layout brief becomes: the brief, then every location
+ * the systems need, then the scenario rule. Kept under the server's cap: the location
+ * purposes go first, the brief's tail last, and only when it would not fit otherwise.
+ */
+export function layoutPrompt(design: UmsDesign, limit = MAP_PLAN_PROMPT_MAX): string {
   const humans = design.players.filter((p) => p.type === "human");
-  lines.push(`This is a scenario (UMS), genre ${design.genre}: follow the brief rather than the melee rules. ${humans.length} human player${humans.length === 1 ? "" : "s"} (${humans.map((p) => `player ${p.slot}`).join(", ")}), each needing a start location where the brief puts it; no mining bases unless the brief asks for them.`);
-  return lines.join("\n");
+  const rule = `This is a scenario (UMS), genre ${design.genre}: follow the brief rather than the melee rules. ${humans.length} human player${humans.length === 1 ? "" : "s"} (${humans.map((p) => `player ${p.slot}`).join(", ")}), each needing a start location where the brief puts it; no mining bases unless the brief asks for them.`;
+  const assemble = (brief: string, purposes: boolean) => {
+    const lines = [brief, ""];
+    if (design.locations.length) {
+      lines.push("Locations to create, by name (the triggers refer to them — every one must be in the plan's `locations`):");
+      for (const l of design.locations) lines.push(purposes ? `- ${l.name}: ${l.purpose}` : `- ${l.name}`);
+      lines.push("");
+    }
+    lines.push(rule);
+    return lines.join("\n");
+  };
+  const brief = design.layoutBrief.trim();
+  let text = assemble(brief, true);
+  if (text.length > limit) text = assemble(brief, false);
+  if (text.length > limit) text = assemble(brief.slice(0, Math.max(0, brief.length - (text.length - limit) - 1)) + "…", false);
+  return text;
 }
 
 /** `key=value; key=value` for the editable field, and back. */
@@ -223,7 +235,11 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
 
       const design = async (refine: boolean) => {
         if (!state.prompt.trim()) { promptField.focus(); runner.idle("Say what kind of scenario you want first."); return; }
-        if (!(await ensureMap())) return;
+        // A second press while the first is being prepared would ask twice and pay twice.
+        if (runner.busy || designButton.disabled) return;
+        designButton.setBusy(true);
+        redesignButton.setBusy(true);
+        if (!(await ensureMap())) { designButton.setBusy(false); redesignButton.setBusy(false); return; }
         await api.tileset.load();
         const prompt = refine && state.refine.trim() && state.design
           ? `${state.prompt}\n\nThe previous design was:\n${JSON.stringify(state.design)}\n\nChange this: ${state.refine.trim()}`
@@ -240,8 +256,6 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           scriptPlugin: hasScriptPlugin(api),
           guide: guideFor(state.prompt)?.text,
         };
-        designButton.setBusy(true);
-        redesignButton.setBusy(true);
         designBox.before(runner.el);
         try {
           const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
@@ -268,7 +282,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input = { prompt, declarations: bridge.declarations(), script: existing?.source ?? undefined, existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 30_000) : undefined };
         let r = await runRecipe(ctx, runner, "triggers", input);
-        if (!r) throw new Error("the model did not answer");
+        if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled: CompileResult = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
@@ -314,7 +328,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
               players: Math.max(1, humans.length), symmetry: ["madness", "arena", "diplomacy"].includes(d.genre) ? "auto" : "none", cellSize: cellSizeFor(cur.width, cur.height),
             };
             const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
-            if (!r) throw new Error("no plan came back");
+            if (!r) throw new Error(runner.lastError ?? "no plan came back");
             const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));

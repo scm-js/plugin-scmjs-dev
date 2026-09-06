@@ -185,6 +185,8 @@ export class Runner {
   private readonly ctx: Ctx;
   /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
   onTick: ((seconds: number) => void) | null = null;
+  /** What the last run failed with, for a caller that reports it in its own row. */
+  lastError: string | null = null;
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
@@ -206,6 +208,7 @@ export class Runner {
     this.startedAt = Date.now();
     this.label = label;
     this.thought = "";
+    this.lastError = null;
     // "Stop", not Cancel: Cancel in a dialog means leaving it, and this leaves the dialog where it is.
     this.status.cancel(() => this.abort(), "Stop");
     clear(this.thinkingBody);
@@ -257,6 +260,7 @@ export class Runner {
   fail(err: unknown) {
     this.settle();
     const text = describeError(err);
+    this.lastError = text;
     // What to do about it is in the Account dialog: sign in when the trial is spent, top up when the balance is.
     const code = err instanceof ScmjsError ? err.code : null;
     const accountLink = code === "budget_exceeded" || code === "unauthorized"

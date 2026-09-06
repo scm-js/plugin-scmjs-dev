@@ -2,6 +2,7 @@
 
 // protocol.ts
 var PROTOCOL_VERSION = 1;
+var MAP_PLAN_PROMPT_MAX = 12e3;
 var SYMMETRY_MODES = ["none", "mirror-x", "mirror-y", "rot180", "rot90", "diag", "antidiag", "quad", "octo"];
 
 // client.ts
@@ -2687,6 +2688,8 @@ var Runner = class {
   ctx;
   /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
   onTick = null;
+  /** What the last run failed with, for a caller that reports it in its own row. */
+  lastError = null;
   constructor(ctx) {
     this.ctx = ctx;
     this.status = ctx.api.ui.widgets.statusLine({ text: "Ready." });
@@ -2711,6 +2714,7 @@ var Runner = class {
     this.startedAt = Date.now();
     this.label = label;
     this.thought = "";
+    this.lastError = null;
     this.status.cancel(() => this.abort(), "Stop");
     clear(this.thinkingBody);
     this.latest.hidden = true;
@@ -2767,6 +2771,7 @@ var Runner = class {
   fail(err) {
     this.settle();
     const text = describeError(err);
+    this.lastError = text;
     const code = err instanceof ScmjsError ? err.code : null;
     const accountLink = code === "budget_exceeded" || code === "unauthorized" ? h("a", { href: "#", onClick: (e) => {
       e.preventDefault();
@@ -5798,16 +5803,24 @@ var REPAIR_ROUNDS = 2;
 function terrainEffort(quality) {
   return quality === "quick" ? "low" : quality === "thorough" ? "high" : "medium";
 }
-function layoutPrompt(design) {
-  const lines = [design.layoutBrief.trim(), ""];
-  if (design.locations.length) {
-    lines.push("Locations to create, by name (the triggers refer to them \u2014 every one must be in the plan's `locations`):");
-    for (const l of design.locations) lines.push(`- ${l.name}: ${l.purpose}`);
-    lines.push("");
-  }
+function layoutPrompt(design, limit = MAP_PLAN_PROMPT_MAX) {
   const humans = design.players.filter((p) => p.type === "human");
-  lines.push(`This is a scenario (UMS), genre ${design.genre}: follow the brief rather than the melee rules. ${humans.length} human player${humans.length === 1 ? "" : "s"} (${humans.map((p) => `player ${p.slot}`).join(", ")}), each needing a start location where the brief puts it; no mining bases unless the brief asks for them.`);
-  return lines.join("\n");
+  const rule = `This is a scenario (UMS), genre ${design.genre}: follow the brief rather than the melee rules. ${humans.length} human player${humans.length === 1 ? "" : "s"} (${humans.map((p) => `player ${p.slot}`).join(", ")}), each needing a start location where the brief puts it; no mining bases unless the brief asks for them.`;
+  const assemble = (brief2, purposes) => {
+    const lines = [brief2, ""];
+    if (design.locations.length) {
+      lines.push("Locations to create, by name (the triggers refer to them \u2014 every one must be in the plan's `locations`):");
+      for (const l of design.locations) lines.push(purposes ? `- ${l.name}: ${l.purpose}` : `- ${l.name}`);
+      lines.push("");
+    }
+    lines.push(rule);
+    return lines.join("\n");
+  };
+  const brief = design.layoutBrief.trim();
+  let text = assemble(brief, true);
+  if (text.length > limit) text = assemble(brief, false);
+  if (text.length > limit) text = assemble(brief.slice(0, Math.max(0, brief.length - (text.length - limit) - 1)) + "\u2026", false);
+  return text;
 }
 function paramsToText(params) {
   return params.map((p) => `${p.key}=${p.value}`).join("; ");
@@ -5995,7 +6008,14 @@ function openScenario(ctx, presetPrompt) {
           runner.idle("Say what kind of scenario you want first.");
           return;
         }
-        if (!await ensureMap()) return;
+        if (runner.busy || designButton.disabled) return;
+        designButton.setBusy(true);
+        redesignButton.setBusy(true);
+        if (!await ensureMap()) {
+          designButton.setBusy(false);
+          redesignButton.setBusy(false);
+          return;
+        }
         await api.tileset.load();
         const prompt = refine && state.refine.trim() && state.design ? `${state.prompt}
 
@@ -6015,8 +6035,6 @@ Change this: ${state.refine.trim()}` : state.prompt;
           scriptPlugin: hasScriptPlugin(api),
           guide: guideFor(state.prompt)?.text
         };
-        designButton.setBusy(true);
-        redesignButton.setBusy(true);
         designBox.before(runner.el);
         try {
           const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
@@ -6045,7 +6063,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input = { prompt, declarations: bridge.declarations(), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 3e4) : void 0 };
         let r = await runRecipe(ctx, runner, "triggers", input);
-        if (!r) throw new Error("the model did not answer");
+        if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
@@ -6095,7 +6113,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               cellSize: cellSizeFor(cur.width, cur.height)
             };
             const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
-            if (!r) throw new Error("no plan came back");
+            if (!r) throw new Error(runner.lastError ?? "no plan came back");
             const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));

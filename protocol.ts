@@ -593,6 +593,9 @@ export interface TerrainVocab {
 
 export type SymmetryMode = "none" | "mirror-x" | "mirror-y" | "rot180" | "rot90" | "diag" | "antidiag" | "quad" | "octo";
 
+/** The most `map-plan` takes in its prompt (a scenario's layout brief with its locations runs to several thousand characters). */
+export const MAP_PLAN_PROMPT_MAX = 12_000;
+
 export const SYMMETRY_MODES: readonly SymmetryMode[] = ["none", "mirror-x", "mirror-y", "rot180", "rot90", "diag", "antidiag", "quad", "octo"];
 
 export type Direction = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
