@@ -437,7 +437,11 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           // The long steps ask the service: their row carries the same clock as the runner, so the wait is visible where the eye is.
           runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
           try {
+            // The code steps take milliseconds; a beat on screen each, so the list is seen to run rather than blink.
+            const startedAt = Date.now();
             const text = await steps[i].run();
+            const left = 220 - (Date.now() - startedAt);
+            if (left > 0) await new Promise((r) => setTimeout(r, left));
             rows[i].set("done", text);
           } catch (err) {
             failed++;

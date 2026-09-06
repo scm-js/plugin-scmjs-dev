@@ -6238,7 +6238,10 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           rows[i].set("running", steps[i].hint ?? "");
           runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
           try {
+            const startedAt = Date.now();
             const text = await steps[i].run();
+            const left = 220 - (Date.now() - startedAt);
+            if (left > 0) await new Promise((r) => setTimeout(r, left));
             rows[i].set("done", text);
           } catch (err) {
             failed++;
