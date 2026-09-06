@@ -2327,6 +2327,7 @@ function scatterDoodads(plan, ctx, categories, occupied, margin = 0) {
     }
     const cells = cellsWith(plan, ctx, entry.on);
     if (cells.length === 0) continue;
+    const allowed = [...entry.on].map((ch) => plan.legend[ch]).filter((id) => id !== void 0);
     const want = Math.round(entry.density * cells.length * 0.4);
     let got = 0;
     for (let attempt = 0; attempt < want * 6 && got < want; attempt++) {
@@ -2344,7 +2345,7 @@ function scatterDoodads(plan, ctx, categories, occupied, margin = 0) {
       if (!onAllowed) continue;
       if (taken.some((t) => overlaps2(t, foot)) || occupied(foot)) continue;
       taken.push(foot);
-      placed.push({ doodadId: d.id, tx, ty, name: d.name, width: d.width, height: d.height });
+      placed.push({ doodadId: d.id, tx, ty, name: d.name, width: d.width, height: d.height, allowed });
       got++;
     }
   }
@@ -2984,7 +2985,19 @@ function renderPlan(api, input, options) {
     }
     const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1), DOODAD_MARGIN);
     findings.push(...scattered.problems);
-    for (const d of scattered.placed) if (tx.placeDoodad(d.doodadId, d.tx, d.ty) >= 0) placed.doodads++;
+    let refusedGround = 0;
+    for (const d of scattered.placed) {
+      if (canCheck && api.query.doodadPlacement(d.doodadId, d.tx, d.ty)?.ok === false) {
+        refusedGround++;
+        continue;
+      }
+      if (d.allowed?.length && !onFlatGround(api, tx, d, d.allowed)) {
+        refusedGround++;
+        continue;
+      }
+      if (tx.placeDoodad(d.doodadId, d.tx, d.ty) >= 0) placed.doodads++;
+    }
+    if (refusedGround > 0) findings.push(`${refusedGround} doodad${refusedGround === 1 ? "" : "s"} skipped: the ground the brush drew there was a shore, a cliff or another terrain`);
     for (const l of plan.locations) {
       const index = tx.addLocation({ left: l.x0 * TILE2, top: l.y0 * TILE2, right: l.x1 * TILE2, bottom: l.y1 * TILE2 }, l.name);
       if (index < 0) findings.push(`no free slot for location "${l.name}"`);
@@ -2994,6 +3007,18 @@ function renderPlan(api, input, options) {
   findings.push(...result.notes.filter((n2) => !findings.includes(n2)));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
+}
+function onFlatGround(api, tx, d, allowed) {
+  for (let y = d.ty - 1; y <= d.ty + d.height; y++) {
+    for (let x = d.tx - 1; x <= d.tx + d.width; x++) {
+      if (x < 0 || y < 0 || x >= tx.width || y >= tx.height) continue;
+      const info = api.terrain.tileInfo(tx.groundAt(x, y));
+      if (!info || info.kind !== "terrain") return false;
+      const id = api.terrain.terrainAt(x, y);
+      if (id === null || !allowed.includes(id)) return false;
+    }
+  }
+  return true;
 }
 function setResource(api, tx, index, amount) {
   if (index < 0) return;

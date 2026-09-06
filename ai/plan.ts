@@ -295,6 +295,8 @@ export interface PlacedDoodad {
   name: string;
   width: number;
   height: number;
+  /** The terrain ids the entry asked for, for a check against the ground as painted. */
+  allowed?: number[];
 }
 
 /**
@@ -356,6 +358,7 @@ export function scatterDoodads(plan: LayoutPlan, ctx: PlanContext, categories: R
     if (choices.length === 0) { problems.push(`no doodad category called "${entry.category}" in this tileset`); continue; }
     const cells = cellsWith(plan, ctx, entry.on);
     if (cells.length === 0) continue;
+    const allowed = [...entry.on].map((ch) => plan.legend[ch]).filter((id): id is number => id !== undefined);
     const want = Math.round(entry.density * cells.length * 0.4);
     let got = 0;
     for (let attempt = 0; attempt < want * 6 && got < want; attempt++) {
@@ -372,7 +375,7 @@ export function scatterDoodads(plan: LayoutPlan, ctx: PlanContext, categories: R
       if (!onAllowed) continue;
       if (taken.some((t) => overlaps(t, foot)) || occupied(foot)) continue;
       taken.push(foot);
-      placed.push({ doodadId: d.id, tx, ty, name: d.name, width: d.width, height: d.height });
+      placed.push({ doodadId: d.id, tx, ty, name: d.name, width: d.width, height: d.height, allowed });
       got++;
     }
   }
