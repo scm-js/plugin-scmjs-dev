@@ -6773,7 +6773,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         state.built = true;
         buildButton.setBusy(false);
         redesignButton.setBusy(false);
-        if (findings.length) findingsBox.replaceChildren(h("details", { open: failed > 0 }, h("summary", null, `${findings.length} thing${findings.length === 1 ? "" : "s"} to know`), h("div", { className: "ai-body" }, noteList(findings))));
+        if (findings.length) findingsBox.replaceChildren(h("details", { open: failed > 0 }, h("summary", null, `${findings.length} note${findings.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(findings))));
         afterBox.replaceChildren(
           w.button("Review it\u2026", { onClick: () => {
             dialog.close();
