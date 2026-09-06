@@ -1153,7 +1153,6 @@ function scriptBridge(api) {
 // ai/reference.ts
 var ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"];
 function gatherReference(api) {
-  const info = api.document.info();
   const defs = api.triggers.defs;
   const races = { zerg: "Z", terran: "T", protoss: "P" };
   const units = [];
@@ -1179,16 +1178,10 @@ function gatherReference(api) {
     });
   }
   const sig = (name, args) => ({ name, args: args.map((a2) => ({ label: a2.label, kind: a2.kind })) });
-  const starts = new Set(api.query.startLocations().map((s) => s.owner));
-  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const { renamed: _renamed, ...map } = gatherMap(api);
   return {
-    mapName: info?.name ?? "",
-    description: info?.description ?? "",
-    width: info?.width ?? 0,
-    height: info?.height ?? 0,
+    ...map,
     tileset: api.tileset.name(),
-    versionLabel: api.settings.version()?.label ?? "",
-    players: players2,
     terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
     doodadCategories: api.palette.doodadCategories().map((c2) => ({ name: c2.name, doodads: c2.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
     units,
@@ -1199,8 +1192,7 @@ function gatherReference(api) {
     briefingActions: defs.actions(true).map((a2) => sig(a2.name, a2.args)),
     choices: ENUM_KINDS.map((kind) => ({ kind, labels: defs.choices(kind).map((c2) => c2.label) })),
     aiScripts: defs.choices("aiScript").map((c2) => c2.label),
-    sprites: api.palette.spriteGroups().map((g) => ({ label: g.label, count: g.ids.length })),
-    hasScript: !!scriptBridge(api)?.state()?.source
+    sprites: api.palette.spriteGroups().map((g) => ({ label: g.label, count: g.ids.length }))
   };
 }
 var TEXT_FORMAT = `Trigger("Player 1", "Force 2"){
@@ -1329,17 +1321,52 @@ function buildReferenceDetail(p, part) {
   }
   return out.join("\n");
 }
+function gatherMap(api) {
+  const info = api.document.info();
+  const starts = new Set(api.query.startLocations().map((s) => s.owner));
+  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const renamed = [];
+  for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
+  return {
+    mapName: info?.name ?? "",
+    description: info?.description ?? "",
+    width: info?.width ?? 0,
+    height: info?.height ?? 0,
+    versionLabel: api.settings.version()?.label ?? "",
+    players: players2,
+    hasScript: !!scriptBridge(api)?.state()?.source,
+    renamed
+  };
+}
 var cache = /* @__PURE__ */ new WeakMap();
 function cached(api) {
   const scn = api.document.scenario();
   if (!scn) return void 0;
   const tileset = api.tileset.name();
-  const hit = cache.get(scn);
-  if (hit && hit.tileset === tileset) return hit;
-  const parts = gatherReference(api);
-  const entry = { tileset, parts, layers: buildReferenceLayers(parts) };
-  cache.set(scn, entry);
-  return entry;
+  let hit = cache.get(scn);
+  if (!hit || hit.tileset !== tileset) {
+    const parts2 = gatherReference(api);
+    hit = { tileset, parts: parts2, layers: buildReferenceLayers(parts2) };
+    cache.set(scn, hit);
+    return hit;
+  }
+  const { renamed, ...fresh } = gatherMap(api);
+  const units = hit.parts.units.map((u) => {
+    const r = renamed.find((x) => x.id === u.id);
+    if (r) return u.customName === r.customName ? u : { ...u, customName: r.customName };
+    if (u.customName) {
+      const { customName: _dropped, ...rest } = u;
+      return rest;
+    }
+    return u;
+  });
+  const parts = { ...hit.parts, ...fresh, units };
+  const map = mapLayer(parts);
+  if (map !== hit.layers[2]) {
+    hit.parts = parts;
+    hit.layers = [hit.layers[0], hit.layers[1], map];
+  }
+  return hit;
 }
 function referenceFor(api) {
   return cached(api)?.layers;

@@ -124,3 +124,38 @@ describe("assistant history", () => {
     expect(chipsFor("locations", 0, 1).map((c) => c.label)).toContain("Locations");
   });
 });
+
+describe("referenceFor", () => {
+  it("keeps the game and tileset layers per map, and rebuilds the map layer when a rename or a custom name changes it", async () => {
+    const { referenceFor } = await import("../ai/reference");
+    const scenario = {};
+    const state = { name: "Lost Temple", customName: "" };
+    const unitType = { id: 0, name: "Terran Marine", get customName() { return state.customName; }, hitPoints: 40, shields: 0, armor: 0, mineralCost: 50, gasCost: 0, buildTime: 360, weapons: [] };
+    const api = {
+      document: { scenario: () => scenario, info: () => ({ name: state.name, description: "", width: 64, height: 64 }) },
+      tileset: { name: () => "Jungle" },
+      settings: { unitTypes: () => [unitType], version: () => ({ label: "Brood War" }), players: () => [{ slot: 0, typeName: "Human", raceName: "Terran", force: 0, forceName: "" }] },
+      palette: { unitSize: () => ({ width: 1, height: 1, building: false, flyer: false }), doodadCategories: () => [], spriteGroups: () => [] },
+      data: { race: () => "terran" },
+      names: { unit: () => state.customName || "Terran Marine", upgrades: () => [], techs: () => [] },
+      triggers: { defs: { conditions: () => [], actions: () => [], choices: () => [] } },
+      terrain: { types: () => [] },
+      query: { startLocations: () => [] },
+      commands: { has: () => false },
+    } as never;
+    const first = referenceFor(api)!;
+    expect(first[2]).toContain('"Lost Temple"');
+    expect(referenceFor(api)).toBe(first);
+    state.name = "Lost Temple 2";
+    const renamed = referenceFor(api)!;
+    expect(renamed[0]).toBe(first[0]);
+    expect(renamed[1]).toBe(first[1]);
+    expect(renamed[2]).toContain('"Lost Temple 2"');
+    state.customName = "Grunt";
+    const custom = referenceFor(api)!;
+    expect(custom[0]).toBe(first[0]);
+    expect(custom[2]).toContain('0: Terran Marine is called "Grunt"');
+    state.customName = "";
+    expect(referenceFor(api)![2]).not.toContain("is called");
+  });
+});

@@ -48,7 +48,6 @@ export interface ReferenceParts {
 const ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"] as const;
 
 export function gatherReference(api: PluginApi): ReferenceParts {
-  const info = api.document.info();
   const defs = api.triggers.defs;
   const races: Record<string, string> = { zerg: "Z", terran: "T", protoss: "P" };
   const units: ReferenceParts["units"] = [];
@@ -63,18 +62,10 @@ export function gatherReference(api: PluginApi): ReferenceParts {
     });
   }
   const sig = (name: string, args: { label: string; kind: string }[]) => ({ name, args: args.map((a) => ({ label: a.label, kind: a.kind })) });
-  const starts = new Set(api.query.startLocations().map((s) => s.owner));
-  const players = api.settings.players()
-    .filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused")
-    .map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const { renamed: _renamed, ...map } = gatherMap(api);
   return {
-    mapName: info?.name ?? "",
-    description: info?.description ?? "",
-    width: info?.width ?? 0,
-    height: info?.height ?? 0,
+    ...map,
     tileset: api.tileset.name(),
-    versionLabel: api.settings.version()?.label ?? "",
-    players,
     terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
     doodadCategories: api.palette.doodadCategories().map((c) => ({ name: c.name, doodads: c.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
     units,
@@ -86,7 +77,6 @@ export function gatherReference(api: PluginApi): ReferenceParts {
     choices: ENUM_KINDS.map((kind) => ({ kind, labels: defs.choices(kind).map((c) => c.label) })),
     aiScripts: defs.choices("aiScript").map((c) => c.label),
     sprites: api.palette.spriteGroups().map((g) => ({ label: g.label, count: g.ids.length })),
-    hasScript: !!scriptBridge(api)?.state()?.source,
   };
 }
 
@@ -231,19 +221,61 @@ export function buildReferenceDetail(p: ReferenceParts, part: ReferencePart): st
   return out.join("\n");
 }
 
+/** The map layer's inputs, gathered fresh each turn: they are what an edit can change. */
+function gatherMap(api: PluginApi): Pick<ReferenceParts, "mapName" | "description" | "width" | "height" | "versionLabel" | "players" | "hasScript"> & { renamed: { id: number; name: string; customName: string }[] } {
+  const info = api.document.info();
+  const starts = new Set(api.query.startLocations().map((s) => s.owner));
+  const players = api.settings.players()
+    .filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused")
+    .map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const renamed: { id: number; name: string; customName: string }[] = [];
+  for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
+  return {
+    mapName: info?.name ?? "",
+    description: info?.description ?? "",
+    width: info?.width ?? 0,
+    height: info?.height ?? 0,
+    versionLabel: api.settings.version()?.label ?? "",
+    players,
+    hasScript: !!scriptBridge(api)?.state()?.source,
+    renamed,
+  };
+}
+
 const cache = new WeakMap<Scenario, { tileset: string; parts: ReferenceParts; layers: ReferenceLayers }>();
 
-/** The open map's parts and layers, built once per scenario object and tileset. */
+/**
+ * The open map's parts and layers. The game and tileset layers are built once per
+ * scenario object and tileset — nothing an edit does changes them; the map layer is
+ * rebuilt every turn from what an edit can change (a rename, a player, a unit's custom
+ * name) and replaced only when its text differs, so the server's cache of it holds
+ * until the map really changed.
+ */
 function cached(api: PluginApi): { parts: ReferenceParts; layers: ReferenceLayers } | undefined {
   const scn = api.document.scenario();
   if (!scn) return undefined;
   const tileset = api.tileset.name();
-  const hit = cache.get(scn);
-  if (hit && hit.tileset === tileset) return hit;
-  const parts = gatherReference(api);
-  const entry = { tileset, parts, layers: buildReferenceLayers(parts) };
-  cache.set(scn, entry);
-  return entry;
+  let hit = cache.get(scn);
+  if (!hit || hit.tileset !== tileset) {
+    const parts = gatherReference(api);
+    hit = { tileset, parts, layers: buildReferenceLayers(parts) };
+    cache.set(scn, hit);
+    return hit;
+  }
+  const { renamed, ...fresh } = gatherMap(api);
+  const units = hit.parts.units.map((u) => {
+    const r = renamed.find((x) => x.id === u.id);
+    if (r) return u.customName === r.customName ? u : { ...u, customName: r.customName };
+    if (u.customName) { const { customName: _dropped, ...rest } = u; return rest; }
+    return u;
+  });
+  const parts: ReferenceParts = { ...hit.parts, ...fresh, units };
+  const map = mapLayer(parts);
+  if (map !== hit.layers[2]) {
+    hit.parts = parts;
+    hit.layers = [hit.layers[0], hit.layers[1], map];
+  }
+  return hit;
 }
 
 /** The layers for the open map, for the request. */
