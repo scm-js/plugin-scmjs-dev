@@ -100,6 +100,15 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
     mount(body, dialog) {
       const root = styled(body);
       const runner = new Runner(ctx);
+      // Open while there is nothing else; a line once a design exists, so the design is what the dialog shows.
+      const askSummary = h("summary", null, "What to make");
+      const askBox = h("details", { className: "ai-fold", open: true }, askSummary);
+      const foldAsk = () => {
+        const tileset = TILESETS.find((t) => t.id === state.tileset)?.label ?? state.tileset;
+        const excerpt = state.prompt.trim().replace(/\s+/g, " ");
+        askSummary.textContent = `What to make: ${excerpt.length > 90 ? `${excerpt.slice(0, 87)}…` : excerpt} · ${state.width}×${state.height} ${tileset} · ${state.players} player${state.players === 1 ? "" : "s"}`;
+        askBox.open = false;
+      };
 
       /* ── 1. what to make ── */
       const promptField = textarea({ value: state.prompt, placeholder: "What kind of scenario? A genre and a sentence of story is enough: \"a madness map\", \"an RPG about a lost marine\", \"a four-player tower defense with two lanes\".", rows: 3 });
@@ -139,7 +148,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const nameField = w.text({ value: d.name, onChange: (v) => { d.name = v; } });
         const descField = textarea({ value: d.description, rows: 2 });
         descField.addEventListener("input", () => { d.description = descField.value; });
-        const briefField = textarea({ value: d.layoutBrief, rows: 6 });
+        const briefField = textarea({ value: d.layoutBrief, rows: Math.min(18, Math.max(6, Math.ceil(d.layoutBrief.length / 100))) });
         briefField.addEventListener("input", () => { d.layoutBrief = briefField.value; });
         const objectivesField = textarea({ value: d.objectives, rows: 3 });
         objectivesField.addEventListener("input", () => { d.objectives = objectivesField.value; });
@@ -148,7 +157,8 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const players = noteList(d.players.map((p) => `Player ${p.slot}: ${p.type}, ${p.race}, force ${p.force} — ${p.role}`));
         const forces = noteList(d.forces.map((f) => `Force ${f.index} "${f.name}"${f.allied ? ", allied" : ""}${f.alliedVictory ? ", allied victory" : ""}${f.sharedVision ? ", shared vision" : ""}`));
         const locations = noteList(d.locations.map((l) => `${l.name} — ${l.purpose}`));
-        const systemRows = h("div", { className: "ai-list" });
+        // The dialog body is the one scroller: a capped list inside it swallows the wheel with thirty systems.
+        const systemRows = h("div", { className: "ai-list ai-list-open" });
         const kinds = new Set(systemKinds().map((k) => k.kind));
         d.systems.forEach((s, i) => {
           const params = w.text({ value: paramsToText(s.params), placeholder: "key=value; key=value", onChange: (v) => { s.params = textToParams(v); } });
@@ -160,6 +170,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           ));
         });
         const parts: (HTMLElement | null)[] = [
+          // Build and the change fold first: they are what the person came back to press, and the document is long.
+          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
+          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
           w.group(`${d.genre}: ${d.name}`,
             w.form([{ label: "Name", field: nameField }, { label: "Description", field: descField }]),
             h("div", { className: "ai-hint" }, d.premise),
@@ -169,11 +182,10 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           w.group(`Layout brief and ${d.locations.length} locations`, briefField, h("details", null, h("summary", null, "Locations the brief must place"), h("div", { className: "ai-body" }, locations))),
           w.group("Objectives and briefing", objectivesField, briefingField),
           d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null,
-          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
-          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
         ];
         for (const part of parts) if (part) designBody.append(part);
         designBox.hidden = false;
+        foldAsk();
       };
 
       /* ── 3. building ── */
@@ -435,20 +447,22 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         api.ui.status(`AI: built ${d.name}`);
       };
 
+      const askBody = h("div", { className: "ai-body" },
+        promptField,
+        chips(Object.keys(EXAMPLES), (label) => { promptField.value = EXAMPLES[label]; state.prompt = promptField.value; }),
+        w.form([
+          { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "×", heightSel) },
+          { label: "Tileset", field: tilesetSel },
+          { label: "Players", field: playersSel },
+          { label: "Into", field: targetSel },
+        ]),
+        targetHint,
+        scriptNote,
+        h("div", { className: "ai-btns" }, designButton),
+      );
+      askBox.append(askBody);
       root.append(
-        w.group("What to make",
-          promptField,
-          chips(Object.keys(EXAMPLES), (label) => { promptField.value = EXAMPLES[label]; state.prompt = promptField.value; }),
-          w.form([
-            { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "×", heightSel) },
-            { label: "Tileset", field: tilesetSel },
-            { label: "Players", field: playersSel },
-            { label: "Into", field: targetSel },
-          ]),
-          targetHint,
-          scriptNote,
-          h("div", { className: "ai-btns" }, designButton),
-        ),
+        askBox,
         runner.el,
         designBox,
         stepsBox,

@@ -2582,7 +2582,8 @@ var STYLE = `
 .ai .ai-chip:hover { color: var(--text, #e6e9ef); border-color: var(--teal, #4fd1c5); }
 .ai .ai-runner { display: flex; flex-direction: column; gap: 4px; padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
 .ai .ai-fold > .ai-body { max-height: none; white-space: normal; color: inherit; font-size: inherit; display: flex; flex-direction: column; gap: 8px; }
-.ai .ai-latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+.ai .ai-latest { white-space: pre-wrap; max-height: 110px; overflow: auto; font-style: italic; }
+.ai .ai-list.ai-list-open { max-height: none; }
 .ai .ai-bad { color: #ff9f7a; }
 .ai .ai-ok { color: var(--teal, #4fd1c5); }
 .ai .ai-gold { color: var(--gold, #e6b95c); }
@@ -2725,20 +2726,21 @@ var Runner = class {
     this.onTick?.(s);
   }
   /**
-   * A piece of the model's reasoning summary. The full text goes in the fold; the last
-   * sentence of it is shown as a line under the status, so a long wait visibly moves
-   * without the fold open.
+   * A piece of the model's reasoning summary. The full text goes in the fold; the
+   * paragraph being written is shown under the status as it grows, so a long wait
+   * visibly moves without the fold open.
    */
   addThinking(text) {
     this.thinking.hidden = false;
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
-    this.thought = (this.thought + text).slice(-2e3);
-    const sentences = this.thought.split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
-    const last = sentences.length > 1 && /[.!?]$/.test(sentences[sentences.length - 1]) ? sentences[sentences.length - 1] : sentences[sentences.length - 2] ?? sentences[sentences.length - 1] ?? "";
-    if (last) {
-      this.latest.textContent = last.length > 160 ? `${last.slice(0, 157)}\u2026` : last;
+    this.thought = (this.thought + text).slice(-4e3);
+    const paragraphs = this.thought.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+    const current = paragraphs[paragraphs.length - 1] ?? "";
+    if (current) {
+      this.latest.textContent = current;
       this.latest.hidden = false;
+      this.latest.scrollTop = this.latest.scrollHeight;
     }
   }
   settle() {
@@ -5838,6 +5840,14 @@ function openScenario(ctx, presetPrompt) {
     mount(body, dialog) {
       const root = styled(body);
       const runner = new Runner(ctx);
+      const askSummary = h("summary", null, "What to make");
+      const askBox = h("details", { className: "ai-fold", open: true }, askSummary);
+      const foldAsk = () => {
+        const tileset = TILESETS2.find((t) => t.id === state.tileset)?.label ?? state.tileset;
+        const excerpt = state.prompt.trim().replace(/\s+/g, " ");
+        askSummary.textContent = `What to make: ${excerpt.length > 90 ? `${excerpt.slice(0, 87)}\u2026` : excerpt} \xB7 ${state.width}\xD7${state.height} ${tileset} \xB7 ${state.players} player${state.players === 1 ? "" : "s"}`;
+        askBox.open = false;
+      };
       const promptField = textarea({ value: state.prompt, placeholder: 'What kind of scenario? A genre and a sentence of story is enough: "a madness map", "an RPG about a lost marine", "a four-player tower defense with two lanes".', rows: 3 });
       promptField.addEventListener("input", () => {
         state.prompt = promptField.value;
@@ -5894,7 +5904,7 @@ function openScenario(ctx, presetPrompt) {
         descField.addEventListener("input", () => {
           d.description = descField.value;
         });
-        const briefField = textarea({ value: d.layoutBrief, rows: 6 });
+        const briefField = textarea({ value: d.layoutBrief, rows: Math.min(18, Math.max(6, Math.ceil(d.layoutBrief.length / 100))) });
         briefField.addEventListener("input", () => {
           d.layoutBrief = briefField.value;
         });
@@ -5909,7 +5919,7 @@ function openScenario(ctx, presetPrompt) {
         const players2 = noteList(d.players.map((p) => `Player ${p.slot}: ${p.type}, ${p.race}, force ${p.force} \u2014 ${p.role}`));
         const forces = noteList(d.forces.map((f) => `Force ${f.index} "${f.name}"${f.allied ? ", allied" : ""}${f.alliedVictory ? ", allied victory" : ""}${f.sharedVision ? ", shared vision" : ""}`));
         const locations = noteList(d.locations.map((l) => `${l.name} \u2014 ${l.purpose}`));
-        const systemRows = h("div", { className: "ai-list" });
+        const systemRows = h("div", { className: "ai-list ai-list-open" });
         const kinds = new Set(systemKinds().map((k) => k.kind));
         d.systems.forEach((s, i) => {
           const params = w.text({ value: paramsToText(s.params), placeholder: "key=value; key=value", onChange: (v) => {
@@ -5928,6 +5938,9 @@ function openScenario(ctx, presetPrompt) {
           ));
         });
         const parts = [
+          // Build and the change fold first: they are what the person came back to press, and the document is long.
+          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
+          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
           w.group(
             `${d.genre}: ${d.name}`,
             w.form([{ label: "Name", field: nameField }, { label: "Description", field: descField }]),
@@ -5937,12 +5950,11 @@ function openScenario(ctx, presetPrompt) {
           w.group(`Systems (${d.systems.length})`, systemRows, h("div", { className: "ai-hint" }, "Green: the toolkit builds it from the parameters. Gold: written as a trigger script from the description. Edit the parameters here; a location or unit by name, numbers as digits.")),
           w.group(`Layout brief and ${d.locations.length} locations`, briefField, h("details", null, h("summary", null, "Locations the brief must place"), h("div", { className: "ai-body" }, locations))),
           w.group("Objectives and briefing", objectivesField, briefingField),
-          d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null,
-          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
-          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton)))
+          d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null
         ];
         for (const part of parts) if (part) designBody.append(part);
         designBox.hidden = false;
+        foldAsk();
       };
       const stepsBox = h("div", { className: "ai-steps", hidden: true });
       const afterBox = h("div", { className: "ai-btns", hidden: true });
@@ -6240,24 +6252,27 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : `Built ${d.name}.`);
         api.ui.status(`AI: built ${d.name}`);
       };
+      const askBody = h(
+        "div",
+        { className: "ai-body" },
+        promptField,
+        chips(Object.keys(EXAMPLES2), (label) => {
+          promptField.value = EXAMPLES2[label];
+          state.prompt = promptField.value;
+        }),
+        w.form([
+          { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
+          { label: "Tileset", field: tilesetSel },
+          { label: "Players", field: playersSel },
+          { label: "Into", field: targetSel }
+        ]),
+        targetHint,
+        scriptNote,
+        h("div", { className: "ai-btns" }, designButton)
+      );
+      askBox.append(askBody);
       root.append(
-        w.group(
-          "What to make",
-          promptField,
-          chips(Object.keys(EXAMPLES2), (label) => {
-            promptField.value = EXAMPLES2[label];
-            state.prompt = promptField.value;
-          }),
-          w.form([
-            { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
-            { label: "Tileset", field: tilesetSel },
-            { label: "Players", field: playersSel },
-            { label: "Into", field: targetSel }
-          ]),
-          targetHint,
-          scriptNote,
-          h("div", { className: "ai-btns" }, designButton)
-        ),
+        askBox,
         runner.el,
         designBox,
         stepsBox,

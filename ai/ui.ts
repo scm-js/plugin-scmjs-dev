@@ -66,7 +66,8 @@ export const STYLE = `
 .ai .ai-chip:hover { color: var(--text, #e6e9ef); border-color: var(--teal, #4fd1c5); }
 .ai .ai-runner { display: flex; flex-direction: column; gap: 4px; padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
 .ai .ai-fold > .ai-body { max-height: none; white-space: normal; color: inherit; font-size: inherit; display: flex; flex-direction: column; gap: 8px; }
-.ai .ai-latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
+.ai .ai-latest { white-space: pre-wrap; max-height: 110px; overflow: auto; font-style: italic; }
+.ai .ai-list.ai-list-open { max-height: none; }
 .ai .ai-bad { color: #ff9f7a; }
 .ai .ai-ok { color: var(--teal, #4fd1c5); }
 .ai .ai-gold { color: var(--gold, #e6b95c); }
@@ -224,18 +225,18 @@ export class Runner {
   }
 
   /**
-   * A piece of the model's reasoning summary. The full text goes in the fold; the last
-   * sentence of it is shown as a line under the status, so a long wait visibly moves
-   * without the fold open.
+   * A piece of the model's reasoning summary. The full text goes in the fold; the
+   * paragraph being written is shown under the status as it grows, so a long wait
+   * visibly moves without the fold open.
    */
   addThinking(text: string) {
     this.thinking.hidden = false;
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
-    this.thought = (this.thought + text).slice(-2000);
-    const sentences = this.thought.split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
-    const last = sentences.length > 1 && /[.!?]$/.test(sentences[sentences.length - 1]!) ? sentences[sentences.length - 1]! : (sentences[sentences.length - 2] ?? sentences[sentences.length - 1] ?? "");
-    if (last) { this.latest.textContent = last.length > 160 ? `${last.slice(0, 157)}…` : last; this.latest.hidden = false; }
+    this.thought = (this.thought + text).slice(-4000);
+    const paragraphs = this.thought.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+    const current = paragraphs[paragraphs.length - 1] ?? "";
+    if (current) { this.latest.textContent = current; this.latest.hidden = false; this.latest.scrollTop = this.latest.scrollHeight; }
   }
 
   private settle() {
