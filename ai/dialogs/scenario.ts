@@ -329,7 +329,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             let plan: MapPlan;
             if (preset) {
               try {
-                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans });
+                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans, doodadCategories: doodadCategoryNames(api) });
                 plan = { ...built.plan, name: d.name, description: d.description };
                 findings.push(...built.notes.map((n) => `${preset.preset}: ${n}`));
               } catch (err) {

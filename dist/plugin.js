@@ -6362,6 +6362,9 @@ var Reader2 = class {
     }
     return Math.max(lo, Math.min(hi, Math.round(n2)));
   }
+  text(name, fallback) {
+    return this.raw(name) ?? fallback;
+  }
   choice(name, options, fallback) {
     const v = this.raw(name)?.toLowerCase();
     if (v === void 0) return fallback;
@@ -6404,7 +6407,8 @@ var PRESETS2 = [
         P2("campSize", "a camp's side in tiles (default 28)"),
         P2("arena", "the arena's width in tiles (default a third of the map)"),
         P2("between", "what fills the ground between camps and arena: water (default), open, or rocks"),
-        P2("roads", "yes (default) or no: a road of plain ground from each ramp to the arena")
+        P2("roads", "yes (default) or no: a road of plain ground from each ramp to the arena"),
+        P2("hall", 'a building placed in each camp for its player, by unit name ("Terran Command Center"); none by default')
       ],
       locations: ["Base {p}", "Spawn {p}", "Beacon {p}", "Arena", "Centre"]
     },
@@ -6415,6 +6419,7 @@ var PRESETS2 = [
       const arena = r.int("arena", Math.round(Math.min(W, H) / 3), 12, Math.floor(Math.min(W, H) / 2));
       const between = r.choice("between", ["water", "open", "rocks"], "water");
       const roads = r.choice("roads", ["yes", "no"], "yes") === "yes";
+      const hall = r.text("hall", "");
       const margin = 3;
       const fill = between === "water" && roles.water !== null ? roles.water : between === "rocks" ? roles.dress : roles.ground;
       const cx = W / 2, cy = H / 2;
@@ -6436,7 +6441,8 @@ var PRESETS2 = [
         const spawnX = s.ramp === "se" ? s.x + size - RAMP_CUT * 2 - 8 : s.x + RAMP_CUT * 2 + 2;
         locations.push(loc(`Spawn ${p}`, spawnX, s.y + size - RAMP_CUT - 8, 6, 6));
         locations.push(loc(`Beacon ${p}`, s.ramp === "se" ? s.x + 3 : s.x + size - 6, s.y + 3, 3, 3));
-        units.push([start(p, s.x + size / 2, s.y + size / 2 - 2)]);
+        units.push([start(p, s.x + size / 2, s.y + size / 2 - 6)]);
+        if (hall) units.push([{ unit: hall, player: p, x: Math.round(s.x + size / 2), y: Math.round(s.y + size / 2 + 2) }]);
       });
       locations.push(loc("Arena", cx - arena / 2, cy - arena / 4, arena, arena / 2));
       locations.push(loc("Centre", cx - 4, cy - 3, 8, 6));
@@ -6514,12 +6520,31 @@ function buildPreset(id, params, ctx) {
     shapes: out.shapes,
     bases: [],
     ramps: [],
-    doodads: [],
+    doodads: decoration(ctx, roles),
     units: out.units,
     locations: out.locations,
     notes: out.notes
   };
   return { plan, notes: out.notes };
+}
+function decoration(ctx, roles) {
+  const categories = ctx.doodadCategories ?? [];
+  const name = (id) => ctx.terrains.find((t) => t.id === id)?.name ?? "";
+  const match = (terrain) => categories.find((c2) => c2.toLowerCase() === name(terrain).toLowerCase()) ?? null;
+  const out = [];
+  const ground = match(roles.ground);
+  if (ground) out.push({ category: ground, on: "", terrains: [roles.ground], density: 0.06 });
+  if (roles.water !== null) {
+    const water = match(roles.water);
+    if (water) out.push({ category: water, on: "", terrains: [roles.water], density: 0.15 });
+  }
+  if (roles.dress !== roles.ground) {
+    const dress = match(roles.dress);
+    if (dress) out.push({ category: dress, on: "", terrains: [roles.dress], density: 0.08 });
+  }
+  const high = match(roles.high);
+  if (high) out.push({ category: high, on: "", terrains: [roles.high], density: 0.04 });
+  return out;
 }
 
 // ai/dialogs/scenario.ts
@@ -6845,7 +6870,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             let plan;
             if (preset) {
               try {
-                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans });
+                const built = buildPreset(preset.preset, Object.fromEntries(preset.params.map((p) => [p.key, p.value])), { width: cur.width, height: cur.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans, doodadCategories: doodadCategoryNames(api) });
                 plan = { ...built.plan, name: d.name, description: d.description };
                 findings.push(...built.notes.map((n2) => `${preset.preset}: ${n2}`));
               } catch (err) {

@@ -23,6 +23,8 @@ export interface PresetContext {
   bridgePair?: BridgePair | null;
   /** Human players, 1-based, in slot order: the camps are handed out in this order. */
   humans: number[];
+  /** The tileset's doodad category names, for a little decoration by terrain name. */
+  doodadCategories?: readonly string[];
 }
 
 export type Params = Record<string, string>;
@@ -79,6 +81,7 @@ class Reader {
     if (!Number.isFinite(n)) { this.problems.push(`"${name}" should be a number, not "${v}"`); return fallback; }
     return Math.max(lo, Math.min(hi, Math.round(n)));
   }
+  text(name: string, fallback: string): string { return this.raw(name) ?? fallback; }
   choice<T extends string>(name: string, options: readonly T[], fallback: T): T {
     const v = this.raw(name)?.toLowerCase();
     if (v === undefined) return fallback;
@@ -134,6 +137,7 @@ const PRESETS: Preset[] = [
         P("arena", "the arena's width in tiles (default a third of the map)"),
         P("between", "what fills the ground between camps and arena: water (default), open, or rocks"),
         P("roads", "yes (default) or no: a road of plain ground from each ramp to the arena"),
+        P("hall", "a building placed in each camp for its player, by unit name (\"Terran Command Center\"); none by default"),
       ],
       locations: ["Base {p}", "Spawn {p}", "Beacon {p}", "Arena", "Centre"],
     },
@@ -144,6 +148,7 @@ const PRESETS: Preset[] = [
       const arena = r.int("arena", Math.round(Math.min(W, H) / 3), 12, Math.floor(Math.min(W, H) / 2));
       const between = r.choice("between", ["water", "open", "rocks"] as const, "water");
       const roads = r.choice("roads", ["yes", "no"] as const, "yes") === "yes";
+      const hall = r.text("hall", "");
       const margin = 3;
       const fill = between === "water" && roles.water !== null ? roles.water : between === "rocks" ? roles.dress : roles.ground;
       const cx = W / 2, cy = H / 2;
@@ -167,7 +172,8 @@ const PRESETS: Preset[] = [
         const spawnX = s.ramp === "se" ? s.x + size - RAMP_CUT * 2 - 8 : s.x + RAMP_CUT * 2 + 2;
         locations.push(loc(`Spawn ${p}`, spawnX, s.y + size - RAMP_CUT - 8, 6, 6));
         locations.push(loc(`Beacon ${p}`, s.ramp === "se" ? s.x + 3 : s.x + size - 6, s.y + 3, 3, 3));
-        units.push([start(p, s.x + size / 2, s.y + size / 2 - 2)]);
+        units.push([start(p, s.x + size / 2, s.y + size / 2 - 6)]);
+        if (hall) units.push([{ unit: hall, player: p, x: Math.round(s.x + size / 2), y: Math.round(s.y + size / 2 + 2) }]);
       });
       locations.push(loc("Arena", cx - arena / 2, cy - arena / 4, arena, arena / 2));
       locations.push(loc("Centre", cx - 4, cy - 3, 8, 6));
@@ -259,9 +265,29 @@ export function buildPreset(id: string, params: Params, ctx: PresetContext): Bui
   const plan: MapPlan = {
     name: "", description: "", symmetry: "none",
     cellSize: 1, columns: ctx.width, rows: ctx.height, legend: {}, grid: [],
-    shapes: out.shapes, bases: [], ramps: [], doodads: [], units: out.units, locations: out.locations, notes: out.notes,
+    shapes: out.shapes, bases: [], ramps: [], doodads: decoration(ctx, roles), units: out.units, locations: out.locations, notes: out.notes,
   };
   return { plan, notes: out.notes };
+}
+
+/**
+ * A little decoration: the doodad category named like a terrain goes on that terrain
+ * (Jungle's "Jungle" trees on Jungle, "Water" on Water), sparse on the ground so the
+ * roads and camps stay open, thicker in the water where nothing walks. The renderer
+ * then keeps every doodad to flat ground of its terrain.
+ */
+export function decoration(ctx: Pick<PresetContext, "terrains" | "doodadCategories">, roles: Roles): MapPlan["doodads"] {
+  const categories = ctx.doodadCategories ?? [];
+  const name = (id: number) => ctx.terrains.find((t) => t.id === id)?.name ?? "";
+  const match = (terrain: number) => categories.find((c) => c.toLowerCase() === name(terrain).toLowerCase()) ?? null;
+  const out: MapPlan["doodads"] = [];
+  const ground = match(roles.ground);
+  if (ground) out.push({ category: ground, on: "", terrains: [roles.ground], density: 0.06 });
+  if (roles.water !== null) { const water = match(roles.water); if (water) out.push({ category: water, on: "", terrains: [roles.water], density: 0.15 }); }
+  if (roles.dress !== roles.ground) { const dress = match(roles.dress); if (dress) out.push({ category: dress, on: "", terrains: [roles.dress], density: 0.08 }); }
+  const high = match(roles.high);
+  if (high) out.push({ category: high, on: "", terrains: [roles.high], density: 0.04 });
+  return out;
 }
 
 /** The catalogue as text for a prompt or a tool answer. */

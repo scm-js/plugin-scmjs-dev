@@ -47,9 +47,18 @@ describe("layout presets", () => {
     expect(compiled.findings).toEqual([]);
   });
 
+  it("decorates by terrain name when the tileset has such categories", () => {
+    const { plan } = buildPreset("corner-camps", {}, { ...ctx, doodadCategories: ["Jungle", "Water", "Cliff", "High Jungle"] });
+    expect(plan.doodads.map((d) => [d.category, d.terrains![0]])).toEqual([["Water", 5]]);
+    const dirtWorld = buildPreset("corner-camps", {}, { ...ctx, doodadCategories: ["Dirt", "Water", "Ruins"] });
+    expect(dirtWorld.plan.doodads.map((d) => d.category)).toEqual(["Dirt", "Water", "Ruins"]);
+    expect(buildPreset("corner-camps", {}, ctx).plan.doodads).toEqual([]);
+  });
+
   it("takes fewer camps than humans and the other fills", () => {
-    const { plan } = buildPreset("corner-camps", { camps: "2", between: "open", roads: "no" }, ctx);
+    const { plan } = buildPreset("corner-camps", { camps: "2", between: "open", roads: "no", hall: "Terran Command Center" }, ctx);
     expect(plan.shapes!.filter((s) => s.op === "plateau")).toHaveLength(2);
+    expect(plan.units.filter((u) => u.unit === "Terran Command Center").map((u) => u.player)).toEqual([1, 2]);
     expect(plan.shapes!.filter((s) => s.op === "stroke")).toHaveLength(0);
     expect(plan.shapes![0]).toEqual({ op: "ground", terrain: 2 });
   });
