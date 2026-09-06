@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSystem, buildSystems, cyclesFor, dcUnitsFrom, kindByName, kindsText, paramsOf, systemKinds, ToolkitError, trigger, type ToolkitContext } from "../ai/ums";
+import { buildSystem, buildSystems, cyclesFor, dcUnitsFrom, hasLocation, kindByName, kindsText, paramsOf, systemKinds, ToolkitError, trigger, type ToolkitContext } from "../ai/ums";
 
 const ctx: ToolkitContext = { humans: [1, 2], computers: [5], hyper: true, dcUnits: ["Cave (Unused)", "Cantina (Unused)"], locations: ["Spawn 1", "Spawn 2", "Arena", "Goal", "Shop"] };
 
@@ -15,6 +15,21 @@ describe("the UMS toolkit", () => {
     expect(kindByName("spawn")?.params.find((p) => p.name === "location")?.required).toBe(true);
     expect(kindByName("nothing")).toBeNull();
     expect(kindsText()).toContain("spawn:");
+  });
+
+  it("builds a kind that takes a player list once per player when a parameter holds {p}", () => {
+    const shopCtx = { ...ctx, locations: ["Armory 1", "Armory 2", "Spawn 1", "Spawn 2"] };
+    const b = buildSystem("shop", { location: "Armory {p}", unit: "Terran Siege Tank (Tank Mode)", price: "250", deliver: "Spawn {p}" }, shopCtx);
+    expect(b.count).toBe(2);
+    expect(b.text).toContain('Trigger("Player 1"){');
+    expect(b.text).toContain('Bring("Current Player", "Any unit", "Armory 1", At least, 1)');
+    expect(b.text).toContain('Create Unit("Current Player", "Terran Siege Tank (Tank Mode)", 1, "Spawn 2")');
+    expect(b.notes[0]).toContain("once per player (1, 2)");
+    expect(() => buildSystem("shop", { location: "Pit {p}", unit: "Zerg Hydralisk" }, shopCtx)).toThrow(/player 1: shop: "location" names location "Pit 1"/);
+    // The check on a template itself: backed by a numbered location, or not.
+    expect(hasLocation(["Spawn 1", "Arena"], "Spawn {p}")).toBe(true);
+    expect(hasLocation(["Spawn 1", "Arena"], "Pit {p}")).toBe(false);
+    expect(hasLocation(["Spawn 1", "Arena"], "anywhere")).toBe(true);
   });
 
   it("counts trigger cycles at the map's rate", () => {

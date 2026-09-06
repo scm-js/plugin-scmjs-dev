@@ -46,7 +46,14 @@ type StepState = "pending" | "running" | "done" | "failed" | "skipped";
 
 interface Step {
   label: string;
+  /** Shown beside the row while it runs, for a step that takes a while. */
+  hint?: string;
   run: () => Promise<string>;
+}
+
+/** The effort the terrain step asks for: the plan is a coarse grid, so the standard quality runs it at medium rather than the server's high, which spent minutes reasoning on a 32×32 grid. */
+export function terrainEffort(quality: string): "low" | "medium" | "high" | undefined {
+  return quality === "quick" ? "low" : quality === "thorough" ? "high" : "medium";
 }
 
 /** The `map-plan` prompt a design's layout brief becomes: the brief, then every location the systems need, then the scenario rule. */
@@ -117,14 +124,18 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
       const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The Trigger Script plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, …). Turn it on under Plugins ▸ Manage Plugins… for custom mechanics.");
 
       /* ── 2. the design ── */
-      const designBox = h("div", { hidden: true });
+      const designBody = h("div", { className: "ai-body" });
+      const designSummary = h("summary", null, "The design");
+      const designBox = h("details", { className: "ai-fold", hidden: true, open: true }, designSummary, designBody);
       const refineField = textarea({ placeholder: "What should change in the design? (\"make it two players\", \"add a boss\", \"less income\")", rows: 2 });
       refineField.addEventListener("input", () => { state.refine = refineField.value; });
       const redesignButton = w.button("Design again", { onClick: () => void design(true) });
       const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
 
       const showDesign = (d: UmsDesign) => {
-        designBox.replaceChildren();
+        designBody.replaceChildren();
+        designSummary.textContent = `${d.genre}: ${d.name} — ${d.systems.length} systems, ${d.locations.length} locations, ${d.players.filter((p) => p.type === "human").length} human players`;
+        designBox.open = true;
         const nameField = w.text({ value: d.name, onChange: (v) => { d.name = v; } });
         const descField = textarea({ value: d.description, rows: 2 });
         descField.addEventListener("input", () => { d.description = descField.value; });
@@ -158,9 +169,10 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           w.group(`Layout brief and ${d.locations.length} locations`, briefField, h("details", null, h("summary", null, "Locations the brief must place"), h("div", { className: "ai-body" }, locations))),
           w.group("Objectives and briefing", objectivesField, briefingField),
           d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null,
-          h("div", { className: "ai-btns" }, buildButton, refineField, redesignButton),
+          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
+          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
         ];
-        for (const part of parts) if (part) designBox.append(part);
+        for (const part of parts) if (part) designBody.append(part);
         designBox.hidden = false;
       };
 
@@ -178,6 +190,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             row.className = `ai-step is-${s}`;
             if (s === "running") mark.replaceChildren(w.spinner({ size: "sm" }));
             else mark.textContent = s === "done" ? "✓" : s === "failed" ? "✗" : s === "skipped" ? "–" : "○";
+            this.detail(text);
+          },
+          detail(text: string) {
             detail.textContent = text;
             detail.title = text;
           },
@@ -215,8 +230,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         };
         designButton.setBusy(true);
         redesignButton.setBusy(true);
+        designBox.before(runner.el);
         try {
-          const r = await runRecipe(ctx, runner, "ums-design", input);
+          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
           if (!r) return;
           state.design = r.output;
           state.built = false;
@@ -265,6 +281,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         stepsBox.hidden = false;
         afterBox.hidden = true;
         findingsBox.replaceChildren();
+        // The design folds away and the progress sits together: the rows, then the clock and the reasoning under them.
+        designBox.open = false;
+        stepsBox.after(runner.el);
         const findings: string[] = [];
         const cur = api.document.info()!;
         const humans = d.players.filter((p) => p.type === "human").map((p) => p.slot);
@@ -275,13 +294,14 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const steps: Step[] = [];
         steps.push({
           label: "Terrain and locations",
+          hint: "scmjs.dev plans the layout; this takes a few minutes",
           run: async () => {
             const input: MapPlanInput = {
               prompt: layoutPrompt(d), width: cur.width, height: cur.height, tileset: cur.tileset,
               terrains: terrainVocab(api), doodadCategories: doodadCategoryNames(api), unitNames: unitNames(api),
               players: Math.max(1, humans.length), symmetry: ["madness", "arena", "diplomacy"].includes(d.genre) ? "auto" : "none", cellSize: cellSizeFor(cur.width, cur.height),
             };
-            const r = await runRecipe(ctx, runner, "map-plan", input);
+            const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
             if (!r) throw new Error("no plan came back");
             const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
@@ -384,9 +404,12 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         });
 
         const rows = steps.map((s) => addStep(s.label));
+        stepsBox.scrollIntoView({ block: "nearest" });
         let failed = 0;
         for (let i = 0; i < steps.length; i++) {
-          rows[i].set("running");
+          rows[i].set("running", steps[i].hint ?? "");
+          // The long steps ask the service: their row carries the same clock as the runner, so the wait is visible where the eye is.
+          runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
           try {
             const text = await steps[i].run();
             rows[i].set("done", text);
@@ -397,6 +420,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             if (i === 0) { for (let j = 1; j < steps.length; j++) rows[j].set("skipped", "not run"); break; }
           }
         }
+        runner.onTick = null;
         state.built = true;
         buildButton.setBusy(false);
         redesignButton.setBusy(false);

@@ -72,9 +72,13 @@ marine lost on a Zerg world", "a two-lane tower defense". The model writes a *de
 document* first — the genre and premise, the players and forces, every trigger system the
 map runs on, the layout brief, the objectives and the briefing — with the genre's guide
 and the toolkit's catalogue in front of it; the dialog shows the document and lets you edit
-it (rename, drop a system, change a parameter, rewrite the brief). Build then goes step by
+it (rename, drop a system, change a parameter, rewrite the brief), or say what should be
+different under "Change the design first". A location parameter may carry `{p}` for the
+player number ("Spawn {p}", "Armory {p}"): the system is then built once per player, so
+one spawn or shop entry serves everyone. Build folds the design away and goes step by
 step, each step a row that passes or fails on its own: the map, the terrain and the named
-locations (through Generate Map's planner), players and forces, every system, the
+locations (through Generate Map's planner — the long step, with its clock and the model's
+reasoning under the rows), players and forces, every system, the
 objectives and briefing, the name, Check Map. Systems the *toolkit* knows — hyper triggers,
 spawn cycles, kill-to-cash, income, waves, lives, shops, heal spots, respawn, teleports,
 kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, rescue by

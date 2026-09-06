@@ -123,6 +123,23 @@ const a = {
   invincible: (p: number | string, unit: string, loc: string, state: "enable" | "disable") => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc)}, ${state})`,
 };
 
+/* ── Per-player templates ──────────────────────────────── */
+
+/** Whether a value carries the player-number template. */
+export const isTemplate = (value: string): boolean => /\{p\}/.test(value);
+
+/** The template with the player number in. */
+export const fillTemplate = (value: string, p: number): string => value.replace(/\{p\}/g, String(p));
+
+/** Whether `locations` holds `name` — or, for a `{p}` template, the name with some player's number in. */
+export function hasLocation(locations: string[], name: string): boolean {
+  const v = name.trim().toLowerCase();
+  if (v === "anywhere") return true;
+  if (!isTemplate(v)) return locations.some((l) => l.toLowerCase() === v);
+  const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
+  return locations.some((l) => re.test(l.toLowerCase()));
+}
+
 /* ── Parameter reading ─────────────────────────────────── */
 
 class Reader {
@@ -166,10 +183,10 @@ class Reader {
     this.problems.push(`"${name}" should be yes or no, not "${v}"`);
     return fallback;
   }
-  /** A location name, checked against the context when it lists any. */
+  /** A location name, checked against the context when it lists any; a `{p}` template passes when a numbered location backs it. */
   location(name: string, fallback?: string): string {
     const v = this.str(name, fallback);
-    if (v && this.ctx.locations && this.ctx.locations.length > 0 && v.toLowerCase() !== "anywhere" && !this.ctx.locations.some((l) => l.toLowerCase() === v.toLowerCase())) {
+    if (v && this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, v)) {
       this.problems.push(`"${name}" names location "${v}", which the map does not have`);
     }
     return v;
@@ -230,6 +247,8 @@ export class Counters {
 
 interface Kind {
   spec: SystemKindSpec;
+  /** The builder fills `{p}` itself (one trigger per player inside one system); the others are built once per player by `buildSystem`. */
+  perPlayer?: boolean;
   build(r: Reader, ctx: ToolkitContext, dc: Counters): { triggers: string[]; notes?: string[] };
 }
 
@@ -250,6 +269,7 @@ const KINDS: Kind[] = [
     },
   },
   {
+    perPlayer: true,
     spec: {
       kind: "spawn",
       description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
@@ -268,13 +288,14 @@ const KINDS: Kind[] = [
       const counter = dc.take("the spawn timer");
       const triggers: string[] = [];
       for (const p of players) {
-        const loc = location.replace(/\{p\}/g, String(p));
-        if (attack) r.location("attack", attack);
+        const loc = fillTemplate(location, p);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
         const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? (ctx.computers[0] ?? p) : Number(ownerRaw) || p;
         const conditions = [c.deaths(p, counter, "At least", cycles)];
         if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
         const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc)];
-        if (attack) actions.push(a.order(owner, unit, loc, attack, "attack"));
+        if (attack) actions.push(a.order(owner, unit, loc, attackLoc, "attack"));
         actions.push(a.preserve());
         triggers.push(trigger([p], conditions, actions));
         triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
@@ -663,6 +684,40 @@ export function kindByName(kind: string): SystemKindSpec | null {
 export function buildSystem(kind: string, params: Params, ctx: ToolkitContext, dc: Counters = new Counters(ctx)): BuiltSystem {
   const k = KINDS.find((x) => x.spec.kind === kind);
   if (!k) throw new ToolkitError([`no system kind called "${kind}" (the toolkit has ${KINDS.map((x) => x.spec.kind).join(", ")})`]);
+  if (!k.perPlayer && Object.values(params).some(isTemplate)) return buildPerPlayer(k, params, ctx, dc);
+  return buildOne(k, params, ctx, dc);
+}
+
+/**
+ * A `{p}` template on a kind that builds for a player list at once ("Armory {p}" on a
+ * shop, "Base {p}" on an income): the system is built once per player — the player's
+ * number in every template, `players` narrowed to that player — and the pieces joined,
+ * so "one shop per base" is one system in a design rather than eight.
+ */
+function buildPerPlayer(k: Kind, params: Params, ctx: ToolkitContext, dc: Counters): BuiltSystem {
+  const takesPlayers = k.spec.params.some((p) => p.name === "players");
+  const players = takesPlayers ? new Reader(k.spec, params, ctx).players("players") : ctx.humans;
+  if (players.length === 0) throw new ToolkitError([`${k.spec.kind}: a {p} template needs players to build for`]);
+  const parts: BuiltSystem[] = [];
+  const problems: string[] = [];
+  for (const p of players) {
+    const filled: Params = {};
+    for (const [key, value] of Object.entries(params)) filled[key] = fillTemplate(value, p);
+    if (takesPlayers) filled.players = String(p);
+    try { parts.push(buildOne(k, filled, ctx, dc)); } catch (err) { if (err instanceof ToolkitError) problems.push(...err.problems.map((x) => `player ${p}: ${x}`)); else throw err; }
+  }
+  if (problems.length > 0) throw new ToolkitError(problems);
+  const notes = new Set<string>();
+  for (const part of parts) for (const n of part.notes) notes.add(n);
+  return {
+    text: parts.map((x) => x.text).join("\n"),
+    count: parts.reduce((n, x) => n + x.count, 0),
+    notes: [`built once per player (${players.join(", ")}) from the {p} template`, ...notes],
+    dcUsed: parts.flatMap((x) => x.dcUsed),
+  };
+}
+
+function buildOne(k: Kind, params: Params, ctx: ToolkitContext, dc: Counters): BuiltSystem {
   const reader = new Reader(k.spec, params, ctx);
   const before = dc.used.length;
   const out = k.build(reader, ctx, dc);
@@ -690,7 +745,10 @@ export function dcUnitsFrom(unitNames: string[]): string[] {
   return DEFAULT_DC_UNITS.filter((n) => have.has(n.toLowerCase()));
 }
 
+/** The rule every kind shares, for the prompts that list the catalogue. */
+export const TEMPLATE_RULE = "Any location (or other) parameter may hold {p} for the player number — \"Spawn {p}\", \"Armory {p}\" — and the system is then built for every player in `players`, with {p} filled in; the map must have the numbered locations.";
+
 /** The catalogue as text for a tool answer or a prompt. */
 export function kindsText(): string {
-  return KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}\n${k.spec.params.map((p) => `  - ${p.name}${p.required ? " (required)" : ""}: ${p.description}`).join("\n")}`).join("\n\n");
+  return `${TEMPLATE_RULE}\n\n` + KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}\n${k.spec.params.map((p) => `  - ${p.name}${p.required ? " (required)" : ""}: ${p.description}`).join("\n")}`).join("\n\n");
 }

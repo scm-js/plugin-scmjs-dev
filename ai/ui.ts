@@ -65,6 +65,8 @@ export const STYLE = `
 .ai .ai-chip { padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 10px; background: var(--bg-2, #1b1f27); color: var(--text-dim, #99a2b3); cursor: pointer; font-size: 11px; }
 .ai .ai-chip:hover { color: var(--text, #e6e9ef); border-color: var(--teal, #4fd1c5); }
 .ai .ai-runner { display: flex; flex-direction: column; gap: 4px; padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
+.ai .ai-fold > .ai-body { max-height: none; white-space: normal; color: inherit; font-size: inherit; display: flex; flex-direction: column; gap: 8px; }
+.ai .ai-latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
 .ai .ai-bad { color: #ff9f7a; }
 .ai .ai-ok { color: var(--teal, #4fd1c5); }
 .ai .ai-gold { color: var(--gold, #e6b95c); }
@@ -173,29 +175,41 @@ export class Runner {
   private readonly status: StatusLineElement;
   private readonly thinking: HTMLDetailsElement;
   private readonly thinkingBody: HTMLElement;
+  private readonly latest: HTMLElement;
   private timer: number | null = null;
   private startedAt = 0;
+  private label = "";
+  private thought = "";
   private controller: AbortController | null = null;
   private readonly ctx: Ctx;
+  /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
+  onTick: ((seconds: number) => void) | null = null;
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
     this.status = ctx.api.ui.widgets.statusLine({ text: "Ready." });
+    this.latest = h("div", { className: "ai-hint ai-latest", hidden: true });
     this.thinkingBody = h("div", { className: "ai-body" });
     this.thinking = h("details", { hidden: true }, h("summary", null, "Reasoning"), this.thinkingBody);
-    this.el = h("div", { className: "ai-runner" }, this.status, this.thinking);
+    this.el = h("div", { className: "ai-runner" }, this.status, this.latest, this.thinking);
   }
 
   get signal(): AbortSignal | undefined { return this.controller?.signal; }
   get busy(): boolean { return this.controller !== null; }
+  get seconds(): number { return Math.round((Date.now() - this.startedAt) / 1000); }
 
-  start() {
+  /** Start a run; `label` says what is being asked for ("Designing the scenario"), so the wait is not a blank "asking". */
+  start(label = "Asking scmjs.dev") {
     this.abort();
     this.controller = new AbortController();
     this.startedAt = Date.now();
+    this.label = label;
+    this.thought = "";
     // "Stop", not Cancel: Cancel in a dialog means leaving it, and this leaves the dialog where it is.
     this.status.cancel(() => this.abort(), "Stop");
     clear(this.thinkingBody);
+    this.latest.hidden = true;
+    this.latest.textContent = "";
     this.thinking.hidden = !this.ctx.settings().showThinking;
     this.thinking.open = false;
     this.tick();
@@ -203,21 +217,32 @@ export class Runner {
   }
 
   private tick() {
-    const s = Math.round((Date.now() - this.startedAt) / 1000);
-    // The model is the service's business: the strip says who is being asked, not which model.
-    this.status.progress(`Asking scmjs.dev… ${s} s`, null);
+    const s = this.seconds;
+    // The model is the service's business: the strip says what is being asked for, not which model.
+    this.status.progress(`${this.label}… ${s} s`, null);
+    this.onTick?.(s);
   }
 
+  /**
+   * A piece of the model's reasoning summary. The full text goes in the fold; the last
+   * sentence of it is shown as a line under the status, so a long wait visibly moves
+   * without the fold open.
+   */
   addThinking(text: string) {
     this.thinking.hidden = false;
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
+    this.thought = (this.thought + text).slice(-2000);
+    const sentences = this.thought.split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
+    const last = sentences.length > 1 && /[.!?]$/.test(sentences[sentences.length - 1]!) ? sentences[sentences.length - 1]! : (sentences[sentences.length - 2] ?? sentences[sentences.length - 1] ?? "");
+    if (last) { this.latest.textContent = last.length > 160 ? `${last.slice(0, 157)}…` : last; this.latest.hidden = false; }
   }
 
   private settle() {
     if (this.timer !== null) { window.clearInterval(this.timer); this.timer = null; }
     this.controller = null;
     this.status.cancel(null);
+    this.latest.hidden = true;
   }
 
   finish(usage: Usage, note?: string) {
@@ -263,20 +288,31 @@ export function recipeOptions(settings: Settings): RecipeOptions {
   return o;
 }
 
+/** What a workflow may say about one run: what it is for, and an effort that overrides the quality's. */
+export interface RunExtras {
+  /** Shown in the runner while it runs ("Designing the scenario"). */
+  label?: string;
+  /** An effort for this run only; the quality setting's (or the server's default) otherwise. */
+  effort?: RecipeOptions["effort"];
+}
+
 /**
  * Run a recipe with the runner showing its progress. Resolves with the result, or
  * null after showing the failure in the runner. Streams `delta` / `thinking` through
  * the hooks.
  */
-export async function runRecipe<N extends RecipeName>(ctx: Ctx, runner: Runner, name: N, input: RecipeInputs[N], hooks: Omit<RunHooks, "signal"> = {}): Promise<RunResult<N> | null> {
+export async function runRecipe<N extends RecipeName>(ctx: Ctx, runner: Runner, name: N, input: RecipeInputs[N], hooks: Omit<RunHooks, "signal"> & RunExtras = {}): Promise<RunResult<N> | null> {
   const settings = ctx.settings();
-  runner.start();
+  const { label, effort, ...rest } = hooks;
+  runner.start(label);
+  const options = recipeOptions(settings);
+  if (effort) options.effort = effort;
   try {
     const r = await ctx.client.run(name, input, {
-      ...hooks,
+      ...rest,
       onThinking: (t) => { runner.addThinking(t); hooks.onThinking?.(t); },
       signal: runner.signal,
-    }, recipeOptions(settings));
+    }, options);
     runner.finish(r.usage);
     return r;
   } catch (err) {

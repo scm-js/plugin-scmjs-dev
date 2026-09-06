@@ -2581,6 +2581,8 @@ var STYLE = `
 .ai .ai-chip { padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 10px; background: var(--bg-2, #1b1f27); color: var(--text-dim, #99a2b3); cursor: pointer; font-size: 11px; }
 .ai .ai-chip:hover { color: var(--text, #e6e9ef); border-color: var(--teal, #4fd1c5); }
 .ai .ai-runner { display: flex; flex-direction: column; gap: 4px; padding: 2px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
+.ai .ai-fold > .ai-body { max-height: none; white-space: normal; color: inherit; font-size: inherit; display: flex; flex-direction: column; gap: 8px; }
+.ai .ai-latest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
 .ai .ai-bad { color: #ff9f7a; }
 .ai .ai-ok { color: var(--teal, #4fd1c5); }
 .ai .ai-gold { color: var(--gold, #e6b95c); }
@@ -2675,16 +2677,22 @@ var Runner = class {
   status;
   thinking;
   thinkingBody;
+  latest;
   timer = null;
   startedAt = 0;
+  label = "";
+  thought = "";
   controller = null;
   ctx;
+  /** Called every second while a run is on, with the seconds so far — for a row elsewhere that shows the same clock. */
+  onTick = null;
   constructor(ctx) {
     this.ctx = ctx;
     this.status = ctx.api.ui.widgets.statusLine({ text: "Ready." });
+    this.latest = h("div", { className: "ai-hint ai-latest", hidden: true });
     this.thinkingBody = h("div", { className: "ai-body" });
     this.thinking = h("details", { hidden: true }, h("summary", null, "Reasoning"), this.thinkingBody);
-    this.el = h("div", { className: "ai-runner" }, this.status, this.thinking);
+    this.el = h("div", { className: "ai-runner" }, this.status, this.latest, this.thinking);
   }
   get signal() {
     return this.controller?.signal;
@@ -2692,25 +2700,46 @@ var Runner = class {
   get busy() {
     return this.controller !== null;
   }
-  start() {
+  get seconds() {
+    return Math.round((Date.now() - this.startedAt) / 1e3);
+  }
+  /** Start a run; `label` says what is being asked for ("Designing the scenario"), so the wait is not a blank "asking". */
+  start(label = "Asking scmjs.dev") {
     this.abort();
     this.controller = new AbortController();
     this.startedAt = Date.now();
+    this.label = label;
+    this.thought = "";
     this.status.cancel(() => this.abort(), "Stop");
     clear(this.thinkingBody);
+    this.latest.hidden = true;
+    this.latest.textContent = "";
     this.thinking.hidden = !this.ctx.settings().showThinking;
     this.thinking.open = false;
     this.tick();
     this.timer = window.setInterval(() => this.tick(), 1e3);
   }
   tick() {
-    const s = Math.round((Date.now() - this.startedAt) / 1e3);
-    this.status.progress(`Asking scmjs.dev\u2026 ${s} s`, null);
+    const s = this.seconds;
+    this.status.progress(`${this.label}\u2026 ${s} s`, null);
+    this.onTick?.(s);
   }
+  /**
+   * A piece of the model's reasoning summary. The full text goes in the fold; the last
+   * sentence of it is shown as a line under the status, so a long wait visibly moves
+   * without the fold open.
+   */
   addThinking(text) {
     this.thinking.hidden = false;
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
+    this.thought = (this.thought + text).slice(-2e3);
+    const sentences = this.thought.split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
+    const last = sentences.length > 1 && /[.!?]$/.test(sentences[sentences.length - 1]) ? sentences[sentences.length - 1] : sentences[sentences.length - 2] ?? sentences[sentences.length - 1] ?? "";
+    if (last) {
+      this.latest.textContent = last.length > 160 ? `${last.slice(0, 157)}\u2026` : last;
+      this.latest.hidden = false;
+    }
   }
   settle() {
     if (this.timer !== null) {
@@ -2719,6 +2748,7 @@ var Runner = class {
     }
     this.controller = null;
     this.status.cancel(null);
+    this.latest.hidden = true;
   }
   finish(usage, note) {
     this.settle();
@@ -2763,16 +2793,19 @@ function recipeOptions(settings) {
 }
 async function runRecipe(ctx, runner, name, input, hooks = {}) {
   const settings = ctx.settings();
-  runner.start();
+  const { label, effort, ...rest } = hooks;
+  runner.start(label);
+  const options = recipeOptions(settings);
+  if (effort) options.effort = effort;
   try {
     const r = await ctx.client.run(name, input, {
-      ...hooks,
+      ...rest,
       onThinking: (t) => {
         runner.addThinking(t);
         hooks.onThinking?.(t);
       },
       signal: runner.signal
-    }, recipeOptions(settings));
+    }, options);
     runner.finish(r.usage);
     return r;
   } catch (err) {
@@ -4022,6 +4055,15 @@ var a = {
   setSwitch: (name, action) => `Set Switch(${q(name)}, ${action})`,
   invincible: (p, unit, loc, state) => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc)}, ${state})`
 };
+var isTemplate = (value) => /\{p\}/.test(value);
+var fillTemplate = (value, p) => value.replace(/\{p\}/g, String(p));
+function hasLocation(locations, name) {
+  const v = name.trim().toLowerCase();
+  if (v === "anywhere") return true;
+  if (!isTemplate(v)) return locations.some((l) => l.toLowerCase() === v);
+  const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
+  return locations.some((l) => re.test(l.toLowerCase()));
+}
 var Reader = class {
   problems = [];
   notes = [];
@@ -4065,10 +4107,10 @@ var Reader = class {
     this.problems.push(`"${name}" should be yes or no, not "${v}"`);
     return fallback;
   }
-  /** A location name, checked against the context when it lists any. */
+  /** A location name, checked against the context when it lists any; a `{p}` template passes when a numbered location backs it. */
   location(name, fallback) {
     const v = this.str(name, fallback);
-    if (v && this.ctx.locations && this.ctx.locations.length > 0 && v.toLowerCase() !== "anywhere" && !this.ctx.locations.some((l) => l.toLowerCase() === v.toLowerCase())) {
+    if (v && this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, v)) {
       this.problems.push(`"${name}" names location "${v}", which the map does not have`);
     }
     return v;
@@ -4148,6 +4190,7 @@ var KINDS = [
     }
   },
   {
+    perPlayer: true,
     spec: {
       kind: "spawn",
       description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
@@ -4166,13 +4209,14 @@ var KINDS = [
       const counter = dc.take("the spawn timer");
       const triggers = [];
       for (const p of players2) {
-        const loc = location2.replace(/\{p\}/g, String(p));
-        if (attack) r.location("attack", attack);
+        const loc = fillTemplate(location2, p);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
         const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
         const conditions = [c.deaths(p, counter, "At least", cycles)];
         if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
         const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc)];
-        if (attack) actions.push(a.order(owner, unit, loc, attack, "attack"));
+        if (attack) actions.push(a.order(owner, unit, loc, attackLoc, "attack"));
         actions.push(a.preserve());
         triggers.push(trigger([p], conditions, actions));
         triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
@@ -4559,6 +4603,37 @@ function systemKinds() {
 function buildSystem(kind, params, ctx, dc = new Counters(ctx)) {
   const k = KINDS.find((x) => x.spec.kind === kind);
   if (!k) throw new ToolkitError([`no system kind called "${kind}" (the toolkit has ${KINDS.map((x) => x.spec.kind).join(", ")})`]);
+  if (!k.perPlayer && Object.values(params).some(isTemplate)) return buildPerPlayer(k, params, ctx, dc);
+  return buildOne(k, params, ctx, dc);
+}
+function buildPerPlayer(k, params, ctx, dc) {
+  const takesPlayers = k.spec.params.some((p) => p.name === "players");
+  const players2 = takesPlayers ? new Reader(k.spec, params, ctx).players("players") : ctx.humans;
+  if (players2.length === 0) throw new ToolkitError([`${k.spec.kind}: a {p} template needs players to build for`]);
+  const parts = [];
+  const problems = [];
+  for (const p of players2) {
+    const filled = {};
+    for (const [key, value] of Object.entries(params)) filled[key] = fillTemplate(value, p);
+    if (takesPlayers) filled.players = String(p);
+    try {
+      parts.push(buildOne(k, filled, ctx, dc));
+    } catch (err) {
+      if (err instanceof ToolkitError) problems.push(...err.problems.map((x) => `player ${p}: ${x}`));
+      else throw err;
+    }
+  }
+  if (problems.length > 0) throw new ToolkitError(problems);
+  const notes = /* @__PURE__ */ new Set();
+  for (const part of parts) for (const n2 of part.notes) notes.add(n2);
+  return {
+    text: parts.map((x) => x.text).join("\n"),
+    count: parts.reduce((n2, x) => n2 + x.count, 0),
+    notes: [`built once per player (${players2.join(", ")}) from the {p} template`, ...notes],
+    dcUsed: parts.flatMap((x) => x.dcUsed)
+  };
+}
+function buildOne(k, params, ctx, dc) {
   const reader = new Reader(k.spec, params, ctx);
   const before = dc.used.length;
   const out = k.build(reader, ctx, dc);
@@ -4575,8 +4650,11 @@ function dcUnitsFrom(unitNames2) {
   const have = new Set(unitNames2.map((n2) => n2.toLowerCase()));
   return DEFAULT_DC_UNITS.filter((n2) => have.has(n2.toLowerCase()));
 }
+var TEMPLATE_RULE = 'Any location (or other) parameter may hold {p} for the player number \u2014 "Spawn {p}", "Armory {p}" \u2014 and the system is then built for every player in `players`, with {p} filled in; the map must have the numbered locations.';
 function kindsText() {
-  return KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}
+  return `${TEMPLATE_RULE}
+
+` + KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}
 ${k.spec.params.map((p) => `  - ${p.name}${p.required ? " (required)" : ""}: ${p.description}`).join("\n")}`).join("\n\n");
 }
 
@@ -5715,6 +5793,9 @@ var EXAMPLES2 = {
   "a tower defense": "A two-lane tower defense for up to four players: waves walk from the north spawns down the lanes to the goal at the south; players build turrets beside the lanes; twenty waves, shared lives."
 };
 var REPAIR_ROUNDS = 2;
+function terrainEffort(quality) {
+  return quality === "quick" ? "low" : quality === "thorough" ? "high" : "medium";
+}
 function layoutPrompt(design) {
   const lines = [design.layoutBrief.trim(), ""];
   if (design.locations.length) {
@@ -5793,7 +5874,9 @@ function openScenario(ctx, presetPrompt) {
       syncTarget();
       const designButton = w.button("Design", { primary: true, onClick: () => void design(false) });
       const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The Trigger Script plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.");
-      const designBox = h("div", { hidden: true });
+      const designBody = h("div", { className: "ai-body" });
+      const designSummary = h("summary", null, "The design");
+      const designBox = h("details", { className: "ai-fold", hidden: true, open: true }, designSummary, designBody);
       const refineField = textarea({ placeholder: 'What should change in the design? ("make it two players", "add a boss", "less income")', rows: 2 });
       refineField.addEventListener("input", () => {
         state.refine = refineField.value;
@@ -5801,7 +5884,9 @@ function openScenario(ctx, presetPrompt) {
       const redesignButton = w.button("Design again", { onClick: () => void design(true) });
       const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
       const showDesign = (d) => {
-        designBox.replaceChildren();
+        designBody.replaceChildren();
+        designSummary.textContent = `${d.genre}: ${d.name} \u2014 ${d.systems.length} systems, ${d.locations.length} locations, ${d.players.filter((p) => p.type === "human").length} human players`;
+        designBox.open = true;
         const nameField = w.text({ value: d.name, onChange: (v) => {
           d.name = v;
         } });
@@ -5853,9 +5938,10 @@ function openScenario(ctx, presetPrompt) {
           w.group(`Layout brief and ${d.locations.length} locations`, briefField, h("details", null, h("summary", null, "Locations the brief must place"), h("div", { className: "ai-body" }, locations))),
           w.group("Objectives and briefing", objectivesField, briefingField),
           d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null,
-          h("div", { className: "ai-btns" }, buildButton, refineField, redesignButton)
+          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
+          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton)))
         ];
-        for (const part of parts) if (part) designBox.append(part);
+        for (const part of parts) if (part) designBody.append(part);
         designBox.hidden = false;
       };
       const stepsBox = h("div", { className: "ai-steps", hidden: true });
@@ -5871,6 +5957,9 @@ function openScenario(ctx, presetPrompt) {
             row.className = `ai-step is-${s}`;
             if (s === "running") mark.replaceChildren(w.spinner({ size: "sm" }));
             else mark.textContent = s === "done" ? "\u2713" : s === "failed" ? "\u2717" : s === "skipped" ? "\u2013" : "\u25CB";
+            this.detail(text);
+          },
+          detail(text) {
             detail.textContent = text;
             detail.title = text;
           }
@@ -5916,8 +6005,9 @@ Change this: ${state.refine.trim()}` : state.prompt;
         };
         designButton.setBusy(true);
         redesignButton.setBusy(true);
+        designBox.before(runner.el);
         try {
-          const r = await runRecipe(ctx, runner, "ums-design", input);
+          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
           if (!r) return;
           state.design = r.output;
           state.built = false;
@@ -5967,6 +6057,8 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         stepsBox.hidden = false;
         afterBox.hidden = true;
         findingsBox.replaceChildren();
+        designBox.open = false;
+        stepsBox.after(runner.el);
         const findings = [];
         const cur = api.document.info();
         const humans = d.players.filter((p) => p.type === "human").map((p) => p.slot);
@@ -5976,6 +6068,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const steps = [];
         steps.push({
           label: "Terrain and locations",
+          hint: "scmjs.dev plans the layout; this takes a few minutes",
           run: async () => {
             const input = {
               prompt: layoutPrompt(d),
@@ -5989,7 +6082,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               symmetry: ["madness", "arena", "diplomacy"].includes(d.genre) ? "auto" : "none",
               cellSize: cellSizeFor(cur.width, cur.height)
             };
-            const r = await runRecipe(ctx, runner, "map-plan", input);
+            const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
             if (!r) throw new Error("no plan came back");
             const rendered = renderPlan(api, r.output, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
@@ -6109,9 +6202,11 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           }
         });
         const rows = steps.map((s) => addStep(s.label));
+        stepsBox.scrollIntoView({ block: "nearest" });
         let failed = 0;
         for (let i = 0; i < steps.length; i++) {
-          rows[i].set("running");
+          rows[i].set("running", steps[i].hint ?? "");
+          runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
           try {
             const text = await steps[i].run();
             rows[i].set("done", text);
@@ -6125,6 +6220,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             }
           }
         }
+        runner.onTick = null;
         state.built = true;
         buildButton.setBusy(false);
         redesignButton.setBusy(false);
