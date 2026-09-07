@@ -197,7 +197,7 @@ const PRESETS: Preset[] = [
     build(r, ctx, roles) {
       const W = ctx.width, H = ctx.height;
       const lanes = r.int("lanes", 2, 1, 4);
-      const width = r.int("laneWidth", 5, 3, 10);
+      const width = r.int("laneWidth", 5, 4, 10);
       const wall = r.choice("wall", ["water", "cliff"] as const, "water");
       const bends = r.choice("bends", ["yes", "no"] as const, "no") === "yes";
       const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
@@ -207,18 +207,24 @@ const PRESETS: Preset[] = [
       const goalW = Math.min(W - 8, 12 * lanes + 8);
       const goalX = W / 2 - goalW / 2, goalY = H - 14;
       const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
+      // The goal's enclosure goes down first: a block of wall the lanes cut into, so nothing leaves the goal but by a lane.
+      const enclosure = wall === "water" ? 6 : 8;
+      shapes.push({ op: "rect", terrain: wallTerrain, x: goalX - enclosure, y: goalY - enclosure, w: goalW + 2 * enclosure, h: H - goalY + enclosure, cut: 0 });
+      // The floor is the tileset's unbuildable dressing where it has one, so a turret wall cannot block a lane.
+      const floor = roles.dress !== roles.ground && ctx.terrains.find((t) => t.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
       laneXs.forEach((lx, i) => {
-        // A bend goes away from the middle, so two lanes never cross.
+        // A bend goes away from the middle, so two lanes never cross. The lane starts off the map's top edge, so
+        // the shores' rounding at its end cannot close the spawn.
         const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : (i % 2 ? -1 : 1)) * Math.min(14, W / 8);
         const pts: [number, number][] = bends
-          ? [[lx, 4], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]]
-          : [[lx, 4], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]];
-        shapes.push({ op: "lane", terrain: roles.ground, points: pts, width, wall: wallTerrain, wallWidth: 3 });
-        locations.push(loc(`Spawn ${i + 1}`, lx - 4, 2, 8, 8));
+          ? [[lx, -6], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]]
+          : [[lx, -6], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]];
+        shapes.push({ op: "lane", terrain: floor, points: pts, width, wall: wallTerrain, wallWidth: wall === "water" ? 4 : 6 });
+        locations.push(loc(`Spawn ${i + 1}`, lx - 3, 3, 6, 6));
         locations.push(loc(`Lane ${i + 1} Mid`, (bends ? bendX : lx) - width, H / 2 - 4, width * 2, 8));
       });
-      // The goal is a pocket the lanes end in; the walls do not close it.
-      shapes.push({ op: "rect", terrain: roles.dress, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
+      // The goal is a pocket the lanes end in, painted after them so the walls do not close it.
+      shapes.push({ op: "rect", terrain: floor, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
       locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
       // Yards: one per human, in the strips between and beside the lanes, top to bottom.
       const strips: number[] = [];

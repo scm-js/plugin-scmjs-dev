@@ -2548,6 +2548,8 @@ function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
 // ai/shapes.ts
 var BRIDGE_CHANNEL = 5;
 var BRIDGE_REACH = 14;
+var LANE_SHORE_PAD = 7;
+var LANE_CLIFF_PAD = 3;
 var RAMP_CUT = 7;
 var DEFAULT_CUT = 2;
 var RAMP_APRON = 22;
@@ -2568,8 +2570,14 @@ function compileShapes(shapes, ctx) {
     }
     return s.terrain;
   };
+  const laneBatch = /* @__PURE__ */ new Set();
+  const laneFloors = [];
   shapes.forEach((s, i) => {
     const what = `shape ${i + 1} (${s.op})`;
+    if (s.op === "lane" && !laneBatch.has(i)) {
+      let j = i;
+      while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
+    }
     switch (s.op) {
       case "ground": {
         const id = terrainOf(s, what);
@@ -2650,13 +2658,24 @@ function compileShapes(shapes, ctx) {
           findings.push(`${what} needs two points; skipped`);
           return;
         }
-        const w = Math.max(1, s.width ?? 4);
+        let w = Math.max(1, s.width ?? 4);
         if (s.op === "lane" && typeof s.wall === "number") {
           if (!known.has(s.wall)) findings.push(`${what} names wall terrain ${s.wall}, which this tileset lacks; laid without walls`);
           else {
-            const ww = Math.max(1, s.wallWidth ?? 3);
+            const cliff = (known.get(s.wall)?.height ?? 0) > (known.get(id)?.height ?? 0);
+            w += cliff ? LANE_CLIFF_PAD : LANE_SHORE_PAD;
+            const ww = Math.max(cliff ? 6 : 4, s.wallWidth ?? 3);
             strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall));
           }
+        }
+        if (s.op === "lane") {
+          const width2 = w;
+          laneFloors.push(() => strokePolyline(pts, width2, (x, y) => put(x, y, id)));
+          if (!laneBatch.has(i + 1)) {
+            for (const paint of laneFloors) paint();
+            laneFloors.length = 0;
+          }
+          return;
         }
         strokePolyline(pts, w, (x, y) => put(x, y, id));
         return;
@@ -6552,7 +6571,7 @@ var PRESETS2 = [
     build(r, ctx, roles) {
       const W = ctx.width, H = ctx.height;
       const lanes = r.int("lanes", 2, 1, 4);
-      const width = r.int("laneWidth", 5, 3, 10);
+      const width = r.int("laneWidth", 5, 4, 10);
       const wall = r.choice("wall", ["water", "cliff"], "water");
       const bends = r.choice("bends", ["yes", "no"], "no") === "yes";
       const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
@@ -6562,14 +6581,17 @@ var PRESETS2 = [
       const goalW = Math.min(W - 8, 12 * lanes + 8);
       const goalX = W / 2 - goalW / 2, goalY = H - 14;
       const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
+      const enclosure = wall === "water" ? 6 : 8;
+      shapes.push({ op: "rect", terrain: wallTerrain, x: goalX - enclosure, y: goalY - enclosure, w: goalW + 2 * enclosure, h: H - goalY + enclosure, cut: 0 });
+      const floor = roles.dress !== roles.ground && ctx.terrains.find((t) => t.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
       laneXs.forEach((lx, i) => {
         const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : i % 2 ? -1 : 1) * Math.min(14, W / 8);
-        const pts = bends ? [[lx, 4], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]] : [[lx, 4], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 4]];
-        shapes.push({ op: "lane", terrain: roles.ground, points: pts, width, wall: wallTerrain, wallWidth: 3 });
-        locations.push(loc(`Spawn ${i + 1}`, lx - 4, 2, 8, 8));
+        const pts = bends ? [[lx, -6], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]] : [[lx, -6], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]];
+        shapes.push({ op: "lane", terrain: floor, points: pts, width, wall: wallTerrain, wallWidth: wall === "water" ? 4 : 6 });
+        locations.push(loc(`Spawn ${i + 1}`, lx - 3, 3, 6, 6));
         locations.push(loc(`Lane ${i + 1} Mid`, (bends ? bendX : lx) - width, H / 2 - 4, width * 2, 8));
       });
-      shapes.push({ op: "rect", terrain: roles.dress, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
+      shapes.push({ op: "rect", terrain: floor, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
       locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
       const strips = [];
       for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));

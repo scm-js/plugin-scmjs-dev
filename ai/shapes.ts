@@ -41,6 +41,9 @@ export interface Compiled {
 export const BRIDGE_CHANNEL = 5;
 /** How far the channel and its banks are painted either side of a bridge site, in tiles. */
 export const BRIDGE_REACH = 14;
+/** What a lane's band grows by so that its walkable core is the width asked for: water shores either side, or cliff edges. */
+export const LANE_SHORE_PAD = 7;
+export const LANE_CLIFF_PAD = 3;
 
 /** How deep a ramp corner is cut, in rows: the ramp is six tiles square and wants a run longer than itself. */
 export const RAMP_CUT = 7;
@@ -65,8 +68,16 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
     return s.terrain;
   };
 
+  // Lanes that follow one another are one system: every wall first, then every floor, so two lanes that
+  // converge (at a defense's goal) do not cut each other's floor with their walls.
+  const laneBatch = new Set<number>();
+  const laneFloors: (() => void)[] = [];
   shapes.forEach((s, i) => {
     const what = `shape ${i + 1} (${s.op})`;
+    if (s.op === "lane" && !laneBatch.has(i)) {
+      let j = i;
+      while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
+    }
     switch (s.op) {
       case "ground": {
         const id = terrainOf(s, what); if (id === null) return;
@@ -123,10 +134,25 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
         const id = terrainOf(s, what); if (id === null) return;
         const pts = pointsOf(s);
         if (pts.length < 2) { findings.push(`${what} needs two points; skipped`); return; }
-        const w = Math.max(1, s.width ?? 4);
+        let w = Math.max(1, s.width ?? 4);
         if (s.op === "lane" && typeof s.wall === "number") {
           if (!known.has(s.wall)) findings.push(`${what} names wall terrain ${s.wall}, which this tileset lacks; laid without walls`);
-          else { const ww = Math.max(1, s.wallWidth ?? 3); strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall!)); }
+          else {
+            // Measured: the brush's shores eat about three and a half tiles of a band on each side, a cliff about one and a
+            // half; and a wall of high ground thinner than six tiles is all edge and no wall. The lane's width is the walkable
+            // core it keeps, so the painted band is wider by that much, and the wall at least that thick.
+            const cliff = (known.get(s.wall)?.height ?? 0) > (known.get(id)?.height ?? 0);
+            w += cliff ? LANE_CLIFF_PAD : LANE_SHORE_PAD;
+            const ww = Math.max(cliff ? 6 : 4, s.wallWidth ?? 3);
+            strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall!));
+          }
+        }
+        if (s.op === "lane") {
+          // The floor waits for the batch's last wall.
+          const width = w;
+          laneFloors.push(() => strokePolyline(pts, width, (x, y) => put(x, y, id)));
+          if (!laneBatch.has(i + 1)) { for (const paint of laneFloors) paint(); laneFloors.length = 0; }
+          return;
         }
         strokePolyline(pts, w, (x, y) => put(x, y, id));
         return;

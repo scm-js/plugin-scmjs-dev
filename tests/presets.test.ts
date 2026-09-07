@@ -68,7 +68,7 @@ describe("layout presets", () => {
     const lanes = plan.shapes!.filter((s) => s.op === "lane");
     expect(lanes).toHaveLength(2);
     expect(lanes[0].wall).toBe(5);
-    expect(lanes[0].points![0][1]).toBeLessThan(10);
+    expect(lanes[0].points![0][1]).toBeLessThan(0);
     expect(plan.locations.map((l) => l.name)).toEqual(expect.arrayContaining(["Spawn 1", "Spawn 2", "Lane 2 Mid", "Goal", "Yard 1", "Pad 4"]));
     const goal = plan.locations.find((l) => l.name === "Goal")!;
     expect(goal.y0).toBeGreaterThan(100);
@@ -76,7 +76,7 @@ describe("layout presets", () => {
     const compiled = compileShapes(plan.shapes!, { width: 128, height: 128, terrains, rampPairs: ctx.rampPairs });
     // The lane is continuous: ground all the way down its first leg.
     const lx = lanes[0].points![0][0];
-    for (let y = 6; y < 100; y++) expect(compiled.cells[y * 128 + lx]).toBe(2);
+    for (let y = 0; y < 100; y++) expect([2, 11]).toContain(compiled.cells[y * 128 + lx]);
   });
 
   it("lays an arena out: a walled floor, a spawn per player inside, a lobby with the start outside", () => {

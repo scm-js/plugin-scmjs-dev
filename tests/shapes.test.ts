@@ -64,15 +64,31 @@ describe("the shape compiler", () => {
     expect(findings[0]).toContain("no ramp");
   });
 
-  it("lays a lane as a continuous band with walls either side", () => {
+  it("lays a lane as a continuous band with walls either side, wider than asked by what the shores eat", () => {
     const { cells } = compileShapes([
       { op: "ground", terrain: 8 },
-      { op: "lane", terrain: 2, points: [[5, 5], [5, 50], [50, 50]], width: 4, wall: 5, wallWidth: 2 },
+      { op: "lane", terrain: 2, points: [[20, 5], [20, 50], [50, 50]], width: 4, wall: 5, wallWidth: 2 },
     ], ctx);
-    for (let y = 5; y <= 50; y++) expect(at(cells, 5, y)).toBe(2);
-    for (let x = 5; x <= 50; x++) expect(at(cells, x, 50)).toBe(2);
-    expect(at(cells, 8, 20)).toBe(5);
-    expect(at(cells, 12, 20)).toBe(8);
+    for (let y = 5; y <= 50; y++) expect(at(cells, 20, y)).toBe(2);
+    for (let x = 20; x <= 50; x++) expect(at(cells, x, 50)).toBe(2);
+    // Band: 4 + 7 wide (x 14.5 … 25.5); water walls at least 4 beyond.
+    expect(at(cells, 15, 20)).toBe(2);
+    expect(at(cells, 12, 20)).toBe(5);
+    expect(at(cells, 8, 20)).toBe(8);
+    // Two lanes that converge: the second's wall does not cut the first's floor.
+    const pair = compileShapes([
+      { op: "ground", terrain: 8 },
+      { op: "lane", terrain: 2, points: [[20, 5], [30, 60]], width: 4, wall: 5 },
+      { op: "lane", terrain: 2, points: [[44, 5], [34, 60]], width: 4, wall: 5 },
+    ], ctx).cells;
+    expect(at(pair, 30, 59)).toBe(2);
+    expect(at(pair, 34, 59)).toBe(2);
+    // A cliff wall pads less and is at least six thick.
+    const cliff = compileShapes([{ op: "ground", terrain: 8 }, { op: "lane", terrain: 2, points: [[20, 5], [20, 50]], width: 4, wall: 10, wallWidth: 2 }], ctx).cells;
+    expect(at(cliff, 17, 20)).toBe(2);
+    expect(at(cliff, 15, 20)).toBe(10);
+    expect(at(cliff, 11, 20)).toBe(10);
+    expect(at(cliff, 8, 20)).toBe(8);
   });
 
   it("paints a bridge's channel and banks and records the crossing", () => {
