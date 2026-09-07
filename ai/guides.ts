@@ -95,20 +95,21 @@ Each player controls a hero (a named unit, or an ordinary unit with Unit Setting
 
 const BOUND = `# Bound maps
 
-A *bound* is an obstacle course: a narrow path of explosions (usually Scourge, Scarabs or nukes killed on the tiles) the player's unit must run through with the right timing, with checkpoints to respawn at. Pure timing and pattern; no economy.
+A *bound* is an obstacle course: a narrow path the player's unit must run through, past explosions that fire in patterns, with checkpoints to respawn at. Pure timing and pattern; no economy.
 
-**Layout.** A winding path one to three tiles wide, high ground or platform, walled by unwalkable terrain, with a checkpoint location every so often and a finish location at the end. Each explosion spot is a location; a level is a set of them fired in a repeating sequence.
+**How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot — the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
 
-**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosion units. Lives per player.
+**Layout.** A winding path three or four tiles wide across water or empty space, from a start to a finish, with checkpoints along it and numbered *spots* — small boxes on the path — where the explosions fire. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Spot {n}.
 
-**Systems.**
+**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
+
+**Systems (toolkit kinds).**
 - \`hyper\`, essential: the timing is the game.
-- Obstacle sequences are *custom*: each is a death-counter timer that cycles through the spots, creating a unit at a spot for the computer and killing it there (Create Unit + Kill Unit At Location) a fraction of a second later, so the death animation is the explosion. Say the spot names, the order and the tempo in the system's description.
-- \`kill-zone\` on the explosion spots is not it — the explosion itself kills; the zone kind is for pits.
-- \`respawn\` at the last checkpoint: a checkpoint is a \`message\` + a switch or death counter set when the player brings the unit there, and the respawn location moves with it (custom, or one \`respawn\` per checkpoint gated on that counter).
-- \`victory-on-kills\` does not apply; victory is a \`message\` + Victory when the unit is brought to the finish (custom, one trigger).
+- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once. One system per pattern — the opening stretch rolling one spot at a time, a middle stretch firing pairs, a final sweep — each over its own range of spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
+- \`checkpoints\`: the unit, the start, the checkpoints in order, the finish — recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
+- \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
 
-**Pitfalls.** Without hyper triggers a bound is unplayable — the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer and make it hostile.`;
+**Pitfalls.** Without hyper triggers a bound is unplayable — the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer. A spot must lie on the path, and the pattern must leave a gap a unit can run through.`;
 
 const DIPLOMACY = `# Diplomacy and risk maps
 

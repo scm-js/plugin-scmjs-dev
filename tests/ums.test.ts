@@ -45,6 +45,31 @@ describe("the UMS toolkit", () => {
     expect(b.dcUsed).toHaveLength(2);
   });
 
+  it("builds obstacles: spots fire in turn on a beat, the blast created and killed at once, the players' units on the spot killed", () => {
+    const b = buildSystem("obstacles", { spots: "Spawn 1, Spawn 2, Arena, Goal", every: "0.5", groups: "2" }, ctx);
+    // Two steps of two spots, plus the beat.
+    expect(b.count).toBe(3);
+    expect(b.text).toContain('Create Unit("Player 5", "Zerg Scourge", 1, "Spawn 1")');
+    expect(b.text).toContain('Kill Unit At Location("Player 5", "Zerg Scourge", All, "Spawn 1")');
+    expect(b.text).toContain('Kill Unit At Location("Player 1", "Any unit", All, "Spawn 1")');
+    expect(b.text).toContain('Kill Unit At Location("Player 2", "Any unit", All, "Arena")');
+    expect(b.text).not.toContain("Wait(");
+    expect(b.text).toContain("At least, 6)"); // 0.5 s at twelve cycles a second
+    expect(() => buildSystem("obstacles", { spots: "Nowhere" }, ctx)).toThrow(ToolkitError);
+  });
+
+  it("builds checkpoints: progress recorded in order, a respawn at the last one, the first to the finish wins and the rest lose", () => {
+    const b = buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena, Goal", finish: "Shop", lives: "3" }, ctx);
+    // Per player: 2 captures, 3 respawns, 1 out-of-lives; plus 2 finishers and 1 loser trigger.
+    expect(b.count).toBe(2 * 6 + 3);
+    expect(b.text).toContain('Bring("Player 1", "Zerg Zergling", "Arena", At least, 1)');
+    expect(b.text).toContain('Create Unit("Player 2", "Zerg Zergling", 1, "Goal")');
+    expect(b.text).toContain("Victory()");
+    expect(b.text).toContain("Defeat()");
+    expect(b.text).toContain('Set Switch("Course finished", set)');
+    expect(buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena" }, ctx).text).not.toContain("Victory()");
+  });
+
   it("counts trigger cycles at the map's rate", () => {
     expect(cyclesFor(10, true)).toBe(120);
     expect(cyclesFor(10, false)).toBe(5);

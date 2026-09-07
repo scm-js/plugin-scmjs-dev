@@ -4470,20 +4470,21 @@ Each player controls a hero (a named unit, or an ordinary unit with Unit Setting
 **Pitfalls.** Heroes need Unit Settings (hit points, damage) to survive at all; the default marine dies to two zerglings. A shop beacon inside the walking path buys by accident \u2014 set it off the path. Enemies placed by hand for the computer stand still unless the computer runs an AI script or a trigger orders them: \`auto-attack\` from a region to the town is the simplest guard behaviour.`;
 var BOUND = `# Bound maps
 
-A *bound* is an obstacle course: a narrow path of explosions (usually Scourge, Scarabs or nukes killed on the tiles) the player's unit must run through with the right timing, with checkpoints to respawn at. Pure timing and pattern; no economy.
+A *bound* is an obstacle course: a narrow path the player's unit must run through, past explosions that fire in patterns, with checkpoints to respawn at. Pure timing and pattern; no economy.
 
-**Layout.** A winding path one to three tiles wide, high ground or platform, walled by unwalkable terrain, with a checkpoint location every so often and a finish location at the end. Each explosion spot is a location; a level is a set of them fired in a repeating sequence.
+**How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot \u2014 the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
 
-**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosion units. Lives per player.
+**Layout.** A winding path three or four tiles wide across water or empty space, from a start to a finish, with checkpoints along it and numbered *spots* \u2014 small boxes on the path \u2014 where the explosions fire. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Spot {n}.
 
-**Systems.**
+**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
+
+**Systems (toolkit kinds).**
 - \`hyper\`, essential: the timing is the game.
-- Obstacle sequences are *custom*: each is a death-counter timer that cycles through the spots, creating a unit at a spot for the computer and killing it there (Create Unit + Kill Unit At Location) a fraction of a second later, so the death animation is the explosion. Say the spot names, the order and the tempo in the system's description.
-- \`kill-zone\` on the explosion spots is not it \u2014 the explosion itself kills; the zone kind is for pits.
-- \`respawn\` at the last checkpoint: a checkpoint is a \`message\` + a switch or death counter set when the player brings the unit there, and the respawn location moves with it (custom, or one \`respawn\` per checkpoint gated on that counter).
-- \`victory-on-kills\` does not apply; victory is a \`message\` + Victory when the unit is brought to the finish (custom, one trigger).
+- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once. One system per pattern \u2014 the opening stretch rolling one spot at a time, a middle stretch firing pairs, a final sweep \u2014 each over its own range of spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
+- \`checkpoints\`: the unit, the start, the checkpoints in order, the finish \u2014 recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
+- \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
 
-**Pitfalls.** Without hyper triggers a bound is unplayable \u2014 the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer and make it hostile.`;
+**Pitfalls.** Without hyper triggers a bound is unplayable \u2014 the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer. A spot must lie on the path, and the pattern must leave a gap a unit can run through.`;
 var DIPLOMACY = `# Diplomacy and risk maps
 
 Territories on a world map, each with a building or beacon that marks control; income per territory held; alliances made and broken in the game's diplomacy menu; last empire standing wins.
@@ -4710,6 +4711,10 @@ var Reader = class {
       this.problems.push(`"${name}" names location "${v}", which the map does not have`);
     }
     return v;
+  }
+  /** A location named inside a list parameter, checked the same way. */
+  locationIn(name, value) {
+    if (this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, value)) this.problems.push(`"${name}" names location "${value}", which the map does not have`);
   }
   /** Players: "humans" (default), "computers", "all", or a list like "1, 2, 5". 1-based. */
   players(name, fallback = "humans") {
@@ -5076,6 +5081,90 @@ var KINDS = [
         triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
       }
       return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from} every ${interval} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers)`] };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "obstacles",
+      description: "A bound's explosions: the `spots` fire in turn (or in `groups` at once) every `every` seconds, on a death-counter beat. Each firing creates the explosion unit at the spot for the computer and kills it there in the same instant \u2014 the death animation is the blast \u2014 and kills every unit the players have standing on the spot. No Wait actions, so it runs at hyper-trigger tempo without stalling anything.",
+      params: [P("spots", "the spot locations in firing order, comma-separated", true), P("every", "seconds between firings (default 0.8; decimals allowed)"), P("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P("unit", "the explosion unit (default Zerg Scourge)"), P("owner", "who owns the explosion (default computer)"), P("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P("victim", "which of their units (default Any unit)")]
+    },
+    build(r, ctx, dc) {
+      const spots = r.list("spots");
+      if (spots.length === 0) r.problems.push('"spots" needs at least one location');
+      for (const sp of spots) r.locationIn("spots", sp);
+      const every = Math.max(0.1, Number(r.str("every", "0.8").replace(/[^0-9.]/g, "")) || 0.8);
+      const groups = r.int("groups", 1, 1, Math.max(1, spots.length));
+      const unit = r.str("unit", "Zerg Scourge");
+      const owner = r.onePlayer("owner", "computer");
+      const players2 = r.players("players");
+      const victim = r.str("victim", "Any unit");
+      const step = dc.take("the obstacle step");
+      const timer = dc.take("the obstacle beat");
+      const cycles = Math.max(1, Math.round(every * (ctx.hyper ? 12 : 0.5)));
+      const n2 = Math.max(1, spots.length);
+      const steps = Math.ceil(n2 / groups);
+      const triggers = [];
+      for (let k = 0; k < steps; k++) {
+        const actions = [a.setDeaths(owner, timer, "Set To", 0), a.setDeaths(owner, step, "Set To", (k + 1) % steps)];
+        for (let g = 0; g < groups; g++) {
+          const spot = spots[(k + g * steps) % n2];
+          if (spot === void 0) continue;
+          actions.push(a.create(owner, unit, 1, spot), a.killAt(owner, unit, "All", spot));
+          for (const p of players2) actions.push(a.killAt(p, victim, "All", spot));
+        }
+        actions.push(a.preserve());
+        triggers.push(trigger([owner], [c.deaths(owner, step, "Exactly", k), c.deaths(owner, timer, "At least", cycles)], actions));
+      }
+      triggers.push(trigger([owner], [], [a.setDeaths(owner, timer, "Add", 1), a.preserve()]));
+      return { triggers, notes: [`${n2} spots in ${steps} steps of ${groups}, one every ${every} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers); a firing kills the players' units on the spot`] };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "checkpoints",
+      description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it (in order, never backwards) with a message; a player with no unit left gets one at their last checkpoint (or `start`) \u2014 unlimited, or `lives` times; the first to bring the unit to `finish` wins and the others lose.",
+      params: [P("unit", "the unit that runs the course", true), P("start", "where a player begins and respawns before any checkpoint", true), P("checkpoints", "the checkpoint locations in order, comma-separated", true), P("finish", "the finish location (default none: no victory here)"), P("lives", "respawns per player (default unlimited)"), P("players", "humans (default) or player numbers"), P("announce", 'yes (default) or no: "Checkpoint N" messages')]
+    },
+    build(r, _ctx, dc) {
+      const unit = r.str("unit");
+      const startLoc = r.location("start");
+      const cps = r.list("checkpoints");
+      for (const cp of cps) r.locationIn("checkpoints", cp);
+      const finish = r.str("finish", "");
+      if (finish) r.location("finish", finish);
+      const lives = r.int("lives", 0, 0, 1e3);
+      const players2 = r.players("players");
+      const announce = r.bool("announce", true);
+      const progress = dc.take("the checkpoint reached");
+      const used = lives > 0 ? dc.take("the lives used") : null;
+      const triggers = [];
+      for (const p of players2) {
+        cps.forEach((cp, i) => {
+          const n2 = i + 1;
+          const actions = [a.setDeaths(p, progress, "Set To", n2)];
+          if (announce) actions.push(a.text(`Checkpoint ${n2}`));
+          actions.push(a.preserve());
+          triggers.push(trigger([p], [c.bring(p, unit, cp, "At least", 1), c.deaths(p, progress, "At most", n2 - 1)], actions));
+        });
+        [startLoc, ...cps].forEach((loc2, i) => {
+          const conditions = [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", i)];
+          if (used) conditions.push(c.deaths(p, used, "At most", lives - 1));
+          const actions = [a.create(p, unit, 1, loc2), a.center(loc2)];
+          if (used) actions.push(a.setDeaths(p, used, "Add", 1));
+          actions.push(a.preserve());
+          triggers.push(trigger([p], conditions, actions));
+        });
+        if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
+      }
+      if (finish) {
+        const sw = "Course finished";
+        for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(sw, "not set")], [a.setSwitch(sw, "set"), a.text(`Player ${p} has finished!`), a.victory()]));
+        triggers.push(trigger(players2, [c.switch(sw, "set"), c.bring(CUR, unit, finish, "Exactly", 0)], [a.defeat()]));
+      }
+      return { triggers, notes: [`${cps.length} checkpoints, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? "; first to the finish wins, the rest lose" : ""}`] };
     }
   },
   {

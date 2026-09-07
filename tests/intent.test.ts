@@ -44,7 +44,7 @@ describe("genre guides", () => {
   });
 
   it("name only toolkit kinds in their system lists", () => {
-    const kinds = new Set(["hyper", "spawn", "kill-to-cash", "income", "last-standing", "defeat-when-lost", "victory-on-kills", "countdown", "objectives", "message", "lives", "waves", "shop", "heal", "respawn", "leaderboard", "teleport", "kill-zone", "alliance", "auto-attack", "give", "stages"]);
+    const kinds = new Set(["hyper", "spawn", "kill-to-cash", "income", "last-standing", "defeat-when-lost", "victory-on-kills", "countdown", "objectives", "message", "lives", "waves", "shop", "heal", "respawn", "leaderboard", "teleport", "kill-zone", "alliance", "auto-attack", "give", "stages", "obstacles", "checkpoints", "bound"]);
     for (const g of GUIDES) for (const m of g.text.matchAll(/`([a-z-]+)`/g)) if (!/[A-Z]/.test(m[1]) && !["owner", "each", "computer", "limit", "attack", "unit", "location", "players", "perUnit", "scorePerKill", "deliver", "lives", "onEnd", "count", "with", "status", "kind"].includes(m[1])) expect(kinds.has(m[1]), `${g.id}: ${m[1]}`).toBe(true);
   });
 });
