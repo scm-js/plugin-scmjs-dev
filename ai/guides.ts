@@ -99,13 +99,15 @@ A *bound* is an obstacle course: a narrow path the player's unit must run throug
 
 **How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot — the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
 
-**Layout.** A winding path three or four tiles wide across water or empty space, from a start to a finish, with checkpoints along it and numbered *spots* — small boxes on the path — where the explosions fire. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Spot {n}.
+**Layout.** A winding path four tiles wide across water or empty space, from a start to a finish, cut into *stretches*: each a field of *spots* laid back to back along the path — every spot a slab across the whole path, or two or three side by side when the field has lanes — with safe ground before and after it and a checkpoint at its end. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Stretch {n}, Spot {n}. Spots are numbered along the course, lane by lane within a slab: with one lane, Stretch 1 is Spot 1 … Spot 8 and Stretch 2 is Spot 9 … Spot 16; with two lanes a slab is two consecutive numbers (Spot 1 and 2 side by side, then 3 and 4).
+
+**Patterns.** One \`obstacles\` system per stretch, each with its own beat, over that stretch's run of spots: a *roll* is the spots in order one at a time (the runner follows the wave); *pairs* or *thirds* fire \`groups\` spots spread along the run at once (the runner reads two hazards); a *flash* is every spot of the stretch in one group (the runner waits for the gap); with lanes, the odd spots then the even ones alternate sides (the runner zigzags). The beat sets the difficulty — 0.8 s for an opening, 0.5 s for a finale.
 
 **Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
 
 **Systems (toolkit kinds).**
 - \`hyper\`, essential: the timing is the game.
-- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once. One system per pattern — the opening stretch rolling one spot at a time, a middle stretch firing pairs, a final sweep — each over its own range of spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
+- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once — one system per stretch, over that stretch's spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
 - \`checkpoints\`: the unit, the start, the checkpoints in order, the finish — recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
 - \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
 

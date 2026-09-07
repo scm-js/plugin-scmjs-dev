@@ -21,6 +21,7 @@ describe("layout presets", () => {
     expect(presetById("nothing")).toBeNull();
     expect(presetsText()).toContain("corner-camps:");
     expect(presetLocationNames(presetById("corner-camps")!, [1, 2], 2)).toEqual(["Base 1", "Base 2", "Spawn 1", "Spawn 2", "Beacon 1", "Beacon 2", "Arena", "Centre"]);
+    expect(presetById("bound")?.locations).toContain("Stretch {n}");
   });
 
   it("picks terrains by role: plain ground, water, the ramp pair's high ground, a dressing", () => {
@@ -94,21 +95,35 @@ describe("layout presets", () => {
     expect(buildPreset("arena", { sides: "2" }, { ...ctx, humans: [1, 2] }).plan.locations.filter((l) => l.name.startsWith("Spawn"))).toHaveLength(2);
   });
 
-  it("lays a bound out: one continuous path in legs, checkpoints and spots along it, starts at the start", () => {
-    const { plan } = buildPreset("bound", { legs: "3", checkpoints: "2", spots: "6", width: "4" }, { ...ctx, humans: [1, 2] });
+  it("lays a bound out: one continuous path in legs, fields of slabs back to back with a checkpoint after each, starts at the start", () => {
+    const { plan } = buildPreset("bound", { legs: "3", stretches: "2", spotsPerStretch: "4", width: "4" }, { ...ctx, humans: [1, 2] });
     const names = plan.locations.map((l) => l.name);
-    expect(names).toEqual(["Start", "Finish", "Checkpoint 1", "Checkpoint 2", "Spot 1", "Spot 2", "Spot 3", "Spot 4", "Spot 5", "Spot 6"]);
+    expect(names).toEqual(["Start", "Finish", "Spot 1", "Spot 2", "Spot 3", "Spot 4", "Spot 5", "Spot 6", "Spot 7", "Spot 8", "Checkpoint 1", "Stretch 1", "Stretch 2"]);
     const compiled = compileShapes(plan.shapes!, { width: 128, height: 128, terrains, rampPairs: [] });
     // Every spot and checkpoint sits on the path's ground; the water is elsewhere.
     for (const l of plan.locations.filter((l) => /^(Spot|Checkpoint)/.test(l.name))) expect(compiled.cells[Math.round((l.y0 + l.y1) / 2) * 128 + Math.round((l.x0 + l.x1) / 2)]).toBe(2);
-    // A spot spans the path and a tile past each edge: on a horizontal leg, taller than the path and three wide.
-    const spot = plan.locations.find((l) => l.name === "Spot 1")!;
-    expect(spot.y1 - spot.y0).toBe(4 + 2);
-    expect(spot.x1 - spot.x0).toBe(3);
     expect(compiled.cells[40 * 128 + 64]).toBe(5);
+    // A slab spans the path and a tile past each edge, two tiles along the path (whichever way the path runs
+    // there); the next slab starts where this one ends.
+    const s1 = plan.locations.find((l) => l.name === "Spot 1")!, s2 = plan.locations.find((l) => l.name === "Spot 2")!;
+    const dims = [s1.x1 - s1.x0, s1.y1 - s1.y0].sort((a, b) => a - b);
+    expect(dims).toEqual([2, 4 + 2]);
+    expect(s2.x0 === s1.x1 || s2.x1 === s1.x0 || s2.y0 === s1.y1 || s2.y1 === s1.y0).toBe(true);
+    // The stretch covers its spots; the checkpoint lies outside the field.
+    const st1 = plan.locations.find((l) => l.name === "Stretch 1")!, cp = plan.locations.find((l) => l.name === "Checkpoint 1")!;
+    expect(st1.x0).toBeLessThanOrEqual(s1.x0); expect(st1.y0).toBeLessThanOrEqual(s1.y0);
+    expect(cp.x0 >= st1.x1 || cp.x1 <= st1.x0 || cp.y0 >= st1.y1 || cp.y1 <= st1.y0).toBe(true);
     const st = plan.locations.find((l) => l.name === "Start")!, fi = plan.locations.find((l) => l.name === "Finish")!;
     expect(st.y0).toBeGreaterThan(fi.y0);
     expect(plan.units.map((u) => u.player)).toEqual([1, 2]);
+    // Lanes: two spots side by side make a slab, numbered together.
+    const laned = buildPreset("bound", { legs: "3", stretches: "1", spotsPerStretch: "3", lanes: "2" }, ctx).plan;
+    const a = laned.locations.find((l) => l.name === "Spot 1")!, b = laned.locations.find((l) => l.name === "Spot 2")!, c = laned.locations.find((l) => l.name === "Spot 3")!;
+    const touches = (p: typeof a, q: typeof a) => p.x0 === q.x1 || p.x1 === q.x0 || p.y0 === q.y1 || p.y1 === q.y0;
+    // Spots 1 and 2 share the slab (same span along the path, side by side); spot 3 is the next slab along.
+    expect((a.x0 === b.x0 && a.x1 === b.x1) || (a.y0 === b.y0 && a.y1 === b.y1)).toBe(true);
+    expect(touches(a, b)).toBe(true);
+    expect(touches(a, c) || touches(b, c)).toBe(true);
   });
 
   it("lays a town and regions out: a chain of islands from the town's corner to the boss room, gates and paths named", () => {

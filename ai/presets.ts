@@ -282,21 +282,23 @@ const PRESETS: Preset[] = [
   {
     spec: {
       id: "bound",
-      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots — slabs across the whole path, evenly spaced, so each must be crossed — for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, cut into stretches. Each stretch is a field of spots laid back to back along the path — every spot a slab across the whole path, or split into lanes side by side — with safe ground before and after it and a checkpoint at its end. Spots are numbered along the course, lane by lane within a slab, so a stretch's spots are one run of numbers; explosions that roll along a stretch, alternate lanes, or fire a whole stretch at once are patterns over that run. Bounds, obstacle courses, dodge maps.",
       params: [
         P("width", "the path's width in tiles (default 4)"),
         P("legs", "how many times the path crosses the map, 2–8 (default 5)"),
-        P("checkpoints", "checkpoints along the path (default 4)"),
-        P("spots", "explosion spots along the path (default 16)"),
+        P("stretches", "obstacle fields along the course, 1–12 (default 5); a checkpoint follows each but the last"),
+        P("spotsPerStretch", "slabs in a field, back to back along the path (default 8)"),
+        P("lanes", "spots side by side across the path, 1–3 (default 1: one slab spans the path)"),
       ],
-      locations: ["Start", "Finish", "Checkpoint {n}", "Spot {n}"],
+      locations: ["Start", "Finish", "Checkpoint {n}", "Stretch {n}", "Spot {n}"],
     },
     build(r, ctx, roles) {
       const W = ctx.width, H = ctx.height;
       const width = r.int("width", 4, 3, 8);
       const legs = r.int("legs", 5, 2, 8);
-      const checkpoints = r.int("checkpoints", 4, 0, 12);
-      const spots = r.int("spots", 16, 0, 60);
+      const stretches = r.int("stretches", 5, 1, 12);
+      const perStretch = r.int("spotsPerStretch", 8, 1, 30);
+      const lanes = r.int("lanes", 1, 1, 3);
       const fill = roles.water ?? roles.dress;
       const m = 8;
       // Back and forth: leg 0 runs east along the bottom, leg 1 west one band up, and so on.
@@ -313,27 +315,50 @@ const PRESETS: Preset[] = [
         { op: "diamond", terrain: roles.ground, cx: pts[0][0], cy: pts[0][1], rx: 8, ry: 4 },
         { op: "diamond", terrain: roles.ground, cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], rx: 8, ry: 4 },
       ];
-      // Points along the path at a fraction of its length.
+      // Points along the path at a distance from its start, with the direction there.
       const segs: { a: [number, number]; b: [number, number]; len: number }[] = [];
       let total = 0;
       for (let i = 0; i + 1 < pts.length; i++) { const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); segs.push({ a: pts[i], b: pts[i + 1], len }); total += len; }
-      const along = (f: number): { x: number; y: number; vertical: boolean } => {
-        let d = f * total;
-        for (const s of segs) { if (d <= s.len) { const t = s.len ? d / s.len : 0; return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) }; } d -= s.len; }
+      const at = (d: number): { x: number; y: number; vertical: boolean } => {
+        let left = Math.max(0, Math.min(total, d));
+        for (const s of segs) { if (left <= s.len) { const t = s.len ? left / s.len : 0; return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) }; } left -= s.len; }
         return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
       };
       const locations: Loc[] = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
-      for (let n = 1; n <= checkpoints; n++) { const c = along(n / (checkpoints + 1)); locations.push(loc(`Checkpoint ${n}`, c.x - 2, c.y - 2, 4, 4)); }
-      // A spot is a slab across the whole path — a tile past its edges, so the shores' rounding leaves no way round —
-      // and three tiles along it: every spot has to be crossed, and crossing one is a matter of timing.
-      const across = width + 2, alongLen = 3;
-      for (let n = 1; n <= spots; n++) {
-        const c = along((n - 0.5) / spots);
-        locations.push(c.vertical ? loc(`Spot ${n}`, c.x - across / 2, c.y - alongLen / 2, across, alongLen) : loc(`Spot ${n}`, c.x - alongLen / 2, c.y - across / 2, alongLen, across));
+      // The course after the start pad and before the finish pad is cut into equal sections; a field takes the
+      // middle of each, safe ground either side, the checkpoint after the field.
+      const pad = 10;
+      const usable = Math.max(1, total - 2 * pad);
+      const section = usable / stretches;
+      const slab = 2;
+      const fieldLen = Math.min(section * 0.7, perStretch * slab);
+      const across = width + 2;
+      const laneAcross = across / lanes;
+      let spot = 1;
+      const stretchLocs: Loc[] = [];
+      const checkpointLocs: Loc[] = [];
+      for (let sIdx = 0; sIdx < stretches; sIdx++) {
+        const fieldStart = pad + section * sIdx + (section - fieldLen) / 2;
+        const slabs = Math.max(1, Math.round(fieldLen / slab));
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < slabs; i++) {
+          const c = at(fieldStart + (i + 0.5) * slab);
+          for (let lane = 0; lane < lanes; lane++) {
+            const off = -across / 2 + lane * laneAcross;
+            const l = c.vertical
+              ? loc(`Spot ${spot++}`, c.x + off, c.y - slab / 2, laneAcross, slab)
+              : loc(`Spot ${spot++}`, c.x - slab / 2, c.y + off, slab, laneAcross);
+            locations.push(l);
+            x0 = Math.min(x0, l.x0); y0 = Math.min(y0, l.y0); x1 = Math.max(x1, l.x1); y1 = Math.max(y1, l.y1);
+          }
+        }
+        stretchLocs.push({ name: `Stretch ${sIdx + 1}`, x0, y0, x1, y1 });
+        if (sIdx < stretches - 1) { const c = at(fieldStart + fieldLen + Math.min(6, (section - fieldLen) / 4)); checkpointLocs.push(loc(`Checkpoint ${sIdx + 1}`, c.x - 2, c.y - 2, 4, 4)); }
       }
+      locations.push(...checkpointLocs, ...stretchLocs);
       const humans = ctx.humans.length ? ctx.humans : [1];
       const units = humans.map((p, i) => start(p, pts[0][0] - 2 + (i % 4) * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
-      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs from the bottom-left to the top-right, ${checkpoints} checkpoints, ${spots} spots; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
+      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs, ${stretches} stretch${stretches === 1 ? "" : "es"} of up to ${perStretch} slab${perStretch === 1 ? "" : "s"}${lanes > 1 ? ` in ${lanes} lanes` : ""} (${spot - 1} spots, numbered along the course), a checkpoint after each stretch; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
     },
   },
   {

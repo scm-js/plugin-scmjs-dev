@@ -4474,13 +4474,15 @@ A *bound* is an obstacle course: a narrow path the player's unit must run throug
 
 **How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot \u2014 the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
 
-**Layout.** A winding path three or four tiles wide across water or empty space, from a start to a finish, with checkpoints along it and numbered *spots* \u2014 small boxes on the path \u2014 where the explosions fire. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Spot {n}.
+**Layout.** A winding path four tiles wide across water or empty space, from a start to a finish, cut into *stretches*: each a field of *spots* laid back to back along the path \u2014 every spot a slab across the whole path, or two or three side by side when the field has lanes \u2014 with safe ground before and after it and a checkpoint at its end. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Stretch {n}, Spot {n}. Spots are numbered along the course, lane by lane within a slab: with one lane, Stretch 1 is Spot 1 \u2026 Spot 8 and Stretch 2 is Spot 9 \u2026 Spot 16; with two lanes a slab is two consecutive numbers (Spot 1 and 2 side by side, then 3 and 4).
+
+**Patterns.** One \`obstacles\` system per stretch, each with its own beat, over that stretch's run of spots: a *roll* is the spots in order one at a time (the runner follows the wave); *pairs* or *thirds* fire \`groups\` spots spread along the run at once (the runner reads two hazards); a *flash* is every spot of the stretch in one group (the runner waits for the gap); with lanes, the odd spots then the even ones alternate sides (the runner zigzags). The beat sets the difficulty \u2014 0.8 s for an opening, 0.5 s for a finale.
 
 **Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
 
 **Systems (toolkit kinds).**
 - \`hyper\`, essential: the timing is the game.
-- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once. One system per pattern \u2014 the opening stretch rolling one spot at a time, a middle stretch firing pairs, a final sweep \u2014 each over its own range of spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
+- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once \u2014 one system per stretch, over that stretch's spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
 - \`checkpoints\`: the unit, the start, the checkpoints in order, the finish \u2014 recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
 - \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
 
@@ -6742,21 +6744,23 @@ var PRESETS2 = [
   {
     spec: {
       id: "bound",
-      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots \u2014 slabs across the whole path, evenly spaced, so each must be crossed \u2014 for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, cut into stretches. Each stretch is a field of spots laid back to back along the path \u2014 every spot a slab across the whole path, or split into lanes side by side \u2014 with safe ground before and after it and a checkpoint at its end. Spots are numbered along the course, lane by lane within a slab, so a stretch's spots are one run of numbers; explosions that roll along a stretch, alternate lanes, or fire a whole stretch at once are patterns over that run. Bounds, obstacle courses, dodge maps.",
       params: [
         P2("width", "the path's width in tiles (default 4)"),
         P2("legs", "how many times the path crosses the map, 2\u20138 (default 5)"),
-        P2("checkpoints", "checkpoints along the path (default 4)"),
-        P2("spots", "explosion spots along the path (default 16)")
+        P2("stretches", "obstacle fields along the course, 1\u201312 (default 5); a checkpoint follows each but the last"),
+        P2("spotsPerStretch", "slabs in a field, back to back along the path (default 8)"),
+        P2("lanes", "spots side by side across the path, 1\u20133 (default 1: one slab spans the path)")
       ],
-      locations: ["Start", "Finish", "Checkpoint {n}", "Spot {n}"]
+      locations: ["Start", "Finish", "Checkpoint {n}", "Stretch {n}", "Spot {n}"]
     },
     build(r, ctx, roles) {
       const W = ctx.width, H = ctx.height;
       const width = r.int("width", 4, 3, 8);
       const legs = r.int("legs", 5, 2, 8);
-      const checkpoints = r.int("checkpoints", 4, 0, 12);
-      const spots = r.int("spots", 16, 0, 60);
+      const stretches = r.int("stretches", 5, 1, 12);
+      const perStretch = r.int("spotsPerStretch", 8, 1, 30);
+      const lanes = r.int("lanes", 1, 1, 3);
       const fill = roles.water ?? roles.dress;
       const m = 8;
       const band = (H - 2 * m) / (legs - 1);
@@ -6779,30 +6783,54 @@ var PRESETS2 = [
         segs.push({ a: pts[i], b: pts[i + 1], len });
         total += len;
       }
-      const along = (f) => {
-        let d = f * total;
+      const at = (d) => {
+        let left = Math.max(0, Math.min(total, d));
         for (const s of segs) {
-          if (d <= s.len) {
-            const t = s.len ? d / s.len : 0;
+          if (left <= s.len) {
+            const t = s.len ? left / s.len : 0;
             return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
           }
-          d -= s.len;
+          left -= s.len;
         }
         return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
       };
       const locations = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
-      for (let n2 = 1; n2 <= checkpoints; n2++) {
-        const c2 = along(n2 / (checkpoints + 1));
-        locations.push(loc(`Checkpoint ${n2}`, c2.x - 2, c2.y - 2, 4, 4));
+      const pad = 10;
+      const usable = Math.max(1, total - 2 * pad);
+      const section = usable / stretches;
+      const slab = 2;
+      const fieldLen = Math.min(section * 0.7, perStretch * slab);
+      const across = width + 2;
+      const laneAcross = across / lanes;
+      let spot = 1;
+      const stretchLocs = [];
+      const checkpointLocs = [];
+      for (let sIdx = 0; sIdx < stretches; sIdx++) {
+        const fieldStart = pad + section * sIdx + (section - fieldLen) / 2;
+        const slabs = Math.max(1, Math.round(fieldLen / slab));
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < slabs; i++) {
+          const c2 = at(fieldStart + (i + 0.5) * slab);
+          for (let lane = 0; lane < lanes; lane++) {
+            const off = -across / 2 + lane * laneAcross;
+            const l = c2.vertical ? loc(`Spot ${spot++}`, c2.x + off, c2.y - slab / 2, laneAcross, slab) : loc(`Spot ${spot++}`, c2.x - slab / 2, c2.y + off, slab, laneAcross);
+            locations.push(l);
+            x0 = Math.min(x0, l.x0);
+            y0 = Math.min(y0, l.y0);
+            x1 = Math.max(x1, l.x1);
+            y1 = Math.max(y1, l.y1);
+          }
+        }
+        stretchLocs.push({ name: `Stretch ${sIdx + 1}`, x0, y0, x1, y1 });
+        if (sIdx < stretches - 1) {
+          const c2 = at(fieldStart + fieldLen + Math.min(6, (section - fieldLen) / 4));
+          checkpointLocs.push(loc(`Checkpoint ${sIdx + 1}`, c2.x - 2, c2.y - 2, 4, 4));
+        }
       }
-      const across = width + 2, alongLen = 3;
-      for (let n2 = 1; n2 <= spots; n2++) {
-        const c2 = along((n2 - 0.5) / spots);
-        locations.push(c2.vertical ? loc(`Spot ${n2}`, c2.x - across / 2, c2.y - alongLen / 2, across, alongLen) : loc(`Spot ${n2}`, c2.x - alongLen / 2, c2.y - across / 2, alongLen, across));
-      }
+      locations.push(...checkpointLocs, ...stretchLocs);
       const humans = ctx.humans.length ? ctx.humans : [1];
       const units = humans.map((p, i) => start(p, pts[0][0] - 2 + i % 4 * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
-      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs from the bottom-left to the top-right, ${checkpoints} checkpoints, ${spots} spots; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
+      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs, ${stretches} stretch${stretches === 1 ? "" : "es"} of up to ${perStretch} slab${perStretch === 1 ? "" : "s"}${lanes > 1 ? ` in ${lanes} lanes` : ""} (${spot - 1} spots, numbered along the course), a checkpoint after each stretch; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
     }
   },
   {
