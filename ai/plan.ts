@@ -248,20 +248,43 @@ export interface PaintGroup {
  * is centred on the corner between tiles `2x - 1 | 2x` and `y - 1 | y`; it takes the
  * commonest terrain of those four cells under the plan. Diamonds the plan says nothing
  * about (a `?` cell, or off the plan) are left alone.
+ *
+ * With `passes` (a shape plan's: one per cell of the plan, row-major, which paint pass
+ * last wrote it), the passes are brushed in order and the usual order — lowest first, then
+ * commonest first — holds within a pass. The isometric brush gives its shores and
+ * cliffs to whatever it paints over, so the terrain brushed last keeps its whole
+ * extent: a bridge's four-wide channel brushed before its banks is all shore when the
+ * banks are done, and no bridge fits it; brushed after them it is water. A diamond's
+ * pass is the latest of the cells that gave it its terrain.
  */
-export function paintGroups(plan: LayoutPlan, ctx: PlanContext, diamonds: readonly { x: number; y: number }[]): PaintGroup[] {
+export function paintGroups(plan: LayoutPlan, ctx: PlanContext, diamonds: readonly { x: number; y: number }[], passes?: Int32Array | null): PaintGroup[] {
   const sampler = terrainSampler(plan, ctx.originX, ctx.originY);
-  const byTerrain = new Map<number, { x: number; y: number }[]>();
+  const passAt = (tx: number, ty: number): number => {
+    if (!passes) return 0;
+    const cx = Math.floor((tx - ctx.originX) / plan.cellSize), cy = Math.floor((ty - ctx.originY) / plan.cellSize);
+    return cx < 0 || cy < 0 || cx >= plan.columns || cy >= plan.rows ? 0 : passes[cy * plan.columns + cx] ?? 0;
+  };
+  const byPass = new Map<number, Map<number, { x: number; y: number }[]>>();
   for (const d of diamonds) {
-    const id = diamondTerrain(sampler, d.x * 2, d.y);
+    const tx = d.x * 2, ty = d.y;
+    const id = diamondTerrain(sampler, tx, ty);
     if (id === null) continue;
+    let pass = 0;
+    if (passes) for (const [x, y] of [[tx - 1, ty - 1], [tx, ty - 1], [tx - 1, ty], [tx, ty]]) if (sampler(x, y) === id) pass = Math.max(pass, passAt(x, y));
+    let byTerrain = byPass.get(pass);
+    if (!byTerrain) { byTerrain = new Map(); byPass.set(pass, byTerrain); }
     let list = byTerrain.get(id);
     if (!list) { list = []; byTerrain.set(id, list); }
     list.push(d);
   }
-  const counts = new Map<number, number>();
-  for (const [id, list] of byTerrain) counts.set(id, list.length);
-  return paintOrder([...byTerrain.keys()], ctx.terrains, counts).map((terrainId) => ({ terrainId, diamonds: byTerrain.get(terrainId)! }));
+  const out: PaintGroup[] = [];
+  for (const pass of [...byPass.keys()].sort((a, b) => a - b)) {
+    const byTerrain = byPass.get(pass)!;
+    const counts = new Map<number, number>();
+    for (const [id, list] of byTerrain) counts.set(id, list.length);
+    for (const terrainId of paintOrder([...byTerrain.keys()], ctx.terrains, counts)) out.push({ terrainId, diamonds: byTerrain.get(terrainId)! });
+  }
+  return out;
 }
 
 /** The cells (in tiles, exclusive far edge) of the plan whose character is one of `chars`. */

@@ -115,6 +115,20 @@ describe("terrain", () => {
     // The diamond centred on tile corner (0,0) sees only the top-left cell: water.
     expect(groups.find((g) => g.terrainId === 8)!.diamonds).toContainEqual({ x: 0, y: 0 });
   });
+  it("brushes paint passes in order, the usual order within a pass", () => {
+    // Water covers most of the plan but was painted last (a river over its banks): it must be brushed last too.
+    const p = plan({ cellSize: 1, grid: ["~~~.", "~~~.", "~~~.", "~~~."] });
+    const passes = new Int32Array(16);
+    for (let i = 0; i < 16; i++) passes[i] = i % 4 === 3 ? 1 : 2;
+    const diamonds: { x: number; y: number }[] = [];
+    for (let y = 0; y <= 4; y++) for (let x = 0; x <= 2; x++) if ((x + y) % 2 === 0) diamonds.push({ x, y });
+    expect(paintGroups(p, ctx, diamonds).map((g) => g.terrainId)).toEqual([8, 2]);
+    expect(paintGroups(p, ctx, diamonds, passes).map((g) => g.terrainId)).toEqual([2, 8]);
+    // A diamond on the boundary takes the pass of the cells that gave it its terrain.
+    const groups = paintGroups(p, ctx, diamonds, passes);
+    expect(groups.reduce((n, g) => n + g.diamonds.length, 0)).toBe(diamonds.length);
+  });
+
   it("cellsWith lists the cells with the given characters in tiles", () => {
     const cells = cellsWith(plan(), ctx, "#");
     expect(cells).toHaveLength(4);

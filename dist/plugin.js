@@ -1538,12 +1538,17 @@ var RAMP_APRON = 22;
 function compileShapes(shapes, ctx) {
   const { width, height } = ctx;
   const cells = new Int32Array(width * height).fill(-1);
+  const passes = new Int32Array(width * height);
+  let pass = 0;
   const findings = [];
   const ramps = [];
   const bridges = [];
   const known = new Map(ctx.terrains.map((t) => [t.id, t]));
   const put = (x, y, id) => {
-    if (x >= 0 && y >= 0 && x < width && y < height) cells[y * width + x] = id;
+    if (x >= 0 && y >= 0 && x < width && y < height) {
+      cells[y * width + x] = id;
+      passes[y * width + x] = pass;
+    }
   };
   const terrainOf = (s, what) => {
     if (typeof s.terrain !== "number" || !known.has(s.terrain)) {
@@ -1556,6 +1561,7 @@ function compileShapes(shapes, ctx) {
   const laneFloors = [];
   shapes.forEach((s, i) => {
     const what = `shape ${i + 1} (${s.op})`;
+    pass++;
     if (s.op === "lane" && !laneBatch.has(i)) {
       let j = i;
       while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
@@ -1565,6 +1571,7 @@ function compileShapes(shapes, ctx) {
         const id = terrainOf(s, what);
         if (id === null) return;
         cells.fill(id);
+        passes.fill(pass);
         return;
       }
       case "rect":
@@ -1580,6 +1587,7 @@ function compileShapes(shapes, ctx) {
         const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
         const cuts = { nw: cut2, ne: cut2, sw: sides.includes("sw") ? Math.max(cut2, RAMP_CUT) : cut2, se: sides.includes("se") ? Math.max(cut2, RAMP_CUT) : cut2 };
         fillCutRect(r, cuts, (x, y) => put(x, y, id));
+        if (sides.length) pass++;
         for (const side of sides) {
           const pair = pairFor(id, ctx, known);
           if (!pair) {
@@ -1654,6 +1662,7 @@ function compileShapes(shapes, ctx) {
           const width2 = w;
           laneFloors.push(() => strokePolyline(pts, width2, (x, y) => put(x, y, id)));
           if (!laneBatch.has(i + 1)) {
+            pass++;
             for (const paint of laneFloors) paint();
             laneFloors.length = 0;
           }
@@ -1701,12 +1710,15 @@ function compileShapes(shapes, ctx) {
         if (typeof s.bank === "number") {
           if (!known.has(s.bank)) findings.push(`${what} names bank terrain ${s.bank}, which this tileset lacks; painted without a bank`);
           else {
+            pass++;
             const bw = Math.max(1, s.bankWidth ?? BANK_WIDTH);
             const bank = s.bank;
             strokeVarying(verts.map((v) => ({ ...v, w: v.w + 2 * bw })), () => bank, put);
           }
         }
+        pass++;
         for (const b of laid) strokeVarying(b.banked, () => pair.ground, put);
+        pass++;
         strokeVarying(verts, (a2, b) => a2.bridge !== void 0 && a2.bridge === b.bridge ? pair.water : id, put);
         for (const b of laid) bridges.push({ x: b.site.x, y: b.site.y, along: b.along, ends: b.ends });
         return;
@@ -1752,6 +1764,7 @@ function compileShapes(shapes, ctx) {
         const ends = channelEnds(x, y, along);
         const channel = pair.channel ?? BRIDGE_CHANNEL;
         strokePolyline([ends[0], ends[1]], channel + 2 * BRIDGE_BANK, (px, py) => put(px, py, pair.ground));
+        pass++;
         strokePolyline([ends[0], ends[1]], channel, (px, py) => put(px, py, pair.water));
         bridges.push({ x, y, along, ends });
         findings.push(`${what}: channel along ${along} from ${fmt(ends[0])} to ${fmt(ends[1])} (${nameOf(known, pair.water)} ${channel} wide, ${nameOf(known, pair.ground)} ${BRIDGE_BANK} tiles either side), painted over what was there; water must reach both ends`);
@@ -1761,7 +1774,7 @@ function compileShapes(shapes, ctx) {
         findings.push(`shape ${i + 1} has an op "${String(s.op)}" the compiler does not know; skipped`);
     }
   });
-  return { cells, ramps, bridges, findings };
+  return { cells, passes, ramps, bridges, findings };
 }
 function shapesToLayout(plan, ctx) {
   const compiled = compileShapes(plan.shapes ?? [], ctx);
@@ -1798,7 +1811,7 @@ function shapesToLayout(plan, ctx) {
     doodads,
     symmetry: "none"
   };
-  return { plan: out, findings: compiled.findings };
+  return { plan: out, findings: compiled.findings, passes: compiled.passes };
 }
 function rectOf2(s) {
   if (typeof s.x !== "number" || typeof s.y !== "number" || typeof s.w !== "number" || typeof s.h !== "number" || s.w <= 0 || s.h <= 0) return null;
@@ -3139,12 +3152,27 @@ function placeBases(bases, mode, width, height) {
   }
   return out;
 }
-function paintGroups(plan, ctx, diamonds) {
+function paintGroups(plan, ctx, diamonds, passes) {
   const sampler = terrainSampler(plan, ctx.originX, ctx.originY);
-  const byTerrain = /* @__PURE__ */ new Map();
+  const passAt = (tx, ty) => {
+    if (!passes) return 0;
+    const cx = Math.floor((tx - ctx.originX) / plan.cellSize), cy = Math.floor((ty - ctx.originY) / plan.cellSize);
+    return cx < 0 || cy < 0 || cx >= plan.columns || cy >= plan.rows ? 0 : passes[cy * plan.columns + cx] ?? 0;
+  };
+  const byPass = /* @__PURE__ */ new Map();
   for (const d of diamonds) {
-    const id = diamondTerrain(sampler, d.x * 2, d.y);
+    const tx = d.x * 2, ty = d.y;
+    const id = diamondTerrain(sampler, tx, ty);
     if (id === null) continue;
+    let pass = 0;
+    if (passes) {
+      for (const [x, y] of [[tx - 1, ty - 1], [tx, ty - 1], [tx - 1, ty], [tx, ty]]) if (sampler(x, y) === id) pass = Math.max(pass, passAt(x, y));
+    }
+    let byTerrain = byPass.get(pass);
+    if (!byTerrain) {
+      byTerrain = /* @__PURE__ */ new Map();
+      byPass.set(pass, byTerrain);
+    }
     let list2 = byTerrain.get(id);
     if (!list2) {
       list2 = [];
@@ -3152,9 +3180,14 @@ function paintGroups(plan, ctx, diamonds) {
     }
     list2.push(d);
   }
-  const counts = /* @__PURE__ */ new Map();
-  for (const [id, list2] of byTerrain) counts.set(id, list2.length);
-  return paintOrder([...byTerrain.keys()], ctx.terrains, counts).map((terrainId) => ({ terrainId, diamonds: byTerrain.get(terrainId) }));
+  const out = [];
+  for (const pass of [...byPass.keys()].sort((a2, b) => a2 - b)) {
+    const byTerrain = byPass.get(pass);
+    const counts = /* @__PURE__ */ new Map();
+    for (const [id, list2] of byTerrain) counts.set(id, list2.length);
+    for (const terrainId of paintOrder([...byTerrain.keys()], ctx.terrains, counts)) out.push({ terrainId, diamonds: byTerrain.get(terrainId) });
+  }
+  return out;
 }
 function cellsWith(plan, ctx, chars) {
   const out = [];
@@ -3276,9 +3309,11 @@ function renderPlan(api, input, options) {
   const tilesetBridges = bridgesOf(api);
   const bridgePair2 = bridgePairOf(api);
   const findings = [];
+  let passes = null;
   if ("shapes" in input && input.shapes?.length) {
     const compiled = shapesToLayout(input, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePair2 });
     input = compiled.plan;
+    passes = compiled.passes;
     findings.push(...compiled.findings);
   }
   const checked = checkPlan(input, ctx);
@@ -3302,7 +3337,7 @@ function renderPlan(api, input, options) {
       findings.push("the tileset graphics are not loaded, so the terrain was not painted");
     } else if (hasIsom) {
       let refused = 0;
-      for (const g of paintGroups(plan, ctx, api.terrain.diamondsIn(area))) {
+      for (const g of paintGroups(plan, ctx, api.terrain.diamondsIn(area), passes)) {
         for (const d of g.diamonds) {
           if (tx.paintIsom(d, g.terrainId, 1)) placed.diamonds++;
           else refused++;

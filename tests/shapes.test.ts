@@ -110,6 +110,24 @@ describe("the shape compiler", () => {
     // Along the diagonal's normal: how many tiles of water lie across the river at a point of the se diagonal (2:1), the normal being (1, -2).
     const across = (c: Int32Array, x: number, y: number) => { let n = 0; for (let k = -12; k <= 12; k++) { const px = Math.round(x + k / Math.sqrt(5)), py = Math.round(y - 2 * k / Math.sqrt(5)); if (wide(c, px, py) === 5) n++; } return n; };
 
+    it("writes the banks in an earlier paint pass than the water, so the brush lays the channel last", () => {
+      const { cells, passes } = compileShapes([
+        { op: "ground", terrain: 8 },
+        { op: "stroke", terrain: 5, width: 14, points: [[4, 4], [124, 124]], bridges: [[64, 64]] },
+      ], river);
+      const at = (x: number, y: number) => y * 128 + x;
+      expect(wide(cells, 64, 64)).toBe(5);
+      expect(wide(cells, 64, 58)).toBe(2);
+      expect(passes[at(64, 64)]).toBeGreaterThan(passes[at(64, 58)]);
+      expect(passes[at(64, 58)]).toBeGreaterThan(passes[at(4, 120)]);
+      // A bare bridge stamp the same way: its ground before its water.
+      const stamp = compileShapes([{ op: "ground", terrain: 8 }, { op: "bridge", x: 64, y: 64, along: "se" }], river);
+      expect(stamp.cells[at(64, 64)]).toBe(5);
+      expect(stamp.cells[at(64, 58)]).toBe(2);
+      expect(stamp.passes[at(64, 64)]).toBeGreaterThan(stamp.passes[at(64, 58)]);
+      expect(stamp.passes[at(64, 58)]).toBeGreaterThan(stamp.passes[at(4, 120)]);
+    });
+
     it("bends the river onto the diagonal through the site, narrows it to the channel and fits the bridge", () => {
       const { cells, bridges, findings } = compileShapes([
         { op: "ground", terrain: 8 },

@@ -70,10 +70,13 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   const tilesetBridges = bridgesOf(api);
   const bridgePair = bridgePairOf(api);
   const findings: string[] = [];
-  // A shape plan is compiled to a one-tile grid first; from there on it is a plan like any other.
+  // A shape plan is compiled to a one-tile grid first; from there on it is a plan like any other — except that the
+  // brush follows its paint passes, so what a later shape covers (a river's water over its banks) is brushed last.
+  let passes: Int32Array | null = null;
   if ("shapes" in input && input.shapes?.length) {
     const compiled = shapesToLayout(input as MapPlan, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair });
     input = compiled.plan;
+    passes = compiled.passes;
     findings.push(...compiled.findings);
   }
   const checked = checkPlan(input, ctx);
@@ -100,7 +103,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
       findings.push("the tileset graphics are not loaded, so the terrain was not painted");
     } else if (hasIsom) {
       let refused = 0;
-      for (const g of paintGroups(plan, ctx, api.terrain.diamondsIn(area))) {
+      for (const g of paintGroups(plan, ctx, api.terrain.diamondsIn(area), passes)) {
         for (const d of g.diamonds) {
           if (tx.paintIsom(d, g.terrainId, 1)) placed.diamonds++;
           else refused++;

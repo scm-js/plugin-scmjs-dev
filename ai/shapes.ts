@@ -34,6 +34,14 @@ export interface ShapeContext {
 export interface Compiled {
   /** Terrain id per tile, row-major; -1 where nothing was painted. */
   cells: Int32Array;
+  /**
+   * The paint pass that last wrote each tile, row-major, counting up through the
+   * statements (and through the stages of one: a river's banks before its water). The
+   * renderer brushes the passes in this order, so that what a later statement covers is
+   * what the brush lays last — the isometric brush gives its bleed to whatever was there
+   * before, and a narrow feature painted first is all edge by the time its neighbours are done.
+   */
+  passes: Int32Array;
   ramps: RampPlan[];
   bridges: BridgePlan[];
   findings: string[];
@@ -69,11 +77,13 @@ interface BridgeSite { x: number; y: number; along?: RampSide }
 export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Compiled {
   const { width, height } = ctx;
   const cells = new Int32Array(width * height).fill(-1);
+  const passes = new Int32Array(width * height);
+  let pass = 0;
   const findings: string[] = [];
   const ramps: RampPlan[] = [];
   const bridges: BridgePlan[] = [];
   const known = new Map(ctx.terrains.map((t) => [t.id, t]));
-  const put = (x: number, y: number, id: number) => { if (x >= 0 && y >= 0 && x < width && y < height) cells[y * width + x] = id; };
+  const put = (x: number, y: number, id: number) => { if (x >= 0 && y >= 0 && x < width && y < height) { cells[y * width + x] = id; passes[y * width + x] = pass; } };
   const terrainOf = (s: Shape, what: string): number | null => {
     if (typeof s.terrain !== "number" || !known.has(s.terrain)) { findings.push(`${what} names terrain ${s.terrain}, which this tileset lacks; skipped`); return null; }
     return s.terrain;
@@ -85,6 +95,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
   const laneFloors: (() => void)[] = [];
   shapes.forEach((s, i) => {
     const what = `shape ${i + 1} (${s.op})`;
+    pass++;
     if (s.op === "lane" && !laneBatch.has(i)) {
       let j = i;
       while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
@@ -93,6 +104,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
       case "ground": {
         const id = terrainOf(s, what); if (id === null) return;
         cells.fill(id);
+        passes.fill(pass);
         return;
       }
       case "rect":
@@ -104,6 +116,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
         const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
         const cuts = { nw: cut, ne: cut, sw: sides.includes("sw") ? Math.max(cut, RAMP_CUT) : cut, se: sides.includes("se") ? Math.max(cut, RAMP_CUT) : cut };
         fillCutRect(r, cuts, (x, y) => put(x, y, id));
+        if (sides.length) pass++;
         for (const side of sides) {
           const pair = pairFor(id, ctx, known);
           if (!pair) { findings.push(`${what}: this tileset has no ramp for ground of that height; the ${side} corner is cut but no ramp will fit`); continue; }
@@ -162,7 +175,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
           // The floor waits for the batch's last wall.
           const width = w;
           laneFloors.push(() => strokePolyline(pts, width, (x, y) => put(x, y, id)));
-          if (!laneBatch.has(i + 1)) { for (const paint of laneFloors) paint(); laneFloors.length = 0; }
+          if (!laneBatch.has(i + 1)) { pass++; for (const paint of laneFloors) paint(); laneFloors.length = 0; }
           return;
         }
         const sites = s.op === "stroke" ? bridgeSites(s, what, findings) : [];
@@ -199,11 +212,14 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
           laid.push({ site, along, ends, banked: banked.map((v) => ({ ...v, w: v.w + 2 * BRIDGE_BANK })) });
           findings.push(`${what}: bridge at ${site.x},${site.y} along ${along}; the river narrows to its ${channel}-wide channel from ${fmt(ends[0])} to ${fmt(ends[1])}`);
         });
+        // Banks first, the channels' ground next, the water last: each its own pass, so the brush lays them in that order too.
         if (typeof s.bank === "number") {
           if (!known.has(s.bank)) findings.push(`${what} names bank terrain ${s.bank}, which this tileset lacks; painted without a bank`);
-          else { const bw = Math.max(1, s.bankWidth ?? BANK_WIDTH); const bank = s.bank; strokeVarying(verts.map((v) => ({ ...v, w: v.w + 2 * bw })), () => bank, put); }
+          else { pass++; const bw = Math.max(1, s.bankWidth ?? BANK_WIDTH); const bank = s.bank; strokeVarying(verts.map((v) => ({ ...v, w: v.w + 2 * bw })), () => bank, put); }
         }
+        pass++;
         for (const b of laid) strokeVarying(b.banked, () => pair.ground, put);
+        pass++;
         strokeVarying(verts, (a, b) => (a.bridge !== undefined && a.bridge === b.bridge ? pair.water : id), put);
         for (const b of laid) bridges.push({ x: b.site.x, y: b.site.y, along: b.along, ends: b.ends });
         return;
@@ -235,6 +251,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
         const ends = channelEnds(x, y, along);
         const channel = pair.channel ?? BRIDGE_CHANNEL;
         strokePolyline([ends[0], ends[1]], channel + 2 * BRIDGE_BANK, (px, py) => put(px, py, pair.ground));
+        pass++;
         strokePolyline([ends[0], ends[1]], channel, (px, py) => put(px, py, pair.water));
         bridges.push({ x, y, along, ends });
         findings.push(`${what}: channel along ${along} from ${fmt(ends[0])} to ${fmt(ends[1])} (${nameOf(known, pair.water)} ${channel} wide, ${nameOf(known, pair.ground)} ${BRIDGE_BANK} tiles either side), painted over what was there; water must reach both ends`);
@@ -244,7 +261,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
         findings.push(`shape ${i + 1} has an op "${String((s as Shape).op)}" the compiler does not know; skipped`);
     }
   });
-  return { cells, ramps, bridges, findings };
+  return { cells, passes, ramps, bridges, findings };
 }
 
 /**
@@ -252,7 +269,8 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
  * with a legend of the terrains used, the ramps with their pairs, the doodad entries'
  * terrain lists turned into legend characters, and everything else carried across.
  */
-export function shapesToLayout(plan: MapPlan, ctx: ShapeContext): { plan: MapPlan; findings: string[] } {
+/** …with the paint passes of the compiled cells, for the renderer to brush in order (see `Compiled.passes`). */
+export function shapesToLayout(plan: MapPlan, ctx: ShapeContext): { plan: MapPlan; findings: string[]; passes: Int32Array } {
   const compiled = compileShapes(plan.shapes ?? [], ctx);
   const ids = new Map<number, string>();
   const legend: Record<string, number> = {};
@@ -276,7 +294,7 @@ export function shapesToLayout(plan: MapPlan, ctx: ShapeContext): { plan: MapPla
     doodads,
     symmetry: "none",
   };
-  return { plan: out, findings: compiled.findings };
+  return { plan: out, findings: compiled.findings, passes: compiled.passes };
 }
 
 /* ── Geometry ───────────────────────────────────────────── */
