@@ -3874,6 +3874,16 @@ function objectTools() {
       }
     },
     {
+      def: { name: "convert_doodads", description: "Convert doodads (by index, from list_doodads) to plain terrain: the tiles stay as ground, the doodad record goes, an overlay stays as an ordinary sprite. Use it when a ramp or cliff piece is to be touched up tile by tile afterwards. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const r = api.document.edit("AI: convert doodads to terrain", (tx) => {
+          tx.convertDoodads(ints2(input.indices));
+        });
+        return `Converted ${plural(r.doodads, "doodad")} to terrain.`;
+      }
+    },
+    {
       def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, skipping spots that do not fit. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
       writes: true,
       run: (input, { api }) => {
