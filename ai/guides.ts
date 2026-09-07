@@ -18,7 +18,7 @@ export interface Guide {
 
 const BASICS = `# Scenario basics (UMS)
 
-**Players.** Slots 1–8 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script — which is usually what you want: the triggers are the AI.
+**Players.** Slots 1–8 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. A player who owns nothing when the game starts is defeated on the spot, and a defeated player's triggers never run: a computer that only spawns things needs a unit of its own somewhere out of the way (the editor places one when a design forgets). The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script — which is usually what you want: the triggers are the AI.
 
 **Forces.** Four. Players in one force can be allied (they do not attack each other), share victory (one wins, all win) and share vision. A team of humans is one force with Allied Victory; the enemy computer is another force. Force names are shown in the lobby.
 

@@ -4397,7 +4397,7 @@ function triggerTools() {
 // ai/guides.ts
 var BASICS = `# Scenario basics (UMS)
 
-**Players.** Slots 1\u20138 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script \u2014 which is usually what you want: the triggers are the AI.
+**Players.** Slots 1\u20138 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. A player who owns nothing when the game starts is defeated on the spot, and a defeated player's triggers never run: a computer that only spawns things needs a unit of its own somewhere out of the way (the editor places one when a design forgets). The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script \u2014 which is usually what you want: the triggers are the AI.
 
 **Forces.** Four. Players in one force can be allied (they do not attack each other), share victory (one wins, all win) and share vision. A team of humans is one force with Allied Victory; the enemy computer is another force. Force names are shown in the lobby.
 
@@ -7315,7 +7315,19 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               });
               findings.push(`start locations for player${missing.length === 1 ? "" : "s"} ${missing.join(", ")} were placed by the editor; check where`);
             }
-            return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}`;
+            const keepers = [];
+            const keeper = unitIdByName(api, "Zerg Overlord");
+            const owned = new Set(api.document.scenario().units.map((u) => u.owner));
+            for (const p of d.players.filter((x) => x.type === "computer")) {
+              if (owned.has(p.slot - 1) || keeper === null) continue;
+              api.document.edit(`AI: keeper for player ${p.slot}`, (tx) => {
+                const px = (cur.width - 2) * TILE2, py = (2 + keepers.length * 2) * TILE2;
+                tx.placeUnit(keeper, p.slot - 1, px, py);
+              });
+              keepers.push(p.slot);
+            }
+            if (keepers.length) findings.push(`player${keepers.length === 1 ? "" : "s"} ${keepers.join(", ")} (computer) owned nothing, which would defeat them at once and stop their triggers: an Overlord in the top-right corner keeps them in the game`);
+            return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
           }
         });
         for (const s of d.systems) {

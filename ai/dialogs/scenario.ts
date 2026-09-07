@@ -19,7 +19,7 @@
  */
 import type { TilesetId } from "@scm-js/plugin-api";
 import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlan, type MapPlanInput, type UmsDesign, type UmsDesignInput } from "../../protocol";
-import { doodadCategoryNames, terrainVocab, unitNames } from "../facts";
+import { doodadCategoryNames, terrainVocab, unitIdByName, unitNames } from "../facts";
 import { guideFor } from "../guides";
 import { START_LOCATION, TILE, centreOf } from "../layout";
 import { buildPreset, presetSpecs, PresetError } from "../presets";
@@ -406,7 +406,21 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
               });
               findings.push(`start locations for player${missing.length === 1 ? "" : "s"} ${missing.join(", ")} were placed by the editor; check where`);
             }
-            return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}`;
+            // A player who owns nothing when the game starts is defeated on the spot, and a defeated player's triggers
+            // never run — so a computer that only spawns things gets a keeper: one flier in the map's corner, out of the way.
+            const keepers: number[] = [];
+            const keeper = unitIdByName(api, "Zerg Overlord");
+            const owned = new Set(api.document.scenario()!.units.map((u) => u.owner));
+            for (const p of d.players.filter((x) => x.type === "computer")) {
+              if (owned.has(p.slot - 1) || keeper === null) continue;
+              api.document.edit(`AI: keeper for player ${p.slot}`, (tx) => {
+                const px = (cur.width - 2) * TILE, py = (2 + keepers.length * 2) * TILE;
+                tx.placeUnit(keeper, p.slot - 1, px, py);
+              });
+              keepers.push(p.slot);
+            }
+            if (keepers.length) findings.push(`player${keepers.length === 1 ? "" : "s"} ${keepers.join(", ")} (computer) owned nothing, which would defeat them at once and stop their triggers: an Overlord in the top-right corner keeps them in the game`);
+            return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
           },
         });
         for (const s of d.systems) {
