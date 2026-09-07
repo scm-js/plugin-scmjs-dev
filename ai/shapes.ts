@@ -176,7 +176,7 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
       case "bridge": {
         if (typeof s.x !== "number" || typeof s.y !== "number") { findings.push(`${what} has no position; skipped`); return; }
         const pair = ctx.bridgePair ?? null;
-        if (!pair) { findings.push(`${what}: this tileset has no bridges; skipped`); return; }
+        if (!pair) { findings.push(`${what}: this tileset has no bridges the editor can place; skipped — leave a gap of ground for a crossing`); return; }
         const along: RampSide = s.along === "sw" ? "sw" : "se";
         const x = Math.round(s.x), y = Math.round(s.y);
         // The channel through the site along the diagonal, banks of the bridge's ground either side, then the water.

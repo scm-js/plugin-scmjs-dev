@@ -14,7 +14,10 @@ import { bridgePairOf, bridgesOf, fitDoodad, fitRamp, rampPairsOf, rampsOf, VERI
 import { floodFrom, nearestWalkable, reachTouches, walkMask } from "../reach";
 import { renderPlan, summarizeRender } from "../render";
 import { shiftShapes } from "../shapes";
-import { capResult, list, num, obj, str, TILE, type Tool } from "./common";
+import { fitBase } from "../bases";
+import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
+import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
+import { capResult, list, num, obj, ownerOf, str, TILE, type Tool } from "./common";
 
 /** Human and computer slots, 1-based, from the settings. */
 function slots(api: PluginApi): { humans: number[]; computers: number[] } {
@@ -37,6 +40,25 @@ function pointOf(api: PluginApi, input: Record<string, unknown>, prefix: string)
   if (index < 0) return `no location is called "${name}" (see list_locations)`;
   const l = scn.locations[index];
   return { x: Math.floor((Math.min(l.left, l.right) + Math.max(l.left, l.right)) / 2 / TILE), y: Math.floor((Math.min(l.top, l.bottom) + Math.max(l.top, l.bottom)) / 2 / TILE), label: name };
+}
+
+/** The shape ops paint_shapes takes, as the compiler knows them. */
+export const SHAPE_OPS = ["ground", "rect", "diamond", "ellipse", "polygon", "stroke", "border", "plateau", "lane", "ramp", "bridge"] as const;
+
+/**
+ * The shapes a paint_shapes call gives, with the op read from `op` or the names a
+ * caller reaches for instead (`type`, `kind`, `shape`); or what is wrong with them.
+ */
+export function readShapes(raw: unknown): Shape[] | string {
+  const given = list<Record<string, unknown>>(raw).filter((s) => s && typeof s === "object");
+  if (!given.length) return "No shapes were given.";
+  const shapes: Shape[] = [];
+  for (const [i, s] of given.entries()) {
+    const op = [s.op, s.type, s.kind, s.shape].find((v) => typeof v === "string") as string | undefined;
+    if (!op || !(SHAPE_OPS as readonly string[]).includes(op)) return `Shape ${i + 1} ${op ? `has an op "${op}" that is not one of` : "names no op; each shape needs an op, one of"}: ${SHAPE_OPS.join(", ")}.`;
+    shapes.push({ ...(s as object), op } as Shape);
+  }
+  return shapes;
 }
 
 export function layoutTools(): Tool[] {
@@ -75,9 +97,9 @@ export function layoutTools(): Tool[] {
     {
       def: {
         name: "paint_shapes",
-        description: "Paint terrain as shapes, in map tiles, in order (later over earlier): ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band — a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, \"sw\" and/or \"se\" — the game's ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along \"se\" or \"sw\": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area's corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.",
+        description: "Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band — a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, \"sw\" and/or \"se\" — the game's ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along \"se\" or \"sw\": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Bridges exist only where the reference's tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area's corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.",
         inputSchema: obj({
-          shapes: { type: "array", items: { type: "object", additionalProperties: true } },
+          shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" }, originY: { type: "integer" },
           clear: { type: "boolean" },
           locations: { type: "array", items: { type: "object", additionalProperties: true } },
@@ -88,8 +110,8 @@ export function layoutTools(): Tool[] {
       run: (input, { api }) => {
         const info = api.document.info();
         if (!info) return "No map is open.";
-        const shapes = list<Shape>(input.shapes).filter((s) => s && typeof s === "object" && typeof s.op === "string");
-        if (!shapes.length) return "No shapes were given.";
+        const shapes = readShapes(input.shapes);
+        if (typeof shapes === "string") return shapes;
         const dx = Math.round(num(input.originX)), dy = Math.round(num(input.originY));
         const locations = list<Record<string, unknown>>(input.locations).map((l) => ({ name: str(l.name, "Location"), x0: Math.round(num(l.x0)) + dx, y0: Math.round(num(l.y0)) + dy, x1: Math.round(num(l.x1)) + dx, y1: Math.round(num(l.y1)) + dy }));
         const units = list<Record<string, unknown>>(input.units).map((u) => ({ unit: str(u.unit), player: Math.round(num(u.player, 12)), x: Math.round(num(u.x)) + dx, y: Math.round(num(u.y)) + dy }));
@@ -121,16 +143,109 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. A bridge spans only a diagonal channel of the width the tileset's bridges were drawn for (Jungle and Space Platform have bridges the brush's shores take); to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
       writes: true,
       run: (input, { api }) => {
         const bridges = bridgesOf(api);
         if (!bridges.length) return "This tileset has no bridges.";
+        if (!bridgePairOf(api)) return "This tileset's bridges need bank pieces the isometric brush does not draw, so no bridge can be placed here. For a crossing, leave a gap of ground in the water.";
         const x = Math.round(num(input.x)), y = Math.round(num(input.y));
         const fit = fitDoodad({ x, y }, bridges, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true, { dx: 14, dy: 10 });
         if (!fit) return `No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`;
         const r = api.document.edit("AI: place bridge", (tx) => { tx.placeDoodad(fit.doodadId, fit.tx, fit.ty); });
         return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}×${fit.height})`, notes: r.notes });
+      },
+    },
+    {
+      def: {
+        name: "place_base",
+        description: "Lay a base's resources round a town hall footprint (4 × 3 tiles, top-left at x,y — a start location's box) the way the Melee Wizard does: the mineral patches on the ring three tiles from the hall, where the game mines fastest, spread round `direction` (a compass point, where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines; the geyser on the same ring just past the line's end. Positions the editor refuses (cliffs, water, the map's edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does, and the result says so. Give `player` to place that player's start location at the hall (or omit x,y to lay round the start location the player already has), `hall` to place a town hall by name for the player too. Use this for every mineral line rather than placing patches one by one.",
+        inputSchema: obj({
+          x: { type: "integer", description: "the hall footprint's left tile" },
+          y: { type: "integer", description: "the hall footprint's top tile" },
+          player: { type: "integer", description: "1-based; gets a start location at the hall" },
+          direction: { type: "string", enum: [...DIRECTIONS] },
+          minerals: { type: "integer", description: "patches, default 8" },
+          geysers: { type: "integer", description: "0–2, default 1" },
+          amount: { type: "integer", description: "minerals per patch, default 1500" },
+          gas: { type: "integer", description: "gas per geyser, default 5000" },
+          geyserSide: { type: "string", enum: ["auto", "left", "right"], description: "which end of the line the geyser takes, seen from the hall" },
+          hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" },
+        }),
+      },
+      writes: true,
+      run: (input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return "No map is open.";
+        const player = input.player === undefined ? null : ownerOf(input.player, -1);
+        if (player !== null && (player < 0 || player > 7)) return "player must be 1–8.";
+        let hall: Footprint;
+        if (input.x !== undefined && input.y !== undefined) {
+          hall = { x: Math.round(num(input.x)), y: Math.round(num(input.y)), w: HALL.w, h: HALL.h };
+        } else {
+          if (player === null) return "Give the hall's top-left tile (x, y), or a player whose start location to lay round.";
+          const start = scn.units.find((u) => u.unitId === START_LOCATION && u.owner === player);
+          if (!start) return `Player ${player + 1} has no start location; give the hall's top-left tile (x, y) to place one.`;
+          hall = rectAt(start.x, start.y, HALL);
+        }
+        if (!inMap(hall, info.width, info.height)) return `A ${HALL.w} × ${HALL.h} hall at ${hall.x},${hall.y} hangs off the map.`;
+        const centre = centreOf(hall);
+        const askedDirection = str(input.direction).toLowerCase();
+        if (askedDirection && !(DIRECTIONS as readonly string[]).includes(askedDirection)) return `direction must be a compass point: ${DIRECTIONS.join(", ")}.`;
+        const direction = askedDirection ? directionAngle(askedDirection as (typeof DIRECTIONS)[number]) : snapAngle(outwardDirection(centre.x, centre.y, info.width, info.height));
+        const minerals = Math.max(0, Math.min(12, Math.round(num(input.minerals, 8))));
+        const geysers = Math.max(0, Math.min(2, Math.round(num(input.geysers, 1))));
+        const amount = Math.max(0, Math.round(num(input.amount, DEFAULT_MINERALS)));
+        const gas = Math.max(0, Math.round(num(input.gas, DEFAULT_GAS)));
+        const geyserSide = str(input.geyserSide) === "left" ? "left" : str(input.geyserSide) === "right" ? "right" : "auto";
+        const hallUnit = str(input.hall) ? unitIdByName(api, str(input.hall)) : null;
+        if (str(input.hall) && hallUnit === null) return `No unit is called "${str(input.hall)}".`;
+        if (hallUnit !== null && player === null) return "A hall needs a player to own it.";
+        // The editor's own check, on the map as it is now: ground, the edge, and the units already there.
+        const fits = (r: Footprint) => {
+          const c = centreOf(r);
+          const id = r.w === GEYSER.w && r.h === GEYSER.h ? VESPENE_GEYSER : MINERAL_FIELDS[0];
+          return api.query.placement(id, c.x, c.y)?.problem === null;
+        };
+        const fitted = fitBase(hall, { minerals, geysers, geyserSide, direction, fits });
+        const { layout } = fitted;
+        const startHere = scn.units.some((u) => u.unitId === START_LOCATION && Math.abs(u.x - centre.x) < TILE && Math.abs(u.y - centre.y) < TILE);
+        const placed = { start: 0, hall: 0, minerals: 0, geysers: 0 };
+        const notes: string[] = [];
+        api.document.edit("AI: place base", (tx) => {
+          if (hallUnit !== null && player !== null) {
+            if (tx.canPlaceUnit(hallUnit, centre.x, centre.y)) { tx.placeUnit(hallUnit, player, centre.x, centre.y); placed.hall++; }
+            else notes.push(`${api.names.unit(hallUnit)} refused at ${hall.x},${hall.y}: ${api.query.placement(hallUnit, centre.x, centre.y)?.reason ?? "does not fit"}`);
+          }
+          if (player !== null && !startHere) {
+            if (tx.canPlaceUnit(START_LOCATION, centre.x, centre.y)) { tx.placeUnit(START_LOCATION, player, centre.x, centre.y); placed.start++; }
+            else notes.push(`start location refused at ${hall.x},${hall.y}: ${api.query.placement(START_LOCATION, centre.x, centre.y)?.reason ?? "does not fit"}`);
+          }
+          const resource = (id: number, r: Footprint, value: number): boolean => {
+            const c = centreOf(r);
+            if (!tx.canPlaceUnit(id, c.x, c.y)) return false;
+            const index = tx.placeUnit(id, NEUTRAL, c.x, c.y);
+            tx.updateUnits([index], (rec) => ({ resourceAmount: value, validStates: rec.validStates | api.consts.unit.used.Resources }));
+            return true;
+          };
+          layout.minerals.forEach((r, i) => { if (resource(MINERAL_FIELDS[i % 3], r, amount)) placed.minerals++; });
+          for (const r of layout.geysers) if (resource(VESPENE_GEYSER, r, gas)) placed.geysers++;
+        });
+        const laid = angleDirection(fitted.direction);
+        if (fitted.turned) notes.push(`the ${angleDirection(direction)} side had no whole line, so the line lies ${laid} instead`);
+        if (layout.short.minerals > 0) notes.push(`${layout.short.minerals} patch${layout.short.minerals === 1 ? "" : "es"} had no room on the ring`);
+        if (layout.short.geysers > 0) notes.push(`${layout.short.geysers} geyser${layout.short.geysers === 1 ? "" : "s"} had no room on the ring`);
+        const refused = layout.minerals.length + layout.geysers.length - placed.minerals - placed.geysers;
+        if (refused > 0) notes.push(`${refused} resource${refused === 1 ? "" : "s"} refused by the editor at the last moment`);
+        return capResult({
+          hall: { x: hall.x, y: hall.y, w: HALL.w, h: HALL.h },
+          direction: laid,
+          placed,
+          minerals: layout.minerals.map((r) => `${r.x},${r.y}`),
+          geysers: layout.geysers.map((r) => `${r.x},${r.y}`),
+          ...(notes.length ? { notes } : {}),
+        });
       },
     },
     {

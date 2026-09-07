@@ -36,7 +36,7 @@ export function statisticsLines(api: PluginApi): string[] {
   lines.push(`${s.units.total} units${s.units.buildings !== null ? ` (${s.units.buildings} buildings)` : ""}, ${s.unownedUnits} with no owner`);
   lines.push(`resources: ${s.resources.fields} mineral fields (${s.resources.minerals} minerals), ${s.resources.geysers} geysers (${s.resources.gas} gas)`);
   lines.push(`${s.doodads} doodads, ${s.sprites.pure + s.sprites.unit} sprites, ${s.locations} locations`);
-  lines.push(`${s.triggers.count} triggers (${s.triggers.conditions} conditions, ${s.triggers.actions} actions, ${s.triggers.preserved} preserved, ${s.triggers.disabled} disabled), ${s.briefings} briefing triggers, ${s.switchesNamed} named switches, ${s.sounds} sounds`);
+  lines.push(`${s.triggers.count} triggers (${s.triggers.conditions} conditions, ${s.triggers.actions} actions, ${s.triggers.preserved} preserved, ${s.triggers.disabled} disabled), ${s.briefings.count} briefing triggers, ${s.switchesNamed} named switches, ${s.sounds} sounds`);
   lines.push(`strings: ${s.strings.set} of ${s.strings.slots} slots set${s.strings.extended ? " (extended table)" : ""}`);
   for (const p of s.players) if (p.units > 0 || p.startLocations > 0) lines.push(`player ${p.slot + 1}: ${p.type}, ${p.race}, ${p.units} units${p.buildings !== null ? ` (${p.buildings} buildings)` : ""}, ${p.startLocations} start location${p.startLocations === 1 ? "" : "s"}`);
   if (s.terrain) lines.push(`terrain: ${s.terrain.slice(0, 8).map((t) => `${t.name} ${Math.round((t.tiles / (s.width * s.height)) * 100)}%`).join(", ")}`);

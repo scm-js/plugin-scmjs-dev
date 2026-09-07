@@ -156,6 +156,12 @@ export interface BaseSpec {
   geyserSide: GeyserSide;
   /** Where the line goes, from the hall's centre; screen angle, 0 east, π/2 south. */
   direction: number;
+  /**
+   * Which ring positions a patch or geyser may take — the editor's placement check, say,
+   * so the line skips ground the game refuses and flows on round the hall. Every position
+   * when omitted.
+   */
+  fits?: (rect: TileRect) => boolean;
 }
 
 export const DEFAULT_SPEC: BaseSpec = { minerals: 8, geysers: 1, gap: 3, geyserGap: 3, geyserSpacing: 1, geyserSide: "auto", direction: Math.PI };
@@ -176,10 +182,12 @@ export interface BaseLayout {
  * the hall's top and bottom step by a patch width, positions along its sides by a row,
  * so the line wraps round a corner on its own. A geyser then goes on its ring past the
  * end of the line on the chosen side, keeping `geyserSpacing` from every patch; two
- * geysers take one end each.
+ * geysers take one end each. With `fits`, positions it refuses are not on the ring at
+ * all, so the line closes over them.
  */
 export function layoutBase(hall: TileRect, spec: BaseSpec): BaseLayout {
-  const ring = ringPositions(hall, MINERAL, spec.gap);
+  const fits = spec.fits ?? (() => true);
+  const ring = ringPositions(hall, MINERAL, spec.gap).filter(fits);
   const n = ring.length;
   const minerals: TileRect[] = [];
   const short = { minerals: 0, geysers: 0 };
@@ -214,7 +222,7 @@ export function layoutBase(hall: TileRect, spec: BaseSpec): BaseLayout {
 
   const geysers: TileRect[] = [];
   if (spec.geysers > 0) {
-    const gring = ringPositions(hall, GEYSER, spec.geyserGap);
+    const gring = ringPositions(hall, GEYSER, spec.geyserGap).filter(fits);
     const clear = (g: TileRect) => minerals.every((m) => chebGap(m, g) >= spec.geyserSpacing) && geysers.every((o) => chebGap(o, g) >= 1);
     // The nearest clear position past an end of the line on a given side.
     const pastEnd = (side: "left" | "right"): TileRect | null => {

@@ -75,32 +75,38 @@ export function rampDoodads(doodads: readonly DoodadInfo[], types: readonly Type
 
 /**
  * Which ramps the isometric brush's cliffs can take, by tileset and terrain names —
- * measured (2026-09) by painting plateaus of every shape and asking the placement
- * check. A ramp not listed here requires cliff pieces the brush never draws (Ice's
- * cliff ramps, Platform's Space walls, the Compound and Basilica walls of Desert and
- * Twilight are drawn for doodad walls), so offering it would only produce "no fit".
+ * measured (2026-09) by painting the plateau shape on every tileset with the editor's
+ * own brush and asking its placement check, which since scm-js's fix checks only the
+ * cells a doodad draws (StarEdit's rule, read off Blizzard's maps). A ramp not listed
+ * here requires ground the brush never draws (Platform's Space walls, Ice's Outpost
+ * walls), so offering it would only produce "no fit".
  */
 export const VERIFIED_RAMPS: Record<string, [low: string, high: string][]> = {
   badlands: [["Dirt", "High Dirt"]],
   jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
-  desert: [["Dirt", "High Dirt"]],
-  twilight: [["Dirt", "High Dirt"]],
+  desert: [["Dirt", "High Dirt"], ["Sand Dunes", "Compound"], ["High Sand Dunes", "High Compound"]],
+  twilight: [["Dirt", "High Dirt"], ["High Crushed Rock", "High Basilica"]],
   install: [["Substructure", "Floor"]],
   ashworld: [["Dirt", "High Dirt"]],
   platform: [["Low Platform", "Platform"]],
-  ice: [],
+  ice: [["Snow", "High Snow"]],
 };
 
 /**
  * Which bridges the brush's shores can take, with the channel width (in tiles, the
  * band's width across the diagonal) that the bridge spans and the bank it stands on
- * — measured the same way. Jungle's big bridges span a five-wide band, Platform's
- * widest span five over Low Platform banks; the other tilesets' bridges want shores
- * the brush does not draw and are not offered.
+ * — measured the same way, every width from one to ten on every bank. Jungle's big
+ * bridges span a five-wide band (its small ones two), Platform's widest span five over
+ * Low Platform banks, Desert's and Twilight's four, Ice's five. Badlands' bridges want
+ * Asphalt-edge pieces beside the shore that no channel the brush draws produces, so
+ * they are not offered; Installation and Ash World have no bridges.
  */
 export const VERIFIED_BRIDGES: Record<string, { ground: string; water: string; channel: number } | undefined> = {
   jungle: { ground: "Dirt", water: "Water", channel: 5 },
   platform: { ground: "Low Platform", water: "Space", channel: 5 },
+  desert: { ground: "Dirt", water: "Tar", channel: 4 },
+  twilight: { ground: "Dirt", water: "Water", channel: 4 },
+  ice: { ground: "Dirt", water: "Water", channel: 5 },
 };
 
 /** The distinct terrain pairs the ramps join, for the planner's request — those the brush's cliffs are known to take when `tileset` is given. */

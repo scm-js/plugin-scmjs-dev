@@ -19,7 +19,9 @@
  * `gatherReference` memoises per scenario object and the builders are deterministic.
  */
 import type { PluginApi, Scenario } from "@scm-js/plugin-api";
+import { bridgePairOf, rampPairsOf } from "./ramps";
 import { scriptBridge } from "./script";
+import { BRIDGE_CHANNEL } from "./shapes";
 
 export interface ReferenceParts {
   mapName: string;
@@ -31,6 +33,10 @@ export interface ReferenceParts {
   /** The playable slots, one line each. */
   players: string[];
   terrains: { id: number; name: string; height: number; buildable: boolean }[];
+  /** The terrain pairs the editor fits ramps between, low → high, by name. */
+  ramps?: { low: string; high: string }[];
+  /** What the editor's bridges stand on and span, by name, with the channel width in tiles; null when it can place none. */
+  bridges?: { ground: string; water: string; channel: number } | null;
   doodadCategories: { name: string; doodads: { id: number; name: string; width: number; height: number }[] }[];
   /** `name` is the game's; `customName` what this map calls it, when it does. */
   units: { id: number; name: string; customName?: string; race: string; width: number; height: number; building: boolean; flyer: boolean; hitPoints: number; shields: number; armor: number; minerals: number; gas: number; buildTime: number; weapons: string }[];
@@ -46,6 +52,10 @@ export interface ReferenceParts {
 }
 
 const ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"] as const;
+
+function terrainName(api: PluginApi, id: number): string {
+  return api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+}
 
 export function gatherReference(api: PluginApi): ReferenceParts {
   const defs = api.triggers.defs;
@@ -67,6 +77,8 @@ export function gatherReference(api: PluginApi): ReferenceParts {
     ...map,
     tileset: api.tileset.name(),
     terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
+    ramps: rampPairsOf(api).map((p) => ({ low: terrainName(api, p.low), high: terrainName(api, p.high) })),
+    bridges: (() => { const b = bridgePairOf(api); return b ? { ground: terrainName(api, b.ground), water: terrainName(api, b.water), channel: b.channel ?? BRIDGE_CHANNEL } : null; })(),
     doodadCategories: api.palette.doodadCategories().map((c) => ({ name: c.name, doodads: c.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
     units,
     upgrades: api.names.upgrades().map((u) => ({ id: u.value, name: u.label })),
@@ -161,6 +173,9 @@ function tilesetLayer(p: ReferenceParts): string {
   out.push("");
   out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
   for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} — height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
+  if (p.ramps) out.push(`- Ramps the editor can fit (down south-west or south-east only): ${p.ramps.length ? p.ramps.map((r) => `${r.low} → ${r.high}`).join(", ") : "none"}`);
+  if (p.bridges !== undefined) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a bridge shape in paint_shapes paints the channel and fits it)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
+  out.push("- A shore or cliff between two terrains takes about three tiles either side of the boundary; water narrower than about ten tiles is all shore.");
   out.push("");
   out.push("## Doodad categories (scatter_doodads takes a category; place_doodads a name or id — the names are in reference \"doodads\")");
   out.push(p.doodadCategories.map((c) => `${c.name} (${c.doodads.length})`).join("; "));

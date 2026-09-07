@@ -706,7 +706,7 @@ function statisticsLines(api) {
   lines.push(`${s.units.total} units${s.units.buildings !== null ? ` (${s.units.buildings} buildings)` : ""}, ${s.unownedUnits} with no owner`);
   lines.push(`resources: ${s.resources.fields} mineral fields (${s.resources.minerals} minerals), ${s.resources.geysers} geysers (${s.resources.gas} gas)`);
   lines.push(`${s.doodads} doodads, ${s.sprites.pure + s.sprites.unit} sprites, ${s.locations} locations`);
-  lines.push(`${s.triggers.count} triggers (${s.triggers.conditions} conditions, ${s.triggers.actions} actions, ${s.triggers.preserved} preserved, ${s.triggers.disabled} disabled), ${s.briefings} briefing triggers, ${s.switchesNamed} named switches, ${s.sounds} sounds`);
+  lines.push(`${s.triggers.count} triggers (${s.triggers.conditions} conditions, ${s.triggers.actions} actions, ${s.triggers.preserved} preserved, ${s.triggers.disabled} disabled), ${s.briefings.count} briefing triggers, ${s.switchesNamed} named switches, ${s.sounds} sounds`);
   lines.push(`strings: ${s.strings.set} of ${s.strings.slots} slots set${s.strings.extended ? " (extended table)" : ""}`);
   for (const p of s.players) if (p.units > 0 || p.startLocations > 0) lines.push(`player ${p.slot + 1}: ${p.type}, ${p.race}, ${p.units} units${p.buildings !== null ? ` (${p.buildings} buildings)` : ""}, ${p.startLocations} start location${p.startLocations === 1 ? "" : "s"}`);
   if (s.terrain) lines.push(`terrain: ${s.terrain.slice(0, 8).map((t) => `${t.name} ${Math.round(t.tiles / (s.width * s.height) * 100)}%`).join(", ")}`);
@@ -877,6 +877,12 @@ function footprintOf(api, name, input) {
       return { ...EMPTY, rects: rectOf(input, width, height, name === "screenshot") };
     case "place_units":
       return { ...EMPTY, rects: tilesOf(input.units, width, height) };
+    case "place_base": {
+      const x = Math.round(n(input.x)), y = Math.round(n(input.y));
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return EMPTY;
+      const x0 = Math.max(0, x - 7), y0 = Math.max(0, y - 5), x1 = Math.min(width, x + 4 + 7), y1 = Math.min(height, y + 3 + 5);
+      return x1 > x0 && y1 > y0 ? { ...EMPTY, rects: [{ x0, y0, x1, y1 }] } : EMPTY;
+    }
     case "place_doodads":
       return { ...EMPTY, rects: tilesOf(input.doodads, width, height) };
     case "place_sprites":
@@ -1123,6 +1129,155 @@ function renderMarkdown(md) {
   return root;
 }
 
+// ai/ramps.ts
+function rampDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
+  const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
+  const out = [];
+  for (const d of doodads) {
+    if (!d.ramp || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    d.required.forEach((g, i) => {
+      const t = byGroup.get(g);
+      if (!t) return;
+      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
+      e.sx += i % d.width;
+      e.sy += Math.floor(i / d.width);
+      e.n++;
+      flats.set(t.id, e);
+    });
+    const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
+    if (list2.length === 0) continue;
+    let lo = list2[0], hi = list2.find((e) => e.t.height > lo.t.height) ?? null;
+    let side;
+    if (hi) {
+      side = lo.sx / lo.n < hi.sx / hi.n ? "sw" : "se";
+    } else {
+      const only = list2[0];
+      const centre = (d.width - 1) / 2;
+      const stripped = only.t.height === 0 ? null : byName2.get((only.t.name ?? "").replace(/^high\s+/i, "").toLowerCase());
+      const other = only.t.height === 0 ? byName2.get(`high ${only.t.name?.toLowerCase() ?? ""}`) ?? null : stripped && stripped.id !== only.t.id ? stripped : lowest && lowest.id !== only.t.id ? lowest : null;
+      if (!other) continue;
+      if (only.t.height === 0) {
+        lo = only;
+        hi = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "sw" : "se";
+      } else {
+        hi = only;
+        lo = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "se" : "sw";
+      }
+    }
+    if (hi.t.height <= lo.t.height) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, low: lo.t.id, high: hi.t.id, side });
+  }
+  return out;
+}
+var VERIFIED_RAMPS = {
+  badlands: [["Dirt", "High Dirt"]],
+  jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
+  desert: [["Dirt", "High Dirt"], ["Sand Dunes", "Compound"], ["High Sand Dunes", "High Compound"]],
+  twilight: [["Dirt", "High Dirt"], ["High Crushed Rock", "High Basilica"]],
+  install: [["Substructure", "Floor"]],
+  ashworld: [["Dirt", "High Dirt"]],
+  platform: [["Low Platform", "Platform"]],
+  ice: [["Snow", "High Snow"]]
+};
+var VERIFIED_BRIDGES = {
+  jungle: { ground: "Dirt", water: "Water", channel: 5 },
+  platform: { ground: "Low Platform", water: "Space", channel: 5 },
+  desert: { ground: "Dirt", water: "Tar", channel: 4 },
+  twilight: { ground: "Dirt", water: "Water", channel: 4 },
+  ice: { ground: "Dirt", water: "Water", channel: 5 }
+};
+function rampPairs(ramps, tileset, types) {
+  const out = [];
+  for (const r of ramps) if (!out.some((p) => p.low === r.low && p.high === r.high)) out.push({ low: r.low, high: r.high });
+  if (!tileset || !types) return out;
+  const verified = VERIFIED_RAMPS[tileset];
+  if (!verified) return out;
+  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
+  return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
+}
+function rampsOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return rampDoodads(doodads, api.terrain.types());
+}
+function rampPairsOf(api) {
+  return rampPairs(rampsOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function bridgeDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const out = [];
+  for (const d of doodads) {
+    if (!/bridge/i.test(d.category) || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    for (const g of d.required) {
+      const t = byGroup.get(g);
+      if (t) {
+        const e = flats.get(t.id) ?? { t, n: 0 };
+        e.n++;
+        flats.set(t.id, e);
+      }
+    }
+    const list2 = [...flats.values()];
+    const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
+    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
+    const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
+    if (!water || !ground) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
+  }
+  return out;
+}
+function bridgePair(bridges, tileset, types) {
+  if (!bridges.length) return null;
+  if (tileset && types) {
+    const v = VERIFIED_BRIDGES[tileset];
+    if (!v) return null;
+    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
+    return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
+  }
+  return { ground: bridges[0].ground, water: bridges[0].water };
+}
+function bridgesOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return bridgeDoodads(doodads, api.terrain.types());
+}
+function bridgePairOf(api) {
+  return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
+  let best = null;
+  let bestD = Infinity;
+  for (const r of candidates) {
+    for (let ty = Math.round(site.y - r.height / 2) - window2.dy; ty <= Math.round(site.y - r.height / 2) + window2.dy; ty++) {
+      for (let tx = Math.round(site.x - r.width / 2) - window2.dx; tx <= Math.round(site.x - r.width / 2) + window2.dx; tx++) {
+        if (tx < 0 || ty < 0) continue;
+        const cx = tx + r.width / 2, cy = ty + r.height / 2;
+        const d = (cx - site.x) ** 2 + (cy - site.y) ** 2;
+        if (d >= bestD) continue;
+        if (!fits(r.id, tx, ty)) continue;
+        best = { doodadId: r.id, tx, ty, name: r.name, width: r.width, height: r.height };
+        bestD = d;
+      }
+    }
+  }
+  return best;
+}
+function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
+  const side = site.direction === "se" ? "se" : "sw";
+  return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
+}
+
 // ai/script.ts
 var SCRIPT_PLUGIN = "trigger-script";
 var NO_SCRIPT_PLUGIN = "The Trigger Script plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, compile or build trigger scripts.";
@@ -1182,232 +1337,6 @@ function compactTriggers(text) {
     } else out.push(lines[i]);
   }
   return out.join("\n");
-}
-
-// ai/reference.ts
-var ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"];
-function gatherReference(api) {
-  const defs = api.triggers.defs;
-  const races = { zerg: "Z", terran: "T", protoss: "P" };
-  const units = [];
-  for (const t of api.settings.unitTypes()) {
-    const size = api.palette.unitSize(t.id);
-    const d = t.defaults ?? t;
-    units.push({
-      id: t.id,
-      name: t.name,
-      ...t.customName ? { customName: api.names.unit(t.id) } : {},
-      race: races[String(api.data.race(t.id)).toLowerCase()] ?? "-",
-      width: size.width,
-      height: size.height,
-      building: size.building,
-      flyer: size.flyer,
-      hitPoints: d.hitPoints,
-      shields: d.shields,
-      armor: d.armor,
-      minerals: d.mineralCost,
-      gas: d.gasCost,
-      buildTime: d.buildTime,
-      weapons: d.weapons.map((w) => `${w.name} ${w.damage}${w.bonus ? `+${w.bonus}` : ""}`).join("; ")
-    });
-  }
-  const sig = (name, args) => ({ name, args: args.map((a2) => ({ label: a2.label, kind: a2.kind })) });
-  const { renamed: _renamed, ...map } = gatherMap(api);
-  return {
-    ...map,
-    tileset: api.tileset.name(),
-    terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
-    doodadCategories: api.palette.doodadCategories().map((c2) => ({ name: c2.name, doodads: c2.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
-    units,
-    upgrades: api.names.upgrades().map((u) => ({ id: u.value, name: u.label })),
-    techs: api.names.techs().map((t) => ({ id: t.value, name: t.label })),
-    conditions: defs.conditions().map((c2) => sig(c2.name, c2.args)),
-    actions: defs.actions(false).map((a2) => sig(a2.name, a2.args)),
-    briefingActions: defs.actions(true).map((a2) => sig(a2.name, a2.args)),
-    choices: ENUM_KINDS.map((kind) => ({ kind, labels: defs.choices(kind).map((c2) => c2.label) })),
-    aiScripts: defs.choices("aiScript").map((c2) => c2.label),
-    sprites: api.palette.spriteGroups().map((g) => ({ label: g.label, count: g.ids.length }))
-  };
-}
-var TEXT_FORMAT = `Trigger("Player 1", "Force 2"){
-Conditions:
-  Bring("Current Player", "Any unit", "Beacon Alpha", At least, 1);
-  Switch("Switch 3", set);
-Actions:
-  Display Text Message(Always Display, "You found it!");
-  Create Unit(1, "Zerg Zergling", 4, "Spawn", "Player 2");
-  Set Deaths("Player 1", "Terran Marine", Add, 5);
-  ; Set Switch("Switch 3", clear);
-  Preserve Trigger();
-}`;
-var SCRIPT_SHORT = `const beacon = Bring(CurrentPlayer, Units.AnyUnit, Locations["Beacon Alpha"], "At least", 1);
-trigger([P1, Players.Force2], [beacon], [DisplayText("Always Display", "You found it!"), PreserveTrigger()], ["Preserve"]);
-
-let wave = 0;                       // a death counter
-while (true) {                       // structured code compiles to death-counter triggers
-  if (Bring(P1, Units.AnyUnit, Locations.Beacon, ">=", 1)) { CreateUnit(P2, Units.ZergZergling, 4, Locations.Spawn); wave += 1; }
-  if (wave >= 10) Defeat();
-  Wait(2000);
-}`;
-function buildReferenceLayers(p) {
-  return [gameLayer(p), tilesetLayer(p), mapLayer(p)];
-}
-function gameLayer(p) {
-  const out = [];
-  out.push("# Reference: the editor and the game");
-  out.push("");
-  out.push("## Conventions");
-  out.push("- Tools take tile coordinates (x right, y down, 0-based) and tile rects x0,y0 inclusive to x1,y1 exclusive. A unit's position is its centre.");
-  out.push(`- Players in tools are 1\u20138; 12 is Neutral (resources, critters). Settings tools also take "default" for a table's default column.`);
-  out.push("- Names are the editor's: units and terrains as listed, locations and switches as the map names them. Ids are accepted where names are.");
-  out.push("- Every writing tool is one undo step (settings changes are transactions outside undo). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
-  out.push('- The reference tool has the long tables this block leaves out: unit stats, costs and weapons (part "units"); every doodad by category ("doodads"); every trigger condition, action and briefing action with its arguments and their values, and the AI scripts ("triggers"). Read "triggers" before writing triggers you have not written in this conversation.');
-  out.push("");
-  out.push(`## Units (id: name | race | size in tiles | kind). Stats, costs and weapons: reference "units"; unit_type shows the map's own values.`);
-  for (const u of p.units) {
-    const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
-    out.push(`${u.id}: ${u.name} | ${u.race} | ${u.width}\xD7${u.height} | ${kind}`);
-  }
-  out.push("");
-  out.push("## Upgrades (set_upgrade)");
-  out.push(p.upgrades.map((u) => `${u.id} ${u.name}`).join("; "));
-  out.push("");
-  out.push("## Technologies (set_tech)");
-  out.push(p.techs.map((t) => `${t.id} ${t.name}`).join("; "));
-  out.push("");
-  out.push(`## Trigger conditions: ${p.conditions.map((c2) => c2.name).join("; ")}`);
-  out.push(`## Trigger actions: ${p.actions.map((a2) => a2.name).join("; ")}`);
-  out.push(`## Briefing actions: ${p.briefingActions.map((a2) => a2.name).join("; ")}`);
-  out.push("");
-  out.push("## Text trigger format (list_triggers_text, add_triggers_text, replace_trigger)");
-  out.push('One Trigger block per trigger: the players it runs for in the header, conditions and actions one per line ending in a semicolon, names in double quotes, enumerated values bare (their spellings are in reference "triggers"). A leading `;` disables a line. Example:');
-  out.push("```");
-  out.push(TEXT_FORMAT);
-  out.push("```");
-  out.push("");
-  out.push("## Trigger script (compile_script, build_script)");
-  out.push("A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals.");
-  out.push("```ts");
-  out.push(SCRIPT_SHORT);
-  out.push("```");
-  return out.join("\n");
-}
-function tilesetLayer(p) {
-  const out = [];
-  out.push(`# Reference: the ${p.tileset} tileset`);
-  out.push("");
-  out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
-  for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
-  out.push("");
-  out.push('## Doodad categories (scatter_doodads takes a category; place_doodads a name or id \u2014 the names are in reference "doodads")');
-  out.push(p.doodadCategories.map((c2) => `${c2.name} (${c2.doodads.length})`).join("; "));
-  if (p.sprites.length) out.push(`- Pure sprites (place_sprites kind "pure"): ${p.sprites.map((g) => `${g.label} (${g.count})`).join(", ")}`);
-  return out.join("\n");
-}
-function mapLayer(p) {
-  const out = [];
-  out.push(`# Reference: "${p.mapName || "this map"}" \u2014 ${p.width} \xD7 ${p.height} tiles, tileset ${p.tileset}, ${p.versionLabel}`);
-  out.push(`Description: ${p.description || "(none)"}`);
-  out.push(`Players (${p.players.length}):`);
-  for (const line of p.players) out.push(`  ${line}`);
-  const renamed = p.units.filter((u) => u.customName);
-  if (renamed.length) {
-    out.push("Units this map renames (use either name):");
-    for (const u of renamed) out.push(`  ${u.id}: ${u.name} is called "${u.customName}"`);
-  }
-  out.push(p.hasScript ? "This map has a trigger script: build_script replaces its block, so send the whole script back with your changes." : "This map has no trigger script yet.");
-  return out.join("\n");
-}
-var REFERENCE_PARTS = ["units", "doodads", "triggers"];
-function buildReferenceDetail(p, part) {
-  const out = [];
-  switch (part) {
-    case "units":
-      out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
-      for (const u of p.units) {
-        const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
-        out.push(`${u.id}: ${u.name}${u.customName ? ` ("${u.customName}" here)` : ""} | ${u.race} | ${u.width}\xD7${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
-      }
-      break;
-    case "doodads":
-      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)`);
-      for (const c2 of p.doodadCategories) out.push(`- ${c2.name} (${c2.doodads.length}): ${c2.doodads.map((d) => `${d.name} [${d.id}] ${d.width}\xD7${d.height}`).join(", ")}`);
-      break;
-    case "triggers":
-      out.push("## Trigger conditions (name(argument: kind, \u2026))");
-      for (const c2 of p.conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Trigger actions");
-      for (const a2 of p.actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Briefing actions");
-      for (const a2 of p.briefingActions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Argument values by kind");
-      for (const c2 of p.choices) if (c2.labels.length) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
-      out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
-      out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
-      if (p.aiScripts.length) {
-        out.push("");
-        out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`);
-      }
-      break;
-  }
-  return out.join("\n");
-}
-function gatherMap(api) {
-  const info = api.document.info();
-  const starts = new Set(api.query.startLocations().map((s) => s.owner));
-  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
-  const renamed = [];
-  for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
-  return {
-    mapName: info?.name ?? "",
-    description: info?.description ?? "",
-    width: info?.width ?? 0,
-    height: info?.height ?? 0,
-    versionLabel: api.settings.version()?.label ?? "",
-    players: players2,
-    hasScript: !!scriptBridge(api)?.state()?.source,
-    renamed
-  };
-}
-var cache = /* @__PURE__ */ new WeakMap();
-function cached(api) {
-  const scn = api.document.scenario();
-  if (!scn) return void 0;
-  const tileset = api.tileset.name();
-  let hit = cache.get(scn);
-  if (!hit || hit.tileset !== tileset) {
-    const parts2 = gatherReference(api);
-    hit = { tileset, parts: parts2, layers: buildReferenceLayers(parts2) };
-    cache.set(scn, hit);
-    return hit;
-  }
-  const { renamed, ...fresh } = gatherMap(api);
-  const units = hit.parts.units.map((u) => {
-    const r = renamed.find((x) => x.id === u.id);
-    if (r) return u.customName === r.customName ? u : { ...u, customName: r.customName };
-    if (u.customName) {
-      const { customName: _dropped, ...rest } = u;
-      return rest;
-    }
-    return u;
-  });
-  const parts = { ...hit.parts, ...fresh, units };
-  const map = mapLayer(parts);
-  if (map !== hit.layers[2]) {
-    hit.parts = parts;
-    hit.layers = [hit.layers[0], hit.layers[1], map];
-  }
-  return hit;
-}
-function referenceFor(api) {
-  return cached(api)?.layers;
-}
-function referenceDetailFor(api, part) {
-  const c2 = cached(api);
-  return c2 ? buildReferenceDetail(c2.parts, part) : void 0;
 }
 
 // ai/grid.ts
@@ -1666,7 +1595,7 @@ function compileShapes(shapes, ctx) {
         }
         const pair = ctx.bridgePair ?? null;
         if (!pair) {
-          findings.push(`${what}: this tileset has no bridges; skipped`);
+          findings.push(`${what}: this tileset has no bridges the editor can place; skipped \u2014 leave a gap of ground for a crossing`);
           return;
         }
         const along = s.along === "sw" ? "sw" : "se";
@@ -1824,6 +1753,243 @@ function shiftShapes(shapes, dx, dy) {
     if (s.points) out.points = s.points.map(([x, y]) => [x + dx, y + dy]);
     return out;
   });
+}
+
+// ai/reference.ts
+var ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"];
+function terrainName(api, id) {
+  return api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+}
+function gatherReference(api) {
+  const defs = api.triggers.defs;
+  const races = { zerg: "Z", terran: "T", protoss: "P" };
+  const units = [];
+  for (const t of api.settings.unitTypes()) {
+    const size = api.palette.unitSize(t.id);
+    const d = t.defaults ?? t;
+    units.push({
+      id: t.id,
+      name: t.name,
+      ...t.customName ? { customName: api.names.unit(t.id) } : {},
+      race: races[String(api.data.race(t.id)).toLowerCase()] ?? "-",
+      width: size.width,
+      height: size.height,
+      building: size.building,
+      flyer: size.flyer,
+      hitPoints: d.hitPoints,
+      shields: d.shields,
+      armor: d.armor,
+      minerals: d.mineralCost,
+      gas: d.gasCost,
+      buildTime: d.buildTime,
+      weapons: d.weapons.map((w) => `${w.name} ${w.damage}${w.bonus ? `+${w.bonus}` : ""}`).join("; ")
+    });
+  }
+  const sig = (name, args) => ({ name, args: args.map((a2) => ({ label: a2.label, kind: a2.kind })) });
+  const { renamed: _renamed, ...map } = gatherMap(api);
+  return {
+    ...map,
+    tileset: api.tileset.name(),
+    terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
+    ramps: rampPairsOf(api).map((p) => ({ low: terrainName(api, p.low), high: terrainName(api, p.high) })),
+    bridges: (() => {
+      const b = bridgePairOf(api);
+      return b ? { ground: terrainName(api, b.ground), water: terrainName(api, b.water), channel: b.channel ?? BRIDGE_CHANNEL } : null;
+    })(),
+    doodadCategories: api.palette.doodadCategories().map((c2) => ({ name: c2.name, doodads: c2.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
+    units,
+    upgrades: api.names.upgrades().map((u) => ({ id: u.value, name: u.label })),
+    techs: api.names.techs().map((t) => ({ id: t.value, name: t.label })),
+    conditions: defs.conditions().map((c2) => sig(c2.name, c2.args)),
+    actions: defs.actions(false).map((a2) => sig(a2.name, a2.args)),
+    briefingActions: defs.actions(true).map((a2) => sig(a2.name, a2.args)),
+    choices: ENUM_KINDS.map((kind) => ({ kind, labels: defs.choices(kind).map((c2) => c2.label) })),
+    aiScripts: defs.choices("aiScript").map((c2) => c2.label),
+    sprites: api.palette.spriteGroups().map((g) => ({ label: g.label, count: g.ids.length }))
+  };
+}
+var TEXT_FORMAT = `Trigger("Player 1", "Force 2"){
+Conditions:
+  Bring("Current Player", "Any unit", "Beacon Alpha", At least, 1);
+  Switch("Switch 3", set);
+Actions:
+  Display Text Message(Always Display, "You found it!");
+  Create Unit(1, "Zerg Zergling", 4, "Spawn", "Player 2");
+  Set Deaths("Player 1", "Terran Marine", Add, 5);
+  ; Set Switch("Switch 3", clear);
+  Preserve Trigger();
+}`;
+var SCRIPT_SHORT = `const beacon = Bring(CurrentPlayer, Units.AnyUnit, Locations["Beacon Alpha"], "At least", 1);
+trigger([P1, Players.Force2], [beacon], [DisplayText("Always Display", "You found it!"), PreserveTrigger()], ["Preserve"]);
+
+let wave = 0;                       // a death counter
+while (true) {                       // structured code compiles to death-counter triggers
+  if (Bring(P1, Units.AnyUnit, Locations.Beacon, ">=", 1)) { CreateUnit(P2, Units.ZergZergling, 4, Locations.Spawn); wave += 1; }
+  if (wave >= 10) Defeat();
+  Wait(2000);
+}`;
+function buildReferenceLayers(p) {
+  return [gameLayer(p), tilesetLayer(p), mapLayer(p)];
+}
+function gameLayer(p) {
+  const out = [];
+  out.push("# Reference: the editor and the game");
+  out.push("");
+  out.push("## Conventions");
+  out.push("- Tools take tile coordinates (x right, y down, 0-based) and tile rects x0,y0 inclusive to x1,y1 exclusive. A unit's position is its centre.");
+  out.push(`- Players in tools are 1\u20138; 12 is Neutral (resources, critters). Settings tools also take "default" for a table's default column.`);
+  out.push("- Names are the editor's: units and terrains as listed, locations and switches as the map names them. Ids are accepted where names are.");
+  out.push("- Every writing tool is one undo step (settings changes are transactions outside undo). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
+  out.push('- The reference tool has the long tables this block leaves out: unit stats, costs and weapons (part "units"); every doodad by category ("doodads"); every trigger condition, action and briefing action with its arguments and their values, and the AI scripts ("triggers"). Read "triggers" before writing triggers you have not written in this conversation.');
+  out.push("");
+  out.push(`## Units (id: name | race | size in tiles | kind). Stats, costs and weapons: reference "units"; unit_type shows the map's own values.`);
+  for (const u of p.units) {
+    const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
+    out.push(`${u.id}: ${u.name} | ${u.race} | ${u.width}\xD7${u.height} | ${kind}`);
+  }
+  out.push("");
+  out.push("## Upgrades (set_upgrade)");
+  out.push(p.upgrades.map((u) => `${u.id} ${u.name}`).join("; "));
+  out.push("");
+  out.push("## Technologies (set_tech)");
+  out.push(p.techs.map((t) => `${t.id} ${t.name}`).join("; "));
+  out.push("");
+  out.push(`## Trigger conditions: ${p.conditions.map((c2) => c2.name).join("; ")}`);
+  out.push(`## Trigger actions: ${p.actions.map((a2) => a2.name).join("; ")}`);
+  out.push(`## Briefing actions: ${p.briefingActions.map((a2) => a2.name).join("; ")}`);
+  out.push("");
+  out.push("## Text trigger format (list_triggers_text, add_triggers_text, replace_trigger)");
+  out.push('One Trigger block per trigger: the players it runs for in the header, conditions and actions one per line ending in a semicolon, names in double quotes, enumerated values bare (their spellings are in reference "triggers"). A leading `;` disables a line. Example:');
+  out.push("```");
+  out.push(TEXT_FORMAT);
+  out.push("```");
+  out.push("");
+  out.push("## Trigger script (compile_script, build_script)");
+  out.push("A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals.");
+  out.push("```ts");
+  out.push(SCRIPT_SHORT);
+  out.push("```");
+  return out.join("\n");
+}
+function tilesetLayer(p) {
+  const out = [];
+  out.push(`# Reference: the ${p.tileset} tileset`);
+  out.push("");
+  out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
+  for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
+  if (p.ramps) out.push(`- Ramps the editor can fit (down south-west or south-east only): ${p.ramps.length ? p.ramps.map((r) => `${r.low} \u2192 ${r.high}`).join(", ") : "none"}`);
+  if (p.bridges !== void 0) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a bridge shape in paint_shapes paints the channel and fits it)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
+  out.push("- A shore or cliff between two terrains takes about three tiles either side of the boundary; water narrower than about ten tiles is all shore.");
+  out.push("");
+  out.push('## Doodad categories (scatter_doodads takes a category; place_doodads a name or id \u2014 the names are in reference "doodads")');
+  out.push(p.doodadCategories.map((c2) => `${c2.name} (${c2.doodads.length})`).join("; "));
+  if (p.sprites.length) out.push(`- Pure sprites (place_sprites kind "pure"): ${p.sprites.map((g) => `${g.label} (${g.count})`).join(", ")}`);
+  return out.join("\n");
+}
+function mapLayer(p) {
+  const out = [];
+  out.push(`# Reference: "${p.mapName || "this map"}" \u2014 ${p.width} \xD7 ${p.height} tiles, tileset ${p.tileset}, ${p.versionLabel}`);
+  out.push(`Description: ${p.description || "(none)"}`);
+  out.push(`Players (${p.players.length}):`);
+  for (const line of p.players) out.push(`  ${line}`);
+  const renamed = p.units.filter((u) => u.customName);
+  if (renamed.length) {
+    out.push("Units this map renames (use either name):");
+    for (const u of renamed) out.push(`  ${u.id}: ${u.name} is called "${u.customName}"`);
+  }
+  out.push(p.hasScript ? "This map has a trigger script: build_script replaces its block, so send the whole script back with your changes." : "This map has no trigger script yet.");
+  return out.join("\n");
+}
+var REFERENCE_PARTS = ["units", "doodads", "triggers"];
+function buildReferenceDetail(p, part) {
+  const out = [];
+  switch (part) {
+    case "units":
+      out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
+      for (const u of p.units) {
+        const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
+        out.push(`${u.id}: ${u.name}${u.customName ? ` ("${u.customName}" here)` : ""} | ${u.race} | ${u.width}\xD7${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
+      }
+      break;
+    case "doodads":
+      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)`);
+      for (const c2 of p.doodadCategories) out.push(`- ${c2.name} (${c2.doodads.length}): ${c2.doodads.map((d) => `${d.name} [${d.id}] ${d.width}\xD7${d.height}`).join(", ")}`);
+      break;
+    case "triggers":
+      out.push("## Trigger conditions (name(argument: kind, \u2026))");
+      for (const c2 of p.conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Trigger actions");
+      for (const a2 of p.actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Briefing actions");
+      for (const a2 of p.briefingActions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+      out.push("");
+      out.push("## Argument values by kind");
+      for (const c2 of p.choices) if (c2.labels.length) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
+      out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
+      out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
+      if (p.aiScripts.length) {
+        out.push("");
+        out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`);
+      }
+      break;
+  }
+  return out.join("\n");
+}
+function gatherMap(api) {
+  const info = api.document.info();
+  const starts = new Set(api.query.startLocations().map((s) => s.owner));
+  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const renamed = [];
+  for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
+  return {
+    mapName: info?.name ?? "",
+    description: info?.description ?? "",
+    width: info?.width ?? 0,
+    height: info?.height ?? 0,
+    versionLabel: api.settings.version()?.label ?? "",
+    players: players2,
+    hasScript: !!scriptBridge(api)?.state()?.source,
+    renamed
+  };
+}
+var cache = /* @__PURE__ */ new WeakMap();
+function cached(api) {
+  const scn = api.document.scenario();
+  if (!scn) return void 0;
+  const tileset = api.tileset.name();
+  let hit = cache.get(scn);
+  if (!hit || hit.tileset !== tileset) {
+    const parts2 = gatherReference(api);
+    hit = { tileset, parts: parts2, layers: buildReferenceLayers(parts2) };
+    cache.set(scn, hit);
+    return hit;
+  }
+  const { renamed, ...fresh } = gatherMap(api);
+  const units = hit.parts.units.map((u) => {
+    const r = renamed.find((x) => x.id === u.id);
+    if (r) return u.customName === r.customName ? u : { ...u, customName: r.customName };
+    if (u.customName) {
+      const { customName: _dropped, ...rest } = u;
+      return rest;
+    }
+    return u;
+  });
+  const parts = { ...hit.parts, ...fresh, units };
+  const map = mapLayer(parts);
+  if (map !== hit.layers[2]) {
+    hit.parts = parts;
+    hit.layers = [hit.layers[0], hit.layers[1], map];
+  }
+  return hit;
+}
+function referenceFor(api) {
+  return cached(api)?.layers;
+}
+function referenceDetailFor(api, part) {
+  const c2 = cached(api);
+  return c2 ? buildReferenceDetail(c2.parts, part) : void 0;
 }
 
 // ai/presets.ts
@@ -2250,152 +2416,6 @@ ${p.spec.params.map((x) => `  - ${x.name}${x.required ? " (required)" : ""}: ${x
   makes locations: ${p.spec.locations.join(", ")}`).join("\n\n");
 }
 
-// ai/ramps.ts
-function rampDoodads(doodads, types) {
-  const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
-  }
-  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
-  const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
-  const out = [];
-  for (const d of doodads) {
-    if (!d.ramp || !d.required?.length) continue;
-    const flats = /* @__PURE__ */ new Map();
-    d.required.forEach((g, i) => {
-      const t = byGroup.get(g);
-      if (!t) return;
-      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
-      e.sx += i % d.width;
-      e.sy += Math.floor(i / d.width);
-      e.n++;
-      flats.set(t.id, e);
-    });
-    const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
-    if (list2.length === 0) continue;
-    let lo = list2[0], hi = list2.find((e) => e.t.height > lo.t.height) ?? null;
-    let side;
-    if (hi) {
-      side = lo.sx / lo.n < hi.sx / hi.n ? "sw" : "se";
-    } else {
-      const only = list2[0];
-      const centre = (d.width - 1) / 2;
-      const stripped = only.t.height === 0 ? null : byName2.get((only.t.name ?? "").replace(/^high\s+/i, "").toLowerCase());
-      const other = only.t.height === 0 ? byName2.get(`high ${only.t.name?.toLowerCase() ?? ""}`) ?? null : stripped && stripped.id !== only.t.id ? stripped : lowest && lowest.id !== only.t.id ? lowest : null;
-      if (!other) continue;
-      if (only.t.height === 0) {
-        lo = only;
-        hi = { t: other, sx: 0, sy: 0, n: 1 };
-        side = only.sx / only.n < centre ? "sw" : "se";
-      } else {
-        hi = only;
-        lo = { t: other, sx: 0, sy: 0, n: 1 };
-        side = only.sx / only.n < centre ? "se" : "sw";
-      }
-    }
-    if (hi.t.height <= lo.t.height) continue;
-    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, low: lo.t.id, high: hi.t.id, side });
-  }
-  return out;
-}
-var VERIFIED_RAMPS = {
-  badlands: [["Dirt", "High Dirt"]],
-  jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
-  desert: [["Dirt", "High Dirt"]],
-  twilight: [["Dirt", "High Dirt"]],
-  install: [["Substructure", "Floor"]],
-  ashworld: [["Dirt", "High Dirt"]],
-  platform: [["Low Platform", "Platform"]],
-  ice: []
-};
-var VERIFIED_BRIDGES = {
-  jungle: { ground: "Dirt", water: "Water", channel: 5 },
-  platform: { ground: "Low Platform", water: "Space", channel: 5 }
-};
-function rampPairs(ramps, tileset, types) {
-  const out = [];
-  for (const r of ramps) if (!out.some((p) => p.low === r.low && p.high === r.high)) out.push({ low: r.low, high: r.high });
-  if (!tileset || !types) return out;
-  const verified = VERIFIED_RAMPS[tileset];
-  if (!verified) return out;
-  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
-  return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
-}
-function rampsOf(api) {
-  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  return rampDoodads(doodads, api.terrain.types());
-}
-function rampPairsOf(api) {
-  return rampPairs(rampsOf(api), api.document.info()?.tileset, api.terrain.types());
-}
-function bridgeDoodads(doodads, types) {
-  const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
-  }
-  const out = [];
-  for (const d of doodads) {
-    if (!/bridge/i.test(d.category) || !d.required?.length) continue;
-    const flats = /* @__PURE__ */ new Map();
-    for (const g of d.required) {
-      const t = byGroup.get(g);
-      if (t) {
-        const e = flats.get(t.id) ?? { t, n: 0 };
-        e.n++;
-        flats.set(t.id, e);
-      }
-    }
-    const list2 = [...flats.values()];
-    const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
-    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
-    const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
-    if (!water || !ground) continue;
-    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
-  }
-  return out;
-}
-function bridgePair(bridges, tileset, types) {
-  if (!bridges.length) return null;
-  if (tileset && types) {
-    const v = VERIFIED_BRIDGES[tileset];
-    if (!v) return null;
-    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
-    return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
-  }
-  return { ground: bridges[0].ground, water: bridges[0].water };
-}
-function bridgesOf(api) {
-  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  return bridgeDoodads(doodads, api.terrain.types());
-}
-function bridgePairOf(api) {
-  return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
-}
-function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
-  let best = null;
-  let bestD = Infinity;
-  for (const r of candidates) {
-    for (let ty = Math.round(site.y - r.height / 2) - window2.dy; ty <= Math.round(site.y - r.height / 2) + window2.dy; ty++) {
-      for (let tx = Math.round(site.x - r.width / 2) - window2.dx; tx <= Math.round(site.x - r.width / 2) + window2.dx; tx++) {
-        if (tx < 0 || ty < 0) continue;
-        const cx = tx + r.width / 2, cy = ty + r.height / 2;
-        const d = (cx - site.x) ** 2 + (cy - site.y) ** 2;
-        if (d >= bestD) continue;
-        if (!fits(r.id, tx, ty)) continue;
-        best = { doodadId: r.id, tx, ty, name: r.name, width: r.width, height: r.height };
-        bestD = d;
-      }
-    }
-  }
-  return best;
-}
-function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
-  const side = site.direction === "se" ? "se" : "sw";
-  return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
-}
-
 // ai/reach.ts
 function walkMask(api) {
   const scn = api.document.scenario();
@@ -2486,6 +2506,9 @@ function rectAt(px, py, size, toward) {
   };
   return { x: axis(px, size.w, toward?.x), y: axis(py, size.h, toward?.y), w: size.w, h: size.h };
 }
+function inMap(r, width, height) {
+  return r.x >= 0 && r.y >= 0 && r.x + r.w <= width && r.y + r.h <= height;
+}
 function angleDiff(a2, b) {
   let d = a2 - b;
   while (d <= -Math.PI) d += Math.PI * 2;
@@ -2496,6 +2519,10 @@ function angleOf(hall, r) {
   const h3 = centreOf(hall);
   const c2 = centreOf(r);
   return Math.atan2(c2.y - h3.y, c2.x - h3.x);
+}
+function snapAngle(angle) {
+  const step = Math.PI / 4;
+  return Math.round(angle / step) * step;
 }
 function ringPositions(hall, size, gap) {
   const out = [];
@@ -2509,7 +2536,8 @@ function ringPositions(hall, size, gap) {
 }
 var DEFAULT_SPEC = { minerals: 8, geysers: 1, gap: 3, geyserGap: 3, geyserSpacing: 1, geyserSide: "auto", direction: Math.PI };
 function layoutBase(hall, spec) {
-  const ring = ringPositions(hall, MINERAL, spec.gap);
+  const fits = spec.fits ?? (() => true);
+  const ring = ringPositions(hall, MINERAL, spec.gap).filter(fits);
   const n2 = ring.length;
   const minerals = [];
   const short = { minerals: 0, geysers: 0 };
@@ -2564,7 +2592,7 @@ function layoutBase(hall, spec) {
   }
   const geysers = [];
   if (spec.geysers > 0) {
-    const gring = ringPositions(hall, GEYSER, spec.geyserGap);
+    const gring = ringPositions(hall, GEYSER, spec.geyserGap).filter(fits);
     const clear3 = (g) => minerals.every((m) => chebGap(m, g) >= spec.geyserSpacing) && geysers.every((o) => chebGap(o, g) >= 1);
     const pastEnd = (side) => {
       let best = null;
@@ -2597,6 +2625,14 @@ function layoutBase(hall, spec) {
     short.geysers = spec.geysers - geysers.length;
   }
   return { hall, minerals, geysers, short };
+}
+function outwardDirection(px, py, width, height) {
+  const cx = width * TILE / 2;
+  const cy = height * TILE / 2;
+  const dx = px - cx;
+  const dy = py - cy;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return Math.PI;
+  return Math.atan2(dy, dx);
 }
 var SYMMETRIES = [
   { id: "none", label: "None (one player)", players: 1, square: false },
@@ -2658,6 +2694,10 @@ var DIRECTIONS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 function directionAngle(d) {
   return { e: 0, se: Math.PI / 4, s: Math.PI / 2, sw: 3 * Math.PI / 4, w: Math.PI, nw: -3 * Math.PI / 4, n: -Math.PI / 2, ne: -Math.PI / 4 }[d];
 }
+function angleDirection(a2) {
+  const k = Math.round(a2 / (Math.PI / 4));
+  return ["e", "se", "s", "sw", "w", "nw", "n", "ne"][(k % 8 + 8) % 8];
+}
 function checkPlan(input, ctx) {
   const problems = [];
   const plan = { ...input, legend: { ...input.legend }, grid: [...input.grid ?? []], bases: [...input.bases ?? []], ramps: [...input.ramps ?? []], bridges: (input.bridges ?? []).filter((b) => typeof b.x === "number" && typeof b.y === "number").map((b) => ({ x: Math.round(b.x), y: Math.round(b.y), along: b.along === "sw" ? "sw" : "se" })), doodads: [...input.doodads ?? []], units: [...input.units ?? []], locations: [...input.locations ?? []], notes: [...input.notes ?? []] };
@@ -2711,7 +2751,7 @@ function checkPlan(input, ctx) {
   });
   if (mended > 0) problems.push(`${mended} row${mended === 1 ? "" : "s"} had the wrong length; padded or trimmed`);
   if (unknownChars > 0) problems.push(`${unknownChars} cell${unknownChars === 1 ? "" : "s"} used a character the legend does not define; left as they were`);
-  const inMap = (x, y) => x >= 0 && y >= 0 && x < ctx.width && y < ctx.height;
+  const inMap2 = (x, y) => x >= 0 && y >= 0 && x < ctx.width && y < ctx.height;
   const clampX = (x) => Math.max(0, Math.min(ctx.width - 1, Math.round(x)));
   const clampY = (y) => Math.max(0, Math.min(ctx.height - 1, Math.round(y)));
   plan.bases = plan.bases.filter((b) => {
@@ -2725,7 +2765,7 @@ function checkPlan(input, ctx) {
     }
     b.minerals = Math.max(0, Math.min(12, Math.round(b.minerals ?? 8)));
     b.geysers = Math.max(0, Math.min(2, Math.round(b.geysers ?? 1)));
-    if (!inMap(b.x, b.y) || !inMap(b.x + HALL.w - 1, b.y + HALL.h - 1)) {
+    if (!inMap2(b.x, b.y) || !inMap2(b.x + HALL.w - 1, b.y + HALL.h - 1)) {
       const nx = Math.max(0, Math.min(ctx.width - HALL.w, Math.round(b.x)));
       const ny = Math.max(0, Math.min(ctx.height - HALL.h, Math.round(b.y)));
       problems.push(`base at ${b.x},${b.y} hangs off the map; moved to ${nx},${ny}`);
@@ -2740,7 +2780,7 @@ function checkPlan(input, ctx) {
       problems.push(`ramp at ${r.x},${r.y}: direction "${String(r.direction)}" is not a compass point; dropped`);
       return false;
     }
-    if (!inMap(r.x, r.y)) {
+    if (!inMap2(r.x, r.y)) {
       problems.push(`ramp at ${r.x},${r.y} is off the map; dropped`);
       return false;
     }
@@ -2753,7 +2793,7 @@ function checkPlan(input, ctx) {
   });
   plan.units = plan.units.filter((u) => {
     if (typeof u.unit !== "string" || typeof u.x !== "number" || typeof u.y !== "number") return false;
-    if (!inMap(u.x, u.y)) {
+    if (!inMap2(u.x, u.y)) {
       problems.push(`${u.unit} at ${u.x},${u.y} is off the map; moved inside`);
       u.x = clampX(u.x);
       u.y = clampY(u.y);
@@ -3207,6 +3247,46 @@ function summarizeRender(r) {
   return parts.length ? parts.join(", ") : "nothing was placed";
 }
 
+// ai/bases.ts
+var SPREAD = 5 * Math.PI / 9;
+var BALANCE = Math.PI / 8;
+function candidateDirections(direction) {
+  const step = Math.PI / 4;
+  const out = [direction];
+  for (let k = 1; k <= 3; k++) out.push(direction - k * step, direction + k * step);
+  out.push(direction + Math.PI);
+  return out;
+}
+function spreadOf(layout, direction) {
+  let widest = 0;
+  for (const r of [...layout.minerals, ...layout.geysers]) widest = Math.max(widest, Math.abs(angleDiff(angleOf(layout.hall, r), direction)));
+  return widest;
+}
+function balanceOf(layout, direction) {
+  const all = [...layout.minerals, ...layout.geysers];
+  if (!all.length) return 0;
+  return all.reduce((sum, r) => sum + angleDiff(angleOf(layout.hall, r), direction), 0) / all.length;
+}
+function fitBase(hall, spec) {
+  const full = { ...DEFAULT_SPEC, ...spec };
+  let best = null;
+  let bestShort = Infinity;
+  let bestSpread = Infinity;
+  for (const direction of candidateDirections(full.direction)) {
+    const layout = layoutBase(hall, { ...full, direction });
+    const short = layout.short.minerals + layout.short.geysers;
+    const spread = spreadOf(layout, direction);
+    const candidate = { layout, direction, turned: direction !== full.direction };
+    if (short === 0 && spread <= SPREAD && Math.abs(balanceOf(layout, direction)) <= BALANCE) return candidate;
+    if (short < bestShort || short === bestShort && spread < bestSpread) {
+      best = candidate;
+      bestShort = short;
+      bestSpread = spread;
+    }
+  }
+  return best;
+}
+
 // ai/tools/common.ts
 var TILE2 = 32;
 var RESULT_CAP = 8e3;
@@ -3353,6 +3433,18 @@ function pointOf(api, input, prefix) {
   const l = scn.locations[index];
   return { x: Math.floor((Math.min(l.left, l.right) + Math.max(l.left, l.right)) / 2 / TILE2), y: Math.floor((Math.min(l.top, l.bottom) + Math.max(l.top, l.bottom)) / 2 / TILE2), label: name };
 }
+var SHAPE_OPS = ["ground", "rect", "diamond", "ellipse", "polygon", "stroke", "border", "plateau", "lane", "ramp", "bridge"];
+function readShapes(raw) {
+  const given = list(raw).filter((s) => s && typeof s === "object");
+  if (!given.length) return "No shapes were given.";
+  const shapes = [];
+  for (const [i, s] of given.entries()) {
+    const op = [s.op, s.type, s.kind, s.shape].find((v) => typeof v === "string");
+    if (!op || !SHAPE_OPS.includes(op)) return `Shape ${i + 1} ${op ? `has an op "${op}" that is not one of` : "names no op; each shape needs an op, one of"}: ${SHAPE_OPS.join(", ")}.`;
+    shapes.push({ ...s, op });
+  }
+  return shapes;
+}
 function layoutTools() {
   return [
     {
@@ -3392,9 +3484,9 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     {
       def: {
         name: "paint_shapes",
-        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier): ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
         inputSchema: obj({
-          shapes: { type: "array", items: { type: "object", additionalProperties: true } },
+          shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" },
           originY: { type: "integer" },
           clear: { type: "boolean" },
@@ -3406,8 +3498,8 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       run: (input, { api }) => {
         const info = api.document.info();
         if (!info) return "No map is open.";
-        const shapes = list(input.shapes).filter((s) => s && typeof s === "object" && typeof s.op === "string");
-        if (!shapes.length) return "No shapes were given.";
+        const shapes = readShapes(input.shapes);
+        if (typeof shapes === "string") return shapes;
         const dx = Math.round(num(input.originX)), dy = Math.round(num(input.originY));
         const locations = list(input.locations).map((l) => ({ name: str(l.name, "Location"), x0: Math.round(num(l.x0)) + dx, y0: Math.round(num(l.y0)) + dy, x1: Math.round(num(l.x1)) + dx, y1: Math.round(num(l.y1)) + dy }));
         const units = list(input.units).map((u) => ({ unit: str(u.unit), player: Math.round(num(u.player, 12)), x: Math.round(num(u.x)) + dx, y: Math.round(num(u.y)) + dy }));
@@ -3454,11 +3546,12 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       }
     },
     {
-      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. A bridge spans only a diagonal channel of the width the tileset's bridges were drawn for (Jungle and Space Platform have bridges the brush's shores take); to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
       writes: true,
       run: (input, { api }) => {
         const bridges = bridgesOf(api);
         if (!bridges.length) return "This tileset has no bridges.";
+        if (!bridgePairOf(api)) return "This tileset's bridges need bank pieces the isometric brush does not draw, so no bridge can be placed here. For a crossing, leave a gap of ground in the water.";
         const x = Math.round(num(input.x)), y = Math.round(num(input.y));
         const fit = fitDoodad({ x, y }, bridges, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true, { dx: 14, dy: 10 });
         if (!fit) return `No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`;
@@ -3466,6 +3559,103 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
           tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
         });
         return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}\xD7${fit.height})`, notes: r.notes });
+      }
+    },
+    {
+      def: {
+        name: "place_base",
+        description: "Lay a base's resources round a town hall footprint (4 \xD7 3 tiles, top-left at x,y \u2014 a start location's box) the way the Melee Wizard does: the mineral patches on the ring three tiles from the hall, where the game mines fastest, spread round `direction` (a compass point, where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines; the geyser on the same ring just past the line's end. Positions the editor refuses (cliffs, water, the map's edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does, and the result says so. Give `player` to place that player's start location at the hall (or omit x,y to lay round the start location the player already has), `hall` to place a town hall by name for the player too. Use this for every mineral line rather than placing patches one by one.",
+        inputSchema: obj({
+          x: { type: "integer", description: "the hall footprint's left tile" },
+          y: { type: "integer", description: "the hall footprint's top tile" },
+          player: { type: "integer", description: "1-based; gets a start location at the hall" },
+          direction: { type: "string", enum: [...DIRECTIONS] },
+          minerals: { type: "integer", description: "patches, default 8" },
+          geysers: { type: "integer", description: "0\u20132, default 1" },
+          amount: { type: "integer", description: "minerals per patch, default 1500" },
+          gas: { type: "integer", description: "gas per geyser, default 5000" },
+          geyserSide: { type: "string", enum: ["auto", "left", "right"], description: "which end of the line the geyser takes, seen from the hall" },
+          hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" }
+        })
+      },
+      writes: true,
+      run: (input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return "No map is open.";
+        const player2 = input.player === void 0 ? null : ownerOf(input.player, -1);
+        if (player2 !== null && (player2 < 0 || player2 > 7)) return "player must be 1\u20138.";
+        let hall;
+        if (input.x !== void 0 && input.y !== void 0) {
+          hall = { x: Math.round(num(input.x)), y: Math.round(num(input.y)), w: HALL.w, h: HALL.h };
+        } else {
+          if (player2 === null) return "Give the hall's top-left tile (x, y), or a player whose start location to lay round.";
+          const start2 = scn.units.find((u) => u.unitId === START_LOCATION && u.owner === player2);
+          if (!start2) return `Player ${player2 + 1} has no start location; give the hall's top-left tile (x, y) to place one.`;
+          hall = rectAt(start2.x, start2.y, HALL);
+        }
+        if (!inMap(hall, info.width, info.height)) return `A ${HALL.w} \xD7 ${HALL.h} hall at ${hall.x},${hall.y} hangs off the map.`;
+        const centre = centreOf(hall);
+        const askedDirection = str(input.direction).toLowerCase();
+        if (askedDirection && !DIRECTIONS.includes(askedDirection)) return `direction must be a compass point: ${DIRECTIONS.join(", ")}.`;
+        const direction = askedDirection ? directionAngle(askedDirection) : snapAngle(outwardDirection(centre.x, centre.y, info.width, info.height));
+        const minerals = Math.max(0, Math.min(12, Math.round(num(input.minerals, 8))));
+        const geysers = Math.max(0, Math.min(2, Math.round(num(input.geysers, 1))));
+        const amount = Math.max(0, Math.round(num(input.amount, DEFAULT_MINERALS)));
+        const gas = Math.max(0, Math.round(num(input.gas, DEFAULT_GAS)));
+        const geyserSide = str(input.geyserSide) === "left" ? "left" : str(input.geyserSide) === "right" ? "right" : "auto";
+        const hallUnit = str(input.hall) ? unitIdByName(api, str(input.hall)) : null;
+        if (str(input.hall) && hallUnit === null) return `No unit is called "${str(input.hall)}".`;
+        if (hallUnit !== null && player2 === null) return "A hall needs a player to own it.";
+        const fits = (r) => {
+          const c2 = centreOf(r);
+          const id = r.w === GEYSER.w && r.h === GEYSER.h ? VESPENE_GEYSER : MINERAL_FIELDS[0];
+          return api.query.placement(id, c2.x, c2.y)?.problem === null;
+        };
+        const fitted = fitBase(hall, { minerals, geysers, geyserSide, direction, fits });
+        const { layout } = fitted;
+        const startHere = scn.units.some((u) => u.unitId === START_LOCATION && Math.abs(u.x - centre.x) < TILE2 && Math.abs(u.y - centre.y) < TILE2);
+        const placed = { start: 0, hall: 0, minerals: 0, geysers: 0 };
+        const notes = [];
+        api.document.edit("AI: place base", (tx) => {
+          if (hallUnit !== null && player2 !== null) {
+            if (tx.canPlaceUnit(hallUnit, centre.x, centre.y)) {
+              tx.placeUnit(hallUnit, player2, centre.x, centre.y);
+              placed.hall++;
+            } else notes.push(`${api.names.unit(hallUnit)} refused at ${hall.x},${hall.y}: ${api.query.placement(hallUnit, centre.x, centre.y)?.reason ?? "does not fit"}`);
+          }
+          if (player2 !== null && !startHere) {
+            if (tx.canPlaceUnit(START_LOCATION, centre.x, centre.y)) {
+              tx.placeUnit(START_LOCATION, player2, centre.x, centre.y);
+              placed.start++;
+            } else notes.push(`start location refused at ${hall.x},${hall.y}: ${api.query.placement(START_LOCATION, centre.x, centre.y)?.reason ?? "does not fit"}`);
+          }
+          const resource = (id, r, value) => {
+            const c2 = centreOf(r);
+            if (!tx.canPlaceUnit(id, c2.x, c2.y)) return false;
+            const index = tx.placeUnit(id, NEUTRAL, c2.x, c2.y);
+            tx.updateUnits([index], (rec) => ({ resourceAmount: value, validStates: rec.validStates | api.consts.unit.used.Resources }));
+            return true;
+          };
+          layout.minerals.forEach((r, i) => {
+            if (resource(MINERAL_FIELDS[i % 3], r, amount)) placed.minerals++;
+          });
+          for (const r of layout.geysers) if (resource(VESPENE_GEYSER, r, gas)) placed.geysers++;
+        });
+        const laid = angleDirection(fitted.direction);
+        if (fitted.turned) notes.push(`the ${angleDirection(direction)} side had no whole line, so the line lies ${laid} instead`);
+        if (layout.short.minerals > 0) notes.push(`${layout.short.minerals} patch${layout.short.minerals === 1 ? "" : "es"} had no room on the ring`);
+        if (layout.short.geysers > 0) notes.push(`${layout.short.geysers} geyser${layout.short.geysers === 1 ? "" : "s"} had no room on the ring`);
+        const refused = layout.minerals.length + layout.geysers.length - placed.minerals - placed.geysers;
+        if (refused > 0) notes.push(`${refused} resource${refused === 1 ? "" : "s"} refused by the editor at the last moment`);
+        return capResult({
+          hall: { x: hall.x, y: hall.y, w: HALL.w, h: HALL.h },
+          direction: laid,
+          placed,
+          minerals: layout.minerals.map((r) => `${r.x},${r.y}`),
+          geysers: layout.geysers.map((r) => `${r.x},${r.y}`),
+          ...notes.length ? { notes } : {}
+        });
       }
     },
     {
@@ -4909,24 +5099,41 @@ function settingsTools() {
 }
 
 // ai/tools/terrain.ts
+function paintableDiamonds(api, rect) {
+  const info = api.document.info();
+  const W = info?.width ?? 0, H = info?.height ?? 0;
+  return api.terrain.diamondsIn(rect).filter((d) => (d.y < rect.y1 || rect.y1 >= H) && (d.x * 2 < rect.x1 || rect.x1 >= W));
+}
 function terrainTools() {
   return [
     {
-      def: { name: "paint_terrain", description: "Paint a tile rect with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
+      def: { name: "paint_terrain", description: "Paint a tile rect (x1, y1 exclusive) with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. The brush bleeds: a shore or cliff between two terrains takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and painting right up to water or a cliff redraws its edge. `keep` lists terrain ids not to paint over (water, for instance): tiles of those terrains inside the rect are left alone. The result says which terrains the rect painted over. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" }, description: "terrain ids to leave alone inside the rect" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf3(input, api);
         const terrain = num(input.terrain);
         const type = api.terrain.types().find((t) => t.id === terrain) ?? api.terrain.types().find((t) => t.name.toLowerCase() === str(input.terrain).toLowerCase());
         if (!type) return `Terrain ${str(input.terrain)} is not one of this tileset's types; see the reference.`;
+        const keep = new Set(list(input.keep).map((k) => api.terrain.types().find((t) => t.id === k || typeof k === "string" && t.name.toLowerCase() === k.toLowerCase())?.id).filter((id) => id !== void 0));
+        const nameOf = (id) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+        const replaced = {};
+        let kept = 0;
         const r = api.document.edit(`AI: paint ${type.name}`, (tx) => {
           if (api.terrain.hasIsom() && api.tileset.isLoaded()) {
             let refused = 0;
-            for (const d of api.terrain.diamondsIn(rect)) if (!tx.paintIsom(d, type.id, 1)) refused++;
+            for (const d of paintableDiamonds(api, rect)) {
+              const was = api.terrain.terrainAt(d.x * 2, d.y);
+              if (was !== null && keep.has(was)) {
+                kept++;
+                continue;
+              }
+              if (was !== null && was !== type.id) replaced[nameOf(was)] = (replaced[nameOf(was)] ?? 0) + 1;
+              if (!tx.paintIsom(d, type.id, 1)) refused++;
+            }
             if (refused) tx.note(`${refused} diamonds refused`);
           } else tx.stampTerrain(rect, type.id);
         });
-        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, notes: r.notes });
+        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, ...Object.keys(replaced).length ? { paintedOver: replaced } : {}, ...kept ? { kept } : {}, notes: r.notes });
       }
     },
     {

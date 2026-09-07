@@ -1,6 +1,7 @@
 /**
  * Where a tool call lands on the map, worked out from its arguments *before* it runs —
- * the rect `paint_terrain` will fill, the tiles `place_units` will use, the location
+ * the rect `paint_terrain` will fill, the tiles `place_units` will use, the ring
+ * `place_base` lays resources on, the location
  * `edit_location` will move — so the assistant can show its intent on the map (a teal
  * outline through an overlay while the call runs) and flash the result afterwards
  * (gold, through `api.view.flash`). Pure over the call's input and the scenario's
@@ -56,6 +57,13 @@ export function footprintOf(api: PluginApi, name: string, input: Record<string, 
       return { ...EMPTY, rects: rectOf(input, width, height, name === "screenshot") };
     case "place_units":
       return { ...EMPTY, rects: tilesOf(input.units, width, height) };
+    case "place_base": {
+      // The hall's 4 × 3 footprint with the resource ring round it: three tiles' gap, then a geyser's 4 × 2 box.
+      const x = Math.round(n(input.x)), y = Math.round(n(input.y));
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return EMPTY;
+      const x0 = Math.max(0, x - 7), y0 = Math.max(0, y - 5), x1 = Math.min(width, x + 4 + 7), y1 = Math.min(height, y + 3 + 5);
+      return x1 > x0 && y1 > y0 ? { ...EMPTY, rects: [{ x0, y0, x1, y1 }] } : EMPTY;
+    }
     case "place_doodads":
       return { ...EMPTY, rects: tilesOf(input.doodads, width, height) };
     case "place_sprites":

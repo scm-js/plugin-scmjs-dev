@@ -12,6 +12,8 @@ const parts: ReferenceParts = {
   versionLabel: "Brood War 1.04",
   players: ["1: Human, Terran, force 1, has a start location", "2: Computer, Zerg, force 2"],
   terrains: [{ id: 1, name: "Dirt", height: 0, buildable: true }, { id: 3, name: "Water", height: 0, buildable: false }, { id: 7, name: "High Dirt", height: 1, buildable: true }],
+  ramps: [{ low: "Dirt", high: "High Dirt" }],
+  bridges: { ground: "Dirt", water: "Water", channel: 5 },
   doodadCategories: [{ name: "Trees", doodads: [{ id: 10, name: "Jungle Tree", width: 2, height: 2 }] }],
   units: [
     { id: 0, name: "Terran Marine", race: "T", width: 1, height: 1, building: false, flyer: false, hitPoints: 40, shields: 0, armor: 0, minerals: 50, gas: 0, buildTime: 360, weapons: "Gauss Rifle 6" },
@@ -47,6 +49,9 @@ describe("reference layers", () => {
     // The tileset layer: terrains and the categories, not the doodads.
     expect(tileset).toContain("# Reference: the Jungle tileset");
     expect(tileset).toContain("- 7: High Dirt — height 1, buildable");
+    expect(tileset).toContain("Ramps the editor can fit (down south-west or south-east only): Dirt → High Dirt");
+    expect(tileset).toContain("Bridges: the editor fits one over a diagonal channel of Water 5 tiles wide between Dirt banks");
+    expect(buildReferenceLayers({ ...parts, tileset: "Badlands", ramps: [], bridges: null })[1]).toContain("Bridges: none the editor can place on this tileset");
     expect(tileset).toContain("Trees (1)");
     expect(tileset).not.toContain("Jungle Tree 2×2");
     expect(tileset).not.toContain("Lost Temple");

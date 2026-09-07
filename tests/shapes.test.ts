@@ -144,7 +144,7 @@ describe("ramps from the tileset's data", () => {
     expect(ramps[0]).toMatchObject({ id: 77, low: 2, high: 3, side: "sw" });
     expect(ramps[1]).toMatchObject({ id: 78, low: 2, high: 3, side: "se" });
     expect(rampPairs(ramps)).toEqual([{ low: 2, high: 3 }]);
-    // Only what the brush's cliffs are known to take, by tileset: Badlands takes Dirt/High Dirt, Ice takes nothing.
+    // Only what the brush's cliffs are known to take, by tileset: Badlands takes Dirt/High Dirt; Ice takes Snow/High Snow, so a Dirt pair is refused there.
     expect(rampPairs(ramps, "badlands", types)).toEqual([{ low: 2, high: 3 }]);
     expect(rampPairs(ramps, "ice", types)).toEqual([]);
   });

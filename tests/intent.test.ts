@@ -20,6 +20,9 @@ describe("tool-call footprints", () => {
     expect(footprintOf(api, "terrain_at", {}).rects).toEqual([]);
     expect(footprintOf(api, "go_to", { unit: 3 }).units).toEqual([3]);
     expect(footprintOf(api, "go_to", { x: 5, y: 6 }).rects).toEqual([{ x0: 5, y0: 6, x1: 6, y1: 7 }]);
+    expect(footprintOf(api, "place_base", { x: 10, y: 10, player: 1 }).rects).toEqual([{ x0: 3, y0: 5, x1: 21, y1: 18 }]);
+    expect(footprintOf(api, "place_base", { x: 2, y: 44 }).rects).toEqual([{ x0: 0, y0: 39, x1: 13, y1: 48 }]);
+    expect(footprintEmpty(footprintOf(api, "place_base", { player: 2 }))).toBe(true);
   });
 
   it("answers nothing for calls with no place on the map", () => {

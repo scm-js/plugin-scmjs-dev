@@ -160,7 +160,10 @@ same genre guides Make Scenario uses and builds the same toolkit systems, so "ad
 cash" is one call, not a page of hand-written triggers; it lays out the same layout
 presets ("make this a two-lane defense") and paints terrain as shapes ("a plateau with a
 ramp in the north-west", "a river with a bridge"), fits a ramp or a bridge on ground
-already there, tells you whether units can walk from one place to another, and checks
+already there, lays a base's mineral line and geyser round a town hall the way the
+Melee Wizard does — on the ring the game mines fastest from, skipping ground the editor
+refuses, turned to the nearest open side when the asked one has none — tells you whether
+units can walk from one place to another, and checks
 the game's silent rules — a player who owns nothing is defeated at once — and fixes
 them when asked. Every tool call shows as a row in
 the transcript with its result on hover, screenshots inline; each edit is its own undo
@@ -255,7 +258,7 @@ what the model is told about the map; `grid.ts` / `plan.ts` / `render.ts` the la
 language and its rendering, `shapes.ts` the shape language's compiler, `ramps.ts` what a
 tileset's ramps and bridges fit (measured tables included), `presets.ts` the layout
 presets, `reach.ts` the walkability flood fill; `layout.ts` the Melee Wizard's base
-geometry, vendored; `tools.ts`, `tools/` and `assistant.ts` the tool-using conversation;
+geometry, vendored, and `bases.ts` that geometry fitted to the ground there is; `tools.ts`, `tools/` and `assistant.ts` the tool-using conversation;
 `intent.ts` where a tool call lands on the map; `ums.ts` the toolkit of trigger systems
 and `guides.ts` the genre guides; `slots.ts` the buttons inside the editor's own dialogs; `markdown.ts` a
 small renderer; `dialogs/` one file per menu item. `tests/` runs it all against a fake
