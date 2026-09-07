@@ -124,6 +124,7 @@ describe("the transcript's step lines", () => {
     expect(d("set_fog", { x0: 0, y0: 0, x1: 64, y1: 64, players: [1, 2], mode: "clear" })).toBe("Clear 0,0–64,64 for players 1, 2");
     expect(d("paint_shapes", { shapes: [{ op: "plateau" }, { op: "lane" }, { op: "lane" }] })).toBe("Paint 3 shapes: plateau, lane ×2");
     expect(d("reachable", { fromLocation: "Spawn 1", toLocation: "Goal" })).toBe("Can units walk from Spawn 1 to Goal?");
+    expect(d("reachable", { fromX: 1, fromY: 2, toX: 3, toY: 4, ignoreBridges: true })).toBe("Can units walk from 1,2 to 3,4 without the bridges?");
     expect(d("set_players", { players: [{ player: 1, type: "Human", race: "Terran" }, { player: 2, type: "Computer" }] })).toBe("Set players 1, 2: type, race");
     expect(d("add_triggers_text", { text: "Trigger(\"Player 1\"){\n}\n\nTrigger(\"Player 2\"){\n}" })).toBe("Add 2 triggers from text");
     expect(d("list_units", { owner: 1, name: "Start" })).toBe("List Player 1's units named \"Start\"");

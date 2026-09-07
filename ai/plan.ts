@@ -85,7 +85,7 @@ export function checkPlan<P extends LayoutPlan>(input: P, ctx: PlanContext): Che
     let out = "";
     for (const ch of row.slice(0, columns)) {
       if (plan.legend[ch] !== undefined) out += ch;
-      else { out += UNKNOWN; unknownChars++; }
+      else { out += UNKNOWN; if (ch !== UNKNOWN) unknownChars++; }
     }
     if (out.length !== row.length) mended++;
     while (out.length < columns) out += filler;

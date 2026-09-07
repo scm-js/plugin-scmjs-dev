@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileShapes, insideCutRect, rampSite, RAMP_CUT, shapesToLayout, type ShapeContext } from "../ai/shapes";
+import { BRIDGE_CHANNEL, channelEnds, compileShapes, insideCutRect, rampSite, RAMP_CUT, shapesToLayout, shiftShapes, type ShapeContext } from "../ai/shapes";
 import { bridgeDoodads, bridgePair, fitRamp, rampDoodads, rampPairs } from "../ai/ramps";
 import type { MapPlan, TerrainVocab } from "../protocol";
 
@@ -91,15 +91,83 @@ describe("the shape compiler", () => {
     expect(at(cliff, 8, 20)).toBe(8);
   });
 
-  it("paints a bridge's channel and banks and records the crossing", () => {
+  it("paints a bridge's channel and banks, records the crossing with its ends, and says what it stamped", () => {
     const { cells, bridges, findings } = compileShapes([{ op: "ground", terrain: 10 }, { op: "bridge", x: 32, y: 32, along: "se" }], { ...ctx, bridgePair: { ground: 2, water: 5 } });
-    expect(findings).toEqual([]);
-    expect(bridges).toEqual([{ x: 32, y: 32, along: "se" }]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain("channel along se from 18,25 to 46,39");
+    expect(findings[0]).toContain("water must reach both ends");
+    expect(bridges).toEqual([{ x: 32, y: 32, along: "se", ends: channelEnds(32, 32, "se") }]);
     expect(at(cells, 32, 32)).toBe(5);
     expect(at(cells, 38, 35)).toBe(5);
     expect(at(cells, 32, 26)).toBe(2);
     expect(at(cells, 5, 5)).toBe(10);
     expect(compileShapes([{ op: "bridge", x: 3, y: 3 }], ctx).findings[0]).toContain("no bridges");
+  });
+
+  describe("a river with bridges", () => {
+    const river = { ...ctx, width: 128, height: 128, bridgePair: { ground: 2, water: 5, channel: BRIDGE_CHANNEL } };
+    const wide = (c: Int32Array, x: number, y: number) => c[y * 128 + x];
+    // Along the diagonal's normal: how many tiles of water lie across the river at a point of the se diagonal (2:1), the normal being (1, -2).
+    const across = (c: Int32Array, x: number, y: number) => { let n = 0; for (let k = -12; k <= 12; k++) { const px = Math.round(x + k / Math.sqrt(5)), py = Math.round(y - 2 * k / Math.sqrt(5)); if (wide(c, px, py) === 5) n++; } return n; };
+
+    it("bends the river onto the diagonal through the site, narrows it to the channel and fits the bridge", () => {
+      const { cells, bridges, findings } = compileShapes([
+        { op: "ground", terrain: 8 },
+        { op: "stroke", terrain: 5, width: 14, points: [[4, 4], [124, 124]], bridges: [[64, 64]] },
+      ], river);
+      expect(bridges).toEqual([{ x: 64, y: 64, along: "se", ends: channelEnds(64, 64, "se") }]);
+      expect(findings).toEqual(["shape 2 (stroke): bridge at 64,64 along se; the river narrows to its 5-wide channel from 50,57 to 78,71"]);
+      // The channel at the site is the channel's width, in water, with the bridge's ground either side.
+      expect(across(cells, 64, 64)).toBeLessThanOrEqual(BRIDGE_CHANNEL + 1);
+      expect(across(cells, 64, 64)).toBeGreaterThanOrEqual(BRIDGE_CHANNEL - 1);
+      expect(wide(cells, 64, 64)).toBe(5);
+      expect(wide(cells, 64, 58)).toBe(2);
+      expect(wide(cells, 64, 70)).toBe(2);
+      // Water runs without a break along the diagonal from where the river bends onto it, through the channel, to where it bends off.
+      for (let k = -11; k <= 11; k++) expect(wide(cells, 64 + 2 * k, 64 + k)).toBe(5);
+      // And the bend is local: the river's own line is still water beyond the taper.
+      expect(wide(cells, 36, 36)).toBe(5);
+      expect(wide(cells, 92, 92)).toBe(5);
+      // The river is its full width away from the bridge.
+      expect(wide(cells, 20, 20)).toBe(5);
+      expect(wide(cells, 20, 26)).toBe(5);
+      expect(wide(cells, 20, 14)).toBe(5);
+      expect(wide(cells, 100, 100)).toBe(5);
+    });
+
+    it("picks the diagonal nearest the river's own direction, or takes the one named", () => {
+      const auto = compileShapes([{ op: "stroke", terrain: 5, width: 10, points: [[120, 8], [8, 120]], bridges: [[64, 64]] }], river);
+      expect(auto.bridges[0]).toMatchObject({ along: "sw" });
+      const named = compileShapes([{ op: "stroke", terrain: 5, width: 10, points: [[64, 4], [64, 124]], bridges: [{ x: 64, y: 64, along: "se" }] }], river);
+      expect(named.bridges[0]).toMatchObject({ along: "se" });
+      // A north-south river bends onto the diagonal and back: water at the channel's ends and beyond them on the river's own line.
+      expect(wide(named.cells, 50, 57)).toBe(5);
+      expect(wide(named.cells, 78, 71)).toBe(5);
+      expect(wide(named.cells, 64, 20)).toBe(5);
+      expect(wide(named.cells, 64, 110)).toBe(5);
+    });
+
+    it("paints a bank that bends with the river, and the bridge's ground over the bank at the channel", () => {
+      const { cells } = compileShapes([{ op: "ground", terrain: 8 }, { op: "stroke", terrain: 5, width: 10, points: [[64, 4], [64, 124]], bridges: [{ x: 64, y: 64, along: "se" }], bank: 3, bankWidth: 6 }], river);
+      expect(wide(cells, 64, 20)).toBe(5);
+      expect(wide(cells, 72, 20)).toBe(3);
+      expect(wide(cells, 80, 20)).toBe(8);
+      // Where the river has bent toward the diagonal, the bridge's ground goes with it, over the bank.
+      expect(wide(cells, 45, 42)).toBe(5);
+      expect(wide(cells, 40, 36)).toBe(2);
+      expect(wide(cells, 64, 58)).toBe(2);
+    });
+
+    it("skips a second bridge closer than a channel is long, paints without bridges where the tileset has none, and shifts its sites", () => {
+      const close = compileShapes([{ op: "stroke", terrain: 5, width: 10, points: [[4, 4], [124, 124]], bridges: [[40, 40], [50, 50]] }], river);
+      expect(close.bridges).toHaveLength(1);
+      expect(close.findings.some((f) => f.includes("50,50") && f.includes("skipped"))).toBe(true);
+      const none = compileShapes([{ op: "stroke", terrain: 5, width: 10, points: [[4, 4], [124, 124]], bridges: [[64, 64]] }], { ...river, bridgePair: null });
+      expect(none.bridges).toEqual([]);
+      expect(none.findings[0]).toContain("no bridges");
+      expect(wide(none.cells, 64, 64)).toBe(5);
+      expect(shiftShapes([{ op: "stroke", terrain: 5, points: [[0, 0], [8, 8]], bridges: [[4, 4], { x: 6, y: 6, along: "sw" }] }], 10, 20)[0].bridges).toEqual([[14, 24], { x: 16, y: 26, along: "sw" }]);
+    });
   });
 
   it("fills polygons and borders", () => {

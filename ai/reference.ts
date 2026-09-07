@@ -177,7 +177,7 @@ function tilesetLayer(p: ReferenceParts): string {
   out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
   for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} — height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
   if (p.ramps) out.push(`- Ramps the editor can fit (down south-west or south-east only): ${p.ramps.length ? p.ramps.map((r) => `${r.low} → ${r.high}`).join(", ") : "none"}`);
-  if (p.bridges !== undefined) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a bridge shape in paint_shapes paints the channel and fits it)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
+  if (p.bridges !== undefined) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a stroke with bridges in paint_shapes bends the river onto that diagonal, narrows it to the channel and fits the bridge; a bare bridge shape stamps the channel over whatever is there)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
   out.push("- A shore or cliff between two terrains takes about three tiles either side of the boundary; water narrower than about ten tiles is all shore.");
   out.push("");
   out.push("## Doodad categories (scatter_doodads takes a category; place_doodads a name or id — the names are in reference \"doodads\")");

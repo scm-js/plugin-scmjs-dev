@@ -844,6 +844,17 @@ export interface Shape {
   along?: RampSide;
   wall?: number;
   wallWidth?: number;
+  /**
+   * stroke: the bridges the river carries. The compiler bends the river onto the 2:1
+   * diagonal through each site, narrows it to the channel the tileset's bridges span,
+   * paints their banks and fits the bridge — so the water reaches the bridge from both
+   * sides by construction. `along` picks the diagonal; omitted, the one nearest the
+   * river's own direction there.
+   */
+  bridges?: ([number, number] | { x: number; y: number; along?: RampSide })[];
+  /** stroke: a band of this terrain either side of the water, `bankWidth` tiles wide (7 when omitted), bent with the river. */
+  bank?: number;
+  bankWidth?: number;
 }
 
 /** A bridge the plan wants near a tile, over water running along that diagonal. */
@@ -851,6 +862,8 @@ export interface BridgePlan {
   x: number;
   y: number;
   along: RampSide;
+  /** The two ends of the channel the compiler painted for it, in tiles, when it painted one. */
+  ends?: [[number, number], [number, number]];
 }
 
 /** What a tileset's bridges stand on and span, and how wide a channel (in tiles, across the diagonal) they fit. */

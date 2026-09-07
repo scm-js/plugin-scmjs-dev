@@ -190,6 +190,21 @@ export function bridgesOf(api: PluginApi): BridgeDoodad[] {
   return bridgeDoodads(doodads, api.terrain.types());
 }
 
+/** The footprints of the bridges placed on the open map, in tiles: what `reachable` blanks out to ask whether a river holds without them. */
+export function bridgeFootprints(api: PluginApi): { x0: number; y0: number; x1: number; y1: number }[] {
+  const scn = api.document.scenario();
+  if (!scn) return [];
+  const bridges = new Map(bridgesOf(api).map((b) => [b.id, b]));
+  const out: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  for (const d of scn.doodads) {
+    const b = bridges.get(d.doodadId);
+    if (!b) continue;
+    const x0 = Math.round(d.x / 32 - b.width / 2), y0 = Math.round(d.y / 32 - b.height / 2);
+    out.push({ x0, y0, x1: x0 + b.width, y1: y0 + b.height });
+  }
+  return out;
+}
+
 /** The bridge pair the open map's tileset is known to take. */
 export function bridgePairOf(api: PluginApi): BridgePair | null {
   return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());

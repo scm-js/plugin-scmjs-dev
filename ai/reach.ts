@@ -14,8 +14,8 @@ export interface WalkMask {
   walk: Uint8Array;
 }
 
-/** The open map's walkable tiles; null without a map or the tileset graphics. */
-export function walkMask(api: PluginApi): WalkMask | null {
+/** The open map's walkable tiles, with `blocked` rects (the bridges, to ask whether a river holds without them) unwalkable; null without a map or the tileset graphics. */
+export function walkMask(api: PluginApi, blocked: readonly { x0: number; y0: number; x1: number; y1: number }[] = []): WalkMask | null {
   const scn = api.document.scenario();
   if (!scn || !api.tileset.isLoaded()) return null;
   const { width, height } = scn;
@@ -27,7 +27,13 @@ export function walkMask(api: PluginApi): WalkMask | null {
     if (w === undefined) { w = (api.terrain.tileInfo(id)?.walkable ?? 0) >= 8 ? 1 : 0; cache.set(id, w); }
     walk[i] = w;
   }
+  blockRects({ width, height, walk }, blocked);
   return { width, height, walk };
+}
+
+/** Make every tile of the rects unwalkable. */
+export function blockRects(mask: WalkMask, rects: readonly { x0: number; y0: number; x1: number; y1: number }[]): void {
+  for (const r of rects) for (let y = Math.max(0, r.y0); y < Math.min(mask.height, r.y1); y++) for (let x = Math.max(0, r.x0); x < Math.min(mask.width, r.x1); x++) mask.walk[y * mask.width + x] = 0;
 }
 
 /** The tiles reachable on foot from (x, y): a mask of the same size, empty when the start itself is not walkable. */

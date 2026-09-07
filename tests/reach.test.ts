@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { floodFrom, nearestWalkable, reachTouches, type WalkMask } from "../ai/reach";
+import { blockRects, floodFrom, nearestWalkable, reachTouches, type WalkMask } from "../ai/reach";
 import { shiftShapes } from "../ai/shapes";
 
 function mask(rows: string[]): WalkMask {
@@ -24,6 +24,17 @@ describe("reachability", () => {
     expect(r[4 * 9 + 0]).toBe(0);
     expect(floodFrom(m, 4, 0).reduce((a, b) => a + b, 0)).toBe(0);
     expect(floodFrom(m, 0, 4).reduce((a, b) => a + b, 0)).toBe(9);
+  });
+  it("blanks out the bridges when asked, so a river with one bridge holds without it", () => {
+    const river = mask([
+      ".........",
+      "####.####",
+      "####.####",
+      ".........",
+    ]);
+    expect(floodFrom(river, 0, 0)[3 * 9 + 0]).toBe(1);
+    blockRects(river, [{ x0: 4, y0: 1, x1: 5, y1: 3 }]);
+    expect(floodFrom(river, 0, 0)[3 * 9 + 0]).toBe(0);
   });
   it("finds the nearest walkable tile and whether a rect is reached", () => {
     expect(nearestWalkable(m, 4, 1)).toEqual({ x: 3, y: 1 });

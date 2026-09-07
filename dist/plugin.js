@@ -1349,6 +1349,19 @@ function bridgesOf(api) {
   const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
   return bridgeDoodads(doodads, api.terrain.types());
 }
+function bridgeFootprints(api) {
+  const scn = api.document.scenario();
+  if (!scn) return [];
+  const bridges = new Map(bridgesOf(api).map((b) => [b.id, b]));
+  const out = [];
+  for (const d of scn.doodads) {
+    const b = bridges.get(d.doodadId);
+    if (!b) continue;
+    const x0 = Math.round(d.x / 32 - b.width / 2), y0 = Math.round(d.y / 32 - b.height / 2);
+    out.push({ x0, y0, x1: x0 + b.width, y1: y0 + b.height });
+  }
+  return out;
+}
 function bridgePairOf(api) {
   return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
 }
@@ -1514,6 +1527,9 @@ function paintOrder(ids, terrains, counts) {
 // ai/shapes.ts
 var BRIDGE_CHANNEL = 5;
 var BRIDGE_REACH = 14;
+var BRIDGE_BANK = 8;
+var BRIDGE_TAPER = 4;
+var BANK_WIDTH = 7;
 var LANE_SHORE_PAD = 7;
 var LANE_CLIFF_PAD = 3;
 var RAMP_CUT = 7;
@@ -1643,7 +1659,56 @@ function compileShapes(shapes, ctx) {
           }
           return;
         }
-        strokePolyline(pts, w, (x, y) => put(x, y, id));
+        const sites = s.op === "stroke" ? bridgeSites(s, what, findings) : [];
+        if (sites.length === 0) {
+          strokePolyline(pts, w, (x, y) => put(x, y, id));
+          return;
+        }
+        const pair = ctx.bridgePair ?? null;
+        if (!pair) {
+          findings.push(`${what}: this tileset has no bridges the editor can place; the river is painted without them \u2014 leave a gap of ground for a crossing`);
+          strokePolyline(pts, w, (x, y) => put(x, y, id));
+          return;
+        }
+        const channel = pair.channel ?? BRIDGE_CHANNEL;
+        if (id !== pair.water) findings.push(`${what}: this tileset's bridges span ${nameOf(known, pair.water)}, so each channel is painted as that, not ${nameOf(known, id)}`);
+        let verts = pts.map((p) => ({ p, w }));
+        const laid = [];
+        sites.forEach((site, k) => {
+          const near = nearestSegment(verts, site);
+          const along = site.along ?? (near.dir[0] * near.dir[1] >= 0 ? "se" : "sw");
+          const d = stepOf(along);
+          const ends = channelEnds(site.x, site.y, along);
+          const lead = BRIDGE_TAPER + Math.ceil(w / 2 / Math.hypot(d[0], d[1]));
+          const along_ = (from, steps) => [from[0] + d[0] * steps, from[1] + d[1] * steps];
+          const outer = [along_(ends[0], -lead), along_(ends[1], lead)];
+          const half = dist(outer[0], outer[1]) / 2;
+          const crowd = laid.find((o) => dist([o.site.x, o.site.y], [site.x, site.y]) < 2 * half);
+          if (crowd) {
+            findings.push(`${what}: the bridge at ${site.x},${site.y} is within ${Math.round(2 * half)} tiles of the one at ${crowd.site.x},${crowd.site.y}, closer than a channel is long; skipped`);
+            return;
+          }
+          const forward = near.dir[0] * d[0] + near.dir[1] * d[1] >= 0;
+          const chain = [outer[0], along_(ends[0], -BRIDGE_TAPER), ends[0], ends[1], along_(ends[1], BRIDGE_TAPER), outer[1]];
+          if (!forward) chain.reverse();
+          const cut2 = cutAround(verts, [site.x, site.y], half, near.index);
+          const channelVerts = chain.map((p, j) => ({ p, w: j === 2 || j === 3 ? channel : w, bridge: k }));
+          verts = [...cut2.before, ...channelVerts, ...cut2.after];
+          const banked = [...cut2.before.length ? [cut2.before[cut2.before.length - 1]] : [], ...channelVerts, ...cut2.after.length ? [cut2.after[0]] : []];
+          laid.push({ site, along, ends, banked: banked.map((v) => ({ ...v, w: v.w + 2 * BRIDGE_BANK })) });
+          findings.push(`${what}: bridge at ${site.x},${site.y} along ${along}; the river narrows to its ${channel}-wide channel from ${fmt(ends[0])} to ${fmt(ends[1])}`);
+        });
+        if (typeof s.bank === "number") {
+          if (!known.has(s.bank)) findings.push(`${what} names bank terrain ${s.bank}, which this tileset lacks; painted without a bank`);
+          else {
+            const bw = Math.max(1, s.bankWidth ?? BANK_WIDTH);
+            const bank = s.bank;
+            strokeVarying(verts.map((v) => ({ ...v, w: v.w + 2 * bw })), () => bank, put);
+          }
+        }
+        for (const b of laid) strokeVarying(b.banked, () => pair.ground, put);
+        strokeVarying(verts, (a2, b) => a2.bridge !== void 0 && a2.bridge === b.bridge ? pair.water : id, put);
+        for (const b of laid) bridges.push({ x: b.site.x, y: b.site.y, along: b.along, ends: b.ends });
         return;
       }
       case "border": {
@@ -1684,12 +1749,12 @@ function compileShapes(shapes, ctx) {
         }
         const along = s.along === "sw" ? "sw" : "se";
         const x = Math.round(s.x), y = Math.round(s.y);
-        const d = along === "se" ? [2, 1] : [-2, 1];
-        const line = [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+        const ends = channelEnds(x, y, along);
         const channel = pair.channel ?? BRIDGE_CHANNEL;
-        strokePolyline(line, channel + 2 * 8, (px, py) => put(px, py, pair.ground));
-        strokePolyline(line, channel, (px, py) => put(px, py, pair.water));
-        bridges.push({ x, y, along });
+        strokePolyline([ends[0], ends[1]], channel + 2 * BRIDGE_BANK, (px, py) => put(px, py, pair.ground));
+        strokePolyline([ends[0], ends[1]], channel, (px, py) => put(px, py, pair.water));
+        bridges.push({ x, y, along, ends });
+        findings.push(`${what}: channel along ${along} from ${fmt(ends[0])} to ${fmt(ends[1])} (${nameOf(known, pair.water)} ${channel} wide, ${nameOf(known, pair.ground)} ${BRIDGE_BANK} tiles either side), painted over what was there; water must reach both ends`);
         return;
       }
       default:
@@ -1790,6 +1855,88 @@ function fillPolygon(pts, put) {
     for (let i = 0; i + 1 < xs.length; i += 2) for (let x = Math.floor(xs[i]); x < Math.ceil(xs[i + 1]); x++) if (x + 0.5 >= xs[i] && x + 0.5 <= xs[i + 1]) put(x, y);
   }
 }
+function stepOf(along) {
+  return along === "se" ? [2, 1] : [-2, 1];
+}
+function channelEnds(x, y, along) {
+  const d = stepOf(along);
+  return [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+}
+var fmt = (p) => `${Math.round(p[0])},${Math.round(p[1])}`;
+var dist = (a2, b) => Math.hypot(a2[0] - b[0], a2[1] - b[1]);
+var nameOf = (known, id) => known.get(id)?.name ?? `terrain ${id}`;
+function bridgeSites(s, what, findings) {
+  const out = [];
+  for (const b of s.bridges ?? []) {
+    if (Array.isArray(b) && typeof b[0] === "number" && typeof b[1] === "number") out.push({ x: Math.round(b[0]), y: Math.round(b[1]) });
+    else if (b && !Array.isArray(b) && typeof b.x === "number" && typeof b.y === "number") out.push({ x: Math.round(b.x), y: Math.round(b.y), ...b.along === "sw" || b.along === "se" ? { along: b.along } : {} });
+    else findings.push(`${what}: a bridge without x and y; dropped`);
+  }
+  return out;
+}
+function nearestSegment(verts, at) {
+  let best = 0, bestD = Infinity, dir = [1, 0];
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const [ax, ay] = verts[i].p, [bx, by] = verts[i + 1].p;
+    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
+    const t = Math.max(0, Math.min(1, ((at.x - ax) * vx + (at.y - ay) * vy) / len2));
+    const dx = at.x - (ax + t * vx), dy = at.y - (ay + t * vy);
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+      dir = [vx, vy];
+    }
+  }
+  return { index: best, dir };
+}
+function cutAround(verts, at, radius, nearest) {
+  const inside = (p) => dist(p, at) < radius;
+  let entry = null;
+  let exit = null;
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const a2 = verts[i].p, b = verts[i + 1].p;
+    const roots = circleCrossings(a2, b, at, radius);
+    if (!inside(a2) && !entry && roots.length) entry = { index: i, p: lerp(a2, b, roots[0]) };
+    if (!inside(b) && roots.length) exit = { index: i, p: lerp(a2, b, roots[roots.length - 1]) };
+  }
+  if (!entry && !exit && !inside(verts[0].p)) return { before: verts.slice(0, nearest + 1), after: verts.slice(nearest + 1) };
+  const before = entry ? [...verts.slice(0, entry.index + 1), { ...verts[entry.index], p: entry.p }] : [];
+  const after = exit ? [{ ...verts[exit.index + 1], p: exit.p }, ...verts.slice(exit.index + 1)] : [];
+  return { before, after };
+}
+var lerp = (a2, b, t) => [a2[0] + (b[0] - a2[0]) * t, a2[1] + (b[1] - a2[1]) * t];
+function circleCrossings(a2, b, c2, r) {
+  const vx = b[0] - a2[0], vy = b[1] - a2[1], fx = a2[0] - c2[0], fy = a2[1] - c2[1];
+  const A = vx * vx + vy * vy, B = 2 * (fx * vx + fy * vy), C = fx * fx + fy * fy - r * r;
+  if (A === 0) return [];
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return [];
+  const q2 = Math.sqrt(disc);
+  return [(-B - q2) / (2 * A), (-B + q2) / (2 * A)].filter((t) => t > 0 && t < 1);
+}
+function strokeVarying(verts, terrainOf, put) {
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const a2 = verts[i], b = verts[i + 1];
+    const id = terrainOf(a2, b);
+    strokeTapered(a2.p, b.p, a2.w, b.w, (x, y) => put(x, y, id));
+  }
+}
+function strokeTapered(a2, b, wa, wb, put) {
+  const [ax, ay] = a2, [bx, by] = b;
+  const half = Math.max(wa, wb) / 2;
+  const x0 = Math.floor(Math.min(ax, bx) - half) - 1, x1 = Math.ceil(Math.max(ax, bx) + half) + 1;
+  const y0 = Math.floor(Math.min(ay, by) - half) - 1, y1 = Math.ceil(Math.max(ay, by) + half) + 1;
+  const vx = bx - ax, vy = by - ay, ha = wa / 2, dh = (wb - wa) / 2;
+  const qa = vx * vx + vy * vy - dh * dh;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const fx = x + 0.5 - ax, fy = y + 0.5 - ay;
+    const qb = -2 * (fx * vx + fy * vy) - 2 * ha * dh, qc = fx * fx + fy * fy - ha * ha;
+    const g = (t2) => (qa * t2 + qb) * t2 + qc;
+    const t = qa > 0 ? Math.max(0, Math.min(1, -qb / (2 * qa))) : g(0) <= g(1) ? 0 : 1;
+    if (g(t) <= 0) put(x, y);
+  }
+}
 function strokePolyline(pts, width, put) {
   const half = width / 2;
   for (let i = 0; i + 1 < pts.length; i++) {
@@ -1835,6 +1982,7 @@ function shiftShapes(shapes, dx, dy) {
     if (typeof s.cx === "number") out.cx = s.cx + dx;
     if (typeof s.cy === "number") out.cy = s.cy + dy;
     if (s.points) out.points = s.points.map(([x, y]) => [x + dx, y + dy]);
+    if (s.bridges) out.bridges = s.bridges.map((b) => Array.isArray(b) ? [b[0] + dx, b[1] + dy] : { ...b, x: b.x + dx, y: b.y + dy });
     return out;
   });
 }
@@ -1965,7 +2113,7 @@ function tilesetLayer(p) {
   out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
   for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
   if (p.ramps) out.push(`- Ramps the editor can fit (down south-west or south-east only): ${p.ramps.length ? p.ramps.map((r) => `${r.low} \u2192 ${r.high}`).join(", ") : "none"}`);
-  if (p.bridges !== void 0) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a bridge shape in paint_shapes paints the channel and fits it)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
+  if (p.bridges !== void 0) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a stroke with bridges in paint_shapes bends the river onto that diagonal, narrows it to the channel and fits the bridge; a bare bridge shape stamps the channel over whatever is there)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
   out.push("- A shore or cliff between two terrains takes about three tiles either side of the boundary; water narrower than about ten tiles is all shore.");
   out.push("");
   out.push('## Doodad categories (scatter_doodads takes a category; place_doodads a name or id \u2014 the names are in reference "doodads")');
@@ -2504,7 +2652,7 @@ ${p.spec.params.map((x) => `  - ${x.name}${x.required ? " (required)" : ""}: ${x
 }
 
 // ai/reach.ts
-function walkMask(api) {
+function walkMask(api, blocked = []) {
   const scn = api.document.scenario();
   if (!scn || !api.tileset.isLoaded()) return null;
   const { width, height } = scn;
@@ -2519,7 +2667,11 @@ function walkMask(api) {
     }
     walk[i] = w;
   }
+  blockRects({ width, height, walk }, blocked);
   return { width, height, walk };
+}
+function blockRects(mask, rects) {
+  for (const r of rects) for (let y = Math.max(0, r.y0); y < Math.min(mask.height, r.y1); y++) for (let x = Math.max(0, r.x0); x < Math.min(mask.width, r.x1); x++) mask.walk[y * mask.width + x] = 0;
 }
 function floodFrom(mask, x, y) {
   const { width, height, walk } = mask;
@@ -2829,7 +2981,7 @@ function checkPlan(input, ctx) {
       if (plan.legend[ch] !== void 0) out += ch;
       else {
         out += UNKNOWN;
-        unknownChars++;
+        if (ch !== UNKNOWN) unknownChars++;
       }
     }
     if (out.length !== row.length) mended++;
@@ -3105,9 +3257,10 @@ function renderPlan(api, input, options) {
   const ctx = { terrains, width: info.width, height: info.height, originX: options.originX, originY: options.originY };
   const tilesetRamps = rampsOf(api);
   const tilesetBridges = bridgesOf(api);
+  const bridgePair2 = bridgePairOf(api);
   const findings = [];
   if ("shapes" in input && input.shapes?.length) {
-    const compiled = shapesToLayout(input, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) });
+    const compiled = shapesToLayout(input, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePair2 });
     input = compiled.plan;
     findings.push(...compiled.findings);
   }
@@ -3226,7 +3379,7 @@ function renderPlan(api, input, options) {
       }
       const fit = fitDoodad(b, tilesetBridges, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true, { dx: 14, dy: 10 });
       if (!fit) {
-        findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel six tiles wide)`);
+        findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel ${bridgePair2?.channel ?? BRIDGE_CHANNEL} tiles wide)`);
         continue;
       }
       const index = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
@@ -3279,8 +3432,25 @@ function renderPlan(api, input, options) {
     }
   });
   findings.push(...result.notes.filter((n2) => n2.trim() && !findings.includes(n2)));
+  if (bridgePair2 && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair2, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
+}
+var CHANNEL_PROBE = BRIDGE_TAPER / 2;
+function channelEndFindings(api, b, pair, terrains) {
+  if (!b.ends) return [];
+  const d = stepOf(b.along);
+  const names = b.along === "se" ? ["north-west", "south-east"] : ["north-east", "south-west"];
+  const out = [];
+  b.ends.forEach((end, i) => {
+    const sign = i === 0 ? -1 : 1;
+    const x = Math.round(end[0] + sign * d[0] * CHANNEL_PROBE), y = Math.round(end[1] + sign * d[1] * CHANNEL_PROBE);
+    const id = api.terrain.terrainAt(x, y);
+    if (id === null || id === pair.water) return;
+    const name = (t) => terrains.find((v) => v.id === t)?.name ?? `terrain ${t}`;
+    out.push(`bridge at ${b.x},${b.y}: beyond its ${names[i]} end (${Math.round(end[0])},${Math.round(end[1])}) lies ${name(id)} at ${x},${y}, not ${name(pair.water)} \u2014 the river does not reach the bridge from that side; paint water up to that end, or paint the river as one stroke with bridges`);
+  });
+  return out;
 }
 function onFlatGround(api, tx, d, allowed) {
   for (let y = d.ty - 1; y <= d.ty + d.height; y++) {
@@ -3668,7 +3838,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     {
       def: {
         name: "paint_shapes",
-        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
         inputSchema: obj({
           shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" },
@@ -3870,15 +4040,17 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       }
     },
     {
-      def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" } }) },
-      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}?`,
+      def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground. A yes does not prove a barrier holds: a broken river answers yes too. To prove a river or wall is crossed only at its bridge, ask twice \u2014 plainly (yes) and with ignoreBridges true, which counts the tiles under every bridge as water (no).", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
+      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}${input.ignoreBridges === true ? " without the bridges" : ""}?`,
       report: (result) => {
         const r = jsonOf(result);
         return r ? r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}` : "";
       },
       writes: false,
       run: (input, { api }) => {
-        const mask = walkMask(api);
+        const ignoreBridges = input.ignoreBridges === true;
+        const blocked = ignoreBridges ? bridgeFootprints(api) : [];
+        const mask = walkMask(api, blocked);
         if (!mask) return "No map is open, or the tileset graphics are not loaded.";
         const from = pointOf(api, input, "from"), to = pointOf(api, input, "to");
         if (typeof from === "string") return from;
@@ -3897,6 +4069,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         for (let i = 0; i < reach.length; i++) n2 += reach[i];
         return capResult({
           reachable: ok,
+          ...ignoreBridges ? { bridgesIgnored: blocked.length } : {},
           from: `${from.label}${fromWalkable ? "" : ` (not walkable; started from ${start2.x},${start2.y})`}`,
           to: `${to.label}${toWalkable ? "" : target ? ` (centre not walkable; nearest walkable ${target.x},${target.y})` : " (not walkable, nothing walkable near)"}`,
           tilesReachedFromStart: n2
@@ -5444,7 +5617,7 @@ function terrainTools() {
         const type = api.terrain.types().find((t) => t.id === terrain) ?? api.terrain.types().find((t) => t.name.toLowerCase() === str(input.terrain).toLowerCase());
         if (!type) return `Terrain ${str(input.terrain)} is not one of this tileset's types; see the reference.`;
         const keep = new Set(list(input.keep).map((k) => api.terrain.types().find((t) => t.id === k || typeof k === "string" && t.name.toLowerCase() === k.toLowerCase())?.id).filter((id) => id !== void 0));
-        const nameOf = (id) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+        const nameOf2 = (id) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
         const replaced = {};
         let kept = 0;
         const r = api.document.edit(`AI: paint ${type.name}`, (tx) => {
@@ -5456,7 +5629,7 @@ function terrainTools() {
                 kept++;
                 continue;
               }
-              if (was !== null && was !== type.id) replaced[nameOf(was)] = (replaced[nameOf(was)] ?? 0) + 1;
+              if (was !== null && was !== type.id) replaced[nameOf2(was)] = (replaced[nameOf2(was)] ?? 0) + 1;
               if (!tx.paintIsom(d, type.id, 1)) refused++;
             }
             if (refused) tx.note(`${refused} diamonds refused`);

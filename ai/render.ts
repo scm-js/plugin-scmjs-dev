@@ -15,8 +15,8 @@ import {
   type DoodadChoice, type PlanContext,
 } from "./plan";
 import { bridgePairOf, bridgesOf, fitDoodad, fitRamp, rampPairsOf, rampsOf } from "./ramps";
-import { shapesToLayout } from "./shapes";
-import type { LayoutPlan, MapPlan, TerrainVocab } from "../protocol";
+import { BRIDGE_CHANNEL, BRIDGE_TAPER, shapesToLayout, stepOf } from "./shapes";
+import type { BridgePair, BridgePlan, LayoutPlan, MapPlan, TerrainVocab } from "../protocol";
 import type { TileRect } from "./grid";
 
 /** Tiles of matching ground a scattered doodad must have around it. */
@@ -68,10 +68,11 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   const ctx: PlanContext = { terrains, width: info.width, height: info.height, originX: options.originX, originY: options.originY };
   const tilesetRamps = rampsOf(api);
   const tilesetBridges = bridgesOf(api);
+  const bridgePair = bridgePairOf(api);
   const findings: string[] = [];
   // A shape plan is compiled to a one-tile grid first; from there on it is a plan like any other.
   if ("shapes" in input && input.shapes?.length) {
-    const compiled = shapesToLayout(input as MapPlan, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) });
+    const compiled = shapesToLayout(input as MapPlan, { width: info.width, height: info.height, terrains, rampPairs: rampPairsOf(api), bridgePair });
     input = compiled.plan;
     findings.push(...compiled.findings);
   }
@@ -172,7 +173,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
     for (const b of plan.bridges ?? []) {
       if (!canCheck || tilesetBridges.length === 0) { findings.push(`bridge at ${b.x},${b.y}: ${tilesetBridges.length === 0 ? "this tileset has no bridges" : "the editor cannot check doodad placement"}; left for you to place`); continue; }
       const fit = fitDoodad(b, tilesetBridges, (id, tx0, ty0) => api.query.doodadPlacement(id, tx0, ty0)?.ok === true, { dx: 14, dy: 10 });
-      if (!fit) { findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel six tiles wide)`); continue; }
+      if (!fit) { findings.push(`bridge at ${b.x},${b.y} along ${b.along}: no bridge of this tileset fits the water near there (a bridge spans a diagonal channel ${bridgePair?.channel ?? BRIDGE_CHANNEL} tiles wide)`); continue; }
       const index = tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
       if (index < 0) findings.push(`bridge at ${b.x},${b.y}: ${fit.name} was refused at ${fit.tx},${fit.ty}`);
       else { placed.bridges++; occupied.push({ x0: fit.tx, y0: fit.ty, x1: fit.tx + fit.width, y1: fit.ty + fit.height }); }
@@ -218,8 +219,34 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   });
 
   findings.push(...result.notes.filter((n) => n.trim() && !findings.includes(n)));
+  // A bridge's channel is a stamp: whether the river actually arrives at it is read off the map as painted.
+  if (bridgePair && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
+}
+
+/** How far beyond a channel's end, in diagonal steps, the ground is read to see whether the river reaches it: inside the bank the stamp leaves when nothing meets it. */
+const CHANNEL_PROBE = BRIDGE_TAPER / 2;
+
+/**
+ * For a bridge the compiler painted a channel for: a finding per end that the map does
+ * not carry the bridge's water beyond, so the model learns "the river does not reach
+ * the bridge from the north-west" instead of a walkability check that cannot tell.
+ */
+export function channelEndFindings(api: PluginApi, b: BridgePlan, pair: BridgePair, terrains: readonly TerrainVocab[]): string[] {
+  if (!b.ends) return [];
+  const d = stepOf(b.along);
+  const names = b.along === "se" ? ["north-west", "south-east"] : ["north-east", "south-west"];
+  const out: string[] = [];
+  b.ends.forEach((end, i) => {
+    const sign = i === 0 ? -1 : 1;
+    const x = Math.round(end[0] + sign * d[0] * CHANNEL_PROBE), y = Math.round(end[1] + sign * d[1] * CHANNEL_PROBE);
+    const id = api.terrain.terrainAt(x, y);
+    if (id === null || id === pair.water) return;
+    const name = (t: number) => terrains.find((v) => v.id === t)?.name ?? `terrain ${t}`;
+    out.push(`bridge at ${b.x},${b.y}: beyond its ${names[i]} end (${Math.round(end[0])},${Math.round(end[1])}) lies ${name(id)} at ${x},${y}, not ${name(pair.water)} — the river does not reach the bridge from that side; paint water up to that end, or paint the river as one stroke with bridges`);
+  });
+  return out;
 }
 
 /** Whether every tile of a doodad's footprint, and one tile around it, is flat ground of one of the terrains — read from the map as painted. */

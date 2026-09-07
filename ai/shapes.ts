@@ -4,7 +4,9 @@
  * painted in order onto a one-tile grid, which the ordinary renderer then lays with the
  * isometric brush. The model writes twenty statements instead of a thousand cells, and
  * the things a grid cannot promise are promised here: a lane is continuous by
- * construction, and a plateau that asks for a ramp gets an edge a ramp can sit on.
+ * construction, a plateau that asks for a ramp gets an edge a ramp can sit on, and a
+ * river that names its bridges bends onto the diagonal a bridge spans and narrows to
+ * its channel there, so the water reaches the bridge from both sides.
  *
  * Ramps are the reason the corners are cut the way they are. The game's ramps are
  * doodads that fit only on a straight diagonal cliff run, and only the two runs that
@@ -39,8 +41,14 @@ export interface Compiled {
 
 /** The width of the water channel a bridge spans when the pair does not say, in tiles across the diagonal. */
 export const BRIDGE_CHANNEL = 5;
-/** How far the channel and its banks are painted either side of a bridge site, in tiles. */
+/** How far the channel and its banks are painted either side of a bridge site, in steps of the 2:1 diagonal (a step is two tiles across and one down). */
 export const BRIDGE_REACH = 14;
+/** The bank of the bridge's ground painted either side of its channel, in tiles. */
+export const BRIDGE_BANK = 8;
+/** How far a river with bridges tapers from its own width to the channel beyond each end of the channel, in diagonal steps. */
+export const BRIDGE_TAPER = 4;
+/** How wide a stroke's bank is either side when it names one and no width, in tiles: what the brush's shores eat. */
+export const BANK_WIDTH = 7;
 /** What a lane's band grows by so that its walkable core is the width asked for: water shores either side, or cliff edges. */
 export const LANE_SHORE_PAD = 7;
 export const LANE_CLIFF_PAD = 3;
@@ -53,6 +61,9 @@ export const DEFAULT_CUT = 2;
 export const RAMP_APRON = 22;
 
 type Pt = [number, number];
+/** A point of a river with a width there; `bridge` marks the vertices of a bridge's channel, by bridge. */
+interface Vertex { p: Pt; w: number; bridge?: number }
+interface BridgeSite { x: number; y: number; along?: RampSide }
 
 /** Paint every statement, in order. */
 export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Compiled {
@@ -154,7 +165,47 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
           if (!laneBatch.has(i + 1)) { for (const paint of laneFloors) paint(); laneFloors.length = 0; }
           return;
         }
-        strokePolyline(pts, w, (x, y) => put(x, y, id));
+        const sites = s.op === "stroke" ? bridgeSites(s, what, findings) : [];
+        if (sites.length === 0) { strokePolyline(pts, w, (x, y) => put(x, y, id)); return; }
+        const pair = ctx.bridgePair ?? null;
+        if (!pair) { findings.push(`${what}: this tileset has no bridges the editor can place; the river is painted without them — leave a gap of ground for a crossing`); strokePolyline(pts, w, (x, y) => put(x, y, id)); return; }
+        const channel = pair.channel ?? BRIDGE_CHANNEL;
+        if (id !== pair.water) findings.push(`${what}: this tileset's bridges span ${nameOf(known, pair.water)}, so each channel is painted as that, not ${nameOf(known, id)}`);
+        // The river bent through every bridge: the vertices near a site give way to the channel's four —
+        // taper in, channel, taper out — so the water arrives at the bridge along the diagonal it spans.
+        let verts: Vertex[] = pts.map((p) => ({ p, w }));
+        const laid: { site: BridgeSite; along: RampSide; ends: [Pt, Pt]; banked: Vertex[] }[] = [];
+        sites.forEach((site, k) => {
+          const near = nearestSegment(verts, site);
+          const along: RampSide = site.along ?? (near.dir[0] * near.dir[1] >= 0 ? "se" : "sw");
+          const d = stepOf(along);
+          const ends = channelEnds(site.x, site.y, along);
+          // Beyond each end the river widens back over the taper, then runs at its own width for a lead of half its
+          // width before it may bend: a bend where the band is still narrowing leaves a notch on the outside of the turn.
+          const lead = BRIDGE_TAPER + Math.ceil(w / 2 / Math.hypot(d[0], d[1]));
+          const along_ = (from: Pt, steps: number): Pt => [from[0] + d[0] * steps, from[1] + d[1] * steps];
+          const outer: [Pt, Pt] = [along_(ends[0], -lead), along_(ends[1], lead)];
+          const half = dist(outer[0], outer[1]) / 2;
+          const crowd = laid.find((o) => dist([o.site.x, o.site.y], [site.x, site.y]) < 2 * half);
+          if (crowd) { findings.push(`${what}: the bridge at ${site.x},${site.y} is within ${Math.round(2 * half)} tiles of the one at ${crowd.site.x},${crowd.site.y}, closer than a channel is long; skipped`); return; }
+          const forward = near.dir[0] * d[0] + near.dir[1] * d[1] >= 0;
+          const chain: Pt[] = [outer[0], along_(ends[0], -BRIDGE_TAPER), ends[0], ends[1], along_(ends[1], BRIDGE_TAPER), outer[1]];
+          if (!forward) chain.reverse();
+          const cut = cutAround(verts, [site.x, site.y], half, near.index);
+          const channelVerts = chain.map((p, j) => ({ p, w: j === 2 || j === 3 ? channel : w, bridge: k }));
+          verts = [...cut.before, ...channelVerts, ...cut.after];
+          // The bridge's ground follows the river from where it bends toward the channel to where it bends away, so the bend has a bank and no notch.
+          const banked = [...(cut.before.length ? [cut.before[cut.before.length - 1]] : []), ...channelVerts, ...(cut.after.length ? [cut.after[0]] : [])];
+          laid.push({ site, along, ends, banked: banked.map((v) => ({ ...v, w: v.w + 2 * BRIDGE_BANK })) });
+          findings.push(`${what}: bridge at ${site.x},${site.y} along ${along}; the river narrows to its ${channel}-wide channel from ${fmt(ends[0])} to ${fmt(ends[1])}`);
+        });
+        if (typeof s.bank === "number") {
+          if (!known.has(s.bank)) findings.push(`${what} names bank terrain ${s.bank}, which this tileset lacks; painted without a bank`);
+          else { const bw = Math.max(1, s.bankWidth ?? BANK_WIDTH); const bank = s.bank; strokeVarying(verts.map((v) => ({ ...v, w: v.w + 2 * bw })), () => bank, put); }
+        }
+        for (const b of laid) strokeVarying(b.banked, () => pair.ground, put);
+        strokeVarying(verts, (a, b) => (a.bridge !== undefined && a.bridge === b.bridge ? pair.water : id), put);
+        for (const b of laid) bridges.push({ x: b.site.x, y: b.site.y, along: b.along, ends: b.ends });
         return;
       }
       case "border": {
@@ -179,13 +230,14 @@ export function compileShapes(shapes: readonly Shape[], ctx: ShapeContext): Comp
         if (!pair) { findings.push(`${what}: this tileset has no bridges the editor can place; skipped — leave a gap of ground for a crossing`); return; }
         const along: RampSide = s.along === "sw" ? "sw" : "se";
         const x = Math.round(s.x), y = Math.round(s.y);
-        // The channel through the site along the diagonal, banks of the bridge's ground either side, then the water.
-        const d: Pt = along === "se" ? [2, 1] : [-2, 1];
-        const line: Pt[] = [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+        // The channel through the site along the diagonal, banks of the bridge's ground either side, then the
+        // water — a stamp over whatever is there, so a river drawn separately has to be brought to its ends.
+        const ends = channelEnds(x, y, along);
         const channel = pair.channel ?? BRIDGE_CHANNEL;
-        strokePolyline(line, channel + 2 * 8, (px, py) => put(px, py, pair.ground));
-        strokePolyline(line, channel, (px, py) => put(px, py, pair.water));
-        bridges.push({ x, y, along });
+        strokePolyline([ends[0], ends[1]], channel + 2 * BRIDGE_BANK, (px, py) => put(px, py, pair.ground));
+        strokePolyline([ends[0], ends[1]], channel, (px, py) => put(px, py, pair.water));
+        bridges.push({ x, y, along, ends });
+        findings.push(`${what}: channel along ${along} from ${fmt(ends[0])} to ${fmt(ends[1])} (${nameOf(known, pair.water)} ${channel} wide, ${nameOf(known, pair.ground)} ${BRIDGE_BANK} tiles either side), painted over what was there; water must reach both ends`);
         return;
       }
       default:
@@ -307,6 +359,115 @@ function fillPolygon(pts: Pt[], put: (x: number, y: number) => void) {
   }
 }
 
+/** The 2:1 step of a diagonal: two tiles across (right for "se", left for "sw") and one down. */
+export function stepOf(along: RampSide): Pt {
+  return along === "se" ? [2, 1] : [-2, 1];
+}
+
+/** The two ends of the channel a bridge at (x, y) wants, `BRIDGE_REACH` steps of the diagonal centred on the site. */
+export function channelEnds(x: number, y: number, along: RampSide): [Pt, Pt] {
+  const d = stepOf(along);
+  return [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+}
+
+const fmt = (p: Pt) => `${Math.round(p[0])},${Math.round(p[1])}`;
+const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const nameOf = (known: Map<number, TerrainVocab>, id: number) => known.get(id)?.name ?? `terrain ${id}`;
+
+/** A stroke's bridge sites: `[x, y]` pairs or `{x, y, along}` objects; anything else is named and dropped. */
+function bridgeSites(s: Shape, what: string, findings: string[]): BridgeSite[] {
+  const out: BridgeSite[] = [];
+  for (const b of s.bridges ?? []) {
+    if (Array.isArray(b) && typeof b[0] === "number" && typeof b[1] === "number") out.push({ x: Math.round(b[0]), y: Math.round(b[1]) });
+    else if (b && !Array.isArray(b) && typeof b.x === "number" && typeof b.y === "number") out.push({ x: Math.round(b.x), y: Math.round(b.y), ...(b.along === "sw" || b.along === "se" ? { along: b.along } : {}) });
+    else findings.push(`${what}: a bridge without x and y; dropped`);
+  }
+  return out;
+}
+
+/** The segment of a polyline nearest a point, with its direction. */
+function nearestSegment(verts: readonly Vertex[], at: { x: number; y: number }): { index: number; dir: Pt } {
+  let best = 0, bestD = Infinity, dir: Pt = [1, 0];
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const [ax, ay] = verts[i].p, [bx, by] = verts[i + 1].p;
+    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
+    const t = Math.max(0, Math.min(1, ((at.x - ax) * vx + (at.y - ay) * vy) / len2));
+    const dx = at.x - (ax + t * vx), dy = at.y - (ay + t * vy);
+    const d = dx * dx + dy * dy;
+    if (d < bestD) { bestD = d; best = i; dir = [vx, vy]; }
+  }
+  return { index: best, dir };
+}
+
+/**
+ * A polyline with the part within `radius` of a point cut out: what lies before the
+ * polyline enters that circle and what lies after it leaves, each ending or starting
+ * on the circle itself, so a bridge's channel replaces just the stretch of river it
+ * needs and the bend into it starts there and not at the previous vertex. A polyline
+ * that never enters the circle is split at the segment nearest the point instead.
+ */
+function cutAround(verts: readonly Vertex[], at: Pt, radius: number, nearest: number): { before: Vertex[]; after: Vertex[] } {
+  const inside = (p: Pt) => dist(p, at) < radius;
+  let entry: { index: number; p: Pt } | null = null;
+  let exit: { index: number; p: Pt } | null = null;
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const a = verts[i].p, b = verts[i + 1].p;
+    const roots = circleCrossings(a, b, at, radius);
+    if (!inside(a) && !entry && roots.length) entry = { index: i, p: lerp(a, b, roots[0]) };
+    if (!inside(b) && roots.length) exit = { index: i, p: lerp(a, b, roots[roots.length - 1]) };
+  }
+  if (!entry && !exit && !inside(verts[0].p)) return { before: verts.slice(0, nearest + 1), after: verts.slice(nearest + 1) };
+  const before = entry ? [...verts.slice(0, entry.index + 1), { ...verts[entry.index], p: entry.p }] : [];
+  const after = exit ? [{ ...verts[exit.index + 1], p: exit.p }, ...verts.slice(exit.index + 1)] : [];
+  return { before, after };
+}
+
+const lerp = (a: Pt, b: Pt, t: number): Pt => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+/** Where the segment a→b crosses a circle, as parameters along the segment in (0, 1), in order. */
+function circleCrossings(a: Pt, b: Pt, c: Pt, r: number): number[] {
+  const vx = b[0] - a[0], vy = b[1] - a[1], fx = a[0] - c[0], fy = a[1] - c[1];
+  const A = vx * vx + vy * vy, B = 2 * (fx * vx + fy * vy), C = fx * fx + fy * fy - r * r;
+  if (A === 0) return [];
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return [];
+  const q = Math.sqrt(disc);
+  return [(-B - q) / (2 * A), (-B + q) / (2 * A)].filter((t) => t > 0 && t < 1);
+}
+
+/** A band along a polyline whose width changes from vertex to vertex, each segment in the terrain `terrainOf` gives it. */
+function strokeVarying(verts: readonly Vertex[], terrainOf: (a: Vertex, b: Vertex) => number, put: (x: number, y: number, id: number) => void) {
+  for (let i = 0; i + 1 < verts.length; i++) {
+    const a = verts[i], b = verts[i + 1];
+    const id = terrainOf(a, b);
+    strokeTapered(a.p, b.p, a.w, b.w, (x, y) => put(x, y, id));
+  }
+}
+
+/**
+ * A band from `a` to `b` that is `wa` tiles wide at `a` and `wb` at `b`: the sweep of a
+ * disc whose radius changes linearly along the segment, so a tile is inside when some
+ * point of the segment is nearer to it than the width there. (Measuring only from the
+ * nearest point would leave a notch outside a bend where the band narrows: the sweep
+ * holds the whole disc at each end, as the plain stroke's round caps do.)
+ */
+function strokeTapered(a: Pt, b: Pt, wa: number, wb: number, put: (x: number, y: number) => void) {
+  const [ax, ay] = a, [bx, by] = b;
+  const half = Math.max(wa, wb) / 2;
+  const x0 = Math.floor(Math.min(ax, bx) - half) - 1, x1 = Math.ceil(Math.max(ax, bx) + half) + 1;
+  const y0 = Math.floor(Math.min(ay, by) - half) - 1, y1 = Math.ceil(Math.max(ay, by) + half) + 1;
+  const vx = bx - ax, vy = by - ay, ha = wa / 2, dh = (wb - wa) / 2;
+  // |P − S(t)|² − h(t)² is a quadratic in t; the band holds P when its least value on [0, 1] is not positive.
+  const qa = vx * vx + vy * vy - dh * dh;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const fx = x + 0.5 - ax, fy = y + 0.5 - ay;
+    const qb = -2 * (fx * vx + fy * vy) - 2 * ha * dh, qc = fx * fx + fy * fy - ha * ha;
+    const g = (t: number) => (qa * t + qb) * t + qc;
+    const t = qa > 0 ? Math.max(0, Math.min(1, -qb / (2 * qa))) : g(0) <= g(1) ? 0 : 1;
+    if (g(t) <= 0) put(x, y);
+  }
+}
+
 /** A band of `width` tiles along a polyline: every tile whose centre is within width / 2 of a segment. */
 function strokePolyline(pts: Pt[], width: number, put: (x: number, y: number) => void) {
   const half = width / 2;
@@ -362,6 +523,8 @@ export function shapeText(s: Shape): string {
   if (s.ramps?.length) parts.push(`ramps ${s.ramps.join(",")}`);
   if (s.side) parts.push(`side ${s.side}`);
   if (s.along) parts.push(`along ${s.along}`);
+  if (s.bridges?.length) parts.push(`bridges ${s.bridges.map((b) => (Array.isArray(b) ? b.join(",") : `${b.x},${b.y}${b.along ? ` ${b.along}` : ""}`)).join(" ")}`);
+  if (s.bank !== undefined) parts.push(`bank ${s.bank}${s.bankWidth !== undefined ? ` ${s.bankWidth} wide` : ""}`);
   return parts.join(" ");
 }
 
@@ -375,6 +538,7 @@ export function shiftShapes(shapes: readonly Shape[], dx: number, dy: number): S
     if (typeof s.cx === "number") out.cx = s.cx + dx;
     if (typeof s.cy === "number") out.cy = s.cy + dy;
     if (s.points) out.points = s.points.map(([x, y]) => [x + dx, y + dy] as [number, number]);
+    if (s.bridges) out.bridges = s.bridges.map((b) => (Array.isArray(b) ? [b[0] + dx, b[1] + dy] as [number, number] : { ...b, x: b.x + dx, y: b.y + dy }));
     return out;
   });
 }

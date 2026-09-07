@@ -85,8 +85,9 @@ terrain from the plugin itself, from the design's few numbers, with no
 call at all; otherwise the terrain comes as *shapes* — plateaus, lanes, rivers, arenas in map tiles — which the
 plugin compiles and the editor's brush draws, so a lane is continuous and a plateau that
 asks for a ramp gets one where the editor's placement check says the ramp fits (ramps go
-down south-west or south-east, as the game's do); bridges the same way, over a channel
-painted for them, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers,
+down south-west or south-east, as the game's do); a river that names its bridges bends
+onto the diagonal a bridge spans at each one, narrows to the channel and gets the bridge,
+so the water reaches it from both sides, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers,
 spawn cycles, kill-to-cash, income, waves, lives, shops, heal spots, respawn, teleports,
 kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, escalation stages, a bound's obstacles and checkpoints, rescue by
 touch — are built by code from their parameters, instantly and the same way every time;
@@ -169,7 +170,7 @@ ramp in the north-west", "a river with a bridge"), fits a ramp or a bridge on gr
 already there, lays a base's mineral line and geyser round a town hall the way the
 Melee Wizard does — on the ring the game mines fastest from, skipping ground the editor
 refuses, turned to the nearest open side when the asked one has none — tells you whether
-units can walk from one place to another, and checks
+units can walk from one place to another (and, without the bridges, whether a river holds), and checks
 the game's silent rules — a player who owns nothing is defeated at once — and fixes
 them when asked. Every tool call shows as a row in
 the transcript with its result on hover, screenshots inline; each edit is its own undo

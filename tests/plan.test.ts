@@ -30,6 +30,10 @@ describe("checkPlan", () => {
     expect(p.grid[0]).toBe("..?.");
     expect(problems).toHaveLength(2);
   });
+  it("does not count the cells a shape plan left alone as unknown characters", () => {
+    const { problems } = checkPlan(plan({ legend: { ".": 2 }, grid: ["..??", "????", "????", "????"] }), ctx);
+    expect(problems).toEqual([]);
+  });
   it("keeps coordinates on the map and drops nonsense", () => {
     const { plan: p, problems } = checkPlan(plan({
       bases: [{ kind: "main", x: 14, y: 15, mineralDirection: "up" as never, minerals: 30, geysers: 5 }],
