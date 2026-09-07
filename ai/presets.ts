@@ -233,6 +233,152 @@ const PRESETS: Preset[] = [
       return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
     },
   },
+  {
+    spec: {
+      id: "arena",
+      description: "A walled arena in the middle of the map — a floor of plain ground ringed by water or cliff that nothing crosses on foot — with a spawn spot inside it on each player's side and a lobby for each player outside, where their start location is. Micro arenas, duels, round-based fights, hero arenas.",
+      params: [
+        P("size", "the arena's width in tiles (default half the map)"),
+        P("sides", "2 (west and east) or 4 (west, east, north, south) spawn sides (default: 2 for up to two players, else 4)"),
+        P("wall", "what rings the arena: water (default) or cliff"),
+      ],
+      locations: ["Arena", "Centre", "Spawn {p}", "Lobby {p}"],
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const humans = ctx.humans.length ? ctx.humans : [1, 2];
+      const size = r.int("size", Math.round(Math.min(W, H) / 2), 16, Math.min(W, H) - 24);
+      const sides = r.int("sides", humans.length <= 2 ? 2 : 4, 2, 4) >= 3 ? 4 : 2;
+      const wall = r.choice("wall", ["water", "cliff"] as const, "water");
+      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
+      const cx = W / 2, cy = H / 2, half = size / 2, ring = 5;
+      const shapes: Shape[] = [
+        { op: "ground", terrain: roles.ground },
+        { op: "rect", terrain: wallTerrain, x: cx - half - ring, y: cy - half / 2 - ring, w: size + 2 * ring, h: half + 2 * ring, cut: 3 },
+        { op: "rect", terrain: roles.dress, x: cx - half, y: cy - half / 2, w: size, h: half, cut: 2 },
+      ];
+      const locations: Loc[] = [loc("Arena", cx - half, cy - half / 2, size, half), loc("Centre", cx - 4, cy - 3, 8, 6)];
+      const units: MapPlan["units"] = [];
+      // Spawn spots just inside the wall on each side; lobbies just outside, in the same order.
+      const inner: [number, number][] = [[cx - half + 6, cy], [cx + half - 6, cy], [cx, cy - half / 2 + 5], [cx, cy + half / 2 - 5]];
+      const outer: [number, number][] = [[cx - half - ring - 10, cy], [cx + half + ring + 10, cy], [cx, cy - half / 2 - ring - 8], [cx, cy + half / 2 + ring + 8]];
+      humans.forEach((p, i) => {
+        const side = i % sides;
+        const [sx, sy] = inner[side], [lx, ly] = outer[side];
+        const shift = Math.floor(i / sides) * 8;
+        locations.push(loc(`Spawn ${p}`, sx - 3 + shift, sy - 3, 6, 6));
+        locations.push(loc(`Lobby ${p}`, lx - 5 + shift, ly - 4, 10, 8));
+        units.push(start(p, lx + shift, ly));
+      });
+      return { shapes, locations, units, notes: [`an arena ${size} wide ringed by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, spawns on ${sides} sides, lobbies outside`] };
+    },
+  },
+  {
+    spec: {
+      id: "bound",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots — small boxes on the path, evenly spaced — for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
+      params: [
+        P("width", "the path's width in tiles (default 4)"),
+        P("legs", "how many times the path crosses the map, 2–8 (default 5)"),
+        P("checkpoints", "checkpoints along the path (default 4)"),
+        P("spots", "explosion spots along the path (default 16)"),
+      ],
+      locations: ["Start", "Finish", "Checkpoint {n}", "Spot {n}"],
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const width = r.int("width", 4, 3, 8);
+      const legs = r.int("legs", 5, 2, 8);
+      const checkpoints = r.int("checkpoints", 4, 0, 12);
+      const spots = r.int("spots", 16, 0, 60);
+      const fill = roles.water ?? roles.dress;
+      const m = 8;
+      // Back and forth: leg 0 runs east along the bottom, leg 1 west one band up, and so on.
+      const band = (H - 2 * m) / (legs - 1);
+      const pts: [number, number][] = [];
+      for (let i = 0; i < legs; i++) {
+        const y = H - m - i * band;
+        const left: [number, number] = [m, y], right: [number, number] = [W - m, y];
+        pts.push(...(i % 2 === 0 ? [left, right] : [right, left]));
+      }
+      const shapes: Shape[] = [
+        { op: "ground", terrain: fill },
+        { op: "stroke", terrain: roles.ground, points: pts, width },
+        { op: "diamond", terrain: roles.ground, cx: pts[0][0], cy: pts[0][1], rx: 8, ry: 4 },
+        { op: "diamond", terrain: roles.ground, cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], rx: 8, ry: 4 },
+      ];
+      // Points along the path at a fraction of its length.
+      const segs: { a: [number, number]; b: [number, number]; len: number }[] = [];
+      let total = 0;
+      for (let i = 0; i + 1 < pts.length; i++) { const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); segs.push({ a: pts[i], b: pts[i + 1], len }); total += len; }
+      const along = (f: number): [number, number] => {
+        let d = f * total;
+        for (const s of segs) { if (d <= s.len) { const t = s.len ? d / s.len : 0; return [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t]; } d -= s.len; }
+        return pts[pts.length - 1];
+      };
+      const locations: Loc[] = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
+      for (let n = 1; n <= checkpoints; n++) { const [x, y] = along(n / (checkpoints + 1)); locations.push(loc(`Checkpoint ${n}`, x - 2, y - 2, 4, 4)); }
+      for (let n = 1; n <= spots; n++) { const [x, y] = along((n - 0.5) / spots); locations.push(loc(`Spot ${n}`, x - 1, y - 1, 2, 2)); }
+      const humans = ctx.humans.length ? ctx.humans : [1];
+      const units = humans.map((p, i) => start(p, pts[0][0] - 2 + (i % 4) * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
+      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs from the bottom-left to the top-right, ${checkpoints} checkpoints, ${spots} spots; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
+    },
+  },
+  {
+    spec: {
+      id: "town-regions",
+      description: "An RPG's world: a town on one corner of a map of water — with a shop spot and a heal spot — and a chain of regions of rising danger joined by paths, each region a broad island with a gate where its path arrives, the last region the boss room in the far corner. Start locations in the town. Linear RPGs, adventure maps, dungeon crawls.",
+      params: [
+        P("regions", "regions between the town and the boss room, 1–6 (default 3)"),
+        P("boss", "yes (default) or no: a boss room at the end"),
+        P("town", "which corner holds the town: sw (default), nw, se, ne"),
+      ],
+      locations: ["Town", "Shop", "Heal", "Region {n}", "Gate {n}", "Path {n}", "Boss Room"],
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const regions = r.int("regions", 3, 1, 6);
+      const boss = r.choice("boss", ["yes", "no"] as const, "yes") === "yes";
+      const corner = r.choice("town", ["sw", "nw", "se", "ne"] as const, "sw");
+      const fill = roles.water ?? roles.dress;
+      const m = 14;
+      const townAt: [number, number] = [corner.includes("w") ? m + 6 : W - m - 6, corner.includes("s") ? H - m - 4 : m + 4];
+      const endAt: [number, number] = [corner.includes("w") ? W - m - 6 : m + 6, corner.includes("s") ? m + 4 : H - m - 4];
+      // The chain of blobs: the town, the regions, the boss room, spread along a gentle zigzag from corner to corner.
+      const stops = regions + (boss ? 2 : 1);
+      const centres: [number, number][] = [];
+      for (let i = 0; i < stops; i++) {
+        const t = i / (stops - 1);
+        const wobble = (i % 2 ? 1 : -1) * Math.min(12, W / 10) * (i === 0 || i === stops - 1 ? 0 : 1);
+        centres.push([townAt[0] + (endAt[0] - townAt[0]) * t + wobble * (corner.includes("s") ? 1 : -1) * 0.5, townAt[1] + (endAt[1] - townAt[1]) * t + wobble * 0.5]);
+      }
+      const shapes: Shape[] = [{ op: "ground", terrain: fill }];
+      for (let i = 0; i + 1 < centres.length; i++) shapes.push({ op: "stroke", terrain: roles.ground, points: [centres[i], centres[i + 1]], width: 6 });
+      const rx = Math.min(18, W / 7), ry = rx / 2;
+      centres.forEach(([x, y], i) => {
+        const big = i === 0 ? 1.3 : 1;
+        shapes.push({ op: "diamond", terrain: roles.ground, cx: x, cy: y, rx: rx * big, ry: ry * big });
+        if (i > 0) shapes.push({ op: "diamond", terrain: roles.dress, cx: x, cy: y, rx: rx * 0.5, ry: ry * 0.5 });
+      });
+      const locations: Loc[] = [];
+      const [tx, ty] = centres[0];
+      locations.push(loc("Town", tx - rx * 1.3, ty - ry * 1.3, rx * 2.6, ry * 2.6));
+      locations.push(loc("Shop", tx - rx * 0.8, ty - 1, 3, 3), loc("Heal", tx + rx * 0.8 - 3, ty - 1, 3, 3));
+      centres.slice(1).forEach(([x, y], i) => {
+        const n = i + 1;
+        const last = boss && n === centres.length - 1;
+        locations.push(loc(last ? "Boss Room" : `Region ${n}`, x - rx, y - ry, rx * 2, ry * 2));
+        // The gate: where the path from the previous stop arrives.
+        const [px, py] = centres[i];
+        const gx = x + (px - x) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2))), gy = y + (py - y) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2)));
+        if (!last) locations.push(loc(`Gate ${n}`, gx - 3, gy - 2, 6, 4));
+        locations.push(loc(`Path ${n}`, Math.min(px, x) - 2, Math.min(py, y) - 2, Math.abs(px - x) + 4, Math.abs(py - y) + 4));
+      });
+      const humans = ctx.humans.length ? ctx.humans : [1];
+      const units = humans.map((p, i) => start(p, tx - 3 + (i % 4) * 2, ty + 3 + Math.floor(i / 4) * 2));
+      return { shapes, locations, units, notes: [`a town in the ${corner} corner, ${regions} region${regions === 1 ? "" : "s"} along a path${boss ? " and a boss room" : ""} toward the far corner; water between${roles.water === null ? " (no water: unbuildable ground)" : ""}`] };
+    },
+  },
 ];
 
 export function presetSpecs(): LayoutPresetSpec[] {

@@ -207,7 +207,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
       if (d.allowed?.length && !onFlatGround(api, tx, d, d.allowed)) { refusedGround++; continue; }
       if (tx.placeDoodad(d.doodadId, d.tx, d.ty) >= 0) placed.doodads++;
     }
-    if (refusedGround > 0) findings.push(`${refusedGround} doodad${refusedGround === 1 ? "" : "s"} skipped: the ground the brush drew there was a shore, a cliff or another terrain`);
+    if (refusedGround > 0) findings.push(`decoration: ${refusedGround} spot${refusedGround === 1 ? "" : "s"} left bare where the ground turned out to be shore, cliff or another terrain`);
 
     // Locations.
     for (const l of plan.locations) {
@@ -217,7 +217,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
     }
   });
 
-  findings.push(...result.notes.filter((n) => !findings.includes(n)));
+  findings.push(...result.notes.filter((n) => n.trim() && !findings.includes(n)));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
 }

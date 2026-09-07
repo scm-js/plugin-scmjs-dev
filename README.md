@@ -80,7 +80,8 @@ step, each step a row that passes or fails on its own: the map, the terrain and 
 locations (the long step, with its clock and the model's reasoning under the rows),
 players and forces, every system, the objectives and briefing, the name, Check Map. A
 design that fits a *layout preset* (corner camps around an arena, lanes from spawns to
-a goal) gets its terrain from the plugin itself, from the design's few numbers, with no
+a goal, a walled arena, a bound's course, a town with a chain of regions) gets its
+terrain from the plugin itself, from the design's few numbers, with no
 call at all; otherwise the terrain comes as *shapes* — plateaus, lanes, rivers, arenas in map tiles — which the
 plugin compiles and the editor's brush draws, so a lane is continuous and a plateau that
 asks for a ramp gets one where the editor's placement check says the ramp fits (ramps go

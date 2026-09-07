@@ -482,7 +482,8 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         buildButton.setBusy(false);
         redesignButton.setBusy(false);
         // Notes, not failures: what a step assumed, skipped or wants looked at. A failed step is its own red row.
-        if (findings.length) findingsBox.replaceChildren(h("details", { open: failed > 0 }, h("summary", null, `${findings.length} note${findings.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(findings))));
+        const notes = findings.filter((f) => f.trim());
+        if (notes.length) findingsBox.replaceChildren(h("details", { open: failed > 0 }, h("summary", null, `${notes.length} note${notes.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(notes))));
         afterBox.replaceChildren(
           w.button("Review it…", { onClick: () => { dialog.close(); openReview(ctx); } }),
           w.button("Open the assistant", { onClick: () => { dialog.close(); api.commands.run("ask", `I just built the scenario "${d.name}" (${d.genre}) from a design: ${d.systems.map((s) => s.name).join(", ")}. Look it over and tell me what to fix first.`); } }),
