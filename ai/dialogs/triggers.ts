@@ -1,12 +1,12 @@
 /**
  * Tools ▸ AI ▸ Write Triggers…: a trigger script from a description. The model gets
  * the map's own `.d.ts` (every unit, location, switch and player by name) and writes
- * the Trigger Script plugin's TypeScript-subset script; the dialog compiles it there, sends the
+ * a TrigScript; the dialog checks and runs it there, sends the
  * compiler's complaints back for up to two repair rounds, shows the script, and
- * Build installs it the way the Script Editor's Build does.
+ * Build installs it the way TrigScript's own Build does.
  */
 import type { TriggersInput } from "../../protocol";
-import { NO_SCRIPT_PLUGIN, scriptBridge, type CompileResult } from "../script";
+import { describeDiagnostic, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
 
 const REPAIR_ROUNDS = 2;
@@ -37,13 +37,13 @@ export function openTriggers(ctx: Ctx) {
       const diagnostics = h("div", null);
       const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
       const checkButton = w.button("Check", { onClick: () => void check() });
-      const openEditor = w.button("Open Script Editor", { ghost: true, onClick: () => bridge.open() });
+      const openEditor = w.button("Open TrigScript", { ghost: true, onClick: () => bridge.open() });
       const after = h("div", { className: "ai-btns", hidden: true }, buildButton, checkButton, openEditor);
 
       const showDiagnostics = (r: CompileResult) => {
         diagnostics.replaceChildren();
-        if (r.ok) { diagnostics.append(h("div", { className: "ai-ok" }, `Compiles: ${r.triggers.length} trigger${r.triggers.length === 1 ? "" : "s"}${r.program ? `, a structured program of ${r.program.count} triggers` : ""}.`)); return; }
-        diagnostics.append(h("div", { className: "ai-bad" }, `${r.diagnostics.length} error${r.diagnostics.length === 1 ? "" : "s"}:`), noteList(r.diagnostics.map((d) => `line ${d.line}:${d.column} — ${d.message}`), "ai-bad"));
+        if (r.ok) { diagnostics.append(h("div", { className: "ai-ok" }, `Compiles: ${r.triggers.length} trigger${r.triggers.length === 1 ? "" : "s"}${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n, p) => n + p.count, 0)} triggers` : ""}.`)); return; }
+        diagnostics.append(h("div", { className: "ai-bad" }, `${r.diagnostics.length} error${r.diagnostics.length === 1 ? "" : "s"}:`), noteList(r.diagnostics.map(describeDiagnostic), "ai-bad"));
       };
 
       const check = async (): Promise<CompileResult | null> => {
@@ -60,7 +60,7 @@ export function openTriggers(ctx: Ctx) {
 
       const generate = async () => {
         if (!state.prompt.trim()) { promptField.focus(); runner.idle("Say what the triggers should do first."); return; }
-        const declarations = bridge.declarations();
+        const declarations = bridge.declarations({ compact: true });
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input: TriggersInput = {
           prompt: state.prompt,
@@ -78,7 +78,7 @@ export function openTriggers(ctx: Ctx) {
         let compiled = await check();
         for (let round = 0; compiled && !compiled.ok && round < REPAIR_ROUNDS; round++) {
           runner.idle(`The script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"}; asking for a repair (${round + 1} of ${REPAIR_ROUNDS})…`);
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map((d) => ({ line: d.line, column: d.column, message: d.message })) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
           if (!r) return;
           script = r.output.script;
           state.script = script;
@@ -88,7 +88,7 @@ export function openTriggers(ctx: Ctx) {
           compiled = await check();
         }
         after.hidden = false;
-        if (compiled && !compiled.ok) runner.idle("The script still has errors. Fix them here or in the Script Editor, then Build.");
+        if (compiled && !compiled.ok) runner.idle("The script still has errors. Fix them here or in TrigScript, then Build.");
       };
 
       const build = async () => {
@@ -97,7 +97,7 @@ export function openTriggers(ctx: Ctx) {
         state.compiled = r.compiled;
         showDiagnostics(r.compiled);
         if (r.block) {
-          runner.idle(`Built ${r.block.count} trigger${r.block.count === 1 ? "" : "s"} into the map (#${r.block.start + 1}–#${r.block.start + r.block.count}). The source is kept with the map; the Script Editor shows it.`);
+          runner.idle(`Built ${r.block.count} trigger${r.block.count === 1 ? "" : "s"} into the map (#${r.block.start + 1}–#${r.block.start + r.block.count}). The source is kept with the map; TrigScript shows it.`);
           api.ui.status(`AI: built ${r.block.count} triggers from the script.`);
         } else runner.idle("Not built: the script has errors.");
       };

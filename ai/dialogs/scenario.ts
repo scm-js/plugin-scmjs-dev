@@ -25,7 +25,7 @@ import { START_LOCATION, TILE, centreOf } from "../layout";
 import { buildPreset, presetSpecs, PresetError } from "../presets";
 import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
-import { compactTriggers, hasScriptPlugin, scriptBridge, trimDeclarations, type CompileResult } from "../script";
+import { compactTriggers, hasScriptPlugin, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { toolkitContext, addSystem } from "../tools/ums";
 import { paramsOf, systemKinds, ToolkitError } from "../ums";
 import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
@@ -143,7 +143,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
       };
       syncTarget();
       const designButton = w.button("Design", { primary: true, onClick: () => void design(false) });
-      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The Trigger Script plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, …). Turn it on under Plugins ▸ Manage Plugins… for custom mechanics.");
+      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, …). Turn it on under Plugins ▸ Manage Plugins… for custom mechanics.");
 
       /* ── 2. the design ── */
       const designBody = h("div", { className: "ai-body" });
@@ -274,23 +274,23 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
       /** Write one custom system as a trigger script: the recipe, the compile loop, the build (extending the map's script). */
       const writeCustom = async (system: DesignSystem, d: UmsDesign): Promise<string> => {
         const bridge = scriptBridge(api);
-        if (!bridge) throw new Error("the Trigger Script plugin is off");
+        if (!bridge) throw new Error("the TrigScript plugin is off");
         const existing = bridge.state();
         const prompt = `System "${system.name}" of the scenario "${d.name}" (${d.genre}). ${system.description}\n\nThe scenario's premise: ${d.premise}\nLocations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.\nHyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         // The declarations and the hand triggers as the model needs them — a third of what the compiler sees.
-        const input = { prompt, declarations: trimDeclarations(bridge.declarations()), script: existing?.source ?? undefined, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 30_000) : undefined };
+        const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? undefined, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 30_000) : undefined };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled: CompileResult = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map((x) => ({ line: x.line, column: x.column, message: x.message })) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
           if (!r) throw new Error("the model did not answer the repair");
           script = r.output.script;
           compiled = await bridge.compile(script);
         }
-        if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open the Script Editor to fix it`);
+        if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open TrigScript to fix it`);
         const built = await bridge.build(script, {});
         if (!built.block) throw new Error("the build failed");
         return `${built.block.count} triggers from a script: ${r.output.summary}`;

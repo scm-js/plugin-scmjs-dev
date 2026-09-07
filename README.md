@@ -109,14 +109,13 @@ give them no direction of their own; check them against the cliffs.
 a drag on the map. The model sees the area and a margin round it as it is now, plus a
 picture, so the edges join.
 
-**Write Triggers…** turns a description into a trigger script in the language of the
-[Trigger Script](https://github.com/scm-js/plugin-trigger-script) plugin, which has to be
-switched on (Plugins ▸ Browse Plugins…). The model is given this map's declarations, so it
-can name every unit, location and switch as the map calls them. The script is compiled
-here; if it does not compile, the compiler's complaints go back for up to two repair
-rounds. Build installs it exactly as the Script Editor's Build does, and the source stays
-with the map. It can extend the map's current script or replace every trigger with the
-script.
+**Write Triggers…** turns a description into a
+[TrigScript](https://github.com/scm-js/plugin-trigscript), whose plugin has to be switched
+on (Plugins ▸ Browse Plugins…). The model is given this map's declarations, so it can name
+every unit, location and switch as the map calls them. The script is checked and run here;
+if that fails, the complaints go back for up to two repair rounds. Build installs it
+exactly as TrigScript's own Build does, and the source stays with the map. It can extend
+the map's current script or replace every trigger with the script.
 
 **Explain Triggers…** walks through what the triggers (or a range of them, or the
 briefing) do in play, or answers a question about them. The text streams as it is

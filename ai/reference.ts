@@ -104,15 +104,18 @@ Actions:
   Preserve Trigger();
 }`;
 
-const SCRIPT_SHORT = `const beacon = Bring(CurrentPlayer, Units.AnyUnit, Locations["Beacon Alpha"], "At least", 1);
-trigger([P1, Players.Force2], [beacon], [DisplayText("Always Display", "You found it!"), PreserveTrigger()], ["Preserve"]);
+const SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations["Beacon Alpha"], ">=", 1);
+trigger([P1, players.Force2], [beacon], [displayText("You found it!"), preserve()]);
+for (const p of [P1, P2, P3]) trigger(p, [deaths(p, units.TerranMarine, ">=", 10)], [setDeaths(p, units.TerranMarine, "set", 0), displayText("Ten lost.")]);
 
-let wave = 0;                       // a death counter
-while (true) {                       // structured code compiles to death-counter triggers
-  if (Bring(P1, Units.AnyUnit, Locations.Beacon, ">=", 1)) { CreateUnit(P2, Units.ZergZergling, 4, Locations.Spawn); wave += 1; }
-  if (wave >= 10) Defeat();
-  Wait(2000);
-}`;
+program(() => {                      // runs in the game: a death-counter state machine
+  let wave = 0;                      // a death counter
+  while (true) {                     // one iteration per trigger cycle
+    if (bring(P1, units.AnyUnit, locations.Beacon, ">=", 1)) { createUnit(P2, units.ZergZergling, 4, locations.Spawn); wave += 1; }
+    if (wave >= 10) defeat();
+    wait(2000);
+  }
+}, { owner: P1 });`;
 
 export type ReferenceLayers = [game: string, tileset: string, map: string];
 
@@ -159,8 +162,8 @@ function gameLayer(p: ReferenceParts): string {
   out.push(TEXT_FORMAT);
   out.push("```");
   out.push("");
-  out.push("## Trigger script (compile_script, build_script)");
-  out.push("A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals.");
+  out.push("## TrigScript (compile_script, build_script)");
+  out.push("Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 … P8, every condition and action as a lower-case function; enumerated words are the short ones: \">=\", \"add\", \"set\"). program(() => { … }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches; if / while / for / functions inside; conditions in an if, actions as statements; everything read from outside is computed at build time, so a trigger argument cannot be a program variable.");
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");

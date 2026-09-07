@@ -1,42 +1,53 @@
 /**
- * The Trigger Script plugin's commands, typed: what the editor's `api.script` used to be
- * before the Script Editor became a plugin of its own. Plugins activate in no fixed
- * order and the user may have it switched off, so every use goes through `scriptBridge`
- * and says `NO_SCRIPT_PLUGIN` when it answers null.
+ * The TrigScript plugin's commands, typed: what the editor's `api.script` used to be
+ * before the scripting became a plugin of its own. Plugins activate in no fixed order
+ * and the user may have it switched off, so every use goes through `scriptBridge` and
+ * says `NO_SCRIPT_PLUGIN` when it answers null.
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { TriggerRecord } from "@scm-js/plugin-api";
 
-export const SCRIPT_PLUGIN = "trigger-script";
-export const NO_SCRIPT_PLUGIN = "The Trigger Script plugin is off. Turn it on under Plugins ▸ Manage Plugins… to write, compile or build trigger scripts.";
+export const SCRIPT_PLUGIN = "trigscript";
+export const NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins ▸ Manage Plugins… to write, check or build trigger scripts.";
 
 export interface ScriptDiagnostic {
+  /** The script file (`main.ts` for a one-file script). */
+  file: string;
   /** 1-based. */
   line: number;
   column: number;
   endLine: number;
   endColumn: number;
   message: string;
-  source: "typescript" | "compiler";
+  /** TypeScript's checker, the program compiler, or the script itself throwing when it ran. */
+  source: "typescript" | "compiler" | "script";
+}
+
+export interface TriggerSource {
+  file: string;
+  line: number;
 }
 
 export interface CompileResult {
   triggers: TriggerRecord[];
-  /** Per trigger, the 1-based line of its `trigger(` call or of the statement it came from. */
-  lines: number[];
+  /** Per trigger, where it came from; null for a hyper trigger. */
+  sources: (TriggerSource | null)[];
   diagnostics: ScriptDiagnostic[];
   variables: { name: string; kind: "number" | "boolean"; storage: string }[];
-  program: { owner: number; start: number; count: number; hyperTriggers: boolean } | null;
+  programs: { owner: number; start: number; count: number; source: TriggerSource }[];
   ok: boolean;
 }
 
 export interface ScriptBlock {
   start: number;
   count: number;
-  lines: number[];
+  sources: (TriggerSource | null)[];
 }
 
 export interface ScriptState {
+  /** Every file of the script by path; null when the map has none. */
+  files: Record<string, string> | null;
+  /** The entry file's text (`main.ts`); null when there is none. */
   source: string | null;
   block: ScriptBlock | null;
   /** A build exists but its records were edited or removed. */
@@ -51,23 +62,27 @@ export interface ScriptSimulation {
   switches: number[];
 }
 
+/** A script for a command: the entry file's text alone (the map's other files stay), or every file by path. */
+export type ScriptInput = string | Record<string, string>;
+
 export interface ScriptBridge {
   state(): ScriptState | null;
-  declarations(): string;
-  compile(source: string): Promise<CompileResult>;
-  build(source: string, options?: { takeOver?: boolean }): Promise<{ compiled: CompileResult; block: ScriptBlock | null }>;
-  print(triggers: TriggerRecord[]): string;
+  /** The generated `.d.ts`; `compact` is the shorter variant meant for a model. */
+  declarations(options?: { compact?: boolean }): string;
+  compile(source: ScriptInput): Promise<CompileResult>;
+  build(source: ScriptInput, options?: { takeOver?: boolean }): Promise<{ compiled: CompileResult; block: ScriptBlock | null }>;
+  print(triggers: TriggerRecord[], options?: { imports?: boolean; header?: string }): string;
   simulate(triggers: TriggerRecord[], cycles: number, options?: { player?: number }): ScriptSimulation;
-  triggerAtLine(line: number): number | null;
-  /** Open the Script Editor, on a line. */
-  open(line?: number): void;
+  triggerAt(file: string, line: number): number | null;
+  /** Open the TrigScript editor, on a file and line. */
+  open(file?: string, line?: number): void;
 }
 
 export function hasScriptPlugin(api: PluginApi): boolean {
   return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
 }
 
-/** The bridge, or null while the Trigger Script plugin is off. */
+/** The bridge, or null while the TrigScript plugin is off. */
 export function scriptBridge(api: PluginApi): ScriptBridge | null {
   if (!hasScriptPlugin(api)) return null;
   const run = (name: string, ...args: unknown[]) => api.commands.run(`${SCRIPT_PLUGIN}.${name}`, ...args);
@@ -78,45 +93,26 @@ export function scriptBridge(api: PluginApi): ScriptBridge | null {
   };
   return {
     state: () => (run("state") as ScriptState | null | undefined) ?? null,
-    declarations: () => String(run("declarations") ?? ""),
+    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
     compile: (source) => async("compile", source),
     build: (source, options) => async("build", source, options ?? {}),
-    print: (triggers) => String(run("print", triggers) ?? ""),
+    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
     simulate: (triggers, cycles, options) => (run("simulate", triggers, cycles, options ?? {}) as ScriptSimulation | undefined) ?? { cycles: 0, events: [], switches: [] },
-    triggerAtLine: (line) => (run("triggerAtLine", line) as number | null | undefined) ?? null,
-    open: (line) => { run("open", line ? { line } : {}); },
+    triggerAt: (file, line) => (run("triggerAt", file, line) as number | null | undefined) ?? null,
+    open: (file, line) => { run("open", { file, line }); },
   };
 }
 
-/**
- * The declarations as the model needs them, not as the compiler does. The generated file
- * lists every name twice (a camel-case constant and the StarEdit name in quotes), all 256
- * switches and every AI script — 72k characters, of which the model reads a few. The
- * compiler still checks the script against the whole file, so a name trimmed here that
- * the model uses anyway still compiles. Units keep their camel-case constants (the quoted
- * form is a rule, stated once); switches keep the first sixteen and every named one; AI
- * scripts become an index signature.
- */
-export function trimDeclarations(text: string): string {
-  let out = text;
-  // Units: drop the quoted twins.
-  out = out.replace(/(declare const Units: \{\n)([\s\S]*?)(\n\};)/, (_m, head: string, body: string, tail: string) => {
-    const kept = body.split("\n").filter((line) => !/^\s*readonly "/.test(line));
-    return `${head}  // Every unit is also indexable by its StarEdit name: Units["Terran Marine"].\n${kept.join("\n")}${tail}`;
-  });
-  // Switches: the first sixteen numbered ones and every named one.
-  out = out.replace(/(declare const Switches: \{\n)([\s\S]*?)(\n\};)/, (_m, head: string, body: string, tail: string) => {
-    const kept = body.split("\n").filter((line) => {
-      const m = /^\s*readonly (?:"?)(Switch ?(\d+))"?:/.exec(line);
-      if (!m) return true;
-      return Number(m[2]) <= 16 && !line.includes('"');
-    });
-    return `${head}  // Switch1 … Switch256 exist; the first sixteen are listed. A switch given a name in the map is listed by that name.\n${kept.join("\n")}${tail}`;
-  });
-  // AI scripts: any name goes; the list is long and rarely wanted.
-  out = out.replace(/declare const AiScripts: \{\n[\s\S]*?\n\};/, "declare const AiScripts: { readonly [name: string]: AiScriptId<number> }; // every StarEdit AI script by its name (\"Terran Custom Level\") or four-letter code");
-  return out;
+/** "line 12" or "waves.ts line 12": where a diagnostic is, for a message or a repair round. */
+export function describeDiagnostic(d: ScriptDiagnostic): string {
+  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} — ${d.message}`;
 }
+
+/** A diagnostic as the `triggers` recipe's repair round takes it: the file folded into the message when it is not the entry. */
+export function repairDiagnostic(d: ScriptDiagnostic): { line: number; column: number; message: string } {
+  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
+}
+
 
 /** Trigger text with runs of identical lines folded — three hyper triggers are 186 lines of Wait(0). */
 export function compactTriggers(text: string): string {

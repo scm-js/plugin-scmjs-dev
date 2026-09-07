@@ -1279,8 +1279,8 @@ function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
 }
 
 // ai/script.ts
-var SCRIPT_PLUGIN = "trigger-script";
-var NO_SCRIPT_PLUGIN = "The Trigger Script plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, compile or build trigger scripts.";
+var SCRIPT_PLUGIN = "trigscript";
+var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
 function hasScriptPlugin(api) {
   return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
 }
@@ -1294,35 +1294,22 @@ function scriptBridge(api) {
   };
   return {
     state: () => run("state") ?? null,
-    declarations: () => String(run("declarations") ?? ""),
+    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
     compile: (source) => async("compile", source),
     build: (source, options) => async("build", source, options ?? {}),
-    print: (triggers) => String(run("print", triggers) ?? ""),
+    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
     simulate: (triggers, cycles, options) => run("simulate", triggers, cycles, options ?? {}) ?? { cycles: 0, events: [], switches: [] },
-    triggerAtLine: (line) => run("triggerAtLine", line) ?? null,
-    open: (line) => {
-      run("open", line ? { line } : {});
+    triggerAt: (file, line) => run("triggerAt", file, line) ?? null,
+    open: (file, line) => {
+      run("open", { file, line });
     }
   };
 }
-function trimDeclarations(text) {
-  let out = text;
-  out = out.replace(/(declare const Units: \{\n)([\s\S]*?)(\n\};)/, (_m, head, body, tail) => {
-    const kept = body.split("\n").filter((line) => !/^\s*readonly "/.test(line));
-    return `${head}  // Every unit is also indexable by its StarEdit name: Units["Terran Marine"].
-${kept.join("\n")}${tail}`;
-  });
-  out = out.replace(/(declare const Switches: \{\n)([\s\S]*?)(\n\};)/, (_m, head, body, tail) => {
-    const kept = body.split("\n").filter((line) => {
-      const m = /^\s*readonly (?:"?)(Switch ?(\d+))"?:/.exec(line);
-      if (!m) return true;
-      return Number(m[2]) <= 16 && !line.includes('"');
-    });
-    return `${head}  // Switch1 \u2026 Switch256 exist; the first sixteen are listed. A switch given a name in the map is listed by that name.
-${kept.join("\n")}${tail}`;
-  });
-  out = out.replace(/declare const AiScripts: \{\n[\s\S]*?\n\};/, 'declare const AiScripts: { readonly [name: string]: AiScriptId<number> }; // every StarEdit AI script by its name ("Terran Custom Level") or four-letter code');
-  return out;
+function describeDiagnostic(d) {
+  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
+}
+function repairDiagnostic(d) {
+  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
 }
 function compactTriggers(text) {
   const lines = text.split("\n");
@@ -1819,15 +1806,18 @@ Actions:
   ; Set Switch("Switch 3", clear);
   Preserve Trigger();
 }`;
-var SCRIPT_SHORT = `const beacon = Bring(CurrentPlayer, Units.AnyUnit, Locations["Beacon Alpha"], "At least", 1);
-trigger([P1, Players.Force2], [beacon], [DisplayText("Always Display", "You found it!"), PreserveTrigger()], ["Preserve"]);
+var SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations["Beacon Alpha"], ">=", 1);
+trigger([P1, players.Force2], [beacon], [displayText("You found it!"), preserve()]);
+for (const p of [P1, P2, P3]) trigger(p, [deaths(p, units.TerranMarine, ">=", 10)], [setDeaths(p, units.TerranMarine, "set", 0), displayText("Ten lost.")]);
 
-let wave = 0;                       // a death counter
-while (true) {                       // structured code compiles to death-counter triggers
-  if (Bring(P1, Units.AnyUnit, Locations.Beacon, ">=", 1)) { CreateUnit(P2, Units.ZergZergling, 4, Locations.Spawn); wave += 1; }
-  if (wave >= 10) Defeat();
-  Wait(2000);
-}`;
+program(() => {                      // runs in the game: a death-counter state machine
+  let wave = 0;                      // a death counter
+  while (true) {                     // one iteration per trigger cycle
+    if (bring(P1, units.AnyUnit, locations.Beacon, ">=", 1)) { createUnit(P2, units.ZergZergling, 4, locations.Spawn); wave += 1; }
+    if (wave >= 10) defeat();
+    wait(2000);
+  }
+}, { owner: P1 });`;
 function buildReferenceLayers(p) {
   return [gameLayer(p), tilesetLayer(p), mapLayer(p)];
 }
@@ -1864,8 +1854,8 @@ function gameLayer(p) {
   out.push(TEXT_FORMAT);
   out.push("```");
   out.push("");
-  out.push("## Trigger script (compile_script, build_script)");
-  out.push("A TypeScript subset. Read script_declarations once for this map's names (Units.*, Locations.*, Switches.*, Players.*, every condition and action as a function). Raw triggers are trigger(players, conditions, actions, flags?); any other top-level code (let, if, while, functions) is lowered to death-counter triggers. Every argument must be a compile-time constant; there is no Math and no arrays beyond literals.");
+  out.push("## TrigScript (compile_script, build_script)");
+  out.push(`Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 \u2026 P8, every condition and action as a lower-case function; enumerated words are the short ones: ">=", "add", "set"). program(() => { \u2026 }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches; if / while / for / functions inside; conditions in an if, actions as statements; everything read from outside is computed at build time, so a trigger argument cannot be a program variable.`);
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");
@@ -5022,39 +5012,39 @@ ${text}`, 3e4);
 function scriptTools() {
   return [
     {
-      def: { name: "script_state", description: "The map's trigger script: whether there is one, its source, whether the built block is intact.", inputSchema: obj({}) },
+      def: { name: "script_state", description: "The map's TrigScript: whether there is one, its files, whether the built block is intact.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
         const s = script.state();
-        return s ? capResult({ hasScript: !!s.source, stale: s.stale, unbuilt: s.unbuilt, block: s.block, source: s.source }, 6e4) : "No map is open.";
+        return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 6e4) : "No map is open.";
       }
     },
     {
-      def: { name: "script_declarations", description: "The script language's declarations for this map (a .d.ts): every unit, location, switch, player and every condition and action function. Long; read once before writing a script.", inputSchema: obj({}) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
-        const d = script.declarations();
+        const d = script.declarations({ compact: true });
         return d.length > 6e4 ? `${d.slice(0, 6e4)}
 \u2026 cut.` : d;
       }
     },
     {
-      def: { name: "compile_script", description: "Type-check a trigger script (the Trigger Script plugin's TypeScript-subset language; read script_declarations first) without building it. Returns diagnostics or the trigger count.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      def: { name: "compile_script", description: "Check a TrigScript (ordinary TypeScript that runs to record triggers; read script_declarations first) without building it: type-check it, run it, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts; the map's other script files stay as they are.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
       describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
         const r = await script.compile(str(input.source));
-        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.program ? `, structured program of ${r.program.count}` : ""}.` : capResult({ errors: r.diagnostics.map((d) => `${d.line}:${d.column} ${d.message}`) });
+        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n2, p) => n2 + p.count, 0)}` : ""}.` : capResult({ errors: r.diagnostics.map(describeDiagnostic) });
       }
     },
     {
-      def: { name: "build_script", description: "Compile a trigger script and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger \u2014 ask first). Stores the source with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger \u2014 ask first). Stores the source with the map as main.ts. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
@@ -5062,7 +5052,7 @@ function scriptTools() {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map((d) => `${d.line}:${d.column} ${d.message}`) });
+        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) });
       }
     },
     {
@@ -5533,7 +5523,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "simulate_triggers", description: "Run the map's triggers through the Trigger Script plugin's trigger-cycle interpreter for some cycles (Deaths, Switches, Always and Never are modelled; other conditions count as false) and report the actions that fired and the switches set at the end. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
+      def: { name: "simulate_triggers", description: "Run the map's triggers through the TrigScript plugin's trigger-cycle interpreter for some cycles (Deaths, Switches, Always and Never are modelled; other conditions count as false) and report the actions that fired and the switches set at the end. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
       describe: (input) => `Simulate the triggers for ${plural(num(input.cycles, 30), "cycle")}`,
       writes: false,
       run: (input, { api }) => {
@@ -7924,7 +7914,7 @@ function openScenario(ctx, presetPrompt) {
       };
       syncTarget();
       const designButton = w.button("Design", { primary: true, onClick: () => void design(false) });
-      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The Trigger Script plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.");
+      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.");
       const designBody = h("div", { className: "ai-body" });
       const designSummary = h("summary", null, "The design");
       const designBox = h("details", { className: "ai-fold", hidden: true, open: true }, designSummary, designBody);
@@ -8080,7 +8070,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
       };
       const writeCustom = async (system, d) => {
         const bridge = scriptBridge(api);
-        if (!bridge) throw new Error("the Trigger Script plugin is off");
+        if (!bridge) throw new Error("the TrigScript plugin is off");
         const existing = bridge.state();
         const prompt = `System "${system.name}" of the scenario "${d.name}" (${d.genre}). ${system.description}
 
@@ -8088,18 +8078,18 @@ The scenario's premise: ${d.premise}
 Locations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.
 Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
-        const input = { prompt, declarations: trimDeclarations(bridge.declarations()), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0 };
+        const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0 };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map((x) => ({ line: x.line, column: x.column, message: x.message })) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
           if (!r) throw new Error("the model did not answer the repair");
           script = r.output.script;
           compiled = await bridge.compile(script);
         }
-        if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open the Script Editor to fix it`);
+        if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open TrigScript to fix it`);
         const built = await bridge.build(script, {});
         if (!built.block) throw new Error("the build failed");
         return `${built.block.count} triggers from a script: ${r.output.summary}`;
@@ -8526,15 +8516,15 @@ function openTriggers(ctx) {
       const diagnostics = h("div", null);
       const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
       const checkButton = w.button("Check", { onClick: () => void check() });
-      const openEditor = w.button("Open Script Editor", { ghost: true, onClick: () => bridge.open() });
+      const openEditor = w.button("Open TrigScript", { ghost: true, onClick: () => bridge.open() });
       const after = h("div", { className: "ai-btns", hidden: true }, buildButton, checkButton, openEditor);
       const showDiagnostics = (r) => {
         diagnostics.replaceChildren();
         if (r.ok) {
-          diagnostics.append(h("div", { className: "ai-ok" }, `Compiles: ${r.triggers.length} trigger${r.triggers.length === 1 ? "" : "s"}${r.program ? `, a structured program of ${r.program.count} triggers` : ""}.`));
+          diagnostics.append(h("div", { className: "ai-ok" }, `Compiles: ${r.triggers.length} trigger${r.triggers.length === 1 ? "" : "s"}${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n2, p) => n2 + p.count, 0)} triggers` : ""}.`));
           return;
         }
-        diagnostics.append(h("div", { className: "ai-bad" }, `${r.diagnostics.length} error${r.diagnostics.length === 1 ? "" : "s"}:`), noteList(r.diagnostics.map((d) => `line ${d.line}:${d.column} \u2014 ${d.message}`), "ai-bad"));
+        diagnostics.append(h("div", { className: "ai-bad" }, `${r.diagnostics.length} error${r.diagnostics.length === 1 ? "" : "s"}:`), noteList(r.diagnostics.map(describeDiagnostic), "ai-bad"));
       };
       const check = async () => {
         try {
@@ -8553,7 +8543,7 @@ function openTriggers(ctx) {
           runner.idle("Say what the triggers should do first.");
           return;
         }
-        const declarations = bridge.declarations();
+        const declarations = bridge.declarations({ compact: true });
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input = {
           prompt: state.prompt,
@@ -8571,7 +8561,7 @@ function openTriggers(ctx) {
         let compiled = await check();
         for (let round = 0; compiled && !compiled.ok && round < REPAIR_ROUNDS2; round++) {
           runner.idle(`The script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"}; asking for a repair (${round + 1} of ${REPAIR_ROUNDS2})\u2026`);
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map((d) => ({ line: d.line, column: d.column, message: d.message })) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
           if (!r) return;
           script = r.output.script;
           state.script = script;
@@ -8581,7 +8571,7 @@ function openTriggers(ctx) {
           compiled = await check();
         }
         after.hidden = false;
-        if (compiled && !compiled.ok) runner.idle("The script still has errors. Fix them here or in the Script Editor, then Build.");
+        if (compiled && !compiled.ok) runner.idle("The script still has errors. Fix them here or in TrigScript, then Build.");
       };
       const build = async () => {
         if (!state.script.trim()) return;
@@ -8589,7 +8579,7 @@ function openTriggers(ctx) {
         state.compiled = r.compiled;
         showDiagnostics(r.compiled);
         if (r.block) {
-          runner.idle(`Built ${r.block.count} trigger${r.block.count === 1 ? "" : "s"} into the map (#${r.block.start + 1}\u2013#${r.block.start + r.block.count}). The source is kept with the map; the Script Editor shows it.`);
+          runner.idle(`Built ${r.block.count} trigger${r.block.count === 1 ? "" : "s"} into the map (#${r.block.start + 1}\u2013#${r.block.start + r.block.count}). The source is kept with the map; TrigScript shows it.`);
           api.ui.status(`AI: built ${r.block.count} triggers from the script.`);
         } else runner.idle("Not built: the script has errors.");
       };

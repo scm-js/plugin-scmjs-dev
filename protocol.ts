@@ -666,7 +666,7 @@ export interface UmsDesignInput {
   unitNames: string[];
   /** The plugin's toolkit; a system whose `kind` is not here (or `"custom"`) is scripted by the `triggers` recipe. */
   systemKinds: SystemKindSpec[];
-  /** Whether the Trigger Script plugin is on, so `custom` systems can be written at all. */
+  /** Whether the TrigScript plugin is on, so `custom` systems can be written at all. */
   scriptPlugin: boolean;
   /** The genre guide the plugin picked for the prompt, when it has one. */
   guide?: string;

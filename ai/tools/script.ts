@@ -1,32 +1,32 @@
 /** The trigger script, the view, the history and the selection. */
 import { capResult, ints, num, obj, plural, rectOf, str, TILE, type Tool } from "./common";
-import { NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
+import { describeDiagnostic, NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
 
 export function scriptTools(): Tool[] {
   return [
     {
-      def: { name: "script_state", description: "The map's trigger script: whether there is one, its source, whether the built block is intact.", inputSchema: obj({}) },
+      def: { name: "script_state", description: "The map's TrigScript: whether there is one, its files, whether the built block is intact.", inputSchema: obj({}) },
       writes: false,
-      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const s = script.state(); return s ? capResult({ hasScript: !!s.source, stale: s.stale, unbuilt: s.unbuilt, block: s.block, source: s.source }, 60_000) : "No map is open."; },
+      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const s = script.state(); return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 60_000) : "No map is open."; },
     },
     {
-      def: { name: "script_declarations", description: "The script language's declarations for this map (a .d.ts): every unit, location, switch, player and every condition and action function. Long; read once before writing a script.", inputSchema: obj({}) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script.", inputSchema: obj({}) },
       writes: false,
-      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const d = script.declarations(); return d.length > 60_000 ? `${d.slice(0, 60_000)}\n… cut.` : d; },
+      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const d = script.declarations({ compact: true }); return d.length > 60_000 ? `${d.slice(0, 60_000)}\n… cut.` : d; },
     },
     {
-      def: { name: "compile_script", description: "Type-check a trigger script (the Trigger Script plugin's TypeScript-subset language; read script_declarations first) without building it. Returns diagnostics or the trigger count.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      def: { name: "compile_script", description: "Check a TrigScript (ordinary TypeScript that runs to record triggers; read script_declarations first) without building it: type-check it, run it, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts; the map's other script files stay as they are.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
       describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
         const r = await script.compile(str(input.source));
-        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.program ? `, structured program of ${r.program.count}` : ""}.` : capResult({ errors: r.diagnostics.map((d) => `${d.line}:${d.column} ${d.message}`) });
+        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n, p) => n + p.count, 0)}` : ""}.` : capResult({ errors: r.diagnostics.map(describeDiagnostic) });
       },
     },
     {
-      def: { name: "build_script", description: "Compile a trigger script and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger — ask first). Stores the source with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger — ask first). Stores the source with the map as main.ts. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
@@ -34,7 +34,7 @@ export function scriptTools(): Tool[] {
         const script = scriptBridge(api);
         if (!script) return NO_SCRIPT_PLUGIN;
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map((d) => `${d.line}:${d.column} ${d.message}`) });
+        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) });
       },
     },
     {
