@@ -3278,6 +3278,7 @@ function renderPlan(api, input, options) {
   const categories = doodadChoices(api);
   const ramps = [...categories.entries()].filter(([name]) => /ramp/i.test(name)).flatMap(([, list2]) => list2);
   const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, bridges: 0, doodads: 0, units: 0, locations: 0 };
+  const before = doodadSnapshot(api);
   const result = api.document.edit(options.label, (tx) => {
     if (options.clearArea) clearArea(api, tx, area);
     if (!hasTileset) {
@@ -3431,10 +3432,40 @@ function renderPlan(api, input, options) {
       else placed.locations++;
     }
   });
-  findings.push(...result.notes.filter((n2) => n2.trim() && !findings.includes(n2)));
+  const stranded = result.notes.some((n2) => /stranded doodad/.test(n2)) ? removedDoodads(before, doodadSnapshot(api), options.clearArea ? area : null) : [];
+  findings.push(...result.notes.filter((n2) => n2.trim() && !findings.includes(n2) && !(stranded.length && /stranded doodad/.test(n2))));
+  for (const d of stranded) findings.push(`${d.name} at ${d.tx},${d.ty} was removed: the ground under it was repainted${/bridge/i.test(d.name) ? " \u2014 paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : "; place it again after the terrain is done"}`);
   if (bridgePair2 && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair2, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
+}
+function doodadSnapshot(api) {
+  const scn = api.document.scenario();
+  if (!scn) return [];
+  return scn.doodads.map((d) => {
+    const info = api.palette.doodadInfo(d.doodadId);
+    const width = info?.width ?? 1, height = info?.height ?? 1;
+    return { doodadId: d.doodadId, x: d.x, y: d.y, tx: Math.floor(d.x / TILE) - Math.floor(width / 2), ty: Math.floor(d.y / TILE) - Math.floor(height / 2), width, height, name: info?.name ?? `doodad ${d.doodadId}` };
+  });
+}
+function removedDoodads(before, after, cleared) {
+  const left = /* @__PURE__ */ new Map();
+  for (const d of after) {
+    const k = `${d.doodadId}@${d.x},${d.y}`;
+    left.set(k, (left.get(k) ?? 0) + 1);
+  }
+  const out = [];
+  for (const d of before) {
+    const k = `${d.doodadId}@${d.x},${d.y}`;
+    const n2 = left.get(k) ?? 0;
+    if (n2 > 0) {
+      left.set(k, n2 - 1);
+      continue;
+    }
+    if (cleared && d.tx < cleared.x1 && d.tx + d.width > cleared.x0 && d.ty < cleared.y1 && d.ty + d.height > cleared.y0) continue;
+    out.push(d);
+  }
+  return out;
 }
 var CHANNEL_PROBE = BRIDGE_TAPER / 2;
 function channelEndFindings(api, b, pair, terrains) {
@@ -3838,7 +3869,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     {
       def: {
         name: "paint_shapes",
-        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Painting the ground under a doodad removes it (the result names it): paint water before placing a bridge, and keep later strokes \u2014 whose round ends reach half their width past each point \u2014 off a bridge\'s tiles. Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
         inputSchema: obj({
           shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" },

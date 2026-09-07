@@ -91,6 +91,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
   const ramps = [...categories.entries()].filter(([name]) => /ramp/i.test(name)).flatMap(([, list]) => list);
   const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, bridges: 0, doodads: 0, units: 0, locations: 0 };
 
+  const before = doodadSnapshot(api);
   const result = api.document.edit(options.label, (tx) => {
     if (options.clearArea) clearArea(api, tx, area);
 
@@ -218,11 +219,43 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
     }
   });
 
-  findings.push(...result.notes.filter((n) => n.trim() && !findings.includes(n)));
+  // The editor removes a doodad whose ground an edit repainted and says only how many; name them, and what to do instead.
+  const stranded = result.notes.some((n) => /stranded doodad/.test(n)) ? removedDoodads(before, doodadSnapshot(api), options.clearArea ? area : null) : [];
+  findings.push(...result.notes.filter((n) => n.trim() && !findings.includes(n) && !(stranded.length && /stranded doodad/.test(n))));
+  for (const d of stranded) findings.push(`${d.name} at ${d.tx},${d.ty} was removed: the ground under it was repainted${/bridge/i.test(d.name) ? " — paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : "; place it again after the terrain is done"}`);
   // A bridge's channel is a stamp: whether the river actually arrives at it is read off the map as painted.
   if (bridgePair && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
+}
+
+/** A doodad on the map: its record and its footprint's top-left tile, for telling which ones an edit removed. */
+export interface DoodadSnap { doodadId: number; x: number; y: number; tx: number; ty: number; width: number; height: number; name: string }
+
+/** Every doodad on the open map. */
+function doodadSnapshot(api: PluginApi): DoodadSnap[] {
+  const scn = api.document.scenario();
+  if (!scn) return [];
+  return scn.doodads.map((d) => {
+    const info = api.palette.doodadInfo(d.doodadId);
+    const width = info?.width ?? 1, height = info?.height ?? 1;
+    return { doodadId: d.doodadId, x: d.x, y: d.y, tx: Math.floor(d.x / TILE) - Math.floor(width / 2), ty: Math.floor(d.y / TILE) - Math.floor(height / 2), width, height, name: info?.name ?? `doodad ${d.doodadId}` };
+  });
+}
+
+/** The doodads of `before` that `after` lacks, leaving out those inside `cleared` (removed on purpose). */
+export function removedDoodads(before: readonly DoodadSnap[], after: readonly DoodadSnap[], cleared: TileRect | null): DoodadSnap[] {
+  const left = new Map<string, number>();
+  for (const d of after) { const k = `${d.doodadId}@${d.x},${d.y}`; left.set(k, (left.get(k) ?? 0) + 1); }
+  const out: DoodadSnap[] = [];
+  for (const d of before) {
+    const k = `${d.doodadId}@${d.x},${d.y}`;
+    const n = left.get(k) ?? 0;
+    if (n > 0) { left.set(k, n - 1); continue; }
+    if (cleared && d.tx < cleared.x1 && d.tx + d.width > cleared.x0 && d.ty < cleared.y1 && d.ty + d.height > cleared.y0) continue;
+    out.push(d);
+  }
+  return out;
 }
 
 /** How far beyond a channel's end, in diagonal steps, the ground is read to see whether the river reaches it: inside the bank the stamp leaves when nothing meets it. */
