@@ -6742,7 +6742,7 @@ var PRESETS2 = [
   {
     spec: {
       id: "bound",
-      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots \u2014 small boxes on the path, evenly spaced \u2014 for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots \u2014 slabs across the whole path, evenly spaced, so each must be crossed \u2014 for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
       params: [
         P2("width", "the path's width in tiles (default 4)"),
         P2("legs", "how many times the path crosses the map, 2\u20138 (default 5)"),
@@ -6784,20 +6784,21 @@ var PRESETS2 = [
         for (const s of segs) {
           if (d <= s.len) {
             const t = s.len ? d / s.len : 0;
-            return [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t];
+            return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
           }
           d -= s.len;
         }
-        return pts[pts.length - 1];
+        return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
       };
       const locations = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
       for (let n2 = 1; n2 <= checkpoints; n2++) {
-        const [x, y] = along(n2 / (checkpoints + 1));
-        locations.push(loc(`Checkpoint ${n2}`, x - 2, y - 2, 4, 4));
+        const c2 = along(n2 / (checkpoints + 1));
+        locations.push(loc(`Checkpoint ${n2}`, c2.x - 2, c2.y - 2, 4, 4));
       }
+      const across = width + 2, alongLen = 3;
       for (let n2 = 1; n2 <= spots; n2++) {
-        const [x, y] = along((n2 - 0.5) / spots);
-        locations.push(loc(`Spot ${n2}`, x - 1, y - 1, 2, 2));
+        const c2 = along((n2 - 0.5) / spots);
+        locations.push(c2.vertical ? loc(`Spot ${n2}`, c2.x - across / 2, c2.y - alongLen / 2, across, alongLen) : loc(`Spot ${n2}`, c2.x - alongLen / 2, c2.y - across / 2, alongLen, across));
       }
       const humans = ctx.humans.length ? ctx.humans : [1];
       const units = humans.map((p, i) => start(p, pts[0][0] - 2 + i % 4 * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));

@@ -100,7 +100,11 @@ describe("layout presets", () => {
     expect(names).toEqual(["Start", "Finish", "Checkpoint 1", "Checkpoint 2", "Spot 1", "Spot 2", "Spot 3", "Spot 4", "Spot 5", "Spot 6"]);
     const compiled = compileShapes(plan.shapes!, { width: 128, height: 128, terrains, rampPairs: [] });
     // Every spot and checkpoint sits on the path's ground; the water is elsewhere.
-    for (const l of plan.locations.filter((l) => /^(Spot|Checkpoint)/.test(l.name))) expect(compiled.cells[l.y0 * 128 + l.x0]).toBe(2);
+    for (const l of plan.locations.filter((l) => /^(Spot|Checkpoint)/.test(l.name))) expect(compiled.cells[Math.round((l.y0 + l.y1) / 2) * 128 + Math.round((l.x0 + l.x1) / 2)]).toBe(2);
+    // A spot spans the path and a tile past each edge: on a horizontal leg, taller than the path and three wide.
+    const spot = plan.locations.find((l) => l.name === "Spot 1")!;
+    expect(spot.y1 - spot.y0).toBe(4 + 2);
+    expect(spot.x1 - spot.x0).toBe(3);
     expect(compiled.cells[40 * 128 + 64]).toBe(5);
     const st = plan.locations.find((l) => l.name === "Start")!, fi = plan.locations.find((l) => l.name === "Finish")!;
     expect(st.y0).toBeGreaterThan(fi.y0);

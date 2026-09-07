@@ -282,7 +282,7 @@ const PRESETS: Preset[] = [
   {
     spec: {
       id: "bound",
-      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots — small boxes on the path, evenly spaced — for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, with checkpoints along it and numbered spots — slabs across the whole path, evenly spaced, so each must be crossed — for the explosions the triggers fire. Bounds, obstacle courses, dodge maps.",
       params: [
         P("width", "the path's width in tiles (default 4)"),
         P("legs", "how many times the path crosses the map, 2–8 (default 5)"),
@@ -317,14 +317,20 @@ const PRESETS: Preset[] = [
       const segs: { a: [number, number]; b: [number, number]; len: number }[] = [];
       let total = 0;
       for (let i = 0; i + 1 < pts.length; i++) { const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); segs.push({ a: pts[i], b: pts[i + 1], len }); total += len; }
-      const along = (f: number): [number, number] => {
+      const along = (f: number): { x: number; y: number; vertical: boolean } => {
         let d = f * total;
-        for (const s of segs) { if (d <= s.len) { const t = s.len ? d / s.len : 0; return [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t]; } d -= s.len; }
-        return pts[pts.length - 1];
+        for (const s of segs) { if (d <= s.len) { const t = s.len ? d / s.len : 0; return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) }; } d -= s.len; }
+        return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
       };
       const locations: Loc[] = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
-      for (let n = 1; n <= checkpoints; n++) { const [x, y] = along(n / (checkpoints + 1)); locations.push(loc(`Checkpoint ${n}`, x - 2, y - 2, 4, 4)); }
-      for (let n = 1; n <= spots; n++) { const [x, y] = along((n - 0.5) / spots); locations.push(loc(`Spot ${n}`, x - 1, y - 1, 2, 2)); }
+      for (let n = 1; n <= checkpoints; n++) { const c = along(n / (checkpoints + 1)); locations.push(loc(`Checkpoint ${n}`, c.x - 2, c.y - 2, 4, 4)); }
+      // A spot is a slab across the whole path — a tile past its edges, so the shores' rounding leaves no way round —
+      // and three tiles along it: every spot has to be crossed, and crossing one is a matter of timing.
+      const across = width + 2, alongLen = 3;
+      for (let n = 1; n <= spots; n++) {
+        const c = along((n - 0.5) / spots);
+        locations.push(c.vertical ? loc(`Spot ${n}`, c.x - across / 2, c.y - alongLen / 2, across, alongLen) : loc(`Spot ${n}`, c.x - alongLen / 2, c.y - across / 2, alongLen, across));
+      }
       const humans = ctx.humans.length ? ctx.humans : [1];
       const units = humans.map((p, i) => start(p, pts[0][0] - 2 + (i % 4) * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
       return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs from the bottom-left to the top-right, ${checkpoints} checkpoints, ${spots} spots; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
