@@ -56,7 +56,8 @@ export function installDialogSlots(ctx: Ctx, actions: SlotActions): () => void {
     );
   };
   slots.push(api.ui.dialogSlot("triggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
-  slots.push(api.ui.dialogSlot("textTriggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
+  // The Text Trigger Editor is the TrigEdit plugin; its dialog offers this slot (`DialogSpec.slot`).
+  slots.push(api.ui.dialogSlot("trigedit.text", { mount: (body, host) => triggerSlot(host, body) }));
   slots.push(api.ui.dialogSlot("missionBriefing", { mount: (body, host) => triggerSlot(host, body) }));
 
   slots.push(api.ui.dialogSlot("stringEditor", {

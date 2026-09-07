@@ -9134,7 +9134,7 @@ function installDialogSlots(ctx, actions) {
     );
   };
   slots2.push(api.ui.dialogSlot("triggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
-  slots2.push(api.ui.dialogSlot("textTriggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
+  slots2.push(api.ui.dialogSlot("trigedit.text", { mount: (body, host) => triggerSlot(host, body) }));
   slots2.push(api.ui.dialogSlot("missionBriefing", { mount: (body, host) => triggerSlot(host, body) }));
   slots2.push(api.ui.dialogSlot("stringEditor", {
     mount(body, host) {
