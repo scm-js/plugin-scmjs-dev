@@ -6,6 +6,7 @@
  * with an "AI: …" label. A screenshot answers with an image, so the model can look.
  * The tools live under `tools/` by subject; this is the list.
  */
+import { layoutTools } from "./tools/layout";
 import { objectTools } from "./tools/objects";
 import { readTools } from "./tools/read";
 import { scriptTools } from "./tools/script";
@@ -18,5 +19,5 @@ import type { Tool } from "./tools/common";
 export { capResult, describeCall, RESULT_CAP, summarizeResult, toContent, type Tool, type ToolResult } from "./tools/common";
 
 export function tools(): Tool[] {
-  return [...readTools(), ...terrainTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];
+  return [...readTools(), ...terrainTools(), ...layoutTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];
 }

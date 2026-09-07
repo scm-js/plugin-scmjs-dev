@@ -364,3 +364,17 @@ export function shapeText(s: Shape): string {
   if (s.along) parts.push(`along ${s.along}`);
   return parts.join(" ");
 }
+
+/** The same shapes moved by (dx, dy) tiles — for shapes written relative to an area's corner. */
+export function shiftShapes(shapes: readonly Shape[], dx: number, dy: number): Shape[] {
+  if (!dx && !dy) return [...shapes];
+  return shapes.map((s) => {
+    const out: Shape = { ...s };
+    if (typeof s.x === "number") out.x = s.x + dx;
+    if (typeof s.y === "number") out.y = s.y + dy;
+    if (typeof s.cx === "number") out.cx = s.cx + dx;
+    if (typeof s.cy === "number") out.cy = s.cy + dy;
+    if (s.points) out.points = s.points.map(([x, y]) => [x + dx, y + dy] as [number, number]);
+    return out;
+  });
+}

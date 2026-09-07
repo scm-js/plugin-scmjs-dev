@@ -157,7 +157,12 @@ triggers (append, replace, remove, reorder, preserve), strings, switch names, th
 (compile and build), player types / races / colours / forces, unit, upgrade and
 technology settings, the sound table, the map revision, and the map's size. It reads the
 same genre guides Make Scenario uses and builds the same toolkit systems, so "add kill to
-cash" is one call, not a page of hand-written triggers. Every tool call shows as a row in
+cash" is one call, not a page of hand-written triggers; it lays out the same layout
+presets ("make this a two-lane defense") and paints terrain as shapes ("a plateau with a
+ramp in the north-west", "a river with a bridge"), fits a ramp or a bridge on ground
+already there, tells you whether units can walk from one place to another, and checks
+the game's silent rules — a player who owns nothing is defeated at once — and fixes
+them when asked. Every tool call shows as a row in
 the transcript with its result on hover, screenshots inline; each edit is its own undo
 step, and a settings change is a transaction outside undo, as in StarEdit, marked so in
 the row. After a turn that changed the map the panel says what changed and offers to

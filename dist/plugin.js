@@ -1410,404 +1410,6 @@ function referenceDetailFor(api, part) {
   return c2 ? buildReferenceDetail(c2.parts, part) : void 0;
 }
 
-// ai/tools/common.ts
-var TILE = 32;
-var RESULT_CAP = 8e3;
-var num = (v, d = 0) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d;
-var str = (v, d = "") => typeof v === "string" ? v : typeof v === "number" ? String(v) : d;
-var bool = (v) => typeof v === "boolean" ? v : typeof v === "string" && /^(true|yes|on)$/i.test(v) ? true : typeof v === "string" && /^(false|no|off)$/i.test(v) ? false : void 0;
-var list = (v) => Array.isArray(v) ? v : [];
-var ints2 = (v) => list(v).map((x) => Math.round(num(x, -1))).filter((x) => x >= 0);
-function rectOf2(input, api) {
-  const info = api.document.info();
-  const W = info?.width ?? 0, H = info?.height ?? 0;
-  const x0 = Math.max(0, Math.min(W, Math.round(num(input.x0)))), y0 = Math.max(0, Math.min(H, Math.round(num(input.y0))));
-  const x1 = Math.max(x0, Math.min(W, Math.round(num(input.x1, W)))), y1 = Math.max(y0, Math.min(H, Math.round(num(input.y1, H))));
-  return { x0, y0, x1, y1 };
-}
-var hasRect = (input) => input.x0 !== void 0 || input.x1 !== void 0 || input.y0 !== void 0 || input.y1 !== void 0;
-var rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
-var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
-function capResult(value, cap = RESULT_CAP) {
-  const s = typeof value === "string" ? value : JSON.stringify(value);
-  return s.length <= cap ? s : `${s.slice(0, cap)}
-\u2026 cut: ${s.length - cap} more characters. Ask with a narrower filter.`;
-}
-function ownerName(o) {
-  return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
-}
-function ownerOf(v, d = 11) {
-  if (typeof v === "string" && /neutral/i.test(v)) return 11;
-  const n2 = num(v, d + 1);
-  if (n2 >= 12) return 11;
-  return Math.max(0, Math.round(n2) - 1);
-}
-function slotOf(v) {
-  if (v === void 0 || v === null) return null;
-  if (typeof v === "string" && /^default$/i.test(v.trim())) return "default";
-  const n2 = Math.round(num(v, -1));
-  return n2 >= 1 && n2 <= 12 ? n2 - 1 : null;
-}
-function byName(items, name) {
-  const wanted = name.trim().toLowerCase();
-  if (!wanted) return null;
-  const numeric = /^\d+$/.test(wanted) ? Number(wanted) : null;
-  if (numeric !== null) return items.find((i) => i.value === numeric) ?? null;
-  const exact = items.find((i) => i.label.toLowerCase() === wanted);
-  if (exact) return exact;
-  const starts = items.filter((i) => i.label.toLowerCase().startsWith(wanted));
-  if (starts.length === 1) return starts[0];
-  const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
-  return within.length >= 1 ? within[0] : null;
-}
-var UNIT_ALIASES = {
-  "mineral field": "Mineral Field (Type 1)",
-  minerals: "Mineral Field (Type 1)",
-  "mineral patch": "Mineral Field (Type 1)",
-  mineral: "Mineral Field (Type 1)",
-  geyser: "Vespene Geyser",
-  gas: "Vespene Geyser",
-  start: "Start Location",
-  "start location": "Start Location",
-  marine: "Terran Marine",
-  zergling: "Zerg Zergling",
-  zealot: "Protoss Zealot",
-  scv: "Terran SCV",
-  drone: "Zerg Drone",
-  probe: "Protoss Probe",
-  "command center": "Terran Command Center",
-  hatchery: "Zerg Hatchery",
-  nexus: "Protoss Nexus"
-};
-function unitIdByName2(api, name) {
-  const alias = UNIT_ALIASES[name.trim().toLowerCase()];
-  const items = api.names.units().filter((u) => u.value < 228);
-  return byName(items, alias ?? name)?.value ?? null;
-}
-function upgradeIdByName(api, name) {
-  return byName(api.names.upgrades(), name)?.value ?? null;
-}
-function techIdByName(api, name) {
-  return byName(api.names.techs(), name)?.value ?? null;
-}
-function doodadByName(api, name) {
-  const wanted = name.trim().toLowerCase();
-  const all = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  if (/^\d+$/.test(wanted)) return all.find((d) => d.id === Number(wanted)) ?? null;
-  const exact = all.find((d) => d.name.toLowerCase() === wanted);
-  if (exact) return exact;
-  const within = all.filter((d) => d.name.toLowerCase().includes(wanted));
-  if (within.length) return within[Math.floor(Math.random() * within.length)];
-  const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === wanted || c2.name.toLowerCase().includes(wanted));
-  return cat && cat.doodads.length ? cat.doodads[Math.floor(Math.random() * cat.doodads.length)] : null;
-}
-function spriteByName(api, kind, name) {
-  const wanted = name.trim().toLowerCase();
-  if (/^\d+$/.test(wanted)) return Number(wanted);
-  if (kind === "unit") return unitIdByName2(api, name);
-  const ids = api.palette.spriteGroups().flatMap((g) => g.ids);
-  const named = ids.map((id) => ({ value: id, label: api.palette.spriteName("pure", id) }));
-  return byName(named, name)?.value ?? null;
-}
-var PLAYER_COLOR_NAMES = ["Red", "Blue", "Teal", "Purple", "Orange", "Brown", "White", "Yellow", "Green", "Pale Yellow", "Tan", "Dark Aqua", "Pale Green", "Bluish Grey", "Pale Yellow 2", "Cyan"];
-function colorIndexOf(v) {
-  if (typeof v === "number") return v >= 0 && v < 256 ? Math.round(v) : null;
-  const s = str(v).trim().toLowerCase();
-  if (!s) return null;
-  if (/^\d+$/.test(s)) return Number(s);
-  const i = PLAYER_COLOR_NAMES.findIndex((n2) => n2.toLowerCase() === s);
-  return i >= 0 ? i : null;
-}
-function toContent(toolUseId, result, isError = false) {
-  if (typeof result === "string") return { type: "tool_result", toolUseId, content: result, isError };
-  const parts = [];
-  if (result.text) parts.push({ type: "text", text: result.text });
-  if (result.image) parts.push({ type: "image", source: result.image });
-  return { type: "tool_result", toolUseId, content: parts.length ? parts : "Done.", isError };
-}
-function describeCall(name, input) {
-  const args = Object.entries(input).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.length > 40 ? `${v.slice(0, 40)}\u2026` : v) : Array.isArray(v) ? `[${v.length}]` : typeof v === "object" && v ? "{\u2026}" : String(v)}`).join(", ");
-  return `${name}(${args})`;
-}
-function summarizeResult(result) {
-  const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
-  const line = text.split("\n")[0];
-  return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
-}
-var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
-
-// ai/tools/objects.ts
-var STATE_BITS = (c2) => [
-  ["cloaked", c2.unit.state.Cloaked, c2.unit.valid.Cloak],
-  ["burrowed", c2.unit.state.Burrowed, c2.unit.valid.Burrow],
-  ["inTransit", c2.unit.state.InTransit, c2.unit.valid.InTransit],
-  ["hallucinated", c2.unit.state.Hallucinated, c2.unit.valid.Hallucinated],
-  ["invincible", c2.unit.state.Invincible, c2.unit.valid.Invincible]
-];
-var ELEVATION_BITS = (c2) => [
-  ["excludeLowGround", c2.location.elevation.LowGround],
-  ["excludeMediumGround", c2.location.elevation.MediumGround],
-  ["excludeHighGround", c2.location.elevation.HighGround],
-  ["excludeLowAir", c2.location.elevation.LowAir],
-  ["excludeMediumAir", c2.location.elevation.MediumAir],
-  ["excludeHighAir", c2.location.elevation.HighAir]
-];
-function objectTools() {
-  return [
-    {
-      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a mineral field's or geyser's resources. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const wanted = list(input.units);
-        const placed = [];
-        const refused = [];
-        api.document.edit("AI: place units", (tx) => {
-          for (const u of wanted) {
-            const id = unitIdByName2(api, str(u.unit));
-            if (id === null) {
-              refused.push(`no unit called "${str(u.unit)}"`);
-              continue;
-            }
-            const px = num(u.x) * TILE + TILE / 2, py = num(u.y) * TILE + TILE / 2;
-            const owner = ownerOf(u.player, 0);
-            if (!tx.canPlaceUnit(id, px, py)) {
-              refused.push(`${api.names.unit(id)} at ${num(u.x)},${num(u.y)}: ${api.query.placement(id, px, py)?.reason ?? "refused"}`);
-              continue;
-            }
-            const index = tx.placeUnit(id, owner, px, py);
-            if (u.amount !== void 0) tx.updateUnits([index], (rec) => ({ resourceAmount: num(u.amount), validStates: rec.validStates | api.consts.unit.used.Resources }));
-            placed.push({ index, unit: api.names.unit(id), x: num(u.x), y: num(u.y) });
-          }
-        });
-        return capResult({ placed, refused });
-      }
-    },
-    {
-      def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const r = api.document.edit("AI: remove units", (tx) => {
-          tx.removeUnits(ints2(input.indices));
-        });
-        return `Removed ${plural(r.units, "unit")}.`;
-      }
-    },
-    {
-      def: { name: "move_units", description: "Move units by index to new tile centres. One undo step.", inputSchema: obj({ moves: { type: "array", items: obj({ index: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" } }, ["index", "x", "y"]) } }, ["moves"]) },
-      writes: true,
-      run: (input, { api }) => {
-        let n2 = 0;
-        api.document.edit("AI: move units", (tx) => {
-          for (const m of list(input.moves)) {
-            const index = num(m.index, -1);
-            if (index < 0 || index >= tx.scenario.units.length) continue;
-            n2 += tx.updateUnits([index], () => ({ x: num(m.x) * TILE + TILE / 2, y: num(m.y) * TILE + TILE / 2 }));
-          }
-        });
-        return `Moved ${plural(n2, "unit")}.`;
-      }
-    },
-    {
-      def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const indices = ints2(input.indices);
-        const used0 = api.consts.unit.used;
-        const pct = (v) => Math.max(0, Math.min(100, Math.round(num(v))));
-        let n2 = 0;
-        api.document.edit("AI: unit properties", (tx) => {
-          n2 = tx.updateUnits(indices, (rec) => {
-            const patch = {};
-            let used = rec.validStates;
-            let flags = rec.stateFlags;
-            let valid = rec.validProperties;
-            if (input.owner !== void 0) {
-              patch.owner = ownerOf(input.owner, rec.owner);
-              used |= used0.Owner;
-            }
-            if (input.hitPoints !== void 0) {
-              patch.hitPointsPercent = pct(input.hitPoints);
-              used |= used0.HitPoints;
-            }
-            if (input.shields !== void 0) {
-              patch.shieldPercent = pct(input.shields);
-              used |= used0.Shields;
-            }
-            if (input.energy !== void 0) {
-              patch.energyPercent = pct(input.energy);
-              used |= used0.Energy;
-            }
-            if (input.resources !== void 0) {
-              patch.resourceAmount = Math.max(0, Math.round(num(input.resources)));
-              used |= used0.Resources;
-            }
-            if (input.hangar !== void 0) {
-              patch.hangarUnits = Math.max(0, Math.round(num(input.hangar)));
-              used |= used0.Hangar;
-            }
-            for (const [key, stateBit, validBit] of STATE_BITS(api.consts)) {
-              const v = bool(input[key]);
-              if (v === void 0) continue;
-              flags = v ? flags | stateBit : flags & ~stateBit;
-              valid |= validBit;
-              used |= used0.State;
-            }
-            return { ...patch, validStates: used, stateFlags: flags, validProperties: valid };
-          });
-        });
-        return `Updated ${plural(n2, "unit")}.`;
-      }
-    },
-    {
-      def: { name: "place_doodads", description: "Place doodads by name (or id, or a category name for any of its doodads) with their top-left corner at a tile. A doodad that does not fit its footprint is refused, not forced. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const placed = [];
-        const refused = [];
-        api.document.edit("AI: place doodads", (tx) => {
-          for (const d of list(input.doodads)) {
-            const def = doodadByName(api, str(d.doodad));
-            if (!def) {
-              refused.push(`no doodad called "${str(d.doodad)}"`);
-              continue;
-            }
-            const index = tx.placeDoodad(def.id, Math.round(num(d.x)), Math.round(num(d.y)));
-            if (index < 0) refused.push(`${def.name} at ${num(d.x)},${num(d.y)} does not fit`);
-            else placed.push({ index, name: def.name, x: num(d.x), y: num(d.y), width: def.width, height: def.height });
-          }
-        });
-        return capResult({ placed, refused });
-      }
-    },
-    {
-      def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const r = api.document.edit("AI: remove doodads", (tx) => {
-          tx.removeDoodads(ints2(input.indices));
-        });
-        return `Removed ${plural(r.doodads, "doodad")}.`;
-      }
-    },
-    {
-      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, skipping spots that do not fit. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const rect = rectOf2(input, api);
-        const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === str(input.category).toLowerCase()) ?? api.palette.doodadCategories().find((c2) => c2.name.toLowerCase().includes(str(input.category).toLowerCase()));
-        if (!cat || cat.doodads.length === 0) return `No doodad category called "${str(input.category)}"; call list_doodad_categories.`;
-        const density = Math.max(0, Math.min(1, num(input.density, 0.3)));
-        const want = Math.round(density * ((rect.x1 - rect.x0) * (rect.y1 - rect.y0)) / 12);
-        let placed = 0;
-        api.document.edit(`AI: scatter ${cat.name}`, (tx) => {
-          for (let attempt = 0; attempt < want * 5 && placed < want; attempt++) {
-            const d = cat.doodads[Math.floor(Math.random() * cat.doodads.length)];
-            const tx0 = rect.x0 + Math.floor(Math.random() * Math.max(1, rect.x1 - rect.x0 - d.width));
-            const ty0 = rect.y0 + Math.floor(Math.random() * Math.max(1, rect.y1 - rect.y0 - d.height));
-            if (tx.placeDoodad(d.id, tx0, ty0) >= 0) placed++;
-          }
-        });
-        return `Placed ${placed} of ${want} wanted.`;
-      }
-    },
-    {
-      def: { name: "place_sprites", description: 'Place sprites at tile centres: kind "pure" (a sprites.dat image by the palette\'s name or id \u2014 lookup sprite) or "unit" (a unit drawn as a sprite, by unit name). `player` is 1-based. One undo step.', inputSchema: obj({ sprites: { type: "array", items: obj({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, flipped: { type: "boolean" }, disabled: { type: "boolean" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const placed = [];
-        const refused = [];
-        api.document.edit("AI: place sprites", (tx) => {
-          for (const s of list(input.sprites)) {
-            const kind = str(s.kind) === "unit" ? "unit" : "pure";
-            const id = spriteByName(api, kind, str(s.sprite));
-            if (id === null) {
-              refused.push(`no ${kind} sprite called "${str(s.sprite)}"`);
-              continue;
-            }
-            const index = tx.placeSprite(kind, id, ownerOf(s.player, 0), num(s.x) * TILE + TILE / 2, num(s.y) * TILE + TILE / 2, { flipped: bool(s.flipped) ?? false, disabled: bool(s.disabled) ?? kind === "unit" });
-            placed.push({ index, kind, name: api.palette.spriteName(kind, id), x: num(s.x), y: num(s.y) });
-          }
-        });
-        return capResult({ placed, refused });
-      }
-    },
-    {
-      def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const r = api.document.edit("AI: remove sprites", (tx) => {
-          tx.removeSprites(ints2(input.indices));
-        });
-        return `Removed ${plural(r.sprites, "sprite")}.`;
-      }
-    },
-    {
-      def: { name: "add_location", description: "Add a named location over a tile rect. One undo step.", inputSchema: obj({ name: { type: "string" }, ...rectSchema }, ["name", "x0", "y0", "x1", "y1"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const rect = rectOf2(input, api);
-        let index = -1;
-        api.document.edit(`AI: location ${str(input.name)}`, (tx) => {
-          index = tx.addLocation({ left: rect.x0 * TILE, top: rect.y0 * TILE, right: rect.x1 * TILE, bottom: rect.y1 * TILE }, str(input.name, "Location"));
-        });
-        return index < 0 ? "No free location slot." : `Added location ${index} "${str(input.name)}".`;
-      }
-    },
-    {
-      def: { name: "edit_location", description: "Rename, move or resize a location by slot index (a tile rect), or set which heights it excludes (`excludeLowGround` \u2026 `excludeHighAir`). One undo step.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" }, ...rectSchema, excludeLowGround: { type: "boolean" }, excludeMediumGround: { type: "boolean" }, excludeHighGround: { type: "boolean" }, excludeLowAir: { type: "boolean" }, excludeMediumAir: { type: "boolean" }, excludeHighAir: { type: "boolean" } }, ["index"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const index = Math.round(num(input.index, -1));
-        const scn = api.document.scenario();
-        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return "No such location (slot 63 is Anywhere).";
-        const patch = {};
-        if (typeof input.name === "string") patch.name = input.name;
-        if (input.x0 !== void 0 && input.x1 !== void 0) {
-          const r = rectOf2(input, api);
-          Object.assign(patch, { left: r.x0 * TILE, top: r.y0 * TILE, right: r.x1 * TILE, bottom: r.y1 * TILE });
-        }
-        const bits = ELEVATION_BITS(api.consts);
-        if (bits.some(([k]) => input[k] !== void 0)) {
-          let flags = scn.locations[index].elevationFlags;
-          for (const [k, bit] of bits) {
-            const v = bool(input[k]);
-            if (v !== void 0) flags = v ? flags | bit : flags & ~bit;
-          }
-          patch.elevationFlags = flags;
-        }
-        let ok = false;
-        api.document.edit(`AI: edit location ${api.names.location(index)}`, (tx) => {
-          ok = tx.editLocation(index, patch);
-        });
-        return ok ? `Edited location ${index}.` : "Nothing changed.";
-      }
-    },
-    {
-      def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const r = api.document.edit("AI: remove locations", (tx) => {
-          tx.removeLocations(ints2(input.indices).filter((i) => i !== api.consts.location.anywhere));
-        });
-        return `Removed ${plural(r.locations, "location")}.`;
-      }
-    },
-    {
-      def: { name: "set_fog", description: 'Fog of war over a tile rect for 1-based players: mode "fog" (starts unexplored) or "clear". One undo step.', inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
-      writes: true,
-      run: (input, { api }) => {
-        const rect = rectOf2(input, api);
-        const players2 = ints2(input.players).filter((p) => p >= 1 && p <= 8);
-        const mask = players2.reduce((m, p) => m | 1 << p - 1, 0);
-        const r = api.document.edit("AI: fog of war", (tx) => {
-          tx.setFog(rect, mask, str(input.mode) === "clear" ? "clear" : "fog");
-        });
-        return `Changed ${plural(r.fog, "tile")}.`;
-      }
-    }
-  ];
-}
-
 // ai/grid.ts
 var LEGEND_CHARS = ".#~^=+-:;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 var UNKNOWN = "?";
@@ -1896,8 +1498,963 @@ function paintOrder(ids, terrains, counts) {
   return [...ids].sort((a2, b) => height(a2) - height(b) || (counts.get(b) ?? 0) - (counts.get(a2) ?? 0) || a2 - b);
 }
 
+// ai/shapes.ts
+var BRIDGE_CHANNEL = 5;
+var BRIDGE_REACH = 14;
+var LANE_SHORE_PAD = 7;
+var LANE_CLIFF_PAD = 3;
+var RAMP_CUT = 7;
+var DEFAULT_CUT = 2;
+var RAMP_APRON = 22;
+function compileShapes(shapes, ctx) {
+  const { width, height } = ctx;
+  const cells = new Int32Array(width * height).fill(-1);
+  const findings = [];
+  const ramps = [];
+  const bridges = [];
+  const known = new Map(ctx.terrains.map((t) => [t.id, t]));
+  const put = (x, y, id) => {
+    if (x >= 0 && y >= 0 && x < width && y < height) cells[y * width + x] = id;
+  };
+  const terrainOf = (s, what) => {
+    if (typeof s.terrain !== "number" || !known.has(s.terrain)) {
+      findings.push(`${what} names terrain ${s.terrain}, which this tileset lacks; skipped`);
+      return null;
+    }
+    return s.terrain;
+  };
+  const laneBatch = /* @__PURE__ */ new Set();
+  const laneFloors = [];
+  shapes.forEach((s, i) => {
+    const what = `shape ${i + 1} (${s.op})`;
+    if (s.op === "lane" && !laneBatch.has(i)) {
+      let j = i;
+      while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
+    }
+    switch (s.op) {
+      case "ground": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        cells.fill(id);
+        return;
+      }
+      case "rect":
+      case "plateau": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const r = rectOf2(s);
+        if (!r) {
+          findings.push(`${what} has no size; skipped`);
+          return;
+        }
+        const cut = Math.max(0, Math.round(s.cut ?? DEFAULT_CUT));
+        const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
+        const cuts = { nw: cut, ne: cut, sw: sides.includes("sw") ? Math.max(cut, RAMP_CUT) : cut, se: sides.includes("se") ? Math.max(cut, RAMP_CUT) : cut };
+        fillCutRect(r, cuts, (x, y) => put(x, y, id));
+        for (const side of sides) {
+          const pair = pairFor(id, ctx, known);
+          if (!pair) {
+            findings.push(`${what}: this tileset has no ramp for ground of that height; the ${side} corner is cut but no ramp will fit`);
+            continue;
+          }
+          const site = rampSite(r, cuts, side);
+          const edge = rampEdge(r, cuts, side);
+          strokePolyline(edge, RAMP_APRON, (x, y) => {
+            if (x < 0 || y < 0 || x >= width || y >= height) return;
+            put(x, y, insideCutRect(r, cuts, x, y) ? pair.high : pair.low);
+          });
+          ramps.push({ x: site.x, y: site.y, direction: side, low: pair.low, high: pair.high });
+        }
+        return;
+      }
+      case "diamond": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        if (!radii(s)) {
+          findings.push(`${what} has no radii; skipped`);
+          return;
+        }
+        forDiamond(s.cx, s.cy, s.rx, s.ry, (x, y) => put(x, y, id));
+        return;
+      }
+      case "ellipse": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        if (!radii(s)) {
+          findings.push(`${what} has no radii; skipped`);
+          return;
+        }
+        const { cx, cy, rx, ry } = s;
+        for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+          const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
+          if (dx * dx + dy * dy <= 1) put(x, y, id);
+        }
+        return;
+      }
+      case "polygon": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const pts = pointsOf(s);
+        if (pts.length < 3) {
+          findings.push(`${what} needs three points; skipped`);
+          return;
+        }
+        fillPolygon(pts, (x, y) => put(x, y, id));
+        return;
+      }
+      case "stroke":
+      case "lane": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const pts = pointsOf(s);
+        if (pts.length < 2) {
+          findings.push(`${what} needs two points; skipped`);
+          return;
+        }
+        let w = Math.max(1, s.width ?? 4);
+        if (s.op === "lane" && typeof s.wall === "number") {
+          if (!known.has(s.wall)) findings.push(`${what} names wall terrain ${s.wall}, which this tileset lacks; laid without walls`);
+          else {
+            const cliff = (known.get(s.wall)?.height ?? 0) > (known.get(id)?.height ?? 0);
+            w += cliff ? LANE_CLIFF_PAD : LANE_SHORE_PAD;
+            const ww = Math.max(cliff ? 6 : 4, s.wallWidth ?? 3);
+            strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall));
+          }
+        }
+        if (s.op === "lane") {
+          const width2 = w;
+          laneFloors.push(() => strokePolyline(pts, width2, (x, y) => put(x, y, id)));
+          if (!laneBatch.has(i + 1)) {
+            for (const paint of laneFloors) paint();
+            laneFloors.length = 0;
+          }
+          return;
+        }
+        strokePolyline(pts, w, (x, y) => put(x, y, id));
+        return;
+      }
+      case "border": {
+        const id = terrainOf(s, what);
+        if (id === null) return;
+        const t = Math.max(1, Math.round(s.width ?? 2));
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (x < t || y < t || x >= width - t || y >= height - t) put(x, y, id);
+        return;
+      }
+      case "ramp": {
+        if (typeof s.x !== "number" || typeof s.y !== "number") {
+          findings.push(`${what} has no position; skipped`);
+          return;
+        }
+        const side = s.side === "se" ? "se" : "sw";
+        const x = Math.round(s.x), y = Math.round(s.y);
+        const pair = pairAround(cells, width, height, x, y, ctx, known);
+        if (pair) forDiamond(x, y, 8, 4, (px, py) => {
+          if (px < 0 || py < 0 || px >= width || py >= height) return;
+          const here = cells[py * width + px];
+          const h3 = known.get(here)?.height;
+          if (h3 === known.get(pair.high).height) put(px, py, pair.high);
+          else if (h3 === known.get(pair.low).height) put(px, py, pair.low);
+        });
+        else findings.push(`${what}: no cliff between two heights the tileset has a ramp for lies near ${x},${y}; the renderer will look for one`);
+        ramps.push({ x, y, direction: side, ...pair ? { low: pair.low, high: pair.high } : {} });
+        return;
+      }
+      case "bridge": {
+        if (typeof s.x !== "number" || typeof s.y !== "number") {
+          findings.push(`${what} has no position; skipped`);
+          return;
+        }
+        const pair = ctx.bridgePair ?? null;
+        if (!pair) {
+          findings.push(`${what}: this tileset has no bridges; skipped`);
+          return;
+        }
+        const along = s.along === "sw" ? "sw" : "se";
+        const x = Math.round(s.x), y = Math.round(s.y);
+        const d = along === "se" ? [2, 1] : [-2, 1];
+        const line = [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
+        const channel = pair.channel ?? BRIDGE_CHANNEL;
+        strokePolyline(line, channel + 2 * 8, (px, py) => put(px, py, pair.ground));
+        strokePolyline(line, channel, (px, py) => put(px, py, pair.water));
+        bridges.push({ x, y, along });
+        return;
+      }
+      default:
+        findings.push(`shape ${i + 1} has an op "${String(s.op)}" the compiler does not know; skipped`);
+    }
+  });
+  return { cells, ramps, bridges, findings };
+}
+function shapesToLayout(plan, ctx) {
+  const compiled = compileShapes(plan.shapes ?? [], ctx);
+  const ids = /* @__PURE__ */ new Map();
+  const legend = {};
+  const charFor = (id) => {
+    let ch = ids.get(id);
+    if (ch === void 0) {
+      ch = LEGEND_CHARS[ids.size] ?? "?";
+      ids.set(id, ch);
+      legend[ch] = id;
+    }
+    return ch;
+  };
+  const rows = [];
+  for (let y = 0; y < ctx.height; y++) {
+    let row = "";
+    for (let x = 0; x < ctx.width; x++) {
+      const id = compiled.cells[y * ctx.width + x];
+      row += id < 0 ? "?" : charFor(id);
+    }
+    rows.push(row);
+  }
+  const doodads = plan.doodads.map((d) => ({ ...d, on: d.on || [...new Set((d.terrains ?? []).filter((id) => ids.has(id)).map((id) => ids.get(id)))].join("") }));
+  const out = {
+    ...plan,
+    cellSize: 1,
+    columns: ctx.width,
+    rows: ctx.height,
+    legend,
+    grid: rows,
+    ramps: [...compiled.ramps, ...plan.ramps],
+    bridges: [...compiled.bridges, ...plan.bridges ?? []],
+    doodads,
+    symmetry: "none"
+  };
+  return { plan: out, findings: compiled.findings };
+}
+function rectOf2(s) {
+  if (typeof s.x !== "number" || typeof s.y !== "number" || typeof s.w !== "number" || typeof s.h !== "number" || s.w <= 0 || s.h <= 0) return null;
+  return { x0: Math.round(s.x), y0: Math.round(s.y), x1: Math.round(s.x + s.w), y1: Math.round(s.y + s.h) };
+}
+function radii(s) {
+  return typeof s.cx === "number" && typeof s.cy === "number" && typeof s.rx === "number" && typeof s.ry === "number" && s.rx > 0 && s.ry > 0;
+}
+function pointsOf(s) {
+  return (s.points ?? []).filter((p) => Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number").map((p) => [p[0], p[1]]);
+}
+function uniqueSides(sides) {
+  const out = [];
+  for (const s of sides) if ((s === "sw" || s === "se") && !out.includes(s)) out.push(s);
+  return out;
+}
+function insideCutRect(r, cuts, x, y) {
+  if (x < r.x0 || y < r.y0 || x >= r.x1 || y >= r.y1) return false;
+  const l = x - r.x0, rt = r.x1 - 1 - x, t = y - r.y0, b = r.y1 - 1 - y;
+  if (l + 2 * t < 2 * cuts.nw - 1) return false;
+  if (rt + 2 * t < 2 * cuts.ne - 1) return false;
+  if (l + 2 * b < 2 * cuts.sw - 1) return false;
+  if (rt + 2 * b < 2 * cuts.se - 1) return false;
+  return true;
+}
+function fillCutRect(r, cuts, put) {
+  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) if (insideCutRect(r, cuts, x, y)) put(x, y);
+}
+function rampEdge(r, cuts, side) {
+  const c2 = side === "sw" ? cuts.sw : cuts.se;
+  return side === "sw" ? [[r.x0, r.y1 - c2], [r.x0 + 2 * c2, r.y1]] : [[r.x1 - 2 * c2, r.y1], [r.x1, r.y1 - c2]];
+}
+function rampSite(r, cuts, side) {
+  const c2 = side === "sw" ? cuts.sw : cuts.se;
+  return side === "sw" ? { x: r.x0 + c2, y: r.y1 - Math.ceil(c2 / 2) } : { x: r.x1 - 1 - c2, y: r.y1 - Math.ceil(c2 / 2) };
+}
+function forDiamond(cx, cy, rx, ry, put) {
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+    if (Math.abs(x + 0.5 - cx) / rx + Math.abs(y + 0.5 - cy) / ry <= 1) put(x, y);
+  }
+}
+function fillPolygon(pts, put) {
+  const ys = pts.map((p) => p[1]);
+  const y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
+  for (let y = y0; y <= y1; y++) {
+    const cy = y + 0.5;
+    const xs = [];
+    for (let i = 0; i < pts.length; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
+      if (ay === by) continue;
+      if (cy >= Math.min(ay, by) && cy < Math.max(ay, by)) xs.push(ax + (cy - ay) * (bx - ax) / (by - ay));
+    }
+    xs.sort((a2, b) => a2 - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) for (let x = Math.floor(xs[i]); x < Math.ceil(xs[i + 1]); x++) if (x + 0.5 >= xs[i] && x + 0.5 <= xs[i + 1]) put(x, y);
+  }
+}
+function strokePolyline(pts, width, put) {
+  const half = width / 2;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    const x0 = Math.floor(Math.min(ax, bx) - half) - 1, x1 = Math.ceil(Math.max(ax, bx) + half) + 1;
+    const y0 = Math.floor(Math.min(ay, by) - half) - 1, y1 = Math.ceil(Math.max(ay, by) + half) + 1;
+    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+      const dx = px - (ax + t * vx), dy = py - (ay + t * vy);
+      if (dx * dx + dy * dy <= half * half) put(x, y);
+    }
+  }
+}
+function pairFor(terrain, ctx, known) {
+  const h3 = known.get(terrain)?.height;
+  return ctx.rampPairs.find((p) => p.high === terrain) ?? ctx.rampPairs.find((p) => known.get(p.high)?.height === h3) ?? null;
+}
+function pairAround(cells, width, height, x, y, ctx, known) {
+  const heights = /* @__PURE__ */ new Map();
+  for (let dy = -4; dy <= 4; dy++) for (let dx = -8; dx <= 8; dx++) {
+    const px = x + dx, py = y + dy;
+    if (px < 0 || py < 0 || px >= width || py >= height) continue;
+    const h3 = known.get(cells[py * width + px])?.height;
+    if (h3 !== void 0) heights.set(h3, (heights.get(h3) ?? 0) + 1);
+  }
+  const present = [...heights.keys()].sort((a2, b) => a2 - b);
+  for (let i = 0; i + 1 < present.length; i++) {
+    const lo = present[i], hi = present[i + 1];
+    if (hi - lo !== 1) continue;
+    const pair = ctx.rampPairs.find((p) => known.get(p.low)?.height === lo && known.get(p.high)?.height === hi);
+    if (pair) return pair;
+  }
+  return null;
+}
+function shiftShapes(shapes, dx, dy) {
+  if (!dx && !dy) return [...shapes];
+  return shapes.map((s) => {
+    const out = { ...s };
+    if (typeof s.x === "number") out.x = s.x + dx;
+    if (typeof s.y === "number") out.y = s.y + dy;
+    if (typeof s.cx === "number") out.cx = s.cx + dx;
+    if (typeof s.cy === "number") out.cy = s.cy + dy;
+    if (s.points) out.points = s.points.map(([x, y]) => [x + dx, y + dy]);
+    return out;
+  });
+}
+
+// ai/presets.ts
+var PresetError = class extends Error {
+  problems;
+  constructor(problems) {
+    super(problems.join("; "));
+    this.name = "PresetError";
+    this.problems = problems;
+  }
+};
+var WATER = /water|lava|tar|space|ice$|magma/i;
+var DRESS = /ruins|mud|rocky|crags|moguls|flagstone|shale|asphalt|plating|crushed/i;
+function terrainRoles(ctx) {
+  const t = ctx.terrains;
+  const flats0 = t.filter((x) => x.height === 0 && x.buildable);
+  const ground = t.find((x) => x.height === 0 && x.buildable && /^(dirt|jungle|snow|space|grass|substructure)$/i.test(x.name)) ?? flats0[0] ?? t[0];
+  const water = t.find((x) => x.height === 0 && !x.buildable && WATER.test(x.name)) ?? null;
+  const pair = ctx.rampPairs.find((p) => p.low === ground.id) ?? ctx.rampPairs[0];
+  const high = pair ? pair.high : t.find((x) => x.height > 0 && x.buildable)?.id ?? ground.id;
+  const dress = t.find((x) => x.height === 0 && DRESS.test(x.name))?.id ?? ground.id;
+  return { ground: ground.id, water: water?.id ?? null, high, dress };
+}
+var Reader = class {
+  problems = [];
+  params;
+  spec;
+  constructor(params, spec) {
+    this.params = params;
+    this.spec = spec;
+  }
+  raw(name) {
+    const v = this.params[name];
+    return v === void 0 || v.trim() === "" ? void 0 : v.trim();
+  }
+  int(name, fallback, lo, hi) {
+    const v = this.raw(name);
+    if (v === void 0) return fallback;
+    const cleaned = v.replace(/[^0-9.-]/g, "");
+    const n2 = cleaned === "" ? NaN : Number(cleaned);
+    if (!Number.isFinite(n2)) {
+      this.problems.push(`"${name}" should be a number, not "${v}"`);
+      return fallback;
+    }
+    return Math.max(lo, Math.min(hi, Math.round(n2)));
+  }
+  text(name, fallback) {
+    return this.raw(name) ?? fallback;
+  }
+  choice(name, options, fallback) {
+    const v = this.raw(name)?.toLowerCase();
+    if (v === void 0) return fallback;
+    const hit = options.find((o) => o.toLowerCase() === v);
+    if (!hit) {
+      this.problems.push(`"${name}" should be one of ${options.join(", ")}, not "${v}"`);
+      return fallback;
+    }
+    return hit;
+  }
+  finish() {
+    for (const k of Object.keys(this.params)) if (!this.spec.params.some((p) => p.name === k)) this.problems.push(`"${k}" is not a parameter of ${this.spec.id}`);
+    if (this.problems.length) throw new PresetError(this.problems.map((p) => `${this.spec.id}: ${p}`));
+  }
+};
+var P = (name, description, required = false) => ({ name, description, required });
+var loc = (name, x0, y0, w, h3) => ({ name, x0: Math.round(x0), y0: Math.round(y0), x1: Math.round(x0 + w), y1: Math.round(y0 + h3) });
+var start = (player2, x, y) => ({ unit: "Start Location", player: player2, x: Math.round(x), y: Math.round(y) });
+function campSpots(n2, W, H, size, margin) {
+  const nw = { x: margin, y: margin, south: false, ramp: "se" };
+  const ne = { x: W - margin - size, y: margin, south: false, ramp: "sw" };
+  const sw = { x: margin, y: H - margin - size, south: true, ramp: "se" };
+  const se = { x: W - margin - size, y: H - margin - size, south: true, ramp: "sw" };
+  const edges = [
+    { x: (W - size) / 2, y: margin, south: false, ramp: "se" },
+    { x: (W - size) / 2, y: H - margin - size, south: true, ramp: "sw" },
+    { x: margin, y: (H - size) / 2, south: false, ramp: "se" },
+    { x: W - margin - size, y: (H - size) / 2, south: false, ramp: "sw" }
+  ];
+  const all = n2 === 2 ? [nw, se] : [nw, ne, sw, se, ...edges];
+  return all.slice(0, Math.max(1, Math.min(8, n2)));
+}
+var PRESETS = [
+  {
+    spec: {
+      id: "corner-camps",
+      description: "One raised camp per player around the edge of the map (corners first), each with a single ramp down that faces south (the game's ramps go no other way), a road from the ramp to a central arena, and water or open ground between. Madness, hero survival, free-for-all arenas.",
+      params: [
+        P("camps", "how many camps, 2\u20138 (default: the human players)"),
+        P("campSize", "a camp's side in tiles (default 28)"),
+        P("arena", "the arena's width in tiles (default a third of the map)"),
+        P("between", "what fills the ground between camps and arena: water (default), open, or rocks"),
+        P("roads", "yes (default) or no: a road of plain ground from each ramp to the arena"),
+        P("hall", 'a building placed in each camp for its player, by unit name ("Terran Command Center"); none by default')
+      ],
+      locations: ["Base {p}", "Spawn {p}", "Beacon {p}", "Arena", "Centre"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const camps = r.int("camps", Math.max(2, Math.min(8, ctx.humans.length || 2)), 2, 8);
+      const size = r.int("campSize", 28, 16, Math.floor(Math.min(W, H) / 3));
+      const arena = r.int("arena", Math.round(Math.min(W, H) / 3), 12, Math.floor(Math.min(W, H) / 2));
+      const between = r.choice("between", ["water", "open", "rocks"], "water");
+      const roads = r.choice("roads", ["yes", "no"], "yes") === "yes";
+      const hall = r.text("hall", "");
+      const margin = 3;
+      const fill = between === "water" && roles.water !== null ? roles.water : between === "rocks" ? roles.dress : roles.ground;
+      const cx = W / 2, cy = H / 2;
+      const shapes = [{ op: "ground", terrain: fill }];
+      const locations = [];
+      const units = [];
+      const spots = campSpots(camps, W, H, size, margin);
+      if (roads) for (const s of spots) {
+        const foot = s.ramp === "se" ? [s.x + size - RAMP_CUT - 2, s.y + size + 2] : [s.x + RAMP_CUT + 2, s.y + size + 2];
+        const via = s.south ? [[foot[0], Math.min(H - 6, foot[1] + 8)], [cx + (s.x < cx ? -arena / 2 - 6 : arena / 2 + 6), Math.min(H - 6, foot[1] + 8)]] : [];
+        shapes.push({ op: "stroke", terrain: roles.ground, points: [[foot[0], foot[1]], ...via, [cx, cy]], width: 10 });
+      }
+      shapes.push({ op: "diamond", terrain: roles.ground, cx, cy, rx: arena / 2 + 6, ry: arena / 4 + 3 });
+      shapes.push({ op: "diamond", terrain: roles.dress, cx, cy, rx: arena / 2, ry: arena / 4 });
+      spots.forEach((s, i) => {
+        const p = ctx.humans[i] ?? i + 1;
+        shapes.push({ op: "plateau", terrain: roles.high, x: s.x, y: s.y, w: size, h: size, ramps: [s.ramp] });
+        locations.push(loc(`Base ${p}`, s.x, s.y, size, size));
+        const spawnX = s.ramp === "se" ? s.x + size - RAMP_CUT * 2 - 8 : s.x + RAMP_CUT * 2 + 2;
+        locations.push(loc(`Spawn ${p}`, spawnX, s.y + size - RAMP_CUT - 8, 6, 6));
+        locations.push(loc(`Beacon ${p}`, s.ramp === "se" ? s.x + 3 : s.x + size - 6, s.y + 3, 3, 3));
+        units.push([start(p, s.x + size / 2, s.y + size / 2 - 6)]);
+        if (hall) units.push([{ unit: hall, player: p, x: Math.round(s.x + size / 2), y: Math.round(s.y + size / 2 + 2) }]);
+      });
+      locations.push(loc("Arena", cx - arena / 2, cy - arena / 4, arena, arena / 2));
+      locations.push(loc("Centre", cx - 4, cy - 3, 8, 6));
+      const notes = [`${camps} camp${camps === 1 ? "" : "s"} of ${size}\xD7${size}, ramps facing south as the game's do; the southern camps' roads run around to the arena`];
+      if (between === "water" && roles.water === null) notes.push("this tileset has no water; open ground between the camps instead");
+      return { shapes, locations, units: units.flat(), notes };
+    }
+  },
+  {
+    spec: {
+      id: "lanes",
+      description: "Lanes for a defense: each lane a walkable band from a spawn at the north edge to one goal at the south, walled by water or cliff so the waves stay in it, with a build yard for each player beside the lanes and a hire pad by each yard. Tower defense, marine defense, sunken defense.",
+      params: [
+        P("lanes", "how many lanes, 1\u20134 (default 2)"),
+        P("laneWidth", "the lane's width in tiles (default 5)"),
+        P("wall", "what walls the lanes: water (default) or cliff"),
+        P("bends", "yes or no (default): a bend in each lane")
+      ],
+      locations: ["Spawn {n}", "Lane {n} Mid", "Goal", "Yard {p}", "Pad {p}"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const lanes = r.int("lanes", 2, 1, 4);
+      const width = r.int("laneWidth", 5, 4, 10);
+      const wall = r.choice("wall", ["water", "cliff"], "water");
+      const bends = r.choice("bends", ["yes", "no"], "no") === "yes";
+      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
+      const shapes = [{ op: "ground", terrain: roles.ground }];
+      const locations = [];
+      const units = [];
+      const goalW = Math.min(W - 8, 12 * lanes + 8);
+      const goalX = W / 2 - goalW / 2, goalY = H - 14;
+      const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
+      const enclosure = wall === "water" ? 6 : 8;
+      shapes.push({ op: "rect", terrain: wallTerrain, x: goalX - enclosure, y: goalY - enclosure, w: goalW + 2 * enclosure, h: H - goalY + enclosure, cut: 0 });
+      const floor = roles.dress !== roles.ground && ctx.terrains.find((t) => t.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
+      laneXs.forEach((lx, i) => {
+        const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : i % 2 ? -1 : 1) * Math.min(14, W / 8);
+        const pts = bends ? [[lx, -6], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]] : [[lx, -6], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]];
+        shapes.push({ op: "lane", terrain: floor, points: pts, width, wall: wallTerrain, wallWidth: wall === "water" ? 4 : 6 });
+        locations.push(loc(`Spawn ${i + 1}`, lx - 3, 3, 6, 6));
+        locations.push(loc(`Lane ${i + 1} Mid`, (bends ? bendX : lx) - width, H / 2 - 4, width * 2, 8));
+      });
+      shapes.push({ op: "rect", terrain: floor, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
+      locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
+      const strips = [];
+      for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));
+      ctx.humans.forEach((p, i) => {
+        const sx = strips[i % strips.length], sy = 16 + Math.floor(i / strips.length) * 30;
+        const yw = 14, yh = 12;
+        locations.push(loc(`Yard ${p}`, sx - yw / 2, sy, yw, yh));
+        locations.push(loc(`Pad ${p}`, sx - 2, sy + yh + 2, 4, 3));
+        units.push(start(p, sx, sy + yh / 2));
+      });
+      return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
+    }
+  },
+  {
+    spec: {
+      id: "arena",
+      description: "A walled arena in the middle of the map \u2014 a floor of plain ground ringed by water or cliff that nothing crosses on foot \u2014 with a spawn spot inside it on each player's side and a lobby for each player outside, where their start location is. Micro arenas, duels, round-based fights, hero arenas.",
+      params: [
+        P("size", "the arena's width in tiles (default half the map)"),
+        P("sides", "2 (west and east) or 4 (west, east, north, south) spawn sides (default: 2 for up to two players, else 4)"),
+        P("wall", "what rings the arena: water (default) or cliff")
+      ],
+      locations: ["Arena", "Centre", "Spawn {p}", "Lobby {p}"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const humans = ctx.humans.length ? ctx.humans : [1, 2];
+      const size = r.int("size", Math.round(Math.min(W, H) / 2), 16, Math.min(W, H) - 24);
+      const sides = r.int("sides", humans.length <= 2 ? 2 : 4, 2, 4) >= 3 ? 4 : 2;
+      const wall = r.choice("wall", ["water", "cliff"], "water");
+      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
+      const cx = W / 2, cy = H / 2, half = size / 2, ring = 5;
+      const shapes = [
+        { op: "ground", terrain: roles.ground },
+        { op: "rect", terrain: wallTerrain, x: cx - half - ring, y: cy - half / 2 - ring, w: size + 2 * ring, h: half + 2 * ring, cut: 3 },
+        { op: "rect", terrain: roles.dress, x: cx - half, y: cy - half / 2, w: size, h: half, cut: 2 }
+      ];
+      const locations = [loc("Arena", cx - half, cy - half / 2, size, half), loc("Centre", cx - 4, cy - 3, 8, 6)];
+      const units = [];
+      const inner = [[cx - half + 6, cy], [cx + half - 6, cy], [cx, cy - half / 2 + 5], [cx, cy + half / 2 - 5]];
+      const outer = [[cx - half - ring - 10, cy], [cx + half + ring + 10, cy], [cx, cy - half / 2 - ring - 8], [cx, cy + half / 2 + ring + 8]];
+      humans.forEach((p, i) => {
+        const side = i % sides;
+        const [sx, sy] = inner[side], [lx, ly] = outer[side];
+        const shift = Math.floor(i / sides) * 8;
+        locations.push(loc(`Spawn ${p}`, sx - 3 + shift, sy - 3, 6, 6));
+        locations.push(loc(`Lobby ${p}`, lx - 5 + shift, ly - 4, 10, 8));
+        units.push(start(p, lx + shift, ly));
+      });
+      return { shapes, locations, units, notes: [`an arena ${size} wide ringed by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, spawns on ${sides} sides, lobbies outside`] };
+    }
+  },
+  {
+    spec: {
+      id: "bound",
+      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, cut into stretches. Each stretch is a field of spots laid back to back along the path \u2014 every spot a slab across the whole path, or split into lanes side by side \u2014 with safe ground before and after it and a checkpoint at its end. Spots are numbered along the course, lane by lane within a slab, so a stretch's spots are one run of numbers; explosions that roll along a stretch, alternate lanes, or fire a whole stretch at once are patterns over that run. Bounds, obstacle courses, dodge maps.",
+      params: [
+        P("width", "the path's width in tiles (default 4)"),
+        P("legs", "how many times the path crosses the map, 2\u20138 (default 5)"),
+        P("stretches", "obstacle fields along the course, 1\u201312 (default 5); a checkpoint follows each but the last"),
+        P("spotsPerStretch", "slabs in a field, back to back along the path (default 8)"),
+        P("lanes", "spots side by side across the path, 1\u20133 (default 1: one slab spans the path)")
+      ],
+      locations: ["Start", "Finish", "Checkpoint {n}", "Stretch {n}", "Spot {n}"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const width = r.int("width", 4, 3, 8);
+      const legs = r.int("legs", 5, 2, 8);
+      const stretches = r.int("stretches", 5, 1, 12);
+      const perStretch = r.int("spotsPerStretch", 8, 1, 30);
+      const lanes = r.int("lanes", 1, 1, 3);
+      const fill = roles.water ?? roles.dress;
+      const m = 8;
+      const band = (H - 2 * m) / (legs - 1);
+      const pts = [];
+      for (let i = 0; i < legs; i++) {
+        const y = H - m - i * band;
+        const left = [m, y], right = [W - m, y];
+        pts.push(...i % 2 === 0 ? [left, right] : [right, left]);
+      }
+      const shapes = [
+        { op: "ground", terrain: fill },
+        { op: "stroke", terrain: roles.ground, points: pts, width },
+        { op: "diamond", terrain: roles.ground, cx: pts[0][0], cy: pts[0][1], rx: 8, ry: 4 },
+        { op: "diamond", terrain: roles.ground, cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], rx: 8, ry: 4 }
+      ];
+      const segs = [];
+      let total = 0;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+        segs.push({ a: pts[i], b: pts[i + 1], len });
+        total += len;
+      }
+      const at = (d) => {
+        let left = Math.max(0, Math.min(total, d));
+        for (const s of segs) {
+          if (left <= s.len) {
+            const t = s.len ? left / s.len : 0;
+            return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
+          }
+          left -= s.len;
+        }
+        return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
+      };
+      const locations = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
+      const pad = 10;
+      const usable = Math.max(1, total - 2 * pad);
+      const section = usable / stretches;
+      const slab = 2;
+      const fieldLen = Math.min(section * 0.7, perStretch * slab);
+      const across = width + 2;
+      const laneAcross = across / lanes;
+      let spot = 1;
+      const stretchLocs = [];
+      const checkpointLocs = [];
+      for (let sIdx = 0; sIdx < stretches; sIdx++) {
+        const fieldStart = pad + section * sIdx + (section - fieldLen) / 2;
+        const slabs = Math.max(1, Math.round(fieldLen / slab));
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < slabs; i++) {
+          const c2 = at(fieldStart + (i + 0.5) * slab);
+          for (let lane = 0; lane < lanes; lane++) {
+            const off = -across / 2 + lane * laneAcross;
+            const l = c2.vertical ? loc(`Spot ${spot++}`, c2.x + off, c2.y - slab / 2, laneAcross, slab) : loc(`Spot ${spot++}`, c2.x - slab / 2, c2.y + off, slab, laneAcross);
+            locations.push(l);
+            x0 = Math.min(x0, l.x0);
+            y0 = Math.min(y0, l.y0);
+            x1 = Math.max(x1, l.x1);
+            y1 = Math.max(y1, l.y1);
+          }
+        }
+        stretchLocs.push({ name: `Stretch ${sIdx + 1}`, x0, y0, x1, y1 });
+        if (sIdx < stretches - 1) {
+          const c2 = at(fieldStart + fieldLen + Math.min(6, (section - fieldLen) / 4));
+          checkpointLocs.push(loc(`Checkpoint ${sIdx + 1}`, c2.x - 2, c2.y - 2, 4, 4));
+        }
+      }
+      locations.push(...checkpointLocs, ...stretchLocs);
+      const humans = ctx.humans.length ? ctx.humans : [1];
+      const units = humans.map((p, i) => start(p, pts[0][0] - 2 + i % 4 * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
+      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs, ${stretches} stretch${stretches === 1 ? "" : "es"} of up to ${perStretch} slab${perStretch === 1 ? "" : "s"}${lanes > 1 ? ` in ${lanes} lanes` : ""} (${spot - 1} spots, numbered along the course), a checkpoint after each stretch; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
+    }
+  },
+  {
+    spec: {
+      id: "town-regions",
+      description: "An RPG's world: a town on one corner of a map of water \u2014 with a shop spot and a heal spot \u2014 and a chain of regions of rising danger joined by paths, each region a broad island with a gate where its path arrives, the last region the boss room in the far corner. Start locations in the town. Linear RPGs, adventure maps, dungeon crawls.",
+      params: [
+        P("regions", "regions between the town and the boss room, 1\u20136 (default 3)"),
+        P("boss", "yes (default) or no: a boss room at the end"),
+        P("town", "which corner holds the town: sw (default), nw, se, ne")
+      ],
+      locations: ["Town", "Shop", "Heal", "Region {n}", "Gate {n}", "Path {n}", "Boss Room"]
+    },
+    build(r, ctx, roles) {
+      const W = ctx.width, H = ctx.height;
+      const regions = r.int("regions", 3, 1, 6);
+      const boss = r.choice("boss", ["yes", "no"], "yes") === "yes";
+      const corner = r.choice("town", ["sw", "nw", "se", "ne"], "sw");
+      const fill = roles.water ?? roles.dress;
+      const m = 14;
+      const townAt = [corner.includes("w") ? m + 6 : W - m - 6, corner.includes("s") ? H - m - 4 : m + 4];
+      const endAt = [corner.includes("w") ? W - m - 6 : m + 6, corner.includes("s") ? m + 4 : H - m - 4];
+      const stops = regions + (boss ? 2 : 1);
+      const centres = [];
+      for (let i = 0; i < stops; i++) {
+        const t = i / (stops - 1);
+        const wobble = (i % 2 ? 1 : -1) * Math.min(12, W / 10) * (i === 0 || i === stops - 1 ? 0 : 1);
+        centres.push([townAt[0] + (endAt[0] - townAt[0]) * t + wobble * (corner.includes("s") ? 1 : -1) * 0.5, townAt[1] + (endAt[1] - townAt[1]) * t + wobble * 0.5]);
+      }
+      const shapes = [{ op: "ground", terrain: fill }];
+      for (let i = 0; i + 1 < centres.length; i++) shapes.push({ op: "stroke", terrain: roles.ground, points: [centres[i], centres[i + 1]], width: 6 });
+      const rx = Math.min(18, W / 7), ry = rx / 2;
+      centres.forEach(([x, y], i) => {
+        const big = i === 0 ? 1.3 : 1;
+        shapes.push({ op: "diamond", terrain: roles.ground, cx: x, cy: y, rx: rx * big, ry: ry * big });
+        if (i > 0) shapes.push({ op: "diamond", terrain: roles.dress, cx: x, cy: y, rx: rx * 0.5, ry: ry * 0.5 });
+      });
+      const locations = [];
+      const [tx, ty] = centres[0];
+      locations.push(loc("Town", tx - rx * 1.3, ty - ry * 1.3, rx * 2.6, ry * 2.6));
+      locations.push(loc("Shop", tx - rx * 0.8, ty - 1, 3, 3), loc("Heal", tx + rx * 0.8 - 3, ty - 1, 3, 3));
+      centres.slice(1).forEach(([x, y], i) => {
+        const n2 = i + 1;
+        const last = boss && n2 === centres.length - 1;
+        locations.push(loc(last ? "Boss Room" : `Region ${n2}`, x - rx, y - ry, rx * 2, ry * 2));
+        const [px, py] = centres[i];
+        const gx = x + (px - x) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2))), gy = y + (py - y) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2)));
+        if (!last) locations.push(loc(`Gate ${n2}`, gx - 3, gy - 2, 6, 4));
+        locations.push(loc(`Path ${n2}`, Math.min(px, x) - 2, Math.min(py, y) - 2, Math.abs(px - x) + 4, Math.abs(py - y) + 4));
+      });
+      const humans = ctx.humans.length ? ctx.humans : [1];
+      const units = humans.map((p, i) => start(p, tx - 3 + i % 4 * 2, ty + 3 + Math.floor(i / 4) * 2));
+      return { shapes, locations, units, notes: [`a town in the ${corner} corner, ${regions} region${regions === 1 ? "" : "s"} along a path${boss ? " and a boss room" : ""} toward the far corner; water between${roles.water === null ? " (no water: unbuildable ground)" : ""}`] };
+    }
+  }
+];
+function presetSpecs() {
+  return PRESETS.map((p) => p.spec);
+}
+function presetById(id) {
+  return PRESETS.find((p) => p.spec.id === id)?.spec ?? null;
+}
+function buildPreset(id, params, ctx) {
+  const preset = PRESETS.find((p) => p.spec.id === id);
+  if (!preset) throw new PresetError([`no layout preset called "${id}" (the plugin has ${PRESETS.map((p) => p.spec.id).join(", ")})`]);
+  const r = new Reader(params, preset.spec);
+  const roles = terrainRoles(ctx);
+  const out = preset.build(r, ctx, roles);
+  r.finish();
+  const plan = {
+    name: "",
+    description: "",
+    symmetry: "none",
+    cellSize: 1,
+    columns: ctx.width,
+    rows: ctx.height,
+    legend: {},
+    grid: [],
+    shapes: out.shapes,
+    bases: [],
+    ramps: [],
+    doodads: decoration(ctx, roles),
+    units: out.units,
+    locations: out.locations,
+    notes: out.notes
+  };
+  return { plan, notes: out.notes };
+}
+function decoration(ctx, roles) {
+  const categories = ctx.doodadCategories ?? [];
+  const name = (id) => ctx.terrains.find((t) => t.id === id)?.name ?? "";
+  const match = (terrain) => categories.find((c2) => c2.toLowerCase() === name(terrain).toLowerCase()) ?? null;
+  const out = [];
+  const ground = match(roles.ground);
+  if (ground) out.push({ category: ground, on: "", terrains: [roles.ground], density: 0.06 });
+  if (roles.water !== null) {
+    const water = match(roles.water);
+    if (water) out.push({ category: water, on: "", terrains: [roles.water], density: 0.15 });
+  }
+  if (roles.dress !== roles.ground) {
+    const dress = match(roles.dress);
+    if (dress) out.push({ category: dress, on: "", terrains: [roles.dress], density: 0.08 });
+  }
+  const high = match(roles.high);
+  if (high) out.push({ category: high, on: "", terrains: [roles.high], density: 0.04 });
+  return out;
+}
+function presetsText() {
+  return PRESETS.map((p) => `${p.spec.id}: ${p.spec.description}
+${p.spec.params.map((x) => `  - ${x.name}${x.required ? " (required)" : ""}: ${x.description}`).join("\n")}
+  makes locations: ${p.spec.locations.join(", ")}`).join("\n\n");
+}
+
+// ai/ramps.ts
+function rampDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
+  const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
+  const out = [];
+  for (const d of doodads) {
+    if (!d.ramp || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    d.required.forEach((g, i) => {
+      const t = byGroup.get(g);
+      if (!t) return;
+      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
+      e.sx += i % d.width;
+      e.sy += Math.floor(i / d.width);
+      e.n++;
+      flats.set(t.id, e);
+    });
+    const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
+    if (list2.length === 0) continue;
+    let lo = list2[0], hi = list2.find((e) => e.t.height > lo.t.height) ?? null;
+    let side;
+    if (hi) {
+      side = lo.sx / lo.n < hi.sx / hi.n ? "sw" : "se";
+    } else {
+      const only = list2[0];
+      const centre = (d.width - 1) / 2;
+      const stripped = only.t.height === 0 ? null : byName2.get((only.t.name ?? "").replace(/^high\s+/i, "").toLowerCase());
+      const other = only.t.height === 0 ? byName2.get(`high ${only.t.name?.toLowerCase() ?? ""}`) ?? null : stripped && stripped.id !== only.t.id ? stripped : lowest && lowest.id !== only.t.id ? lowest : null;
+      if (!other) continue;
+      if (only.t.height === 0) {
+        lo = only;
+        hi = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "sw" : "se";
+      } else {
+        hi = only;
+        lo = { t: other, sx: 0, sy: 0, n: 1 };
+        side = only.sx / only.n < centre ? "se" : "sw";
+      }
+    }
+    if (hi.t.height <= lo.t.height) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, low: lo.t.id, high: hi.t.id, side });
+  }
+  return out;
+}
+var VERIFIED_RAMPS = {
+  badlands: [["Dirt", "High Dirt"]],
+  jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
+  desert: [["Dirt", "High Dirt"]],
+  twilight: [["Dirt", "High Dirt"]],
+  install: [["Substructure", "Floor"]],
+  ashworld: [["Dirt", "High Dirt"]],
+  platform: [["Low Platform", "Platform"]],
+  ice: []
+};
+var VERIFIED_BRIDGES = {
+  jungle: { ground: "Dirt", water: "Water", channel: 5 },
+  platform: { ground: "Low Platform", water: "Space", channel: 5 }
+};
+function rampPairs(ramps, tileset, types) {
+  const out = [];
+  for (const r of ramps) if (!out.some((p) => p.low === r.low && p.high === r.high)) out.push({ low: r.low, high: r.high });
+  if (!tileset || !types) return out;
+  const verified = VERIFIED_RAMPS[tileset];
+  if (!verified) return out;
+  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
+  return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
+}
+function rampsOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return rampDoodads(doodads, api.terrain.types());
+}
+function rampPairsOf(api) {
+  return rampPairs(rampsOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function bridgeDoodads(doodads, types) {
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const t of types) {
+    byGroup.set(t.group, t);
+    byGroup.set(t.group + 1, t);
+  }
+  const out = [];
+  for (const d of doodads) {
+    if (!/bridge/i.test(d.category) || !d.required?.length) continue;
+    const flats = /* @__PURE__ */ new Map();
+    for (const g of d.required) {
+      const t = byGroup.get(g);
+      if (t) {
+        const e = flats.get(t.id) ?? { t, n: 0 };
+        e.n++;
+        flats.set(t.id, e);
+      }
+    }
+    const list2 = [...flats.values()];
+    const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
+    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
+    const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
+    if (!water || !ground) continue;
+    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
+  }
+  return out;
+}
+function bridgePair(bridges, tileset, types) {
+  if (!bridges.length) return null;
+  if (tileset && types) {
+    const v = VERIFIED_BRIDGES[tileset];
+    if (!v) return null;
+    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
+    return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
+  }
+  return { ground: bridges[0].ground, water: bridges[0].water };
+}
+function bridgesOf(api) {
+  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  return bridgeDoodads(doodads, api.terrain.types());
+}
+function bridgePairOf(api) {
+  return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
+}
+function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
+  let best = null;
+  let bestD = Infinity;
+  for (const r of candidates) {
+    for (let ty = Math.round(site.y - r.height / 2) - window2.dy; ty <= Math.round(site.y - r.height / 2) + window2.dy; ty++) {
+      for (let tx = Math.round(site.x - r.width / 2) - window2.dx; tx <= Math.round(site.x - r.width / 2) + window2.dx; tx++) {
+        if (tx < 0 || ty < 0) continue;
+        const cx = tx + r.width / 2, cy = ty + r.height / 2;
+        const d = (cx - site.x) ** 2 + (cy - site.y) ** 2;
+        if (d >= bestD) continue;
+        if (!fits(r.id, tx, ty)) continue;
+        best = { doodadId: r.id, tx, ty, name: r.name, width: r.width, height: r.height };
+        bestD = d;
+      }
+    }
+  }
+  return best;
+}
+function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
+  const side = site.direction === "se" ? "se" : "sw";
+  return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
+}
+
+// ai/reach.ts
+function walkMask(api) {
+  const scn = api.document.scenario();
+  if (!scn || !api.tileset.isLoaded()) return null;
+  const { width, height } = scn;
+  const walk = new Uint8Array(width * height);
+  const cache2 = /* @__PURE__ */ new Map();
+  for (let i = 0; i < width * height; i++) {
+    const id = scn.tiles[i];
+    let w = cache2.get(id);
+    if (w === void 0) {
+      w = (api.terrain.tileInfo(id)?.walkable ?? 0) >= 8 ? 1 : 0;
+      cache2.set(id, w);
+    }
+    walk[i] = w;
+  }
+  return { width, height, walk };
+}
+function floodFrom(mask, x, y) {
+  const { width, height, walk } = mask;
+  const seen = new Uint8Array(width * height);
+  if (x < 0 || y < 0 || x >= width || y >= height || !walk[y * width + x]) return seen;
+  const stack = [y * width + x];
+  seen[stack[0]] = 1;
+  while (stack.length) {
+    const at = stack.pop();
+    const cx = at % width, cy = Math.floor(at / width);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const n2 = ny * width + nx;
+      if (seen[n2] || !walk[n2]) continue;
+      seen[n2] = 1;
+      stack.push(n2);
+    }
+  }
+  return seen;
+}
+function nearestWalkable(mask, x, y, radius = 6) {
+  let best = null;
+  let bestD = Infinity;
+  for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= mask.width || ny >= mask.height || !mask.walk[ny * mask.width + nx]) continue;
+    const d = dx * dx + dy * dy;
+    if (d < bestD) {
+      best = { x: nx, y: ny };
+      bestD = d;
+    }
+  }
+  return best;
+}
+function reachTouches(mask, reach, r) {
+  for (let y = Math.max(0, r.y0); y < Math.min(mask.height, r.y1); y++) for (let x = Math.max(0, r.x0); x < Math.min(mask.width, r.x1); x++) if (reach[y * mask.width + x]) return true;
+  return false;
+}
+
 // ai/layout.ts
-var TILE2 = 32;
+var TILE = 32;
 var HALL = { w: 4, h: 3 };
 var MINERAL = { w: 2, h: 1 };
 var GEYSER = { w: 4, h: 2 };
@@ -1917,15 +2474,15 @@ function chebGap(a2, b) {
   return Math.max(gx, gy);
 }
 function centreOf(r) {
-  return { x: (r.x + r.w / 2) * TILE2, y: (r.y + r.h / 2) * TILE2 };
+  return { x: (r.x + r.w / 2) * TILE, y: (r.y + r.h / 2) * TILE };
 }
 function rectAt(px, py, size, toward) {
   const axis = (p, n2, c2) => {
-    const v = p / TILE2 - n2 / 2;
+    const v = p / TILE - n2 / 2;
     if (c2 === void 0 || Math.abs(v - Math.floor(v) - 0.5) > 1e-9) return Math.round(v);
     const lo = Math.floor(v);
     const hi = lo + 1;
-    return Math.abs((lo + n2 / 2) * TILE2 - c2) <= Math.abs((hi + n2 / 2) * TILE2 - c2) ? lo : hi;
+    return Math.abs((lo + n2 / 2) * TILE - c2) <= Math.abs((hi + n2 / 2) * TILE - c2) ? lo : hi;
   };
   return { x: axis(px, size.w, toward?.x), y: axis(py, size.h, toward?.y), w: size.w, h: size.h };
 }
@@ -2228,13 +2785,13 @@ function usableSymmetry(mode, width, height) {
   return symmetryAvailable(mode, width, height) ? mode : "none";
 }
 function imageCell(f, cx, cy, cellSize) {
-  const p = f({ x: (cx + 0.5) * cellSize * TILE2, y: (cy + 0.5) * cellSize * TILE2 });
-  return { x: Math.floor(p.x / (cellSize * TILE2)), y: Math.floor(p.y / (cellSize * TILE2)) };
+  const p = f({ x: (cx + 0.5) * cellSize * TILE, y: (cy + 0.5) * cellSize * TILE });
+  return { x: Math.floor(p.x / (cellSize * TILE)), y: Math.floor(p.y / (cellSize * TILE)) };
 }
 function enforceSymmetry(plan, width, height) {
   const mode = usableSymmetry(plan.symmetry, width, height);
   if (mode === "none") return { ...plan, symmetry: "none" };
-  const images = symmetryImages(mode, width * TILE2, height * TILE2);
+  const images = symmetryImages(mode, width * TILE, height * TILE);
   const grid = plan.grid.map((r) => r.split(""));
   const seen = /* @__PURE__ */ new Set();
   for (let cy = 0; cy < plan.rows; cy++) {
@@ -2254,8 +2811,8 @@ function enforceSymmetry(plan, width, height) {
   return { ...plan, symmetry: mode, grid: grid.map((r) => r.join("")) };
 }
 function placeBases(bases, mode, width, height) {
-  const images = symmetryImages(usableSymmetry(mode, width, height), width * TILE2, height * TILE2);
-  const toward = { x: width * TILE2 / 2, y: height * TILE2 / 2 };
+  const images = symmetryImages(usableSymmetry(mode, width, height), width * TILE, height * TILE);
+  const toward = { x: width * TILE / 2, y: height * TILE / 2 };
   const out = [];
   let nextPlayer = 1;
   const used = /* @__PURE__ */ new Set();
@@ -2397,468 +2954,6 @@ function baseFootprint(b) {
 function unitRect(px, py, w, h3) {
   const r = rectAt(px, py, { w, h: h3 });
   return { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
-}
-
-// ai/ramps.ts
-function rampDoodads(doodads, types) {
-  const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
-  }
-  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
-  const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
-  const out = [];
-  for (const d of doodads) {
-    if (!d.ramp || !d.required?.length) continue;
-    const flats = /* @__PURE__ */ new Map();
-    d.required.forEach((g, i) => {
-      const t = byGroup.get(g);
-      if (!t) return;
-      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
-      e.sx += i % d.width;
-      e.sy += Math.floor(i / d.width);
-      e.n++;
-      flats.set(t.id, e);
-    });
-    const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
-    if (list2.length === 0) continue;
-    let lo = list2[0], hi = list2.find((e) => e.t.height > lo.t.height) ?? null;
-    let side;
-    if (hi) {
-      side = lo.sx / lo.n < hi.sx / hi.n ? "sw" : "se";
-    } else {
-      const only = list2[0];
-      const centre = (d.width - 1) / 2;
-      const stripped = only.t.height === 0 ? null : byName2.get((only.t.name ?? "").replace(/^high\s+/i, "").toLowerCase());
-      const other = only.t.height === 0 ? byName2.get(`high ${only.t.name?.toLowerCase() ?? ""}`) ?? null : stripped && stripped.id !== only.t.id ? stripped : lowest && lowest.id !== only.t.id ? lowest : null;
-      if (!other) continue;
-      if (only.t.height === 0) {
-        lo = only;
-        hi = { t: other, sx: 0, sy: 0, n: 1 };
-        side = only.sx / only.n < centre ? "sw" : "se";
-      } else {
-        hi = only;
-        lo = { t: other, sx: 0, sy: 0, n: 1 };
-        side = only.sx / only.n < centre ? "se" : "sw";
-      }
-    }
-    if (hi.t.height <= lo.t.height) continue;
-    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, low: lo.t.id, high: hi.t.id, side });
-  }
-  return out;
-}
-var VERIFIED_RAMPS = {
-  badlands: [["Dirt", "High Dirt"]],
-  jungle: [["Dirt", "High Dirt"], ["Jungle", "Temple"], ["High Jungle", "High Temple"]],
-  desert: [["Dirt", "High Dirt"]],
-  twilight: [["Dirt", "High Dirt"]],
-  install: [["Substructure", "Floor"]],
-  ashworld: [["Dirt", "High Dirt"]],
-  platform: [["Low Platform", "Platform"]],
-  ice: []
-};
-var VERIFIED_BRIDGES = {
-  jungle: { ground: "Dirt", water: "Water", channel: 5 },
-  platform: { ground: "Low Platform", water: "Space", channel: 5 }
-};
-function rampPairs(ramps, tileset, types) {
-  const out = [];
-  for (const r of ramps) if (!out.some((p) => p.low === r.low && p.high === r.high)) out.push({ low: r.low, high: r.high });
-  if (!tileset || !types) return out;
-  const verified = VERIFIED_RAMPS[tileset];
-  if (!verified) return out;
-  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
-  return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
-}
-function rampsOf(api) {
-  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  return rampDoodads(doodads, api.terrain.types());
-}
-function rampPairsOf(api) {
-  return rampPairs(rampsOf(api), api.document.info()?.tileset, api.terrain.types());
-}
-function bridgeDoodads(doodads, types) {
-  const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
-  }
-  const out = [];
-  for (const d of doodads) {
-    if (!/bridge/i.test(d.category) || !d.required?.length) continue;
-    const flats = /* @__PURE__ */ new Map();
-    for (const g of d.required) {
-      const t = byGroup.get(g);
-      if (t) {
-        const e = flats.get(t.id) ?? { t, n: 0 };
-        e.n++;
-        flats.set(t.id, e);
-      }
-    }
-    const list2 = [...flats.values()];
-    const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
-    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
-    const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
-    if (!water || !ground) continue;
-    out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
-  }
-  return out;
-}
-function bridgePair(bridges, tileset, types) {
-  if (!bridges.length) return null;
-  if (tileset && types) {
-    const v = VERIFIED_BRIDGES[tileset];
-    if (!v) return null;
-    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
-    return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
-  }
-  return { ground: bridges[0].ground, water: bridges[0].water };
-}
-function bridgesOf(api) {
-  const doodads = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  return bridgeDoodads(doodads, api.terrain.types());
-}
-function bridgePairOf(api) {
-  return bridgePair(bridgesOf(api), api.document.info()?.tileset, api.terrain.types());
-}
-function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
-  let best = null;
-  let bestD = Infinity;
-  for (const r of candidates) {
-    for (let ty = Math.round(site.y - r.height / 2) - window2.dy; ty <= Math.round(site.y - r.height / 2) + window2.dy; ty++) {
-      for (let tx = Math.round(site.x - r.width / 2) - window2.dx; tx <= Math.round(site.x - r.width / 2) + window2.dx; tx++) {
-        if (tx < 0 || ty < 0) continue;
-        const cx = tx + r.width / 2, cy = ty + r.height / 2;
-        const d = (cx - site.x) ** 2 + (cy - site.y) ** 2;
-        if (d >= bestD) continue;
-        if (!fits(r.id, tx, ty)) continue;
-        best = { doodadId: r.id, tx, ty, name: r.name, width: r.width, height: r.height };
-        bestD = d;
-      }
-    }
-  }
-  return best;
-}
-function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
-  const side = site.direction === "se" ? "se" : "sw";
-  return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
-}
-
-// ai/shapes.ts
-var BRIDGE_CHANNEL = 5;
-var BRIDGE_REACH = 14;
-var LANE_SHORE_PAD = 7;
-var LANE_CLIFF_PAD = 3;
-var RAMP_CUT = 7;
-var DEFAULT_CUT = 2;
-var RAMP_APRON = 22;
-function compileShapes(shapes, ctx) {
-  const { width, height } = ctx;
-  const cells = new Int32Array(width * height).fill(-1);
-  const findings = [];
-  const ramps = [];
-  const bridges = [];
-  const known = new Map(ctx.terrains.map((t) => [t.id, t]));
-  const put = (x, y, id) => {
-    if (x >= 0 && y >= 0 && x < width && y < height) cells[y * width + x] = id;
-  };
-  const terrainOf = (s, what) => {
-    if (typeof s.terrain !== "number" || !known.has(s.terrain)) {
-      findings.push(`${what} names terrain ${s.terrain}, which this tileset lacks; skipped`);
-      return null;
-    }
-    return s.terrain;
-  };
-  const laneBatch = /* @__PURE__ */ new Set();
-  const laneFloors = [];
-  shapes.forEach((s, i) => {
-    const what = `shape ${i + 1} (${s.op})`;
-    if (s.op === "lane" && !laneBatch.has(i)) {
-      let j = i;
-      while (j < shapes.length && shapes[j].op === "lane") laneBatch.add(j++);
-    }
-    switch (s.op) {
-      case "ground": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        cells.fill(id);
-        return;
-      }
-      case "rect":
-      case "plateau": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        const r = rectOf3(s);
-        if (!r) {
-          findings.push(`${what} has no size; skipped`);
-          return;
-        }
-        const cut = Math.max(0, Math.round(s.cut ?? DEFAULT_CUT));
-        const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
-        const cuts = { nw: cut, ne: cut, sw: sides.includes("sw") ? Math.max(cut, RAMP_CUT) : cut, se: sides.includes("se") ? Math.max(cut, RAMP_CUT) : cut };
-        fillCutRect(r, cuts, (x, y) => put(x, y, id));
-        for (const side of sides) {
-          const pair = pairFor(id, ctx, known);
-          if (!pair) {
-            findings.push(`${what}: this tileset has no ramp for ground of that height; the ${side} corner is cut but no ramp will fit`);
-            continue;
-          }
-          const site = rampSite(r, cuts, side);
-          const edge = rampEdge(r, cuts, side);
-          strokePolyline(edge, RAMP_APRON, (x, y) => {
-            if (x < 0 || y < 0 || x >= width || y >= height) return;
-            put(x, y, insideCutRect(r, cuts, x, y) ? pair.high : pair.low);
-          });
-          ramps.push({ x: site.x, y: site.y, direction: side, low: pair.low, high: pair.high });
-        }
-        return;
-      }
-      case "diamond": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        if (!radii(s)) {
-          findings.push(`${what} has no radii; skipped`);
-          return;
-        }
-        forDiamond(s.cx, s.cy, s.rx, s.ry, (x, y) => put(x, y, id));
-        return;
-      }
-      case "ellipse": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        if (!radii(s)) {
-          findings.push(`${what} has no radii; skipped`);
-          return;
-        }
-        const { cx, cy, rx, ry } = s;
-        for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-          const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
-          if (dx * dx + dy * dy <= 1) put(x, y, id);
-        }
-        return;
-      }
-      case "polygon": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        const pts = pointsOf(s);
-        if (pts.length < 3) {
-          findings.push(`${what} needs three points; skipped`);
-          return;
-        }
-        fillPolygon(pts, (x, y) => put(x, y, id));
-        return;
-      }
-      case "stroke":
-      case "lane": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        const pts = pointsOf(s);
-        if (pts.length < 2) {
-          findings.push(`${what} needs two points; skipped`);
-          return;
-        }
-        let w = Math.max(1, s.width ?? 4);
-        if (s.op === "lane" && typeof s.wall === "number") {
-          if (!known.has(s.wall)) findings.push(`${what} names wall terrain ${s.wall}, which this tileset lacks; laid without walls`);
-          else {
-            const cliff = (known.get(s.wall)?.height ?? 0) > (known.get(id)?.height ?? 0);
-            w += cliff ? LANE_CLIFF_PAD : LANE_SHORE_PAD;
-            const ww = Math.max(cliff ? 6 : 4, s.wallWidth ?? 3);
-            strokePolyline(pts, w + 2 * ww, (x, y) => put(x, y, s.wall));
-          }
-        }
-        if (s.op === "lane") {
-          const width2 = w;
-          laneFloors.push(() => strokePolyline(pts, width2, (x, y) => put(x, y, id)));
-          if (!laneBatch.has(i + 1)) {
-            for (const paint of laneFloors) paint();
-            laneFloors.length = 0;
-          }
-          return;
-        }
-        strokePolyline(pts, w, (x, y) => put(x, y, id));
-        return;
-      }
-      case "border": {
-        const id = terrainOf(s, what);
-        if (id === null) return;
-        const t = Math.max(1, Math.round(s.width ?? 2));
-        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (x < t || y < t || x >= width - t || y >= height - t) put(x, y, id);
-        return;
-      }
-      case "ramp": {
-        if (typeof s.x !== "number" || typeof s.y !== "number") {
-          findings.push(`${what} has no position; skipped`);
-          return;
-        }
-        const side = s.side === "se" ? "se" : "sw";
-        const x = Math.round(s.x), y = Math.round(s.y);
-        const pair = pairAround(cells, width, height, x, y, ctx, known);
-        if (pair) forDiamond(x, y, 8, 4, (px, py) => {
-          if (px < 0 || py < 0 || px >= width || py >= height) return;
-          const here = cells[py * width + px];
-          const h3 = known.get(here)?.height;
-          if (h3 === known.get(pair.high).height) put(px, py, pair.high);
-          else if (h3 === known.get(pair.low).height) put(px, py, pair.low);
-        });
-        else findings.push(`${what}: no cliff between two heights the tileset has a ramp for lies near ${x},${y}; the renderer will look for one`);
-        ramps.push({ x, y, direction: side, ...pair ? { low: pair.low, high: pair.high } : {} });
-        return;
-      }
-      case "bridge": {
-        if (typeof s.x !== "number" || typeof s.y !== "number") {
-          findings.push(`${what} has no position; skipped`);
-          return;
-        }
-        const pair = ctx.bridgePair ?? null;
-        if (!pair) {
-          findings.push(`${what}: this tileset has no bridges; skipped`);
-          return;
-        }
-        const along = s.along === "sw" ? "sw" : "se";
-        const x = Math.round(s.x), y = Math.round(s.y);
-        const d = along === "se" ? [2, 1] : [-2, 1];
-        const line = [[x - d[0] * BRIDGE_REACH / 2, y - d[1] * BRIDGE_REACH / 2], [x + d[0] * BRIDGE_REACH / 2, y + d[1] * BRIDGE_REACH / 2]];
-        const channel = pair.channel ?? BRIDGE_CHANNEL;
-        strokePolyline(line, channel + 2 * 8, (px, py) => put(px, py, pair.ground));
-        strokePolyline(line, channel, (px, py) => put(px, py, pair.water));
-        bridges.push({ x, y, along });
-        return;
-      }
-      default:
-        findings.push(`shape ${i + 1} has an op "${String(s.op)}" the compiler does not know; skipped`);
-    }
-  });
-  return { cells, ramps, bridges, findings };
-}
-function shapesToLayout(plan, ctx) {
-  const compiled = compileShapes(plan.shapes ?? [], ctx);
-  const ids = /* @__PURE__ */ new Map();
-  const legend = {};
-  const charFor = (id) => {
-    let ch = ids.get(id);
-    if (ch === void 0) {
-      ch = LEGEND_CHARS[ids.size] ?? "?";
-      ids.set(id, ch);
-      legend[ch] = id;
-    }
-    return ch;
-  };
-  const rows = [];
-  for (let y = 0; y < ctx.height; y++) {
-    let row = "";
-    for (let x = 0; x < ctx.width; x++) {
-      const id = compiled.cells[y * ctx.width + x];
-      row += id < 0 ? "?" : charFor(id);
-    }
-    rows.push(row);
-  }
-  const doodads = plan.doodads.map((d) => ({ ...d, on: d.on || [...new Set((d.terrains ?? []).filter((id) => ids.has(id)).map((id) => ids.get(id)))].join("") }));
-  const out = {
-    ...plan,
-    cellSize: 1,
-    columns: ctx.width,
-    rows: ctx.height,
-    legend,
-    grid: rows,
-    ramps: [...compiled.ramps, ...plan.ramps],
-    bridges: [...compiled.bridges, ...plan.bridges ?? []],
-    doodads,
-    symmetry: "none"
-  };
-  return { plan: out, findings: compiled.findings };
-}
-function rectOf3(s) {
-  if (typeof s.x !== "number" || typeof s.y !== "number" || typeof s.w !== "number" || typeof s.h !== "number" || s.w <= 0 || s.h <= 0) return null;
-  return { x0: Math.round(s.x), y0: Math.round(s.y), x1: Math.round(s.x + s.w), y1: Math.round(s.y + s.h) };
-}
-function radii(s) {
-  return typeof s.cx === "number" && typeof s.cy === "number" && typeof s.rx === "number" && typeof s.ry === "number" && s.rx > 0 && s.ry > 0;
-}
-function pointsOf(s) {
-  return (s.points ?? []).filter((p) => Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number").map((p) => [p[0], p[1]]);
-}
-function uniqueSides(sides) {
-  const out = [];
-  for (const s of sides) if ((s === "sw" || s === "se") && !out.includes(s)) out.push(s);
-  return out;
-}
-function insideCutRect(r, cuts, x, y) {
-  if (x < r.x0 || y < r.y0 || x >= r.x1 || y >= r.y1) return false;
-  const l = x - r.x0, rt = r.x1 - 1 - x, t = y - r.y0, b = r.y1 - 1 - y;
-  if (l + 2 * t < 2 * cuts.nw - 1) return false;
-  if (rt + 2 * t < 2 * cuts.ne - 1) return false;
-  if (l + 2 * b < 2 * cuts.sw - 1) return false;
-  if (rt + 2 * b < 2 * cuts.se - 1) return false;
-  return true;
-}
-function fillCutRect(r, cuts, put) {
-  for (let y = r.y0; y < r.y1; y++) for (let x = r.x0; x < r.x1; x++) if (insideCutRect(r, cuts, x, y)) put(x, y);
-}
-function rampEdge(r, cuts, side) {
-  const c2 = side === "sw" ? cuts.sw : cuts.se;
-  return side === "sw" ? [[r.x0, r.y1 - c2], [r.x0 + 2 * c2, r.y1]] : [[r.x1 - 2 * c2, r.y1], [r.x1, r.y1 - c2]];
-}
-function rampSite(r, cuts, side) {
-  const c2 = side === "sw" ? cuts.sw : cuts.se;
-  return side === "sw" ? { x: r.x0 + c2, y: r.y1 - Math.ceil(c2 / 2) } : { x: r.x1 - 1 - c2, y: r.y1 - Math.ceil(c2 / 2) };
-}
-function forDiamond(cx, cy, rx, ry, put) {
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-    if (Math.abs(x + 0.5 - cx) / rx + Math.abs(y + 0.5 - cy) / ry <= 1) put(x, y);
-  }
-}
-function fillPolygon(pts, put) {
-  const ys = pts.map((p) => p[1]);
-  const y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
-  for (let y = y0; y <= y1; y++) {
-    const cy = y + 0.5;
-    const xs = [];
-    for (let i = 0; i < pts.length; i++) {
-      const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
-      if (ay === by) continue;
-      if (cy >= Math.min(ay, by) && cy < Math.max(ay, by)) xs.push(ax + (cy - ay) * (bx - ax) / (by - ay));
-    }
-    xs.sort((a2, b) => a2 - b);
-    for (let i = 0; i + 1 < xs.length; i += 2) for (let x = Math.floor(xs[i]); x < Math.ceil(xs[i + 1]); x++) if (x + 0.5 >= xs[i] && x + 0.5 <= xs[i + 1]) put(x, y);
-  }
-}
-function strokePolyline(pts, width, put) {
-  const half = width / 2;
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
-    const x0 = Math.floor(Math.min(ax, bx) - half) - 1, x1 = Math.ceil(Math.max(ax, bx) + half) + 1;
-    const y0 = Math.floor(Math.min(ay, by) - half) - 1, y1 = Math.ceil(Math.max(ay, by) + half) + 1;
-    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      const px = x + 0.5, py = y + 0.5;
-      const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
-      const dx = px - (ax + t * vx), dy = py - (ay + t * vy);
-      if (dx * dx + dy * dy <= half * half) put(x, y);
-    }
-  }
-}
-function pairFor(terrain, ctx, known) {
-  const h3 = known.get(terrain)?.height;
-  return ctx.rampPairs.find((p) => p.high === terrain) ?? ctx.rampPairs.find((p) => known.get(p.high)?.height === h3) ?? null;
-}
-function pairAround(cells, width, height, x, y, ctx, known) {
-  const heights = /* @__PURE__ */ new Map();
-  for (let dy = -4; dy <= 4; dy++) for (let dx = -8; dx <= 8; dx++) {
-    const px = x + dx, py = y + dy;
-    if (px < 0 || py < 0 || px >= width || py >= height) continue;
-    const h3 = known.get(cells[py * width + px])?.height;
-    if (h3 !== void 0) heights.set(h3, (heights.get(h3) ?? 0) + 1);
-  }
-  const present = [...heights.keys()].sort((a2, b) => a2 - b);
-  for (let i = 0; i + 1 < present.length; i++) {
-    const lo = present[i], hi = present[i + 1];
-    if (hi - lo !== 1) continue;
-    const pair = ctx.rampPairs.find((p) => known.get(p.low)?.height === lo && known.get(p.high)?.height === hi);
-    if (pair) return pair;
-  }
-  return null;
 }
 
 // ai/render.ts
@@ -3021,8 +3116,8 @@ function renderPlan(api, input, options) {
         continue;
       }
       const size = api.palette.unitSize(id);
-      const px = u.x * TILE2 + TILE2 / 2;
-      const py = u.y * TILE2 + TILE2 / 2;
+      const px = u.x * TILE + TILE / 2;
+      const py = u.y * TILE + TILE / 2;
       const owner = u.player >= 12 ? NEUTRAL : u.player - 1;
       if (!tx.canPlaceUnit(id, px, py)) {
         findings.push(`${u.unit} at ${u.x},${u.y} is refused there (${describePlacement(api, id, px, py)})`);
@@ -3031,8 +3126,8 @@ function renderPlan(api, input, options) {
       const index = tx.placeUnit(id, owner, px, py);
       if (u.amount !== void 0) setResource(api, tx, index, u.amount);
       placed.units++;
-      const w = size ? Math.max(1, Math.round(size.width / TILE2)) : 1;
-      const hgt = size ? Math.max(1, Math.round(size.height / TILE2)) : 1;
+      const w = size ? Math.max(1, Math.round(size.width / TILE)) : 1;
+      const hgt = size ? Math.max(1, Math.round(size.height / TILE)) : 1;
       occupied.push(unitRect(px, py, w, hgt));
     }
     const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1), DOODAD_MARGIN);
@@ -3051,7 +3146,7 @@ function renderPlan(api, input, options) {
     }
     if (refusedGround > 0) findings.push(`decoration: ${refusedGround} spot${refusedGround === 1 ? "" : "s"} left bare where the ground turned out to be shore, cliff or another terrain`);
     for (const l of plan.locations) {
-      const index = tx.addLocation({ left: l.x0 * TILE2, top: l.y0 * TILE2, right: l.x1 * TILE2, bottom: l.y1 * TILE2 }, l.name);
+      const index = tx.addLocation({ left: l.x0 * TILE, top: l.y0 * TILE, right: l.x1 * TILE, bottom: l.y1 * TILE }, l.name);
       if (index < 0) findings.push(`no free slot for location "${l.name}"`);
       else placed.locations++;
     }
@@ -3110,6 +3205,601 @@ function summarizeRender(r) {
   if (p.units) parts.push(`${p.units} unit${p.units === 1 ? "" : "s"}`);
   if (p.locations) parts.push(`${p.locations} location${p.locations === 1 ? "" : "s"}`);
   return parts.length ? parts.join(", ") : "nothing was placed";
+}
+
+// ai/tools/common.ts
+var TILE2 = 32;
+var RESULT_CAP = 8e3;
+var num = (v, d = 0) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d;
+var str = (v, d = "") => typeof v === "string" ? v : typeof v === "number" ? String(v) : d;
+var bool = (v) => typeof v === "boolean" ? v : typeof v === "string" && /^(true|yes|on)$/i.test(v) ? true : typeof v === "string" && /^(false|no|off)$/i.test(v) ? false : void 0;
+var list = (v) => Array.isArray(v) ? v : [];
+var ints2 = (v) => list(v).map((x) => Math.round(num(x, -1))).filter((x) => x >= 0);
+function rectOf3(input, api) {
+  const info = api.document.info();
+  const W = info?.width ?? 0, H = info?.height ?? 0;
+  const x0 = Math.max(0, Math.min(W, Math.round(num(input.x0)))), y0 = Math.max(0, Math.min(H, Math.round(num(input.y0))));
+  const x1 = Math.max(x0, Math.min(W, Math.round(num(input.x1, W)))), y1 = Math.max(y0, Math.min(H, Math.round(num(input.y1, H))));
+  return { x0, y0, x1, y1 };
+}
+var hasRect = (input) => input.x0 !== void 0 || input.x1 !== void 0 || input.y0 !== void 0 || input.y1 !== void 0;
+var rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
+var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
+function capResult(value, cap = RESULT_CAP) {
+  const s = typeof value === "string" ? value : JSON.stringify(value);
+  return s.length <= cap ? s : `${s.slice(0, cap)}
+\u2026 cut: ${s.length - cap} more characters. Ask with a narrower filter.`;
+}
+function ownerName(o) {
+  return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
+}
+function ownerOf(v, d = 11) {
+  if (typeof v === "string" && /neutral/i.test(v)) return 11;
+  const n2 = num(v, d + 1);
+  if (n2 >= 12) return 11;
+  return Math.max(0, Math.round(n2) - 1);
+}
+function slotOf(v) {
+  if (v === void 0 || v === null) return null;
+  if (typeof v === "string" && /^default$/i.test(v.trim())) return "default";
+  const n2 = Math.round(num(v, -1));
+  return n2 >= 1 && n2 <= 12 ? n2 - 1 : null;
+}
+function byName(items, name) {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  const numeric = /^\d+$/.test(wanted) ? Number(wanted) : null;
+  if (numeric !== null) return items.find((i) => i.value === numeric) ?? null;
+  const exact = items.find((i) => i.label.toLowerCase() === wanted);
+  if (exact) return exact;
+  const starts = items.filter((i) => i.label.toLowerCase().startsWith(wanted));
+  if (starts.length === 1) return starts[0];
+  const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
+  return within.length >= 1 ? within[0] : null;
+}
+var UNIT_ALIASES = {
+  "mineral field": "Mineral Field (Type 1)",
+  minerals: "Mineral Field (Type 1)",
+  "mineral patch": "Mineral Field (Type 1)",
+  mineral: "Mineral Field (Type 1)",
+  geyser: "Vespene Geyser",
+  gas: "Vespene Geyser",
+  start: "Start Location",
+  "start location": "Start Location",
+  marine: "Terran Marine",
+  zergling: "Zerg Zergling",
+  zealot: "Protoss Zealot",
+  scv: "Terran SCV",
+  drone: "Zerg Drone",
+  probe: "Protoss Probe",
+  "command center": "Terran Command Center",
+  hatchery: "Zerg Hatchery",
+  nexus: "Protoss Nexus"
+};
+function unitIdByName2(api, name) {
+  const alias = UNIT_ALIASES[name.trim().toLowerCase()];
+  const items = api.names.units().filter((u) => u.value < 228);
+  return byName(items, alias ?? name)?.value ?? null;
+}
+function upgradeIdByName(api, name) {
+  return byName(api.names.upgrades(), name)?.value ?? null;
+}
+function techIdByName(api, name) {
+  return byName(api.names.techs(), name)?.value ?? null;
+}
+function doodadByName(api, name) {
+  const wanted = name.trim().toLowerCase();
+  const all = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  if (/^\d+$/.test(wanted)) return all.find((d) => d.id === Number(wanted)) ?? null;
+  const exact = all.find((d) => d.name.toLowerCase() === wanted);
+  if (exact) return exact;
+  const within = all.filter((d) => d.name.toLowerCase().includes(wanted));
+  if (within.length) return within[Math.floor(Math.random() * within.length)];
+  const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === wanted || c2.name.toLowerCase().includes(wanted));
+  return cat && cat.doodads.length ? cat.doodads[Math.floor(Math.random() * cat.doodads.length)] : null;
+}
+function spriteByName(api, kind, name) {
+  const wanted = name.trim().toLowerCase();
+  if (/^\d+$/.test(wanted)) return Number(wanted);
+  if (kind === "unit") return unitIdByName2(api, name);
+  const ids = api.palette.spriteGroups().flatMap((g) => g.ids);
+  const named = ids.map((id) => ({ value: id, label: api.palette.spriteName("pure", id) }));
+  return byName(named, name)?.value ?? null;
+}
+var PLAYER_COLOR_NAMES = ["Red", "Blue", "Teal", "Purple", "Orange", "Brown", "White", "Yellow", "Green", "Pale Yellow", "Tan", "Dark Aqua", "Pale Green", "Bluish Grey", "Pale Yellow 2", "Cyan"];
+function colorIndexOf(v) {
+  if (typeof v === "number") return v >= 0 && v < 256 ? Math.round(v) : null;
+  const s = str(v).trim().toLowerCase();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) return Number(s);
+  const i = PLAYER_COLOR_NAMES.findIndex((n2) => n2.toLowerCase() === s);
+  return i >= 0 ? i : null;
+}
+function toContent(toolUseId, result, isError = false) {
+  if (typeof result === "string") return { type: "tool_result", toolUseId, content: result, isError };
+  const parts = [];
+  if (result.text) parts.push({ type: "text", text: result.text });
+  if (result.image) parts.push({ type: "image", source: result.image });
+  return { type: "tool_result", toolUseId, content: parts.length ? parts : "Done.", isError };
+}
+function describeCall(name, input) {
+  const args = Object.entries(input).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.length > 40 ? `${v.slice(0, 40)}\u2026` : v) : Array.isArray(v) ? `[${v.length}]` : typeof v === "object" && v ? "{\u2026}" : String(v)}`).join(", ");
+  return `${name}(${args})`;
+}
+function summarizeResult(result) {
+  const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
+  const line = text.split("\n")[0];
+  return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
+}
+var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
+
+// ai/tools/layout.ts
+function slots(api) {
+  const players2 = api.settings.players();
+  return {
+    humans: players2.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1),
+    computers: players2.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1)
+  };
+}
+function pointOf(api, input, prefix) {
+  const name = str(input[`${prefix}Location`] ?? input[prefix]);
+  const xk = `${prefix}X`, yk = `${prefix}Y`;
+  if (input[xk] !== void 0 && input[yk] !== void 0) return { x: Math.round(num(input[xk])), y: Math.round(num(input[yk])), label: `${Math.round(num(input[xk]))},${Math.round(num(input[yk]))}` };
+  if (!name) return `give ${prefix} as a location name (${prefix}Location) or a tile (${xk}, ${yk})`;
+  const scn = api.document.scenario();
+  if (!scn) return "no map is open";
+  const index = scn.locations.findIndex((l2, i) => (l2.left !== l2.right || l2.nameIndex > 0) && api.names.location(i).toLowerCase() === name.toLowerCase());
+  if (index < 0) return `no location is called "${name}" (see list_locations)`;
+  const l = scn.locations[index];
+  return { x: Math.floor((Math.min(l.left, l.right) + Math.max(l.left, l.right)) / 2 / TILE2), y: Math.floor((Math.min(l.top, l.bottom) + Math.max(l.top, l.bottom)) / 2 / TILE2), label: name };
+}
+function layoutTools() {
+  return [
+    {
+      def: { name: "layout_presets", description: "The layouts the editor lays out by itself from a few numbers \u2014 corner camps around an arena, lanes from spawns to a goal, a walled arena, a bound's course of stretches, a town with a chain of regions \u2014 with each one's parameters and the locations it makes ({p} a player number, {n} a lane, stretch or region number). Use layout_preset to lay one out; prefer a preset over painting terrain by hand whenever the map's shape is one of these.", inputSchema: obj({}) },
+      writes: false,
+      run: () => presetsText()
+    },
+    {
+      def: { name: "layout_preset", description: "Lay a preset out over the whole map: the terrain (with ramps and bridges that fit, where the tileset has them), the named locations, a start location per human player, a little decoration. Replaces the terrain and clears units, doodads and sprites first; triggers and settings stay. `params` are the preset's parameters as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const id = str(input.preset);
+        if (!presetById(id)) return `No preset is called "${id}". The presets:
+${presetSpecs().map((p) => p.id).join(", ")}`;
+        const info = api.document.info();
+        if (!info) return "No map is open.";
+        const raw = input.params && typeof input.params === "object" ? input.params : {};
+        const params = {};
+        for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
+        const { humans } = slots(api);
+        let plan;
+        let notes;
+        try {
+          const built = buildPreset(id, params, { width: info.width, height: info.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans: humans.length ? humans : [1], doodadCategories: doodadCategoryNames(api) });
+          plan = built.plan;
+          notes = built.notes;
+        } catch (err) {
+          if (err instanceof PresetError) return `Not laid out:
+${err.problems.map((p) => `- ${p}`).join("\n")}`;
+          throw err;
+        }
+        const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${id} layout`, clearArea: true });
+        if (!rendered) return "The layout could not be rendered.";
+        return capResult({ laidOut: summarizeRender(rendered), locations: plan.locations.map((l) => `${l.name} [${l.x0},${l.y0}-${l.x1},${l.y1}]`), notes: [...notes, ...rendered.findings] });
+      }
+    },
+    {
+      def: {
+        name: "paint_shapes",
+        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier): ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": the editor paints the channel and fits the bridge). Every shape but ramp and bridge names a terrain id (see list_terrains). Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        inputSchema: obj({
+          shapes: { type: "array", items: { type: "object", additionalProperties: true } },
+          originX: { type: "integer" },
+          originY: { type: "integer" },
+          clear: { type: "boolean" },
+          locations: { type: "array", items: { type: "object", additionalProperties: true } },
+          units: { type: "array", items: { type: "object", additionalProperties: true } }
+        }, ["shapes"])
+      },
+      writes: true,
+      run: (input, { api }) => {
+        const info = api.document.info();
+        if (!info) return "No map is open.";
+        const shapes = list(input.shapes).filter((s) => s && typeof s === "object" && typeof s.op === "string");
+        if (!shapes.length) return "No shapes were given.";
+        const dx = Math.round(num(input.originX)), dy = Math.round(num(input.originY));
+        const locations = list(input.locations).map((l) => ({ name: str(l.name, "Location"), x0: Math.round(num(l.x0)) + dx, y0: Math.round(num(l.y0)) + dy, x1: Math.round(num(l.x1)) + dx, y1: Math.round(num(l.y1)) + dy }));
+        const units = list(input.units).map((u) => ({ unit: str(u.unit), player: Math.round(num(u.player, 12)), x: Math.round(num(u.x)) + dx, y: Math.round(num(u.y)) + dy }));
+        const plan = {
+          name: "",
+          description: "",
+          symmetry: "none",
+          cellSize: 1,
+          columns: info.width,
+          rows: info.height,
+          legend: {},
+          grid: [],
+          shapes: shiftShapes(shapes, dx, dy),
+          bases: [],
+          ramps: [],
+          doodads: [],
+          units,
+          locations,
+          notes: []
+        };
+        const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: "AI: paint shapes", clearArea: input.clear === true });
+        if (!rendered) return "The shapes could not be rendered.";
+        return capResult({ painted: summarizeRender(rendered), notes: rendered.findings });
+      }
+    },
+    {
+      def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already on the map, near a tile, going down south-west or south-east (the only ways the game's ramps go). Tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit. A ramp fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for \u2014 a tile-aligned cliff takes none; to make such an edge, paint a plateau with paint_shapes instead.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const ramps = rampsOf(api);
+        if (!ramps.length) return "This tileset has no ramp doodads the editor can read.";
+        const side = str(input.side) === "se" ? "se" : "sw";
+        const x = Math.round(num(input.x)), y = Math.round(num(input.y));
+        const tileset = api.document.info()?.tileset ?? "";
+        const fit = fitRamp({ x, y, direction: side }, ramps, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true);
+        if (!fit) {
+          const pairs = (VERIFIED_RAMPS[tileset] ?? []).map(([lo, hi]) => `${lo} \u2192 ${hi}`).join(", ") || "none the brush's cliffs can take";
+          return `No ramp fits within 12 tiles of ${x},${y} going ${side}. A ramp needs a straight diagonal cliff run facing ${side === "sw" ? "south-west" : "south-east"}, between ground this tileset has ramps for (${pairs}). Paint a plateau with a ramps parameter through paint_shapes to make such an edge.`;
+        }
+        const r = api.document.edit("AI: place ramp", (tx) => {
+          tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+        });
+        return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}\xD7${fit.height})`, notes: r.notes });
+      }
+    },
+    {
+      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. A bridge spans only a diagonal channel of the width the tileset's bridges were drawn for (Jungle and Space Platform have bridges the brush's shores take); to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const bridges = bridgesOf(api);
+        if (!bridges.length) return "This tileset has no bridges.";
+        const x = Math.round(num(input.x)), y = Math.round(num(input.y));
+        const fit = fitDoodad({ x, y }, bridges, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true, { dx: 14, dy: 10 });
+        if (!fit) return `No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`;
+        const r = api.document.edit("AI: place bridge", (tx) => {
+          tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
+        });
+        return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}\xD7${fit.height})`, notes: r.notes });
+      }
+    },
+    {
+      def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" } }) },
+      writes: false,
+      run: (input, { api }) => {
+        const mask = walkMask(api);
+        if (!mask) return "No map is open, or the tileset graphics are not loaded.";
+        const from = pointOf(api, input, "from"), to = pointOf(api, input, "to");
+        if (typeof from === "string") return from;
+        if (typeof to === "string") return to;
+        const fromWalkable = mask.walk[from.y * mask.width + from.x] === 1;
+        const start2 = fromWalkable ? from : nearestWalkable(mask, from.x, from.y);
+        if (!start2) return `${from.label} is not walkable and nothing walkable lies within 6 tiles of it.`;
+        const reach = floodFrom(mask, start2.x, start2.y);
+        const toWalkable = mask.walk[to.y * mask.width + to.x] === 1;
+        const target = toWalkable ? to : nearestWalkable(mask, to.x, to.y);
+        const scn = api.document.scenario();
+        const toIndex = scn.locations.findIndex((l, i) => (l.left !== l.right || l.nameIndex > 0) && api.names.location(i).toLowerCase() === to.label.toLowerCase());
+        const box = toIndex >= 0 ? { x0: Math.floor(Math.min(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE2), y0: Math.floor(Math.min(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE2), x1: Math.ceil(Math.max(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE2), y1: Math.ceil(Math.max(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE2) } : null;
+        const ok = box ? reachTouches(mask, reach, box) : !!target && reach[target.y * mask.width + target.x] === 1;
+        let n2 = 0;
+        for (let i = 0; i < reach.length; i++) n2 += reach[i];
+        return capResult({
+          reachable: ok,
+          from: `${from.label}${fromWalkable ? "" : ` (not walkable; started from ${start2.x},${start2.y})`}`,
+          to: `${to.label}${toWalkable ? "" : target ? ` (centre not walkable; nearest walkable ${target.x},${target.y})` : " (not walkable, nothing walkable near)"}`,
+          tilesReachedFromStart: n2
+        });
+      }
+    },
+    {
+      def: { name: "scenario_rules", description: "The game's own rules a scenario breaks silently, checked on the open map: a human or computer slot that owns nothing (defeated at once, and its triggers never run); a human without a start location; a trigger list that counts time without hyper triggers. With fix: true, a computer that owns nothing gets an Overlord in the top-right corner to keep it in the game.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      writes: true,
+      run: (input, { api }) => {
+        const scn = api.document.scenario();
+        if (!scn) return "No map is open.";
+        const { humans, computers } = slots(api);
+        const owned = new Set(scn.units.map((u) => u.owner + 1));
+        const problems = [];
+        const fixed = [];
+        for (const p of humans) if (!owned.has(p)) problems.push(`Player ${p} (human) owns no unit; a human is placed by the start location, so check it has one and that the triggers or the melee start give it something`);
+        const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
+        for (const p of humans) if (!starts.has(p)) problems.push(`Player ${p} (human) has no start location`);
+        const keeper = unitIdByName(api, "Zerg Overlord");
+        for (const p of computers) {
+          if (owned.has(p)) continue;
+          if (input.fix === true && keeper !== null) {
+            const px = (scn.width - 2) * TILE2, py = (2 + fixed.length * 2) * TILE2;
+            api.document.edit(`AI: keeper for player ${p}`, (tx) => {
+              tx.placeUnit(keeper, p - 1, px, py);
+            });
+            fixed.push(`Player ${p} (computer) owned nothing: an Overlord at ${scn.width - 2},${2 + fixed.length * 2} keeps it in the game`);
+          } else problems.push(`Player ${p} (computer) owns nothing: it is defeated the moment the game starts and its triggers never run \u2014 give it a unit out of the way (fix: true does)`);
+        }
+        const hyper = scn.triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
+        const counters = scn.triggers.some((t) => t.conditions.some((c2) => c2.type === api.consts.triggers.condition.Deaths) && t.actions.some((a2) => a2.type === api.consts.triggers.action.SetDeaths));
+        if (counters && !hyper) problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
+        return capResult({ problems: problems.length ? problems : ["none"], fixed });
+      }
+    }
+  ];
+}
+
+// ai/tools/objects.ts
+var STATE_BITS = (c2) => [
+  ["cloaked", c2.unit.state.Cloaked, c2.unit.valid.Cloak],
+  ["burrowed", c2.unit.state.Burrowed, c2.unit.valid.Burrow],
+  ["inTransit", c2.unit.state.InTransit, c2.unit.valid.InTransit],
+  ["hallucinated", c2.unit.state.Hallucinated, c2.unit.valid.Hallucinated],
+  ["invincible", c2.unit.state.Invincible, c2.unit.valid.Invincible]
+];
+var ELEVATION_BITS = (c2) => [
+  ["excludeLowGround", c2.location.elevation.LowGround],
+  ["excludeMediumGround", c2.location.elevation.MediumGround],
+  ["excludeHighGround", c2.location.elevation.HighGround],
+  ["excludeLowAir", c2.location.elevation.LowAir],
+  ["excludeMediumAir", c2.location.elevation.MediumAir],
+  ["excludeHighAir", c2.location.elevation.HighAir]
+];
+function objectTools() {
+  return [
+    {
+      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a mineral field's or geyser's resources. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const wanted = list(input.units);
+        const placed = [];
+        const refused = [];
+        api.document.edit("AI: place units", (tx) => {
+          for (const u of wanted) {
+            const id = unitIdByName2(api, str(u.unit));
+            if (id === null) {
+              refused.push(`no unit called "${str(u.unit)}"`);
+              continue;
+            }
+            const px = num(u.x) * TILE2 + TILE2 / 2, py = num(u.y) * TILE2 + TILE2 / 2;
+            const owner = ownerOf(u.player, 0);
+            if (!tx.canPlaceUnit(id, px, py)) {
+              refused.push(`${api.names.unit(id)} at ${num(u.x)},${num(u.y)}: ${api.query.placement(id, px, py)?.reason ?? "refused"}`);
+              continue;
+            }
+            const index = tx.placeUnit(id, owner, px, py);
+            if (u.amount !== void 0) tx.updateUnits([index], (rec) => ({ resourceAmount: num(u.amount), validStates: rec.validStates | api.consts.unit.used.Resources }));
+            placed.push({ index, unit: api.names.unit(id), x: num(u.x), y: num(u.y) });
+          }
+        });
+        return capResult({ placed, refused });
+      }
+    },
+    {
+      def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const r = api.document.edit("AI: remove units", (tx) => {
+          tx.removeUnits(ints2(input.indices));
+        });
+        return `Removed ${plural(r.units, "unit")}.`;
+      }
+    },
+    {
+      def: { name: "move_units", description: "Move units by index to new tile centres. One undo step.", inputSchema: obj({ moves: { type: "array", items: obj({ index: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" } }, ["index", "x", "y"]) } }, ["moves"]) },
+      writes: true,
+      run: (input, { api }) => {
+        let n2 = 0;
+        api.document.edit("AI: move units", (tx) => {
+          for (const m of list(input.moves)) {
+            const index = num(m.index, -1);
+            if (index < 0 || index >= tx.scenario.units.length) continue;
+            n2 += tx.updateUnits([index], () => ({ x: num(m.x) * TILE2 + TILE2 / 2, y: num(m.y) * TILE2 + TILE2 / 2 }));
+          }
+        });
+        return `Moved ${plural(n2, "unit")}.`;
+      }
+    },
+    {
+      def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const indices = ints2(input.indices);
+        const used0 = api.consts.unit.used;
+        const pct = (v) => Math.max(0, Math.min(100, Math.round(num(v))));
+        let n2 = 0;
+        api.document.edit("AI: unit properties", (tx) => {
+          n2 = tx.updateUnits(indices, (rec) => {
+            const patch = {};
+            let used = rec.validStates;
+            let flags = rec.stateFlags;
+            let valid = rec.validProperties;
+            if (input.owner !== void 0) {
+              patch.owner = ownerOf(input.owner, rec.owner);
+              used |= used0.Owner;
+            }
+            if (input.hitPoints !== void 0) {
+              patch.hitPointsPercent = pct(input.hitPoints);
+              used |= used0.HitPoints;
+            }
+            if (input.shields !== void 0) {
+              patch.shieldPercent = pct(input.shields);
+              used |= used0.Shields;
+            }
+            if (input.energy !== void 0) {
+              patch.energyPercent = pct(input.energy);
+              used |= used0.Energy;
+            }
+            if (input.resources !== void 0) {
+              patch.resourceAmount = Math.max(0, Math.round(num(input.resources)));
+              used |= used0.Resources;
+            }
+            if (input.hangar !== void 0) {
+              patch.hangarUnits = Math.max(0, Math.round(num(input.hangar)));
+              used |= used0.Hangar;
+            }
+            for (const [key, stateBit, validBit] of STATE_BITS(api.consts)) {
+              const v = bool(input[key]);
+              if (v === void 0) continue;
+              flags = v ? flags | stateBit : flags & ~stateBit;
+              valid |= validBit;
+              used |= used0.State;
+            }
+            return { ...patch, validStates: used, stateFlags: flags, validProperties: valid };
+          });
+        });
+        return `Updated ${plural(n2, "unit")}.`;
+      }
+    },
+    {
+      def: { name: "place_doodads", description: "Place doodads by name (or id, or a category name for any of its doodads) with their top-left corner at a tile. A doodad that does not fit its footprint is refused, not forced. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const placed = [];
+        const refused = [];
+        api.document.edit("AI: place doodads", (tx) => {
+          for (const d of list(input.doodads)) {
+            const def = doodadByName(api, str(d.doodad));
+            if (!def) {
+              refused.push(`no doodad called "${str(d.doodad)}"`);
+              continue;
+            }
+            const index = tx.placeDoodad(def.id, Math.round(num(d.x)), Math.round(num(d.y)));
+            if (index < 0) refused.push(`${def.name} at ${num(d.x)},${num(d.y)} does not fit`);
+            else placed.push({ index, name: def.name, x: num(d.x), y: num(d.y), width: def.width, height: def.height });
+          }
+        });
+        return capResult({ placed, refused });
+      }
+    },
+    {
+      def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const r = api.document.edit("AI: remove doodads", (tx) => {
+          tx.removeDoodads(ints2(input.indices));
+        });
+        return `Removed ${plural(r.doodads, "doodad")}.`;
+      }
+    },
+    {
+      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, skipping spots that do not fit. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const rect = rectOf3(input, api);
+        const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === str(input.category).toLowerCase()) ?? api.palette.doodadCategories().find((c2) => c2.name.toLowerCase().includes(str(input.category).toLowerCase()));
+        if (!cat || cat.doodads.length === 0) return `No doodad category called "${str(input.category)}"; call list_doodad_categories.`;
+        const density = Math.max(0, Math.min(1, num(input.density, 0.3)));
+        const want = Math.round(density * ((rect.x1 - rect.x0) * (rect.y1 - rect.y0)) / 12);
+        let placed = 0;
+        api.document.edit(`AI: scatter ${cat.name}`, (tx) => {
+          for (let attempt = 0; attempt < want * 5 && placed < want; attempt++) {
+            const d = cat.doodads[Math.floor(Math.random() * cat.doodads.length)];
+            const tx0 = rect.x0 + Math.floor(Math.random() * Math.max(1, rect.x1 - rect.x0 - d.width));
+            const ty0 = rect.y0 + Math.floor(Math.random() * Math.max(1, rect.y1 - rect.y0 - d.height));
+            if (tx.placeDoodad(d.id, tx0, ty0) >= 0) placed++;
+          }
+        });
+        return `Placed ${placed} of ${want} wanted.`;
+      }
+    },
+    {
+      def: { name: "place_sprites", description: 'Place sprites at tile centres: kind "pure" (a sprites.dat image by the palette\'s name or id \u2014 lookup sprite) or "unit" (a unit drawn as a sprite, by unit name). `player` is 1-based. One undo step.', inputSchema: obj({ sprites: { type: "array", items: obj({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, flipped: { type: "boolean" }, disabled: { type: "boolean" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const placed = [];
+        const refused = [];
+        api.document.edit("AI: place sprites", (tx) => {
+          for (const s of list(input.sprites)) {
+            const kind = str(s.kind) === "unit" ? "unit" : "pure";
+            const id = spriteByName(api, kind, str(s.sprite));
+            if (id === null) {
+              refused.push(`no ${kind} sprite called "${str(s.sprite)}"`);
+              continue;
+            }
+            const index = tx.placeSprite(kind, id, ownerOf(s.player, 0), num(s.x) * TILE2 + TILE2 / 2, num(s.y) * TILE2 + TILE2 / 2, { flipped: bool(s.flipped) ?? false, disabled: bool(s.disabled) ?? kind === "unit" });
+            placed.push({ index, kind, name: api.palette.spriteName(kind, id), x: num(s.x), y: num(s.y) });
+          }
+        });
+        return capResult({ placed, refused });
+      }
+    },
+    {
+      def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const r = api.document.edit("AI: remove sprites", (tx) => {
+          tx.removeSprites(ints2(input.indices));
+        });
+        return `Removed ${plural(r.sprites, "sprite")}.`;
+      }
+    },
+    {
+      def: { name: "add_location", description: "Add a named location over a tile rect. One undo step.", inputSchema: obj({ name: { type: "string" }, ...rectSchema }, ["name", "x0", "y0", "x1", "y1"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const rect = rectOf3(input, api);
+        let index = -1;
+        api.document.edit(`AI: location ${str(input.name)}`, (tx) => {
+          index = tx.addLocation({ left: rect.x0 * TILE2, top: rect.y0 * TILE2, right: rect.x1 * TILE2, bottom: rect.y1 * TILE2 }, str(input.name, "Location"));
+        });
+        return index < 0 ? "No free location slot." : `Added location ${index} "${str(input.name)}".`;
+      }
+    },
+    {
+      def: { name: "edit_location", description: "Rename, move or resize a location by slot index (a tile rect), or set which heights it excludes (`excludeLowGround` \u2026 `excludeHighAir`). One undo step.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" }, ...rectSchema, excludeLowGround: { type: "boolean" }, excludeMediumGround: { type: "boolean" }, excludeHighGround: { type: "boolean" }, excludeLowAir: { type: "boolean" }, excludeMediumAir: { type: "boolean" }, excludeHighAir: { type: "boolean" } }, ["index"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const index = Math.round(num(input.index, -1));
+        const scn = api.document.scenario();
+        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return "No such location (slot 63 is Anywhere).";
+        const patch = {};
+        if (typeof input.name === "string") patch.name = input.name;
+        if (input.x0 !== void 0 && input.x1 !== void 0) {
+          const r = rectOf3(input, api);
+          Object.assign(patch, { left: r.x0 * TILE2, top: r.y0 * TILE2, right: r.x1 * TILE2, bottom: r.y1 * TILE2 });
+        }
+        const bits = ELEVATION_BITS(api.consts);
+        if (bits.some(([k]) => input[k] !== void 0)) {
+          let flags = scn.locations[index].elevationFlags;
+          for (const [k, bit] of bits) {
+            const v = bool(input[k]);
+            if (v !== void 0) flags = v ? flags | bit : flags & ~bit;
+          }
+          patch.elevationFlags = flags;
+        }
+        let ok = false;
+        api.document.edit(`AI: edit location ${api.names.location(index)}`, (tx) => {
+          ok = tx.editLocation(index, patch);
+        });
+        return ok ? `Edited location ${index}.` : "Nothing changed.";
+      }
+    },
+    {
+      def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const r = api.document.edit("AI: remove locations", (tx) => {
+          tx.removeLocations(ints2(input.indices).filter((i) => i !== api.consts.location.anywhere));
+        });
+        return `Removed ${plural(r.locations, "location")}.`;
+      }
+    },
+    {
+      def: { name: "set_fog", description: 'Fog of war over a tile rect for 1-based players: mode "fog" (starts unexplored) or "clear". One undo step.', inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
+      writes: true,
+      run: (input, { api }) => {
+        const rect = rectOf3(input, api);
+        const players2 = ints2(input.players).filter((p) => p >= 1 && p <= 8);
+        const mask = players2.reduce((m, p) => m | 1 << p - 1, 0);
+        const r = api.document.edit("AI: fog of war", (tx) => {
+          tx.setFog(rect, mask, str(input.mode) === "clear" ? "clear" : "fog");
+        });
+        return `Changed ${plural(r.fog, "tile")}.`;
+      }
+    }
+  ];
 }
 
 // ai/ui.ts
@@ -3622,7 +4312,7 @@ function readTools() {
         if (!scn) return "No map is open.";
         const owner = input.owner === void 0 ? null : ownerOf(input.owner);
         const name = str(input.name).toLowerCase();
-        const rect = hasRect(input) ? rectOf2(input, api) : null;
+        const rect = hasRect(input) ? rectOf3(input, api) : null;
         const only = Array.isArray(input.indices) ? new Set(input.indices.map((v) => num(v, -1))) : null;
         const limit = Math.max(1, Math.min(1e3, num(input.limit, 200)));
         const details = input.details === true;
@@ -3632,7 +4322,7 @@ function readTools() {
           if (owner !== null && u.owner !== owner) return;
           const n2 = api.names.unit(u.unitId);
           if (name && !n2.toLowerCase().includes(name)) return;
-          const tx = Math.floor(u.x / TILE), ty = Math.floor(u.y / TILE);
+          const tx = Math.floor(u.x / TILE2), ty = Math.floor(u.y / TILE2);
           if (rect && (tx < rect.x0 || ty < rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
           if (out.length >= limit) return;
           const row = { index, name: n2, owner: ownerName(u.owner), x: tx, y: ty };
@@ -3649,12 +4339,12 @@ function readTools() {
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return "No map is open.";
-        const rect = hasRect(input) ? rectOf2(input, api) : null;
+        const rect = hasRect(input) ? rectOf3(input, api) : null;
         const limit = Math.max(1, Math.min(2e3, num(input.limit, 300)));
         const out = [];
         scn.doodads.forEach((d, index) => {
           const info = api.palette.doodadInfo(d.doodadId);
-          const tx = Math.floor(d.x / TILE) - Math.floor((info?.width ?? 1) / 2), ty = Math.floor(d.y / TILE) - Math.floor((info?.height ?? 1) / 2);
+          const tx = Math.floor(d.x / TILE2) - Math.floor((info?.width ?? 1) / 2), ty = Math.floor(d.y / TILE2) - Math.floor((info?.height ?? 1) / 2);
           if (rect && (tx + (info?.width ?? 1) <= rect.x0 || ty + (info?.height ?? 1) <= rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
           if (out.length >= limit) return;
           out.push({ index, id: d.doodadId, name: info?.name ?? `doodad ${d.doodadId}`, category: info?.category, x: tx, y: ty, width: info?.width, height: info?.height });
@@ -3668,12 +4358,12 @@ function readTools() {
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return "No map is open.";
-        const rect = hasRect(input) ? rectOf2(input, api) : null;
+        const rect = hasRect(input) ? rectOf3(input, api) : null;
         const limit = Math.max(1, Math.min(2e3, num(input.limit, 300)));
         const out = [];
         scn.sprites.forEach((s, index) => {
           const kind = (s.flags & api.consts.sprite.flags.PureSprite) !== 0 ? "pure" : "unit";
-          const tx = Math.floor(s.x / TILE), ty = Math.floor(s.y / TILE);
+          const tx = Math.floor(s.x / TILE2), ty = Math.floor(s.y / TILE2);
           if (rect && (tx < rect.x0 || ty < rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
           if (out.length >= limit) return;
           out.push({ index, kind, id: s.spriteId, name: api.palette.spriteName(kind, s.spriteId), owner: ownerName(s.owner), x: tx, y: ty, flipped: (s.flags & api.consts.sprite.flags.Flipped) !== 0, disabled: (s.flags & api.consts.sprite.flags.Disabled) !== 0 });
@@ -3690,7 +4380,7 @@ function readTools() {
         const out = [];
         scn.locations.forEach((l, i) => {
           if (i === api.consts.location.anywhere || l.left === 0 && l.top === 0 && l.right === 0 && l.bottom === 0) return;
-          out.push({ index: i, name: api.names.location(i), x0: Math.floor(Math.min(l.left, l.right) / TILE), y0: Math.floor(Math.min(l.top, l.bottom) / TILE), x1: Math.ceil(Math.max(l.left, l.right) / TILE), y1: Math.ceil(Math.max(l.top, l.bottom) / TILE), ...l.elevationFlags ? { excludes: l.elevationFlags } : {} });
+          out.push({ index: i, name: api.names.location(i), x0: Math.floor(Math.min(l.left, l.right) / TILE2), y0: Math.floor(Math.min(l.top, l.bottom) / TILE2), x1: Math.ceil(Math.max(l.left, l.right) / TILE2), y1: Math.ceil(Math.max(l.top, l.bottom) / TILE2), ...l.elevationFlags ? { excludes: l.elevationFlags } : {} });
         });
         return capResult({ count: out.length, locations: out, note: "Slot 63 is Anywhere and cannot be edited." });
       }
@@ -3767,7 +4457,7 @@ ${text}`, 3e4);
       run: (input, ctx) => {
         const { api } = ctx;
         if (hasRect(input)) {
-          const rect = rectOf2(input, api);
+          const rect = rectOf3(input, api);
           const cell = Math.max(1, Math.min(16, num(input.cellSize, Math.ceil(Math.max(rect.x1 - rect.x0, rect.y1 - rect.y0) / 48))));
           const g = sampleGrid(terrainAtTile(ctx), rect, cell);
           const names = Object.fromEntries(Object.entries(g.legend).map(([ch, id]) => [ch, api.terrain.types().find((t2) => t2.id === id)?.name ?? id]));
@@ -3787,7 +4477,7 @@ ${text}`, 3e4);
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return "No map is open.";
-        const rect = rectOf2(input, api);
+        const rect = rectOf3(input, api);
         const p = Math.max(1, Math.min(8, Math.round(num(input.player, 1)))) - 1;
         if (!scn.mask) return "The map has no MASK section: every tile starts unexplored for everyone.";
         const cell = Math.max(1, Math.min(16, num(input.cellSize, Math.ceil(Math.max(rect.x1 - rect.x0, rect.y1 - rect.y0) / 64))));
@@ -3813,7 +4503,7 @@ ${text}`, 3e4);
       run: (input, { api }) => {
         const id = unitIdByName2(api, str(input.unit));
         if (id === null) return `No unit is called "${str(input.unit)}".`;
-        const v = api.query.placement(id, num(input.x) * TILE + TILE / 2, num(input.y) * TILE + TILE / 2);
+        const v = api.query.placement(id, num(input.x) * TILE2 + TILE2 / 2, num(input.y) * TILE2 + TILE2 / 2);
         if (!v) return "No map is open.";
         return v.problem ? `No: ${v.reason ?? v.problem}${v.blocker >= 0 ? ` (unit index ${v.blocker})` : ""}.` : "Yes.";
       }
@@ -3824,7 +4514,7 @@ ${text}`, 3e4);
       run: async (input, { api }) => {
         const info = api.document.info();
         if (!info) return "No map is open.";
-        const rect = hasRect(input) ? rectOf2(input, api) : { x0: 0, y0: 0, x1: info.width, y1: info.height };
+        const rect = hasRect(input) ? rectOf3(input, api) : { x0: 0, y0: 0, x1: info.width, y1: info.height };
         let ppt = Math.max(1, Math.min(32, num(input.pixelsPerTile, 8)));
         while (ppt > 1 && (rect.x1 - rect.x0) * ppt * (rect.y1 - rect.y0) * ppt > 12e5) ppt = ppt > 8 ? ppt / 2 : ppt - 1;
         await api.tileset.load();
@@ -3839,7 +4529,7 @@ ${text}`, 3e4);
       run: (_i, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return "No map is open.";
-        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE), y: Math.floor((scn.units[i]?.y ?? 0) / TILE) }));
+        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE2), y: Math.floor((scn.units[i]?.y ?? 0) / TILE2) }));
         return capResult({
           layer: api.selection.layer(),
           markedArea: api.selection.markedArea(),
@@ -4045,9 +4735,9 @@ function scriptTools() {
           done.push(`${ints2(input.locations).length} locations`);
         }
         if (input.x0 !== void 0 && input.x1 !== void 0) {
-          const r = rectOf2(input, api);
+          const r = rectOf3(input, api);
           api.selection.markArea(r);
-          api.view.center((r.x0 + r.x1) / 2 * TILE, (r.y0 + r.y1) / 2 * TILE);
+          api.view.center((r.x0 + r.x1) / 2 * TILE2, (r.y0 + r.y1) / 2 * TILE2);
           done.push(`area ${r.x0},${r.y0}\u2013${r.x1},${r.y1}`);
         }
         return done.length ? `Selected ${done.join(", ")}.` : "Nothing to select.";
@@ -4225,7 +4915,7 @@ function terrainTools() {
       def: { name: "paint_terrain", description: "Paint a tile rect with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
       writes: true,
       run: (input, { api }) => {
-        const rect = rectOf2(input, api);
+        const rect = rectOf3(input, api);
         const terrain = num(input.terrain);
         const type = api.terrain.types().find((t) => t.id === terrain) ?? api.terrain.types().find((t) => t.name.toLowerCase() === str(input.terrain).toLowerCase());
         if (!type) return `Terrain ${str(input.terrain)} is not one of this tileset's types; see the reference.`;
@@ -4663,7 +5353,7 @@ function hasLocation(locations, name) {
   const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
   return locations.some((l) => re.test(l.toLowerCase()));
 }
-var Reader = class {
+var Reader2 = class {
   problems = [];
   notes = [];
   seen = /* @__PURE__ */ new Set();
@@ -4783,13 +5473,13 @@ var Counters = class {
     return `Switch ${this.nextSwitch--}`;
   }
 };
-var P = (name, description, required = false) => ({ name, description, required });
+var P2 = (name, description, required = false) => ({ name, description, required });
 var KINDS = [
   {
     spec: {
       kind: "hyper",
       description: "Hyper triggers: make the whole trigger list run about twelve times a second instead of every two seconds. Needed by anything that spawns, counts or reacts faster than that. Three copies of a preserved trigger of 62 Wait(0)s.",
-      params: [P("owner", "who runs them: a player number that is always in the game, or All Players (the default)")]
+      params: [P2("owner", "who runs them: a player number that is always in the game, or All Players (the default)")]
     },
     build(r) {
       const owner = r.str("owner", "All Players");
@@ -4803,7 +5493,7 @@ var KINDS = [
     spec: {
       kind: "spawn",
       description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
-      params: [P("location", "the spawn location; may contain {p} for the player number", true), P("unit", "the unit to create", true), P("count", "units per spawn (default 1)"), P("every", "seconds between spawns (default 10)"), P("players", "humans (default), computers, all, or player numbers"), P("owner", "each (default), computer, or a player number"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location to order the spawned units to attack-move to (default none)")]
+      params: [P2("location", "the spawn location; may contain {p} for the player number", true), P2("unit", "the unit to create", true), P2("count", "units per spawn (default 1)"), P2("every", "seconds between spawns (default 10)"), P2("players", "humans (default), computers, all, or player numbers"), P2("owner", "each (default), computer, or a player number"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P2("attack", "a location to order the spawned units to attack-move to (default none)")]
     },
     build(r, ctx, dc) {
       const location2 = r.str("location");
@@ -4837,7 +5527,7 @@ var KINDS = [
     spec: {
       kind: "kill-to-cash",
       description: "Pay minerals (and gas) for kills. Watches the player's kill score and pays each time it passes `scorePerKill`, subtracting that much score \u2014 so units worth more kill score pay more often. Kill score is roughly the unit's cost (a Marine 100, a Zergling 50, a Hydralisk 175).",
-      params: [P("minerals", "minerals per payment (default 10)"), P("gas", "gas per payment (default 0)"), P("scorePerKill", "kill score per payment (default 100)"), P("players", "humans (default), all, or player numbers"), P("message", "text shown on each payment (default none)")]
+      params: [P2("minerals", "minerals per payment (default 10)"), P2("gas", "gas per payment (default 0)"), P2("scorePerKill", "kill score per payment (default 100)"), P2("players", "humans (default), all, or player numbers"), P2("message", "text shown on each payment (default none)")]
     },
     build(r) {
       const minerals = r.int("minerals", 10, 0);
@@ -4857,7 +5547,7 @@ var KINDS = [
     spec: {
       kind: "income",
       description: "Resources on a timer for players: `minerals` every `every` seconds.",
-      params: [P("minerals", "minerals per tick (default 50)"), P("gas", "gas per tick (default 0)"), P("every", "seconds between ticks (default 30)"), P("players", "humans (default), all, or player numbers"), P("perUnit", "a unit or building each player must command at least one of, or no income (default none)")]
+      params: [P2("minerals", "minerals per tick (default 50)"), P2("gas", "gas per tick (default 0)"), P2("every", "seconds between ticks (default 30)"), P2("players", "humans (default), all, or player numbers"), P2("perUnit", "a unit or building each player must command at least one of, or no income (default none)")]
     },
     build(r, ctx, dc) {
       const minerals = r.int("minerals", 50, 0);
@@ -4880,7 +5570,7 @@ var KINDS = [
     spec: {
       kind: "last-standing",
       description: "The melee ending for a scenario: a player who commands none of `unit` is defeated; a player with no opponents left wins. Use `unit: Buildings` for a base game, a hero's name for a hero game, `Any unit` otherwise.",
-      params: [P("unit", "what a player must keep to stay in (default Any unit)"), P("players", "humans (default) or player numbers"), P("grace", "seconds before elimination can happen, so a slow start is not a loss (default 10)")]
+      params: [P2("unit", "what a player must keep to stay in (default Any unit)"), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before elimination can happen, so a slow start is not a loss (default 10)")]
     },
     build(r) {
       const unit = r.str("unit", "Any unit");
@@ -4899,7 +5589,7 @@ var KINDS = [
     spec: {
       kind: "defeat-when-lost",
       description: "A player is defeated when they command none of `unit` (a hero, a base building).",
-      params: [P("unit", "the unit that must survive", true), P("players", "humans (default) or player numbers"), P("grace", "seconds before it can happen (default 5)"), P("message", "text shown to everyone when it happens (default none)")]
+      params: [P2("unit", "the unit that must survive", true), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before it can happen (default 5)"), P2("message", "text shown to everyone when it happens (default none)")]
     },
     build(r) {
       const unit = r.str("unit");
@@ -4914,7 +5604,7 @@ var KINDS = [
     spec: {
       kind: "victory-on-kills",
       description: "Victory for a player who has killed `count` of `unit`; everyone else is defeated.",
-      params: [P("count", "kills needed", true), P("unit", "what counts (default Any unit)"), P("players", "humans (default) or player numbers")]
+      params: [P2("count", "kills needed", true), P2("unit", "what counts (default Any unit)"), P2("players", "humans (default) or player numbers")]
     },
     build(r) {
       const count = r.int("count", 0, 1);
@@ -4935,7 +5625,7 @@ var KINDS = [
     spec: {
       kind: "countdown",
       description: "A countdown timer from the start; when it ends, victory or defeat, or a draw. `onEnd` is `victory:humans`, `victory:Force 2`, `victory:1,3`, `defeat:humans` or `draw`.",
-      params: [P("seconds", "how long", true), P("onEnd", "what happens at zero (default draw)"), P("message", "text shown when it ends (default none)")]
+      params: [P2("seconds", "how long", true), P2("onEnd", "what happens at zero (default draw)"), P2("message", "text shown when it ends (default none)")]
     },
     build(r, ctx) {
       const seconds = r.int("seconds", 0, 1, 86400);
@@ -4961,7 +5651,7 @@ var KINDS = [
     spec: {
       kind: "objectives",
       description: "Set Mission Objectives for the players at the start.",
-      params: [P("text", "the objectives, lines separated by \\n", true), P("players", "humans (default), all, or player numbers")]
+      params: [P2("text", "the objectives, lines separated by \\n", true), P2("players", "humans (default), all, or player numbers")]
     },
     build(r) {
       const text = r.str("text").replace(/\\n/g, "\n");
@@ -4973,7 +5663,7 @@ var KINDS = [
     spec: {
       kind: "message",
       description: "Show a text message to players at a moment: at the start, after `after` seconds, or when a player brings a unit to `location`.",
-      params: [P("text", "what to show", true), P("after", "seconds from the start (default 0)"), P("location", "show it when the player brings a unit here instead (default none)"), P("players", "humans (default), all, or player numbers"), P("once", "yes (default) or no: show it every time")]
+      params: [P2("text", "what to show", true), P2("after", "seconds from the start (default 0)"), P2("location", "show it when the player brings a unit here instead (default none)"), P2("players", "humans (default), all, or player numbers"), P2("once", "yes (default) or no: show it every time")]
     },
     build(r) {
       const text = r.str("text");
@@ -4989,7 +5679,7 @@ var KINDS = [
     spec: {
       kind: "lives",
       description: "Shared lives for a defense map: an enemy unit reaching `goal` is removed and costs a life; at zero lives the players are defeated. The count is a death counter on the enemy slot.",
-      params: [P("lives", "how many (default 20)", true), P("goal", "the location the enemies try to reach", true), P("enemy", "the player whose units leak (default computer)"), P("unit", "what counts as a leak (default Any unit)"), P("players", "who is defeated at zero (default humans)")]
+      params: [P2("lives", "how many (default 20)", true), P2("goal", "the location the enemies try to reach", true), P2("enemy", "the player whose units leak (default computer)"), P2("unit", "what counts as a leak (default Any unit)"), P2("players", "who is defeated at zero (default humans)")]
     },
     build(r, _ctx, dc) {
       const lives = r.int("lives", 20, 1, 1e3);
@@ -5012,7 +5702,7 @@ var KINDS = [
     spec: {
       kind: "waves",
       description: "Defense waves: every `interval` seconds the enemy spawns a wave at `spawn` and attack-moves it to `goal`; each wave is bigger than the last and cycles through `units`. Victory for the players when the last wave is dead.",
-      params: [P("spawn", "where waves appear", true), P("goal", "where they attack toward", true), P("units", "unit names, comma-separated, one per wave in turn", true), P("waves", "how many (default 10)"), P("interval", "seconds between waves (default 45)"), P("count", "units in the first wave (default 6)"), P("growth", "more units per wave (default 2)"), P("enemy", "the spawning player (default computer)"), P("players", "who wins at the end (default humans)"), P("announce", 'yes (default) or no: show "Wave N"')]
+      params: [P2("spawn", "where waves appear", true), P2("goal", "where they attack toward", true), P2("units", "unit names, comma-separated, one per wave in turn", true), P2("waves", "how many (default 10)"), P2("interval", "seconds between waves (default 45)"), P2("count", "units in the first wave (default 6)"), P2("growth", "more units per wave (default 2)"), P2("enemy", "the spawning player (default computer)"), P2("players", "who wins at the end (default humans)"), P2("announce", 'yes (default) or no: show "Wave N"')]
     },
     build(r, _ctx, dc) {
       const spawn = r.location("spawn");
@@ -5044,7 +5734,7 @@ var KINDS = [
     spec: {
       kind: "stages",
       description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds \u2014 the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
-      params: [P("every", "seconds per stage (default 240)"), P("stages", "how many stages (default 6)"), P("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P("location", "the spawn location; may contain {p}", true), P("from", "the first stage that spawns (default 1)"), P("interval", "seconds between the extra spawns (default 15)"), P("count", "units per extra spawn at the first spawning stage (default 2)"), P("growth", "more units per stage (default 1)"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location the spawned units attack-move to (default none)"), P("minerals", "minerals paid to each player at each new stage (default 0)"), P("message", "text shown at each new stage; {stage} is the number (default none)"), P("players", "humans (default), all, or player numbers"), P("owner", "each (default), computer, or a player number")]
+      params: [P2("every", "seconds per stage (default 240)"), P2("stages", "how many stages (default 6)"), P2("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P2("location", "the spawn location; may contain {p}", true), P2("from", "the first stage that spawns (default 1)"), P2("interval", "seconds between the extra spawns (default 15)"), P2("count", "units per extra spawn at the first spawning stage (default 2)"), P2("growth", "more units per stage (default 1)"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P2("attack", "a location the spawned units attack-move to (default none)"), P2("minerals", "minerals paid to each player at each new stage (default 0)"), P2("message", "text shown at each new stage; {stage} is the number (default none)"), P2("players", "humans (default), all, or player numbers"), P2("owner", "each (default), computer, or a player number")]
     },
     build(r, ctx, dc) {
       const every = r.int("every", 240, 10, 7200);
@@ -5096,7 +5786,7 @@ var KINDS = [
     spec: {
       kind: "obstacles",
       description: "A bound's explosions: the `spots` fire in turn (or in `groups` at once) every `every` seconds, on a death-counter beat. Each firing creates the explosion unit at the spot for the computer and kills it there in the same instant \u2014 the death animation is the blast \u2014 and kills every unit the players have standing on the spot. No Wait actions, so it runs at hyper-trigger tempo without stalling anything.",
-      params: [P("spots", "the spot locations in firing order, comma-separated", true), P("every", "seconds between firings (default 0.8; decimals allowed)"), P("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P("unit", "the explosion unit (default Zerg Scourge)"), P("owner", "who owns the explosion (default computer)"), P("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P("victim", "which of their units (default Any unit)")]
+      params: [P2("spots", "the spot locations in firing order, comma-separated", true), P2("every", "seconds between firings (default 0.8; decimals allowed)"), P2("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P2("unit", "the explosion unit (default Zerg Scourge)"), P2("owner", "who owns the explosion (default computer)"), P2("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P2("victim", "which of their units (default Any unit)")]
     },
     build(r, ctx, dc) {
       const spots = r.list("spots");
@@ -5134,7 +5824,7 @@ var KINDS = [
     spec: {
       kind: "checkpoints",
       description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it (in order, never backwards) with a message; a player with no unit left gets one at their last checkpoint (or `start`) \u2014 unlimited, or `lives` times; the first to bring the unit to `finish` wins and the others lose.",
-      params: [P("unit", "the unit that runs the course", true), P("start", "where a player begins and respawns before any checkpoint", true), P("checkpoints", "the checkpoint locations in order, comma-separated", true), P("finish", "the finish location (default none: no victory here)"), P("lives", "respawns per player (default unlimited)"), P("players", "humans (default) or player numbers"), P("announce", 'yes (default) or no: "Checkpoint N" messages')]
+      params: [P2("unit", "the unit that runs the course", true), P2("start", "where a player begins and respawns before any checkpoint", true), P2("checkpoints", "the checkpoint locations in order, comma-separated", true), P2("finish", "the finish location (default none: no victory here)"), P2("lives", "respawns per player (default unlimited)"), P2("players", "humans (default) or player numbers"), P2("announce", 'yes (default) or no: "Checkpoint N" messages')]
     },
     build(r, _ctx, dc) {
       const unit = r.str("unit");
@@ -5179,7 +5869,7 @@ var KINDS = [
     spec: {
       kind: "shop",
       description: "Buy a unit: a player who brings `buyer` to `location` with `price` minerals pays and gets `unit` at `deliver`.",
-      params: [P("location", "the shop's beacon location", true), P("unit", "what is sold", true), P("price", "minerals (default 100)"), P("gas", "gas (default 0)"), P("buyer", "which unit must stand on the beacon (default Any unit)"), P("deliver", "where the bought unit appears (default the shop location)"), P("players", "humans (default) or player numbers")]
+      params: [P2("location", "the shop's beacon location", true), P2("unit", "what is sold", true), P2("price", "minerals (default 100)"), P2("gas", "gas (default 0)"), P2("buyer", "which unit must stand on the beacon (default Any unit)"), P2("deliver", "where the bought unit appears (default the shop location)"), P2("players", "humans (default) or player numbers")]
     },
     build(r) {
       const location2 = r.location("location");
@@ -5203,7 +5893,7 @@ var KINDS = [
     spec: {
       kind: "heal",
       description: "A heal spot: a player's units standing on `location` are restored to full hit points (and shields).",
-      params: [P("location", "where", true), P("unit", "what is healed (default Any unit)"), P("players", "humans (default) or player numbers")]
+      params: [P2("location", "where", true), P2("unit", "what is healed (default Any unit)"), P2("players", "humans (default) or player numbers")]
     },
     build(r) {
       const location2 = r.location("location");
@@ -5216,7 +5906,7 @@ var KINDS = [
     spec: {
       kind: "respawn",
       description: "When a player has none of `unit` left, a new one appears at `location` (optionally a limited number of times).",
-      params: [P("unit", "the hero", true), P("location", "where it comes back", true), P("lives", "how many respawns before it stops (default unlimited)"), P("players", "humans (default) or player numbers"), P("message", "text on respawn (default none)")]
+      params: [P2("unit", "the hero", true), P2("location", "where it comes back", true), P2("lives", "how many respawns before it stops (default unlimited)"), P2("players", "humans (default) or player numbers"), P2("message", "text on respawn (default none)")]
     },
     build(r, _ctx, dc) {
       const unit = r.str("unit");
@@ -5240,7 +5930,7 @@ var KINDS = [
     spec: {
       kind: "leaderboard",
       description: "The in-game leaderboard: `kind` kills, control (units owned), resources or points.",
-      params: [P("kind", "kills (default), control, resources or points"), P("label", "the heading (default by kind)"), P("unit", "for kills and control: which unit (default Any unit)"), P("players", "humans (default), all, or player numbers")]
+      params: [P2("kind", "kills (default), control, resources or points"), P2("label", "the heading (default by kind)"), P2("unit", "for kills and control: which unit (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
     },
     build(r) {
       const kind = r.str("kind", "kills").toLowerCase();
@@ -5271,7 +5961,7 @@ var KINDS = [
     spec: {
       kind: "teleport",
       description: "A unit brought to `from` is moved to `to`.",
-      params: [P("from", "the entry location", true), P("to", "the exit location", true), P("unit", "what moves (default Any unit)"), P("players", "humans (default), all, or player numbers")]
+      params: [P2("from", "the entry location", true), P2("to", "the exit location", true), P2("unit", "what moves (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
     },
     build(r) {
       const from = r.location("from");
@@ -5285,7 +5975,7 @@ var KINDS = [
     spec: {
       kind: "kill-zone",
       description: "Units entering `location` die (a pit, lava, the edge of a bound).",
-      params: [P("location", "where", true), P("unit", "what dies (default Any unit)"), P("players", "whose units (default all)")]
+      params: [P2("location", "where", true), P2("unit", "what dies (default Any unit)"), P2("players", "whose units (default all)")]
     },
     build(r) {
       const location2 = r.location("location");
@@ -5298,7 +5988,7 @@ var KINDS = [
     spec: {
       kind: "alliance",
       description: "Set alliances at the start: `players` treat `with` as `status` (Ally, Enemy or Allied Victory).",
-      params: [P("players", "who is setting it (default humans)"), P("with", "toward whom: a player number, computer, humans, or Force N", true), P("status", "Ally (default), Enemy or Allied Victory")]
+      params: [P2("players", "who is setting it (default humans)"), P2("with", "toward whom: a player number, computer, humans, or Force N", true), P2("status", "Ally (default), Enemy or Allied Victory")]
     },
     build(r, ctx) {
       const players2 = r.players("players");
@@ -5314,7 +6004,7 @@ var KINDS = [
     spec: {
       kind: "auto-attack",
       description: "Keep a player's units moving: every cycle, order all of `unit` at `from` to attack-move to `to`. What makes a madness map's spawns fight by themselves.",
-      params: [P("owner", "whose units (a player number or computer)", true), P("from", "where they are (Anywhere for all of them)", true), P("to", "where they go", true), P("unit", "which units (default Any unit)"), P("order", "attack (default), move or patrol")]
+      params: [P2("owner", "whose units (a player number or computer)", true), P2("from", "where they are (Anywhere for all of them)", true), P2("to", "where they go", true), P2("unit", "which units (default Any unit)"), P2("order", "attack (default), move or patrol")]
     },
     build(r) {
       const owner = r.onePlayer("owner");
@@ -5330,7 +6020,7 @@ var KINDS = [
     spec: {
       kind: "give",
       description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
-      params: [P("location", "where", true), P("from", "the owner giving them (default computer)"), P("unit", "what is given (default Any unit)"), P("players", "who can take them (default humans)"), P("touch", "the unit that must be brought to take them (default Any unit)")]
+      params: [P2("location", "where", true), P2("from", "the owner giving them (default computer)"), P2("unit", "what is given (default Any unit)"), P2("players", "who can take them (default humans)"), P2("touch", "the unit that must be brought to take them (default Any unit)")]
     },
     build(r) {
       const location2 = r.location("location");
@@ -5353,7 +6043,7 @@ function buildSystem(kind, params, ctx, dc = new Counters(ctx)) {
 }
 function buildPerPlayer(k, params, ctx, dc) {
   const takesPlayers = k.spec.params.some((p) => p.name === "players");
-  const players2 = takesPlayers ? new Reader(k.spec, params, ctx).players("players") : ctx.humans;
+  const players2 = takesPlayers ? new Reader2(k.spec, params, ctx).players("players") : ctx.humans;
   if (players2.length === 0) throw new ToolkitError([`${k.spec.kind}: a {p} template needs players to build for`]);
   const parts = [];
   const problems = [];
@@ -5379,7 +6069,7 @@ function buildPerPlayer(k, params, ctx, dc) {
   };
 }
 function buildOne(k, params, ctx, dc) {
-  const reader = new Reader(k.spec, params, ctx);
+  const reader = new Reader2(k.spec, params, ctx);
   const before = dc.used.length;
   const out = k.build(reader, ctx, dc);
   reader.finish();
@@ -5474,7 +6164,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
 
 // ai/tools.ts
 function tools() {
-  return [...readTools(), ...terrainTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];
+  return [...readTools(), ...terrainTools(), ...layoutTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];
 }
 
 // ai/assistant.ts
@@ -6192,7 +6882,7 @@ function openExplain(ctx) {
 }
 
 // ai/dialogs/review.ts
-var PRESETS = [
+var PRESETS2 = [
   "Review this as a melee map: balance between the starts, expansion layout, chokes and paths, and what a ladder player would complain about.",
   "Review this as a UMS map: is it readable, are the objectives clear from the terrain and the triggers, what would confuse a first-time player?",
   "What would you change first, and why?"
@@ -6252,7 +6942,7 @@ function openReview(ctx) {
         w.group(
           "What to look at",
           promptField,
-          h("div", { className: "ai-chips" }, ...PRESETS.map((p, i) => h("button", { type: "button", className: "ai-chip", onClick: () => {
+          h("div", { className: "ai-chips" }, ...PRESETS2.map((p, i) => h("button", { type: "button", className: "ai-chip", onClick: () => {
             promptField.value = p;
           } }, ["Melee balance", "UMS readability", "What to change first"][i]))),
           h("div", { className: "ai-btns" }, w.button("Review", { primary: true, onClick: () => void review() }), picture)
@@ -6518,422 +7208,6 @@ Change this: ${state.refine.trim()}` : state.prompt,
     },
     buttons: [{ label: "Close" }]
   });
-}
-
-// ai/presets.ts
-var PresetError = class extends Error {
-  problems;
-  constructor(problems) {
-    super(problems.join("; "));
-    this.name = "PresetError";
-    this.problems = problems;
-  }
-};
-var WATER = /water|lava|tar|space|ice$|magma/i;
-var DRESS = /ruins|mud|rocky|crags|moguls|flagstone|shale|asphalt|plating|crushed/i;
-function terrainRoles(ctx) {
-  const t = ctx.terrains;
-  const flats0 = t.filter((x) => x.height === 0 && x.buildable);
-  const ground = t.find((x) => x.height === 0 && x.buildable && /^(dirt|jungle|snow|space|grass|substructure)$/i.test(x.name)) ?? flats0[0] ?? t[0];
-  const water = t.find((x) => x.height === 0 && !x.buildable && WATER.test(x.name)) ?? null;
-  const pair = ctx.rampPairs.find((p) => p.low === ground.id) ?? ctx.rampPairs[0];
-  const high = pair ? pair.high : t.find((x) => x.height > 0 && x.buildable)?.id ?? ground.id;
-  const dress = t.find((x) => x.height === 0 && DRESS.test(x.name))?.id ?? ground.id;
-  return { ground: ground.id, water: water?.id ?? null, high, dress };
-}
-var Reader2 = class {
-  problems = [];
-  params;
-  spec;
-  constructor(params, spec) {
-    this.params = params;
-    this.spec = spec;
-  }
-  raw(name) {
-    const v = this.params[name];
-    return v === void 0 || v.trim() === "" ? void 0 : v.trim();
-  }
-  int(name, fallback, lo, hi) {
-    const v = this.raw(name);
-    if (v === void 0) return fallback;
-    const cleaned = v.replace(/[^0-9.-]/g, "");
-    const n2 = cleaned === "" ? NaN : Number(cleaned);
-    if (!Number.isFinite(n2)) {
-      this.problems.push(`"${name}" should be a number, not "${v}"`);
-      return fallback;
-    }
-    return Math.max(lo, Math.min(hi, Math.round(n2)));
-  }
-  text(name, fallback) {
-    return this.raw(name) ?? fallback;
-  }
-  choice(name, options, fallback) {
-    const v = this.raw(name)?.toLowerCase();
-    if (v === void 0) return fallback;
-    const hit = options.find((o) => o.toLowerCase() === v);
-    if (!hit) {
-      this.problems.push(`"${name}" should be one of ${options.join(", ")}, not "${v}"`);
-      return fallback;
-    }
-    return hit;
-  }
-  finish() {
-    for (const k of Object.keys(this.params)) if (!this.spec.params.some((p) => p.name === k)) this.problems.push(`"${k}" is not a parameter of ${this.spec.id}`);
-    if (this.problems.length) throw new PresetError(this.problems.map((p) => `${this.spec.id}: ${p}`));
-  }
-};
-var P2 = (name, description, required = false) => ({ name, description, required });
-var loc = (name, x0, y0, w, h3) => ({ name, x0: Math.round(x0), y0: Math.round(y0), x1: Math.round(x0 + w), y1: Math.round(y0 + h3) });
-var start = (player2, x, y) => ({ unit: "Start Location", player: player2, x: Math.round(x), y: Math.round(y) });
-function campSpots(n2, W, H, size, margin) {
-  const nw = { x: margin, y: margin, south: false, ramp: "se" };
-  const ne = { x: W - margin - size, y: margin, south: false, ramp: "sw" };
-  const sw = { x: margin, y: H - margin - size, south: true, ramp: "se" };
-  const se = { x: W - margin - size, y: H - margin - size, south: true, ramp: "sw" };
-  const edges = [
-    { x: (W - size) / 2, y: margin, south: false, ramp: "se" },
-    { x: (W - size) / 2, y: H - margin - size, south: true, ramp: "sw" },
-    { x: margin, y: (H - size) / 2, south: false, ramp: "se" },
-    { x: W - margin - size, y: (H - size) / 2, south: false, ramp: "sw" }
-  ];
-  const all = n2 === 2 ? [nw, se] : [nw, ne, sw, se, ...edges];
-  return all.slice(0, Math.max(1, Math.min(8, n2)));
-}
-var PRESETS2 = [
-  {
-    spec: {
-      id: "corner-camps",
-      description: "One raised camp per player around the edge of the map (corners first), each with a single ramp down that faces south (the game's ramps go no other way), a road from the ramp to a central arena, and water or open ground between. Madness, hero survival, free-for-all arenas.",
-      params: [
-        P2("camps", "how many camps, 2\u20138 (default: the human players)"),
-        P2("campSize", "a camp's side in tiles (default 28)"),
-        P2("arena", "the arena's width in tiles (default a third of the map)"),
-        P2("between", "what fills the ground between camps and arena: water (default), open, or rocks"),
-        P2("roads", "yes (default) or no: a road of plain ground from each ramp to the arena"),
-        P2("hall", 'a building placed in each camp for its player, by unit name ("Terran Command Center"); none by default')
-      ],
-      locations: ["Base {p}", "Spawn {p}", "Beacon {p}", "Arena", "Centre"]
-    },
-    build(r, ctx, roles) {
-      const W = ctx.width, H = ctx.height;
-      const camps = r.int("camps", Math.max(2, Math.min(8, ctx.humans.length || 2)), 2, 8);
-      const size = r.int("campSize", 28, 16, Math.floor(Math.min(W, H) / 3));
-      const arena = r.int("arena", Math.round(Math.min(W, H) / 3), 12, Math.floor(Math.min(W, H) / 2));
-      const between = r.choice("between", ["water", "open", "rocks"], "water");
-      const roads = r.choice("roads", ["yes", "no"], "yes") === "yes";
-      const hall = r.text("hall", "");
-      const margin = 3;
-      const fill = between === "water" && roles.water !== null ? roles.water : between === "rocks" ? roles.dress : roles.ground;
-      const cx = W / 2, cy = H / 2;
-      const shapes = [{ op: "ground", terrain: fill }];
-      const locations = [];
-      const units = [];
-      const spots = campSpots(camps, W, H, size, margin);
-      if (roads) for (const s of spots) {
-        const foot = s.ramp === "se" ? [s.x + size - RAMP_CUT - 2, s.y + size + 2] : [s.x + RAMP_CUT + 2, s.y + size + 2];
-        const via = s.south ? [[foot[0], Math.min(H - 6, foot[1] + 8)], [cx + (s.x < cx ? -arena / 2 - 6 : arena / 2 + 6), Math.min(H - 6, foot[1] + 8)]] : [];
-        shapes.push({ op: "stroke", terrain: roles.ground, points: [[foot[0], foot[1]], ...via, [cx, cy]], width: 10 });
-      }
-      shapes.push({ op: "diamond", terrain: roles.ground, cx, cy, rx: arena / 2 + 6, ry: arena / 4 + 3 });
-      shapes.push({ op: "diamond", terrain: roles.dress, cx, cy, rx: arena / 2, ry: arena / 4 });
-      spots.forEach((s, i) => {
-        const p = ctx.humans[i] ?? i + 1;
-        shapes.push({ op: "plateau", terrain: roles.high, x: s.x, y: s.y, w: size, h: size, ramps: [s.ramp] });
-        locations.push(loc(`Base ${p}`, s.x, s.y, size, size));
-        const spawnX = s.ramp === "se" ? s.x + size - RAMP_CUT * 2 - 8 : s.x + RAMP_CUT * 2 + 2;
-        locations.push(loc(`Spawn ${p}`, spawnX, s.y + size - RAMP_CUT - 8, 6, 6));
-        locations.push(loc(`Beacon ${p}`, s.ramp === "se" ? s.x + 3 : s.x + size - 6, s.y + 3, 3, 3));
-        units.push([start(p, s.x + size / 2, s.y + size / 2 - 6)]);
-        if (hall) units.push([{ unit: hall, player: p, x: Math.round(s.x + size / 2), y: Math.round(s.y + size / 2 + 2) }]);
-      });
-      locations.push(loc("Arena", cx - arena / 2, cy - arena / 4, arena, arena / 2));
-      locations.push(loc("Centre", cx - 4, cy - 3, 8, 6));
-      const notes = [`${camps} camp${camps === 1 ? "" : "s"} of ${size}\xD7${size}, ramps facing south as the game's do; the southern camps' roads run around to the arena`];
-      if (between === "water" && roles.water === null) notes.push("this tileset has no water; open ground between the camps instead");
-      return { shapes, locations, units: units.flat(), notes };
-    }
-  },
-  {
-    spec: {
-      id: "lanes",
-      description: "Lanes for a defense: each lane a walkable band from a spawn at the north edge to one goal at the south, walled by water or cliff so the waves stay in it, with a build yard for each player beside the lanes and a hire pad by each yard. Tower defense, marine defense, sunken defense.",
-      params: [
-        P2("lanes", "how many lanes, 1\u20134 (default 2)"),
-        P2("laneWidth", "the lane's width in tiles (default 5)"),
-        P2("wall", "what walls the lanes: water (default) or cliff"),
-        P2("bends", "yes or no (default): a bend in each lane")
-      ],
-      locations: ["Spawn {n}", "Lane {n} Mid", "Goal", "Yard {p}", "Pad {p}"]
-    },
-    build(r, ctx, roles) {
-      const W = ctx.width, H = ctx.height;
-      const lanes = r.int("lanes", 2, 1, 4);
-      const width = r.int("laneWidth", 5, 4, 10);
-      const wall = r.choice("wall", ["water", "cliff"], "water");
-      const bends = r.choice("bends", ["yes", "no"], "no") === "yes";
-      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
-      const shapes = [{ op: "ground", terrain: roles.ground }];
-      const locations = [];
-      const units = [];
-      const goalW = Math.min(W - 8, 12 * lanes + 8);
-      const goalX = W / 2 - goalW / 2, goalY = H - 14;
-      const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
-      const enclosure = wall === "water" ? 6 : 8;
-      shapes.push({ op: "rect", terrain: wallTerrain, x: goalX - enclosure, y: goalY - enclosure, w: goalW + 2 * enclosure, h: H - goalY + enclosure, cut: 0 });
-      const floor = roles.dress !== roles.ground && ctx.terrains.find((t) => t.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
-      laneXs.forEach((lx, i) => {
-        const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : i % 2 ? -1 : 1) * Math.min(14, W / 8);
-        const pts = bends ? [[lx, -6], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]] : [[lx, -6], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]];
-        shapes.push({ op: "lane", terrain: floor, points: pts, width, wall: wallTerrain, wallWidth: wall === "water" ? 4 : 6 });
-        locations.push(loc(`Spawn ${i + 1}`, lx - 3, 3, 6, 6));
-        locations.push(loc(`Lane ${i + 1} Mid`, (bends ? bendX : lx) - width, H / 2 - 4, width * 2, 8));
-      });
-      shapes.push({ op: "rect", terrain: floor, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
-      locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
-      const strips = [];
-      for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));
-      ctx.humans.forEach((p, i) => {
-        const sx = strips[i % strips.length], sy = 16 + Math.floor(i / strips.length) * 30;
-        const yw = 14, yh = 12;
-        locations.push(loc(`Yard ${p}`, sx - yw / 2, sy, yw, yh));
-        locations.push(loc(`Pad ${p}`, sx - 2, sy + yh + 2, 4, 3));
-        units.push(start(p, sx, sy + yh / 2));
-      });
-      return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
-    }
-  },
-  {
-    spec: {
-      id: "arena",
-      description: "A walled arena in the middle of the map \u2014 a floor of plain ground ringed by water or cliff that nothing crosses on foot \u2014 with a spawn spot inside it on each player's side and a lobby for each player outside, where their start location is. Micro arenas, duels, round-based fights, hero arenas.",
-      params: [
-        P2("size", "the arena's width in tiles (default half the map)"),
-        P2("sides", "2 (west and east) or 4 (west, east, north, south) spawn sides (default: 2 for up to two players, else 4)"),
-        P2("wall", "what rings the arena: water (default) or cliff")
-      ],
-      locations: ["Arena", "Centre", "Spawn {p}", "Lobby {p}"]
-    },
-    build(r, ctx, roles) {
-      const W = ctx.width, H = ctx.height;
-      const humans = ctx.humans.length ? ctx.humans : [1, 2];
-      const size = r.int("size", Math.round(Math.min(W, H) / 2), 16, Math.min(W, H) - 24);
-      const sides = r.int("sides", humans.length <= 2 ? 2 : 4, 2, 4) >= 3 ? 4 : 2;
-      const wall = r.choice("wall", ["water", "cliff"], "water");
-      const wallTerrain = wall === "water" && roles.water !== null ? roles.water : roles.high;
-      const cx = W / 2, cy = H / 2, half = size / 2, ring = 5;
-      const shapes = [
-        { op: "ground", terrain: roles.ground },
-        { op: "rect", terrain: wallTerrain, x: cx - half - ring, y: cy - half / 2 - ring, w: size + 2 * ring, h: half + 2 * ring, cut: 3 },
-        { op: "rect", terrain: roles.dress, x: cx - half, y: cy - half / 2, w: size, h: half, cut: 2 }
-      ];
-      const locations = [loc("Arena", cx - half, cy - half / 2, size, half), loc("Centre", cx - 4, cy - 3, 8, 6)];
-      const units = [];
-      const inner = [[cx - half + 6, cy], [cx + half - 6, cy], [cx, cy - half / 2 + 5], [cx, cy + half / 2 - 5]];
-      const outer = [[cx - half - ring - 10, cy], [cx + half + ring + 10, cy], [cx, cy - half / 2 - ring - 8], [cx, cy + half / 2 + ring + 8]];
-      humans.forEach((p, i) => {
-        const side = i % sides;
-        const [sx, sy] = inner[side], [lx, ly] = outer[side];
-        const shift = Math.floor(i / sides) * 8;
-        locations.push(loc(`Spawn ${p}`, sx - 3 + shift, sy - 3, 6, 6));
-        locations.push(loc(`Lobby ${p}`, lx - 5 + shift, ly - 4, 10, 8));
-        units.push(start(p, lx + shift, ly));
-      });
-      return { shapes, locations, units, notes: [`an arena ${size} wide ringed by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, spawns on ${sides} sides, lobbies outside`] };
-    }
-  },
-  {
-    spec: {
-      id: "bound",
-      description: "A bound's course: a narrow path of plain ground winding back and forth across a map of water, from a start at the bottom-left to a finish at the top-right, cut into stretches. Each stretch is a field of spots laid back to back along the path \u2014 every spot a slab across the whole path, or split into lanes side by side \u2014 with safe ground before and after it and a checkpoint at its end. Spots are numbered along the course, lane by lane within a slab, so a stretch's spots are one run of numbers; explosions that roll along a stretch, alternate lanes, or fire a whole stretch at once are patterns over that run. Bounds, obstacle courses, dodge maps.",
-      params: [
-        P2("width", "the path's width in tiles (default 4)"),
-        P2("legs", "how many times the path crosses the map, 2\u20138 (default 5)"),
-        P2("stretches", "obstacle fields along the course, 1\u201312 (default 5); a checkpoint follows each but the last"),
-        P2("spotsPerStretch", "slabs in a field, back to back along the path (default 8)"),
-        P2("lanes", "spots side by side across the path, 1\u20133 (default 1: one slab spans the path)")
-      ],
-      locations: ["Start", "Finish", "Checkpoint {n}", "Stretch {n}", "Spot {n}"]
-    },
-    build(r, ctx, roles) {
-      const W = ctx.width, H = ctx.height;
-      const width = r.int("width", 4, 3, 8);
-      const legs = r.int("legs", 5, 2, 8);
-      const stretches = r.int("stretches", 5, 1, 12);
-      const perStretch = r.int("spotsPerStretch", 8, 1, 30);
-      const lanes = r.int("lanes", 1, 1, 3);
-      const fill = roles.water ?? roles.dress;
-      const m = 8;
-      const band = (H - 2 * m) / (legs - 1);
-      const pts = [];
-      for (let i = 0; i < legs; i++) {
-        const y = H - m - i * band;
-        const left = [m, y], right = [W - m, y];
-        pts.push(...i % 2 === 0 ? [left, right] : [right, left]);
-      }
-      const shapes = [
-        { op: "ground", terrain: fill },
-        { op: "stroke", terrain: roles.ground, points: pts, width },
-        { op: "diamond", terrain: roles.ground, cx: pts[0][0], cy: pts[0][1], rx: 8, ry: 4 },
-        { op: "diamond", terrain: roles.ground, cx: pts[pts.length - 1][0], cy: pts[pts.length - 1][1], rx: 8, ry: 4 }
-      ];
-      const segs = [];
-      let total = 0;
-      for (let i = 0; i + 1 < pts.length; i++) {
-        const len = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
-        segs.push({ a: pts[i], b: pts[i + 1], len });
-        total += len;
-      }
-      const at = (d) => {
-        let left = Math.max(0, Math.min(total, d));
-        for (const s of segs) {
-          if (left <= s.len) {
-            const t = s.len ? left / s.len : 0;
-            return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
-          }
-          left -= s.len;
-        }
-        return { x: pts[pts.length - 1][0], y: pts[pts.length - 1][1], vertical: false };
-      };
-      const locations = [loc("Start", pts[0][0] - 4, pts[0][1] - 3, 8, 6), loc("Finish", pts[pts.length - 1][0] - 4, pts[pts.length - 1][1] - 3, 8, 6)];
-      const pad = 10;
-      const usable = Math.max(1, total - 2 * pad);
-      const section = usable / stretches;
-      const slab = 2;
-      const fieldLen = Math.min(section * 0.7, perStretch * slab);
-      const across = width + 2;
-      const laneAcross = across / lanes;
-      let spot = 1;
-      const stretchLocs = [];
-      const checkpointLocs = [];
-      for (let sIdx = 0; sIdx < stretches; sIdx++) {
-        const fieldStart = pad + section * sIdx + (section - fieldLen) / 2;
-        const slabs = Math.max(1, Math.round(fieldLen / slab));
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        for (let i = 0; i < slabs; i++) {
-          const c2 = at(fieldStart + (i + 0.5) * slab);
-          for (let lane = 0; lane < lanes; lane++) {
-            const off = -across / 2 + lane * laneAcross;
-            const l = c2.vertical ? loc(`Spot ${spot++}`, c2.x + off, c2.y - slab / 2, laneAcross, slab) : loc(`Spot ${spot++}`, c2.x - slab / 2, c2.y + off, slab, laneAcross);
-            locations.push(l);
-            x0 = Math.min(x0, l.x0);
-            y0 = Math.min(y0, l.y0);
-            x1 = Math.max(x1, l.x1);
-            y1 = Math.max(y1, l.y1);
-          }
-        }
-        stretchLocs.push({ name: `Stretch ${sIdx + 1}`, x0, y0, x1, y1 });
-        if (sIdx < stretches - 1) {
-          const c2 = at(fieldStart + fieldLen + Math.min(6, (section - fieldLen) / 4));
-          checkpointLocs.push(loc(`Checkpoint ${sIdx + 1}`, c2.x - 2, c2.y - 2, 4, 4));
-        }
-      }
-      locations.push(...checkpointLocs, ...stretchLocs);
-      const humans = ctx.humans.length ? ctx.humans : [1];
-      const units = humans.map((p, i) => start(p, pts[0][0] - 2 + i % 4 * 2, pts[0][1] - 1 + Math.floor(i / 4) * 2));
-      return { shapes, locations, units, notes: [`a path ${width} wide in ${legs} legs, ${stretches} stretch${stretches === 1 ? "" : "es"} of up to ${perStretch} slab${perStretch === 1 ? "" : "s"}${lanes > 1 ? ` in ${lanes} lanes` : ""} (${spot - 1} spots, numbered along the course), a checkpoint after each stretch; water either side${roles.water === null ? " (no water in this tileset: unbuildable ground instead)" : ""}`] };
-    }
-  },
-  {
-    spec: {
-      id: "town-regions",
-      description: "An RPG's world: a town on one corner of a map of water \u2014 with a shop spot and a heal spot \u2014 and a chain of regions of rising danger joined by paths, each region a broad island with a gate where its path arrives, the last region the boss room in the far corner. Start locations in the town. Linear RPGs, adventure maps, dungeon crawls.",
-      params: [
-        P2("regions", "regions between the town and the boss room, 1\u20136 (default 3)"),
-        P2("boss", "yes (default) or no: a boss room at the end"),
-        P2("town", "which corner holds the town: sw (default), nw, se, ne")
-      ],
-      locations: ["Town", "Shop", "Heal", "Region {n}", "Gate {n}", "Path {n}", "Boss Room"]
-    },
-    build(r, ctx, roles) {
-      const W = ctx.width, H = ctx.height;
-      const regions = r.int("regions", 3, 1, 6);
-      const boss = r.choice("boss", ["yes", "no"], "yes") === "yes";
-      const corner = r.choice("town", ["sw", "nw", "se", "ne"], "sw");
-      const fill = roles.water ?? roles.dress;
-      const m = 14;
-      const townAt = [corner.includes("w") ? m + 6 : W - m - 6, corner.includes("s") ? H - m - 4 : m + 4];
-      const endAt = [corner.includes("w") ? W - m - 6 : m + 6, corner.includes("s") ? m + 4 : H - m - 4];
-      const stops = regions + (boss ? 2 : 1);
-      const centres = [];
-      for (let i = 0; i < stops; i++) {
-        const t = i / (stops - 1);
-        const wobble = (i % 2 ? 1 : -1) * Math.min(12, W / 10) * (i === 0 || i === stops - 1 ? 0 : 1);
-        centres.push([townAt[0] + (endAt[0] - townAt[0]) * t + wobble * (corner.includes("s") ? 1 : -1) * 0.5, townAt[1] + (endAt[1] - townAt[1]) * t + wobble * 0.5]);
-      }
-      const shapes = [{ op: "ground", terrain: fill }];
-      for (let i = 0; i + 1 < centres.length; i++) shapes.push({ op: "stroke", terrain: roles.ground, points: [centres[i], centres[i + 1]], width: 6 });
-      const rx = Math.min(18, W / 7), ry = rx / 2;
-      centres.forEach(([x, y], i) => {
-        const big = i === 0 ? 1.3 : 1;
-        shapes.push({ op: "diamond", terrain: roles.ground, cx: x, cy: y, rx: rx * big, ry: ry * big });
-        if (i > 0) shapes.push({ op: "diamond", terrain: roles.dress, cx: x, cy: y, rx: rx * 0.5, ry: ry * 0.5 });
-      });
-      const locations = [];
-      const [tx, ty] = centres[0];
-      locations.push(loc("Town", tx - rx * 1.3, ty - ry * 1.3, rx * 2.6, ry * 2.6));
-      locations.push(loc("Shop", tx - rx * 0.8, ty - 1, 3, 3), loc("Heal", tx + rx * 0.8 - 3, ty - 1, 3, 3));
-      centres.slice(1).forEach(([x, y], i) => {
-        const n2 = i + 1;
-        const last = boss && n2 === centres.length - 1;
-        locations.push(loc(last ? "Boss Room" : `Region ${n2}`, x - rx, y - ry, rx * 2, ry * 2));
-        const [px, py] = centres[i];
-        const gx = x + (px - x) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2))), gy = y + (py - y) * (rx / Math.max(1, Math.hypot(px - x, (py - y) * 2)));
-        if (!last) locations.push(loc(`Gate ${n2}`, gx - 3, gy - 2, 6, 4));
-        locations.push(loc(`Path ${n2}`, Math.min(px, x) - 2, Math.min(py, y) - 2, Math.abs(px - x) + 4, Math.abs(py - y) + 4));
-      });
-      const humans = ctx.humans.length ? ctx.humans : [1];
-      const units = humans.map((p, i) => start(p, tx - 3 + i % 4 * 2, ty + 3 + Math.floor(i / 4) * 2));
-      return { shapes, locations, units, notes: [`a town in the ${corner} corner, ${regions} region${regions === 1 ? "" : "s"} along a path${boss ? " and a boss room" : ""} toward the far corner; water between${roles.water === null ? " (no water: unbuildable ground)" : ""}`] };
-    }
-  }
-];
-function presetSpecs() {
-  return PRESETS2.map((p) => p.spec);
-}
-function buildPreset(id, params, ctx) {
-  const preset = PRESETS2.find((p) => p.spec.id === id);
-  if (!preset) throw new PresetError([`no layout preset called "${id}" (the plugin has ${PRESETS2.map((p) => p.spec.id).join(", ")})`]);
-  const r = new Reader2(params, preset.spec);
-  const roles = terrainRoles(ctx);
-  const out = preset.build(r, ctx, roles);
-  r.finish();
-  const plan = {
-    name: "",
-    description: "",
-    symmetry: "none",
-    cellSize: 1,
-    columns: ctx.width,
-    rows: ctx.height,
-    legend: {},
-    grid: [],
-    shapes: out.shapes,
-    bases: [],
-    ramps: [],
-    doodads: decoration(ctx, roles),
-    units: out.units,
-    locations: out.locations,
-    notes: out.notes
-  };
-  return { plan, notes: out.notes };
-}
-function decoration(ctx, roles) {
-  const categories = ctx.doodadCategories ?? [];
-  const name = (id) => ctx.terrains.find((t) => t.id === id)?.name ?? "";
-  const match = (terrain) => categories.find((c2) => c2.toLowerCase() === name(terrain).toLowerCase()) ?? null;
-  const out = [];
-  const ground = match(roles.ground);
-  if (ground) out.push({ category: ground, on: "", terrains: [roles.ground], density: 0.06 });
-  if (roles.water !== null) {
-    const water = match(roles.water);
-    if (water) out.push({ category: water, on: "", terrains: [roles.water], density: 0.15 });
-  }
-  if (roles.dress !== roles.ground) {
-    const dress = match(roles.dress);
-    if (dress) out.push({ category: dress, on: "", terrains: [roles.dress], density: 0.08 });
-  }
-  const high = match(roles.high);
-  if (high) out.push({ category: high, on: "", terrains: [roles.high], density: 0.04 });
-  return out;
 }
 
 // ai/dialogs/scenario.ts
@@ -7304,7 +7578,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             api.document.edit("AI: missing locations", (tx) => {
               missing.forEach((name, i) => {
                 const cx = Math.floor(cur.width / 2) + i % 4 * 5 - 8, cy = Math.floor(cur.height / 2) + Math.floor(i / 4) * 5 - 8;
-                tx.addLocation({ left: cx * TILE2, top: cy * TILE2, right: (cx + 4) * TILE2, bottom: (cy + 4) * TILE2 }, name);
+                tx.addLocation({ left: cx * TILE, top: cy * TILE, right: (cx + 4) * TILE, bottom: (cy + 4) * TILE }, name);
               });
             });
             findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4\xD74 boxes; move them where they belong`);
@@ -7338,7 +7612,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
                 missing.forEach((p, i) => {
                   const named = scn.locations.findIndex((l, li) => new RegExp(`\\b(start|spawn|base|home)\\s*${p}\\b`, "i").test(api.names.location(li)) && l.left !== l.right);
                   const loc2 = named >= 0 ? scn.locations[named] : null;
-                  const c2 = loc2 ? centreOf({ x: Math.floor(Math.min(loc2.left, loc2.right) / TILE2), y: Math.floor(Math.min(loc2.top, loc2.bottom) / TILE2), w: Math.max(1, Math.round(Math.abs(loc2.right - loc2.left) / TILE2)), h: Math.max(1, Math.round(Math.abs(loc2.bottom - loc2.top) / TILE2)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE2, y: Math.floor(cur.height / 2) * TILE2 };
+                  const c2 = loc2 ? centreOf({ x: Math.floor(Math.min(loc2.left, loc2.right) / TILE), y: Math.floor(Math.min(loc2.top, loc2.bottom) / TILE), w: Math.max(1, Math.round(Math.abs(loc2.right - loc2.left) / TILE)), h: Math.max(1, Math.round(Math.abs(loc2.bottom - loc2.top) / TILE)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE, y: Math.floor(cur.height / 2) * TILE };
                   tx.placeUnit(START_LOCATION, p - 1, c2.x, c2.y);
                 });
               });
@@ -7350,7 +7624,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             for (const p of d.players.filter((x) => x.type === "computer")) {
               if (owned.has(p.slot - 1) || keeper === null) continue;
               api.document.edit(`AI: keeper for player ${p.slot}`, (tx) => {
-                const px = (cur.width - 2) * TILE2, py = (2 + keepers.length * 2) * TILE2;
+                const px = (cur.width - 2) * TILE, py = (2 + keepers.length * 2) * TILE;
                 tx.placeUnit(keeper, p.slot - 1, px, py);
               });
               keepers.push(p.slot);
@@ -7825,8 +8099,8 @@ function openOptions(ctx, store) {
 function installDialogSlots(ctx, actions) {
   const { api } = ctx;
   const w = api.ui.widgets;
-  const slots = [];
-  slots.push(api.ui.dialogSlot("mapProperties", {
+  const slots2 = [];
+  slots2.push(api.ui.dialogSlot("mapProperties", {
     mount(body, dlg) {
       const status = api.ui.el("span", { className: "faint" }, "");
       const button = w.button("Suggest a name", { ghost: true, title: "Ask the AI for a name and description from what is on the map; fills the fields, OK writes them", onClick: async () => {
@@ -7864,10 +8138,10 @@ function installDialogSlots(ctx, actions) {
       } })
     );
   };
-  slots.push(api.ui.dialogSlot("triggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
-  slots.push(api.ui.dialogSlot("textTriggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
-  slots.push(api.ui.dialogSlot("missionBriefing", { mount: (body, host) => triggerSlot(host, body) }));
-  slots.push(api.ui.dialogSlot("stringEditor", {
+  slots2.push(api.ui.dialogSlot("triggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
+  slots2.push(api.ui.dialogSlot("textTriggerEditor", { mount: (body, host) => triggerSlot(host, body) }));
+  slots2.push(api.ui.dialogSlot("missionBriefing", { mount: (body, host) => triggerSlot(host, body) }));
+  slots2.push(api.ui.dialogSlot("stringEditor", {
     mount(body, host) {
       body.append(w.button("Rewrite with AI\u2026", { ghost: true, title: "Translate, fix or retone the strings", onClick: () => {
         host.close();
@@ -7875,7 +8149,7 @@ function installDialogSlots(ctx, actions) {
       } }));
     }
   }));
-  slots.push(api.ui.dialogSlot("playerSettings", {
+  slots2.push(api.ui.dialogSlot("playerSettings", {
     mount(body, host) {
       body.append(w.button("Set up with AI\u2026", { ghost: true, title: "Tell the assistant what the players should be", onClick: () => {
         host.close();
@@ -7884,8 +8158,8 @@ function installDialogSlots(ctx, actions) {
     }
   }));
   return () => {
-    for (const s of slots) s.dispose();
-    slots.length = 0;
+    for (const s of slots2) s.dispose();
+    slots2.length = 0;
   };
 }
 
