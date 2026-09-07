@@ -16,7 +16,7 @@ import { triggerTools } from "./tools/triggers";
 import { umsTools } from "./tools/ums";
 import type { Tool } from "./tools/common";
 
-export { capResult, describeCall, RESULT_CAP, summarizeResult, toContent, type Tool, type ToolResult } from "./tools/common";
+export { capResult, describeCall, describeStep, plural, prettyName, reportStep, RESULT_CAP, summarizeResult, toContent, type Tool, type ToolResult } from "./tools/common";
 
 export function tools(): Tool[] {
   return [...readTools(), ...terrainTools(), ...layoutTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];

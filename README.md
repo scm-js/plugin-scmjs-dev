@@ -140,12 +140,17 @@ never renumbering, so triggers keep pointing at the same strings.
 
 **Assistant** (Ctrl+Shift+A) is a panel floating over the map (Options can put it in the
 right dock instead, under the Properties panel). Say what you want to know or change; the
-model reads the map through tools and changes it through others. While it works a strip
-at the top says what is happening — waiting, thinking, writing, working on the map — with
-the seconds and the cost; its words stream in as they arrive; a tool call appears the
-moment the model commits to it and fills in when it runs; the map outlines what the call
-is about to touch in teal and flashes what it changed in gold; the status bar's AI cell
-shows the same state, so the panel can be closed while it works; Escape stops. The chips
+model reads the map through tools and changes it through others. The transcript is what
+you asked, then the answer, with the turn's work folded into one block between them: a
+line per tool call in plain words (▸ a read, ✎ a change) with what came back after it,
+the model's words between calls kept small, its reasoning in a fold of its own, a
+screenshot it took as a thumbnail. While the turn runs the block is open on its last few
+steps; when it ends it folds to one line — steps, edits, failures, seconds, cost — with an
+Undo for that turn's edits. A strip at the top says what is happening — waiting,
+thinking, writing, the step it is on — with the seconds and the cost; the map outlines
+what a call is about to touch in teal and flashes what it changed in gold; the status
+bar's AI cell shows the same state, so the panel can be closed while it works; Escape
+stops. The transcript follows the work only while it is scrolled to the bottom. The chips
 above the input follow the layer and the selection. It can read everything: the map's
 facts and statistics, units (with every record field), doodads, sprites, locations,
 strings, switches, sounds, the triggers as text, the trigger script and its declarations,

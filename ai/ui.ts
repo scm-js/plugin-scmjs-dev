@@ -105,16 +105,22 @@ export const STYLE = `
 .ai .ai-msg.is-user { background: var(--bg-3, #232833); align-self: flex-end; white-space: pre-wrap; }
 .ai .ai-msg.is-assistant { background: var(--bg-2, #1b1f27); align-self: stretch; }
 .ai .ai-msg.is-assistant .ai-md { max-height: none; }
-.ai .ai-tool { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--text-dim, #99a2b3); padding: 1px 8px; }
-.ai .ai-tool code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--text, #e6e9ef); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-.ai .ai-tool img { max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; margin-top: 3px; }
-.ai .ai-shot { padding: 0 8px 4px; }
 .ai .ai-context { font-size: 11px; color: var(--text-faint, #6b7382); line-height: 1.35; max-height: 44px; overflow: hidden; text-overflow: ellipsis; }
-.ai .ai-turn { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim, #99a2b3); padding: 3px 8px; border-top: 1px dashed var(--border, #333); }
-.ai .ai-turn .ai-grow { flex: 1; }
-.ai .ai-shot img { max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; }
 .ai.ai-assistant { flex: 1; min-height: 0; }
-.ai.ai-assistant .ai-chat { flex: 1; min-height: 160px; max-height: none; }
+.ai .ai-chat-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; }
+.ai .ai-chat-wrap .ai-chat { flex: 1; }
+.ai .ai-jump { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 11px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.ai.ai-assistant .ai-chat-wrap { flex: 1; }
+.ai.ai-assistant .ai-chat { min-height: 160px; max-height: none; }
+/* A turn's work: a fold of steps (the editor's widgets), with the assistant's own touches. */
+.ai .ai-act .step.ai-write .step-icon { color: var(--gold, #e6b95c); }
+.ai .ai-act .step-note .ai-md { max-height: none; }
+.ai .ai-act-think { margin-bottom: 4px; }
+.ai .ai-act-think > .fold-body { white-space: pre-wrap; max-height: 30vh; overflow: auto; }
+.ai .ai-act-shot { padding: 0; border: 0; background: none; cursor: zoom-in; text-align: left; }
+.ai .ai-act-shot img { max-height: 56px; width: auto; max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; display: block; }
+.ai .ai-act-shot.is-open { cursor: zoom-out; }
+.ai .ai-act-shot.is-open img { max-height: none; }
 .ai .ai-state { display: flex; flex-direction: column; gap: 4px; padding: 5px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); font-size: 11px; }
 .ai .ai-state-line { display: flex; align-items: center; gap: 8px; min-height: 16px; }
 .ai .ai-phase { font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px; color: var(--text-dim, #99a2b3); }
@@ -129,16 +135,6 @@ export const STYLE = `
 .ai .ai-pill:empty { display: none; }
 .ai .ai-caret { display: inline-block; width: 6px; height: 12px; margin-left: 2px; vertical-align: -2px; background: var(--teal, #4fd1c5); animation: ai-blink 1s steps(2) infinite; }
 @keyframes ai-blink { to { opacity: 0; } }
-.ai .ai-tool.is-pending code { color: var(--text-dim, #99a2b3); }
-.ai .ai-tool-mark { flex: none; width: 12px; display: inline-flex; align-items: center; justify-content: center; }
-.ai .ai-steps { display: flex; flex-direction: column; gap: 3px; }
-.ai .ai-step { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 3px; font-size: 11px; }
-.ai .ai-step .ai-step-mark { flex: none; width: 14px; display: inline-flex; align-items: center; justify-content: center; }
-.ai .ai-step.is-running { background: var(--bg-3, #232833); }
-.ai .ai-step.is-done .ai-step-mark { color: var(--teal, #4fd1c5); }
-.ai .ai-step.is-failed .ai-step-mark { color: #ff9f7a; }
-.ai .ai-step.is-skipped { color: var(--text-faint, #6b7382); }
-.ai .ai-step .ai-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
 let styleCount = 0;

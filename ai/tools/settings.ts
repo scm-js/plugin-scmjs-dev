@@ -1,10 +1,12 @@
 /** The Scenario menu's dialogs: players, forces, unit / upgrade / technology settings, the revision. Transactions outside the undo model. */
-import { bool, byName, capResult, colorIndexOf, ints, list, num, obj, plural, slotOf, str, techIdByName, unitIdByName, upgradeIdByName, type Tool } from "./common";
+import { bool, byName, capResult, colorIndexOf, fieldsGiven, ints, jsonOf, list, num, obj, plural, slotOf, str, techIdByName, unitIdByName, upgradeIdByName, type Tool } from "./common";
 
 export function settingsTools(): Tool[] {
   return [
     {
       def: { name: "set_players", description: "Player Settings and Player Colors: for each 1-based player, the type (Human, Computer, Rescuable, Neutral, Inactive …), race (Zerg, Terran, Protoss, User Selectable, Random …), colour (a name like Red / Blue / Teal / Purple / Orange / Brown / White / Yellow / Green, or a COLR index, or an RGB triple for a Remastered custom colour) and force (1–4). Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: obj({ player: { type: "integer" }, type: { type: "string" }, race: { type: "string" }, color: { type: "string" }, rgb: { type: "array", items: { type: "integer" } }, force: { type: "integer" } }, ["player"]) } }, ["players"]) },
+      describe: (input) => { const ps = list(input.players); return `Set player${ps.length === 1 ? "" : "s"} ${ps.map((p) => str(p.player)).join(", ")}: ${fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || "nothing"}`; },
+      report: (result) => { const r = jsonOf(result); if (!r) return ""; const notes = Array.isArray(r.notes) ? r.notes : []; return `${plural(num(r.changed), "player")} changed${notes.length ? `; ${String(notes[0])}` : ""}`; },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -28,6 +30,8 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "set_forces", description: "Force Settings: for each force 1–4, its name, the flags allied / alliedVictory / sharedVision / randomStart, and the 1-based players to put in it. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: obj({ force: { type: "integer" }, name: { type: "string" }, allied: { type: "boolean" }, alliedVictory: { type: "boolean" }, sharedVision: { type: "boolean" }, randomStart: { type: "boolean" }, players: { type: "array", items: { type: "integer" } } }, ["force"]) } }, ["forces"]) },
+      describe: (input) => { const fs = list(input.forces); return `Set force${fs.length === 1 ? "" : "s"} ${fs.map((f) => str(f.force)).join(", ")}: ${fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || "nothing"}`; },
+      report: (result) => { const r = jsonOf(result); return r ? `${plural(num(r.changed), "force")} changed` : ""; },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -47,6 +51,8 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "set_unit_type", description: "Unit Settings for one unit type: hitPoints (whole points), shields, armor, buildTime (frames), mineralCost, gasCost, weapon damage / bonus by weapon id, a custom name (\"\" restores the default), and availability — who may build it: `available` entries of { player: 1–12 or \"default\", value: true / false / \"default\" }. Setting any number turns \"use default\" off for the type; useDefault: true puts it back on the game's values. Not undoable.", inputSchema: obj({ unit: { type: "string" }, useDefault: { type: "boolean" }, name: { type: "string" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, armor: { type: "integer" }, buildTime: { type: "integer" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, weapons: { type: "array", items: obj({ id: { type: "integer" }, damage: { type: "integer" }, bonus: { type: "integer" } }, ["id"]) }, available: { type: "array", items: obj({ player: { type: "string" }, value: { type: "string" } }, ["player", "value"]) } }, ["unit"]) },
+      describe: (input) => `Unit settings for ${str(input.unit)}: ${fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || "nothing"}`,
+      report: (result) => { const r = jsonOf(result); return r ? (r.changed ? "changed" : "nothing changed") : ""; },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -68,6 +74,8 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "set_upgrade", description: "Upgrade Settings for one upgrade: mineralCost / gasCost / timeCost (frames) and their per-level factors, and levels — entries of { player: 1–12 or \"default\", start, max, useDefault } for each player's starting and maximum level. Setting a cost turns \"use default\" off; useDefault: true restores the game's. Not undoable.", inputSchema: obj({ upgrade: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, mineralFactor: { type: "integer" }, gasCost: { type: "integer" }, gasFactor: { type: "integer" }, timeCost: { type: "integer" }, timeFactor: { type: "integer" }, levels: { type: "array", items: obj({ player: { type: "string" }, start: { type: "integer" }, max: { type: "integer" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["upgrade"]) },
+      describe: (input) => `Upgrade settings for ${str(input.upgrade)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || "nothing"}`,
+      report: (result) => { const r = jsonOf(result); return r ? (r.changed ? "changed" : "nothing changed") : ""; },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -84,6 +92,8 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "set_tech", description: "Technology Settings for one technology: mineralCost / gasCost / researchTime (frames) / energyCost, and state — entries of { player: 1–12 or \"default\", available, researched, useDefault }. Setting a cost turns \"use default\" off; useDefault: true restores the game's. Not undoable.", inputSchema: obj({ tech: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, researchTime: { type: "integer" }, energyCost: { type: "integer" }, state: { type: "array", items: obj({ player: { type: "string" }, available: { type: "boolean" }, researched: { type: "boolean" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["tech"]) },
+      describe: (input) => `Technology settings for ${str(input.tech)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || "nothing"}`,
+      report: (result) => { const r = jsonOf(result); return r ? (r.changed ? "changed" : "nothing changed") : ""; },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -100,6 +110,7 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "set_map_version", description: "Scenario ▸ Map Revision: \"original\" (StarCraft 1.00, .scm), \"hybrid\" (1.04, .scm), \"broodwar\" (.scx) or \"remastered\" (.scx, wide string table). Ask before changing it. Not undoable.", inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
+      describe: (input) => `Set the map revision to ${str(input.version)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -111,6 +122,7 @@ export function settingsTools(): Tool[] {
     },
     {
       def: { name: "add_sound", description: "Add a WAV path to the sound table (the file itself must already be in the archive or be added through the Sound Editor). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
+      describe: (input) => `Add the sound ${str(input.path)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => { let slot = -1; api.document.update("AI: sound", (tx) => { slot = tx.sounds.add(str(input.path)); }); return slot < 0 ? "No free sound slot." : `Sound slot ${slot}: ${api.settings.sounds().find((s) => s.slot === slot)?.path}. ${plural(api.settings.sounds().length, "sound")} listed.`; },

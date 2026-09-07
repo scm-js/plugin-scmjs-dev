@@ -94,3 +94,48 @@ describe("paint_terrain's diamonds", () => {
     expect(bottom.some((d) => d.y === 128)).toBe(true);
   });
 });
+
+describe("the transcript's step lines", () => {
+  const ctx = {} as never;
+  it("falls back to the name as words with the arguments that matter", async () => {
+    const { describeStep, reportStep } = await import("../ai/tools/common");
+    expect(describeStep(undefined, "list_locations", {}, ctx)).toBe("List locations");
+    expect(describeStep(undefined, "terrain_at", { x0: 0, y0: 0, x1: 32, y1: 32, cellSize: 4 }, ctx)).toBe("Terrain at: 0,0–32,32, cell size 4");
+    expect(describeStep(undefined, "unit_type", { unit: "Terran Marine" }, ctx)).toBe("Unit type: Terran Marine");
+    expect(describeStep({ describe: () => "Own words" }, "x", {}, ctx)).toBe("Own words");
+    expect(describeStep({ describe: () => { throw new Error("no"); } }, "x_y", {}, ctx)).toBe("X y");
+  });
+  it("reports a result by its shape, or by the tool's own words", async () => {
+    const { reportStep } = await import("../ai/tools/common");
+    expect(reportStep(undefined, JSON.stringify({ chokes: [1, 2, 3], deadEnds: [1, 2], width: 64 }))).toBe("3 chokes, 2 dead ends, width 64");
+    expect(reportStep(undefined, JSON.stringify([1, 2]))).toBe("2 items");
+    expect(reportStep(undefined, "Removed 3 units.\nmore")).toBe("Removed 3 units.");
+    expect(reportStep(undefined, { image: { mediaType: "image/png", data: "AA" } })).toBe("picture");
+    expect(reportStep({ report: () => "3 placed" }, "{}")).toBe("3 placed");
+  });
+  it("phrases the writing tools in the map's words", async () => {
+    const { tools } = await import("../ai/tools");
+    const by = new Map(tools().map((t) => [t.def.name, t]));
+    const d = (name: string, input: Record<string, unknown>) => by.get(name)!.describe!(input, ctx);
+    expect(d("place_units", { units: [{ unit: "Terran Marine", player: 1, x: 12, y: 7 }, { unit: "Terran Marine", player: 1, x: 13, y: 7 }, { unit: "Siege Tank", player: 1, x: 14, y: 8 }] })).toBe("Place Terran Marine ×2, Siege Tank for Player 1 near 12,7");
+    expect(d("remove_units", { indices: [3, 7, 9, 11] })).toBe("Remove 4 units #3, #7, #9 +1");
+    expect(d("update_units", { indices: [1], hitPoints: 50, invincible: true })).toBe("Set hit points, invincible on 1 unit");
+    expect(d("add_location", { name: "Spawn 1", x0: 4, y0: 4, x1: 8, y1: 8 })).toBe('Add location "Spawn 1" at 4,4–8,8');
+    expect(d("set_fog", { x0: 0, y0: 0, x1: 64, y1: 64, players: [1, 2], mode: "clear" })).toBe("Clear 0,0–64,64 for players 1, 2");
+    expect(d("paint_shapes", { shapes: [{ op: "plateau" }, { op: "lane" }, { op: "lane" }] })).toBe("Paint 3 shapes: plateau, lane ×2");
+    expect(d("reachable", { fromLocation: "Spawn 1", toLocation: "Goal" })).toBe("Can units walk from Spawn 1 to Goal?");
+    expect(d("set_players", { players: [{ player: 1, type: "Human", race: "Terran" }, { player: 2, type: "Computer" }] })).toBe("Set players 1, 2: type, race");
+    expect(d("add_triggers_text", { text: "Trigger(\"Player 1\"){\n}\n\nTrigger(\"Player 2\"){\n}" })).toBe("Add 2 triggers from text");
+    expect(d("list_units", { owner: 1, name: "Start" })).toBe("List Player 1's units named \"Start\"");
+    expect(d("screenshot", {})).toBe("Screenshot of the whole map");
+    expect(d("select", { units: [1, 2], x0: 0, y0: 0, x1: 4, y1: 4 })).toBe("Select 2 units, the area 0,0–4,4");
+    const r = (name: string, result: string) => by.get(name)!.report!(result);
+    expect(r("place_units", JSON.stringify({ placed: [1, 2], refused: [] }))).toBe("2 placed");
+    expect(r("place_units", JSON.stringify({ placed: [], refused: ["Marine at 1,1: cliff"] }))).toBe("nothing placed: Marine at 1,1: cliff");
+    expect(r("paint_terrain", JSON.stringify({ changed: true, tiles: 40, isom: 12, paintedOver: { Dirt: 30 }, notes: [] }))).toBe("40 tiles; over Dirt ×30");
+    expect(r("reachable", JSON.stringify({ reachable: true, tilesReachedFromStart: 900 }))).toBe("yes, 900 tiles reached");
+    expect(r("scenario_rules", JSON.stringify({ problems: ["none"], fixed: [] }))).toBe("no problems");
+    expect(r("validate", JSON.stringify([]))).toBe("clean");
+    expect(r("screenshot", "Tiles 0,0 to 40,30 at 8 px per tile: x = px / 8.")).toBe("8 px per tile");
+  });
+});

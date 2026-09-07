@@ -202,25 +202,21 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
       };
 
       /* ── 3. building ── */
-      const stepsBox = h("div", { className: "ai-steps", hidden: true });
+      const stepsBox = w.steps();
+      stepsBox.hidden = true;
       const afterBox = h("div", { className: "ai-btns", hidden: true });
       const findingsBox = h("div", null);
       const addStep = (label: string) => {
-        const mark = h("span", { className: "ai-step-mark" }, "○");
-        const detail = h("span", { className: "ai-dim" }, "");
-        const row = h("div", { className: "ai-step is-pending" }, mark, h("span", { className: "ai-grow" }, label), detail);
-        stepsBox.append(row);
+        const row = stepsBox.add(label);
         return {
           set(s: StepState, text = "") {
-            row.className = `ai-step is-${s}`;
-            if (s === "running") mark.replaceChildren(w.spinner({ size: "sm" }));
-            else mark.textContent = s === "done" ? "✓" : s === "failed" ? "✗" : s === "skipped" ? "–" : "○";
-            this.detail(text);
+            if (s === "running") row.start(text);
+            else if (s === "done") row.done(text);
+            else if (s === "failed") row.fail(text);
+            else if (s === "skipped") row.skip(text);
+            else row.detail(text);
           },
-          detail(text: string) {
-            detail.textContent = text;
-            detail.title = text;
-          },
+          detail(text: string) { row.detail(text); },
         };
       };
 

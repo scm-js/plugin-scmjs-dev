@@ -1,5 +1,5 @@
 /** The trigger script, the view, the history and the selection. */
-import { capResult, ints, num, obj, rectOf, str, TILE, type Tool } from "./common";
+import { capResult, ints, num, obj, plural, rectOf, str, TILE, type Tool } from "./common";
 import { NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
 
 export function scriptTools(): Tool[] {
@@ -16,6 +16,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "compile_script", description: "Type-check a trigger script (the Trigger Script plugin's TypeScript-subset language; read script_declarations first) without building it. Returns diagnostics or the trigger count.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
@@ -26,6 +27,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "build_script", description: "Compile a trigger script and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger — ask first). Stores the source with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
       run: async (input, { api }) => {
@@ -47,6 +49,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "go_to", description: "Scroll the user's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
+      describe: (input) => input.unit !== undefined ? `Go to unit #${num(input.unit)}` : input.location !== undefined ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, { api }) => {
         if (input.unit !== undefined) api.view.goTo({ kind: "unit", index: Math.round(num(input.unit)) });
@@ -57,6 +60,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "select", description: "Show the user something: select units, sprites, doodads or locations by index (switching to that layer), or mark a tile rect. Pass an empty list to clear.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
+      describe: (input) => { const parts = (["units", "sprites", "doodads", "locations"] as const).filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`); if (input.x0 !== undefined && input.x1 !== undefined) parts.push(`the area ${num(input.x0)},${num(input.y0)}–${num(input.x1)},${num(input.y1)}`); return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection"; },
       writes: false,
       run: (input, { api }) => {
         const done: string[] = [];

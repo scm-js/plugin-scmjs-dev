@@ -19,6 +19,17 @@ export interface Tool {
   writes: boolean;
   /** A settings-style write: not in the undo model. */
   settings?: boolean;
+  /**
+   * The step's line in the transcript, from the input — "Placed 4 Marines near 12,7", in
+   * the past tense, naming what the person would look for on the map. Without it the
+   * name as words with the arguments that matter (`describeStep`).
+   */
+  describe?(input: Record<string, unknown>, ctx: Ctx): string;
+  /**
+   * What the step found or did, from its result, shown dim after the line — "3 chokes,
+   * 2 dead ends". Without it, a summary of the result's shape (`reportStep`).
+   */
+  report?(result: ToolResult): string;
   run(input: Record<string, unknown>, ctx: Ctx): Promise<ToolResult> | ToolResult;
 }
 
@@ -158,6 +169,69 @@ export function describeCall(name: string, input: Record<string, unknown>): stri
   return `${name}(${args})`;
 }
 
+/** A tool name as words: `place_units` → "Place units". */
+export function prettyName(name: string): string {
+  const s = words(name);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** A key as words: `deadEnds`, `cell_size` → "dead ends", "cell size". */
+const words = (key: string) => key.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+
+const RECT_KEYS = new Set(["x0", "y0", "x1", "y1"]);
+
+/**
+ * The step's line: the tool's own phrasing when it has one, else the name as words and
+ * the arguments worth a glance — a rect as `x0,y0–x1,y1`, then up to two short scalars.
+ */
+export function describeStep(tool: { describe?(input: Record<string, unknown>, ctx: Ctx): string } | undefined, name: string, input: Record<string, unknown>, ctx: Ctx): string {
+  if (tool?.describe) { try { const s = tool.describe(input, ctx); if (s) return s; } catch { /* the fallback */ } }
+  const parts: string[] = [];
+  if (RECT_KEYS.size && [...RECT_KEYS].every((k) => typeof input[k] === "number")) parts.push(`${input.x0},${input.y0}–${input.x1},${input.y1}`);
+  for (const [k, v] of Object.entries(input)) {
+    if (parts.length >= 2 || RECT_KEYS.has(k)) continue;
+    if (typeof v === "string" && v.trim() && v.length <= 32) parts.push(v);
+    else if (typeof v === "number") parts.push(`${words(k)} ${v}`);
+    else if (typeof v === "boolean") parts.push(v ? words(k) : `not ${words(k)}`);
+  }
+  return parts.length ? `${prettyName(name)}: ${parts.join(", ")}` : prettyName(name);
+}
+
+/**
+ * What came back, in a few words: the tool's own report when it has one; else, for a
+ * JSON result, its shape — "3 chokes, 2 dead ends", "12 items" — and for prose its
+ * first line, cut short.
+ */
+export function reportStep(tool: { report?(result: ToolResult): string } | undefined, result: ToolResult): string {
+  if (tool?.report) { try { const s = tool.report(result); if (s) return s; } catch { /* the fallback */ } }
+  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
+  const text = result.trim();
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      const v = JSON.parse(text.replace(/\n… cut: \d+ more characters\..*$/s, (m) => (text.endsWith(m) ? "" : m))) as unknown;
+      const shape = describeShape(v);
+      if (shape) return shape;
+    } catch { /* not whole JSON: the first line */ }
+  }
+  return cut(text.split("\n")[0], 80);
+}
+
+function describeShape(v: unknown): string {
+  if (Array.isArray(v)) return plural(v.length, "item");
+  if (!v || typeof v !== "object") return "";
+  const parts: string[] = [];
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (parts.length >= 3) break;
+    const key = words(k);
+    if (Array.isArray(val)) parts.push(`${val.length} ${key}`);
+    else if (typeof val === "number") parts.push(`${key} ${val}`);
+    else if (typeof val === "string" && val.length <= 24 && parts.length === 0) parts.push(val);
+  }
+  return parts.join(", ");
+}
+
+const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
 /** The first line of a result, for the transcript row's tooltip. */
 export function summarizeResult(result: ToolResult): string {
   const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
@@ -166,3 +240,44 @@ export function summarizeResult(result: ToolResult): string {
 }
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/* ── Phrasing for the transcript's step lines ── */
+
+/** The JSON of a result, when it is one (a cut result parses no further than its cut). */
+export function jsonOf(result: ToolResult): Record<string, unknown> | null {
+  const text = typeof result === "string" ? result : result.text ?? "";
+  if (!text.startsWith("{") && !text.startsWith("[")) return null;
+  try { return JSON.parse(text) as Record<string, unknown>; } catch { return null; }
+}
+
+/** Names tallied: `Terran Marine ×4, Terran Siege Tank ×1`, the rest counted. */
+export function tally(names: string[], max = 3): string {
+  const counts = new Map<string, number>();
+  for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+  const parts = [...counts].map(([n, c]) => (c === 1 ? n : `${n} ×${c}`));
+  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
+}
+
+/** `#3, #7, #9` — the first few of a list of indices. */
+export function indexList(indices: number[], max = 3): string {
+  const shown = indices.slice(0, max).map((i) => `#${i}`).join(", ");
+  return indices.length > max ? `${shown} +${indices.length - max}` : shown;
+}
+
+/** `10,10–30,20` from the rect keys present. */
+export const rectText = (input: Record<string, unknown>) => `${num(input.x0)},${num(input.y0)}–${num(input.x1)},${num(input.y1)}`;
+
+/** The keys of `input` among `keys`, as words: `hit points, armor`. */
+export function fieldsGiven(input: Record<string, unknown>, keys: string[]): string {
+  return keys.filter((k) => input[k] !== undefined).map((k) => k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(", ");
+}
+
+/** `2 placed`, `2 placed, 1 refused`, or the first refusal when nothing went in. */
+export function placedReport(result: ToolResult): string {
+  const r = jsonOf(result);
+  if (!r) return "";
+  const placed = Array.isArray(r.placed) ? r.placed.length : 0;
+  const refused = Array.isArray(r.refused) ? (r.refused as string[]) : [];
+  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
+  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
+}

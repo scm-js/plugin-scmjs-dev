@@ -1476,9 +1476,9 @@ function compileShapes(shapes, ctx) {
           findings.push(`${what} has no size; skipped`);
           return;
         }
-        const cut = Math.max(0, Math.round(s.cut ?? DEFAULT_CUT));
+        const cut2 = Math.max(0, Math.round(s.cut ?? DEFAULT_CUT));
         const sides = s.op === "plateau" ? uniqueSides(s.ramps ?? []) : [];
-        const cuts = { nw: cut, ne: cut, sw: sides.includes("sw") ? Math.max(cut, RAMP_CUT) : cut, se: sides.includes("se") ? Math.max(cut, RAMP_CUT) : cut };
+        const cuts = { nw: cut2, ne: cut2, sw: sides.includes("sw") ? Math.max(cut2, RAMP_CUT) : cut2, se: sides.includes("se") ? Math.max(cut2, RAMP_CUT) : cut2 };
         fillCutRect(r, cuts, (x, y) => put(x, y, id));
         for (const side of sides) {
           const pair = pairFor(id, ctx, known);
@@ -3406,12 +3406,101 @@ function describeCall(name, input) {
   const args = Object.entries(input).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.length > 40 ? `${v.slice(0, 40)}\u2026` : v) : Array.isArray(v) ? `[${v.length}]` : typeof v === "object" && v ? "{\u2026}" : String(v)}`).join(", ");
   return `${name}(${args})`;
 }
+function prettyName(name) {
+  const s = words(name);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+var words = (key) => key.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+var RECT_KEYS = /* @__PURE__ */ new Set(["x0", "y0", "x1", "y1"]);
+function describeStep(tool, name, input, ctx) {
+  if (tool?.describe) {
+    try {
+      const s = tool.describe(input, ctx);
+      if (s) return s;
+    } catch {
+    }
+  }
+  const parts = [];
+  if (RECT_KEYS.size && [...RECT_KEYS].every((k) => typeof input[k] === "number")) parts.push(`${input.x0},${input.y0}\u2013${input.x1},${input.y1}`);
+  for (const [k, v] of Object.entries(input)) {
+    if (parts.length >= 2 || RECT_KEYS.has(k)) continue;
+    if (typeof v === "string" && v.trim() && v.length <= 32) parts.push(v);
+    else if (typeof v === "number") parts.push(`${words(k)} ${v}`);
+    else if (typeof v === "boolean") parts.push(v ? words(k) : `not ${words(k)}`);
+  }
+  return parts.length ? `${prettyName(name)}: ${parts.join(", ")}` : prettyName(name);
+}
+function reportStep(tool, result) {
+  if (tool?.report) {
+    try {
+      const s = tool.report(result);
+      if (s) return s;
+    } catch {
+    }
+  }
+  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
+  const text = result.trim();
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      const v = JSON.parse(text.replace(/\n… cut: \d+ more characters\..*$/s, (m) => text.endsWith(m) ? "" : m));
+      const shape = describeShape(v);
+      if (shape) return shape;
+    } catch {
+    }
+  }
+  return cut(text.split("\n")[0], 80);
+}
+function describeShape(v) {
+  if (Array.isArray(v)) return plural(v.length, "item");
+  if (!v || typeof v !== "object") return "";
+  const parts = [];
+  for (const [k, val] of Object.entries(v)) {
+    if (parts.length >= 3) break;
+    const key = words(k);
+    if (Array.isArray(val)) parts.push(`${val.length} ${key}`);
+    else if (typeof val === "number") parts.push(`${key} ${val}`);
+    else if (typeof val === "string" && val.length <= 24 && parts.length === 0) parts.push(val);
+  }
+  return parts.join(", ");
+}
+var cut = (s, n2) => s.length > n2 ? `${s.slice(0, n2 - 1)}\u2026` : s;
 function summarizeResult(result) {
   const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
   const line = text.split("\n")[0];
   return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
 }
 var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
+function jsonOf(result) {
+  const text = typeof result === "string" ? result : result.text ?? "";
+  if (!text.startsWith("{") && !text.startsWith("[")) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+function tally(names, max = 3) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const n2 of names) counts.set(n2, (counts.get(n2) ?? 0) + 1);
+  const parts = [...counts].map(([n2, c2]) => c2 === 1 ? n2 : `${n2} \xD7${c2}`);
+  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
+}
+function indexList(indices, max = 3) {
+  const shown = indices.slice(0, max).map((i) => `#${i}`).join(", ");
+  return indices.length > max ? `${shown} +${indices.length - max}` : shown;
+}
+var rectText = (input) => `${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`;
+function fieldsGiven(input, keys) {
+  return keys.filter((k) => input[k] !== void 0).map((k) => k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(", ");
+}
+function placedReport(result) {
+  const r = jsonOf(result);
+  if (!r) return "";
+  const placed = Array.isArray(r.placed) ? r.placed.length : 0;
+  const refused = Array.isArray(r.refused) ? r.refused : [];
+  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
+  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
+}
 
 // ai/tools/layout.ts
 function slots(api) {
@@ -3454,6 +3543,14 @@ function layoutTools() {
     },
     {
       def: { name: "layout_preset", description: "Lay a preset out over the whole map: the terrain (with ramps and bridges that fit, where the tileset has them), the named locations, a start location per human player, a little decoration. Replaces the terrain and clears units, doodads and sprites first; triggers and settings stay. `params` are the preset's parameters as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
+      describe: (input) => {
+        const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
+        return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`;
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${plural(r.locations.length, "location")}` : ""}` : "";
+      },
       writes: true,
       run: (input, { api }) => {
         const id = str(input.preset);
@@ -3494,6 +3591,14 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
           units: { type: "array", items: { type: "object", additionalProperties: true } }
         }, ["shapes"])
       },
+      describe: (input) => {
+        const ops = list(input.shapes).map((sh) => str(sh.op)).filter(Boolean);
+        return ops.length ? `Paint ${plural(ops.length, "shape")}: ${tally(ops)}` : "Paint shapes";
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? String(r.painted) : "";
+      },
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
@@ -3527,6 +3632,11 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     },
     {
       def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already on the map, near a tile, going down south-west or south-east (the only ways the game's ramps go). Tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit. A ramp fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for \u2014 a tile-aligned cliff takes none; to make such an edge, paint a plateau with paint_shapes instead.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
+      describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? String(r.placed) : "";
+      },
       writes: true,
       run: (input, { api }) => {
         const ramps = rampsOf(api);
@@ -3547,6 +3657,11 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     },
     {
       def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? String(r.placed) : "";
+      },
       writes: true,
       run: (input, { api }) => {
         const bridges = bridgesOf(api);
@@ -3577,6 +3692,15 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
           geyserSide: { type: "string", enum: ["auto", "left", "right"], description: "which end of the line the geyser takes, seen from the hall" },
           hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" }
         })
+      },
+      describe: (input) => `Lay a base${input.player !== void 0 ? ` for Player ${num(input.player)}` : ""}${input.x !== void 0 ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        if (!r) return "";
+        const p = r.placed ?? {};
+        const parts = [`${plural(num(p.minerals), "patch").replace("patchs", "patches")}, ${plural(num(p.geysers), "geyser")} to the ${String(r.direction)}`];
+        if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0]));
+        return parts.join("; ");
       },
       writes: true,
       run: (input, { api }) => {
@@ -3660,6 +3784,11 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     },
     {
       def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" } }) },
+      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}?`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}` : "";
+      },
       writes: false,
       run: (input, { api }) => {
         const mask = walkMask(api);
@@ -3689,6 +3818,14 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
     },
     {
       def: { name: "scenario_rules", description: "The game's own rules a scenario breaks silently, checked on the open map: a human or computer slot that owns nothing (defeated at once, and its triggers never run); a human without a start location; a trigger list that counts time without hyper triggers. With fix: true, a computer that owns nothing gets an Overlord in the top-right corner to keep it in the game.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
+      report: (result) => {
+        const r = jsonOf(result);
+        if (!r) return "";
+        const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : [];
+        const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0;
+        return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems";
+      },
       writes: true,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -3740,6 +3877,11 @@ function objectTools() {
   return [
     {
       def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a mineral field's or geyser's resources. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
+      describe: (input) => {
+        const u = list(input.units);
+        return u.length ? `Place ${tally(u.map((x) => str(x.unit)))} for ${ownerName(ownerOf(u[0].player, 0))} near ${num(u[0].x)},${num(u[0].y)}` : "Place units";
+      },
+      report: placedReport,
       writes: true,
       run: (input, { api }) => {
         const wanted = list(input.units);
@@ -3768,6 +3910,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      describe: (input) => `Remove ${plural(ints2(input.indices).length, "unit")} ${indexList(ints2(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove units", (tx) => {
@@ -3778,6 +3921,7 @@ function objectTools() {
     },
     {
       def: { name: "move_units", description: "Move units by index to new tile centres. One undo step.", inputSchema: obj({ moves: { type: "array", items: obj({ index: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" } }, ["index", "x", "y"]) } }, ["moves"]) },
+      describe: (input) => `Move ${plural(list(input.moves).length, "unit")}`,
       writes: true,
       run: (input, { api }) => {
         let n2 = 0;
@@ -3793,6 +3937,7 @@ function objectTools() {
     },
     {
       def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
+      describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints2(input.indices).length, "unit")}`,
       writes: true,
       run: (input, { api }) => {
         const indices = ints2(input.indices);
@@ -3844,6 +3989,11 @@ function objectTools() {
     },
     {
       def: { name: "place_doodads", description: "Place doodads by name (or id, or a category name for any of its doodads) with their top-left corner at a tile. A doodad that does not fit its footprint is refused, not forced. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
+      describe: (input) => {
+        const d = list(input.doodads);
+        return d.length ? `Place ${tally(d.map((x) => str(x.doodad)))} near ${num(d[0].x)},${num(d[0].y)}` : "Place doodads";
+      },
+      report: placedReport,
       writes: true,
       run: (input, { api }) => {
         const placed = [];
@@ -3865,6 +4015,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      describe: (input) => `Remove ${plural(ints2(input.indices).length, "doodad")} ${indexList(ints2(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove doodads", (tx) => {
@@ -3875,6 +4026,7 @@ function objectTools() {
     },
     {
       def: { name: "convert_doodads", description: "Convert doodads (by index, from list_doodads) to plain terrain: the tiles stay as ground, the doodad record goes, an overlay stays as an ordinary sprite. Use it when a ramp or cliff piece is to be touched up tile by tile afterwards. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      describe: (input) => `Convert ${plural(ints2(input.indices).length, "doodad")} to terrain`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: convert doodads to terrain", (tx) => {
@@ -3885,6 +4037,7 @@ function objectTools() {
     },
     {
       def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, skipping spots that do not fit. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
+      describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf3(input, api);
@@ -3906,6 +4059,11 @@ function objectTools() {
     },
     {
       def: { name: "place_sprites", description: 'Place sprites at tile centres: kind "pure" (a sprites.dat image by the palette\'s name or id \u2014 lookup sprite) or "unit" (a unit drawn as a sprite, by unit name). `player` is 1-based. One undo step.', inputSchema: obj({ sprites: { type: "array", items: obj({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, flipped: { type: "boolean" }, disabled: { type: "boolean" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
+      describe: (input) => {
+        const sp = list(input.sprites);
+        return sp.length ? `Place sprites: ${tally(sp.map((x) => str(x.sprite)))} near ${num(sp[0].x)},${num(sp[0].y)}` : "Place sprites";
+      },
+      report: placedReport,
       writes: true,
       run: (input, { api }) => {
         const placed = [];
@@ -3927,6 +4085,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      describe: (input) => `Remove ${plural(ints2(input.indices).length, "sprite")}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove sprites", (tx) => {
@@ -3937,6 +4096,7 @@ function objectTools() {
     },
     {
       def: { name: "add_location", description: "Add a named location over a tile rect. One undo step.", inputSchema: obj({ name: { type: "string" }, ...rectSchema }, ["name", "x0", "y0", "x1", "y1"]) },
+      describe: (input) => `Add location "${str(input.name, "Location")}" at ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf3(input, api);
@@ -3949,6 +4109,7 @@ function objectTools() {
     },
     {
       def: { name: "edit_location", description: "Rename, move or resize a location by slot index (a tile rect), or set which heights it excludes (`excludeLowGround` \u2026 `excludeHighAir`). One undo step.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" }, ...rectSchema, excludeLowGround: { type: "boolean" }, excludeMediumGround: { type: "boolean" }, excludeHighGround: { type: "boolean" }, excludeLowAir: { type: "boolean" }, excludeMediumAir: { type: "boolean" }, excludeHighAir: { type: "boolean" } }, ["index"]) },
+      describe: (input) => `Edit location #${num(input.index)}: ${[input.name !== void 0 && "name", input.x0 !== void 0 && "area", Object.keys(input).some((k) => k.startsWith("exclude")) && "heights"].filter(Boolean).join(", ") || "nothing"}`,
       writes: true,
       run: (input, { api }) => {
         const index = Math.round(num(input.index, -1));
@@ -3978,6 +4139,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      describe: (input) => `Remove ${plural(ints2(input.indices).length, "location")} ${indexList(ints2(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove locations", (tx) => {
@@ -3988,6 +4150,7 @@ function objectTools() {
     },
     {
       def: { name: "set_fog", description: 'Fog of war over a tile rect for 1-based players: mode "fog" (starts unexplored) or "clear". One undo step.', inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
+      describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints2(input.players).length === 1 ? "" : "s"} ${ints2(input.players).join(", ")}`,
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf3(input, api);
@@ -4076,16 +4239,22 @@ var STYLE = `
 .ai .ai-msg.is-user { background: var(--bg-3, #232833); align-self: flex-end; white-space: pre-wrap; }
 .ai .ai-msg.is-assistant { background: var(--bg-2, #1b1f27); align-self: stretch; }
 .ai .ai-msg.is-assistant .ai-md { max-height: none; }
-.ai .ai-tool { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--text-dim, #99a2b3); padding: 1px 8px; }
-.ai .ai-tool code { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--text, #e6e9ef); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-.ai .ai-tool img { max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; margin-top: 3px; }
-.ai .ai-shot { padding: 0 8px 4px; }
 .ai .ai-context { font-size: 11px; color: var(--text-faint, #6b7382); line-height: 1.35; max-height: 44px; overflow: hidden; text-overflow: ellipsis; }
-.ai .ai-turn { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim, #99a2b3); padding: 3px 8px; border-top: 1px dashed var(--border, #333); }
-.ai .ai-turn .ai-grow { flex: 1; }
-.ai .ai-shot img { max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; }
 .ai.ai-assistant { flex: 1; min-height: 0; }
-.ai.ai-assistant .ai-chat { flex: 1; min-height: 160px; max-height: none; }
+.ai .ai-chat-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; }
+.ai .ai-chat-wrap .ai-chat { flex: 1; }
+.ai .ai-jump { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 11px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.ai.ai-assistant .ai-chat-wrap { flex: 1; }
+.ai.ai-assistant .ai-chat { min-height: 160px; max-height: none; }
+/* A turn's work: a fold of steps (the editor's widgets), with the assistant's own touches. */
+.ai .ai-act .step.ai-write .step-icon { color: var(--gold, #e6b95c); }
+.ai .ai-act .step-note .ai-md { max-height: none; }
+.ai .ai-act-think { margin-bottom: 4px; }
+.ai .ai-act-think > .fold-body { white-space: pre-wrap; max-height: 30vh; overflow: auto; }
+.ai .ai-act-shot { padding: 0; border: 0; background: none; cursor: zoom-in; text-align: left; }
+.ai .ai-act-shot img { max-height: 56px; width: auto; max-width: 100%; border: 1px solid var(--border, #333); border-radius: 3px; display: block; }
+.ai .ai-act-shot.is-open { cursor: zoom-out; }
+.ai .ai-act-shot.is-open img { max-height: none; }
 .ai .ai-state { display: flex; flex-direction: column; gap: 4px; padding: 5px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); font-size: 11px; }
 .ai .ai-state-line { display: flex; align-items: center; gap: 8px; min-height: 16px; }
 .ai .ai-phase { font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px; color: var(--text-dim, #99a2b3); }
@@ -4100,16 +4269,6 @@ var STYLE = `
 .ai .ai-pill:empty { display: none; }
 .ai .ai-caret { display: inline-block; width: 6px; height: 12px; margin-left: 2px; vertical-align: -2px; background: var(--teal, #4fd1c5); animation: ai-blink 1s steps(2) infinite; }
 @keyframes ai-blink { to { opacity: 0; } }
-.ai .ai-tool.is-pending code { color: var(--text-dim, #99a2b3); }
-.ai .ai-tool-mark { flex: none; width: 12px; display: inline-flex; align-items: center; justify-content: center; }
-.ai .ai-steps { display: flex; flex-direction: column; gap: 3px; }
-.ai .ai-step { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 3px; font-size: 11px; }
-.ai .ai-step .ai-step-mark { flex: none; width: 14px; display: inline-flex; align-items: center; justify-content: center; }
-.ai .ai-step.is-running { background: var(--bg-3, #232833); }
-.ai .ai-step.is-done .ai-step-mark { color: var(--teal, #4fd1c5); }
-.ai .ai-step.is-failed .ai-step-mark { color: #ff9f7a; }
-.ai .ai-step.is-skipped { color: var(--text-faint, #6b7382); }
-.ai .ai-step .ai-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 var styleCount = 0;
 function styled(body) {
@@ -4506,6 +4665,11 @@ function readTools() {
     },
     {
       def: { name: "list_units", description: "Units on the map: index, name, owner, tile x/y, resource amount for minerals and geysers. Filter by owner (1-based player, 12 neutral), by name (substring), or by a tile rect. `details` adds every record field (hit points %, shields %, energy %, hangar, state flags, serial).", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, limit: { type: "integer", description: "at most this many, default 200" }, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" }, description: "only these unit indices" } }) },
+      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints2(input.indices))}` : ""}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r && r.count !== void 0 ? `${num(r.count)} of ${num(r.total)}` : "";
+      },
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -4623,6 +4787,7 @@ function readTools() {
     },
     {
       def: { name: "list_triggers_text", description: "The map's triggers in the editor's text format, from index `from` to `to` (1-based, inclusive; default the first 20). Also the mission briefing with briefing=true.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
+      describe: (input) => `Read ${input.briefing === true ? "the briefing" : "the triggers"}${input.from !== void 0 ? ` from #${num(input.from)}` : ""}${input.to !== void 0 ? ` to #${num(input.to)}` : ""} as text`,
       writes: false,
       run: (input, { api }) => {
         const briefing = input.briefing === true;
@@ -4640,11 +4805,17 @@ ${text}`, 3e4);
     },
     {
       def: { name: "find", description: "Edit \u25B8 Find: search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
+      describe: (input) => `Find "${str(input.text)}" in the ${str(input.kind)}`,
       writes: false,
       run: (input, { api }) => capResult(api.query.find({ kind: str(input.kind, "strings"), query: str(input.text), limit: 100 }))
     },
     {
       def: { name: "validate", description: "Tools \u25B8 Check Map: problems the editor finds with the map.", inputSchema: obj({}) },
+      describe: () => "Check the map",
+      report: (result) => {
+        const r = jsonOf(result);
+        return Array.isArray(r) ? r.length ? plural(r.length, "finding") : "clean" : "";
+      },
       writes: false,
       run: (_i, { api }) => {
         const issues = api.query.validate();
@@ -4653,6 +4824,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "terrain_at", description: "What is under a tile: the terrain type, height, buildable, walkable, and the doodad there if any. Or a coarse grid of an area (cells of `cellSize` tiles) when a rect is given.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
+      describe: (input) => hasRect(input) ? `Read the terrain over ${rectText(input)}` : `Read the terrain at ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, ctx) => {
         const { api } = ctx;
@@ -4673,6 +4845,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "fog_at", description: "Fog of war over a tile rect for a 1-based player, as a coarse grid of cells (`#` = starts unexplored, `.` = explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
+      describe: (input) => `Read Player ${num(input.player)}'s fog${hasRect(input) ? ` over ${rectText(input)}` : ""}`,
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -4699,6 +4872,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "placement_ok", description: "Whether a unit could be placed with its centre at a tile: the editor's own placement check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
+      describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
       writes: false,
       run: (input, { api }) => {
         const id = unitIdByName2(api, str(input.unit));
@@ -4710,6 +4884,11 @@ ${text}`, 3e4);
     },
     {
       def: { name: "screenshot", description: "A picture of an area of the map (or the whole map when no rect is given) at `pixelsPerTile` (default 8; 32 is the game's art, 2 is a minimap). Look before and after changing things.", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
+      describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
+      report: (result) => {
+        const m = /at (\d+) px per tile/.exec(typeof result === "string" ? result : result.text ?? "");
+        return m ? `${m[1]} px per tile` : "picture";
+      },
       writes: false,
       run: async (input, { api }) => {
         const info = api.document.info();
@@ -4745,6 +4924,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "lookup", description: 'Look a name up in the game data: kind "unit" (id, size, cost, hp, weapons, the map\'s own settings), "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition" or "action" (the argument list). `query` is a name or part of one; several matches are listed.', inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
+      describe: (input) => `Look up the ${str(input.kind)} "${str(input.query)}"`,
       writes: false,
       run: (input, { api }) => {
         const kind = str(input.kind), q2 = str(input.query).toLowerCase();
@@ -4864,6 +5044,7 @@ function scriptTools() {
     },
     {
       def: { name: "compile_script", description: "Type-check a trigger script (the Trigger Script plugin's TypeScript-subset language; read script_declarations first) without building it. Returns diagnostics or the trigger count.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
@@ -4874,6 +5055,7 @@ function scriptTools() {
     },
     {
       def: { name: "build_script", description: "Compile a trigger script and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger \u2014 ask first). Stores the source with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
       run: async (input, { api }) => {
@@ -4901,6 +5083,7 @@ function scriptTools() {
     },
     {
       def: { name: "go_to", description: "Scroll the user's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
+      describe: (input) => input.unit !== void 0 ? `Go to unit #${num(input.unit)}` : input.location !== void 0 ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, { api }) => {
         if (input.unit !== void 0) api.view.goTo({ kind: "unit", index: Math.round(num(input.unit)) });
@@ -4911,6 +5094,11 @@ function scriptTools() {
     },
     {
       def: { name: "select", description: "Show the user something: select units, sprites, doodads or locations by index (switching to that layer), or mark a tile rect. Pass an empty list to clear.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
+      describe: (input) => {
+        const parts = ["units", "sprites", "doodads", "locations"].filter((k) => Array.isArray(input[k])).map((k) => `${ints2(input[k]).length} ${k}`);
+        if (input.x0 !== void 0 && input.x1 !== void 0) parts.push(`the area ${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`);
+        return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection";
+      },
       writes: false,
       run: (input, { api }) => {
         const done = [];
@@ -4951,6 +5139,16 @@ function settingsTools() {
   return [
     {
       def: { name: "set_players", description: "Player Settings and Player Colors: for each 1-based player, the type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race (Zerg, Terran, Protoss, User Selectable, Random \u2026), colour (a name like Red / Blue / Teal / Purple / Orange / Brown / White / Yellow / Green, or a COLR index, or an RGB triple for a Remastered custom colour) and force (1\u20134). Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: obj({ player: { type: "integer" }, type: { type: "string" }, race: { type: "string" }, color: { type: "string" }, rgb: { type: "array", items: { type: "integer" } }, force: { type: "integer" } }, ["player"]) } }, ["players"]) },
+      describe: (input) => {
+        const ps = list(input.players);
+        return `Set player${ps.length === 1 ? "" : "s"} ${ps.map((p) => str(p.player)).join(", ")}: ${fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || "nothing"}`;
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        if (!r) return "";
+        const notes = Array.isArray(r.notes) ? r.notes : [];
+        return `${plural(num(r.changed), "player")} changed${notes.length ? `; ${String(notes[0])}` : ""}`;
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -4991,6 +5189,14 @@ function settingsTools() {
     },
     {
       def: { name: "set_forces", description: "Force Settings: for each force 1\u20134, its name, the flags allied / alliedVictory / sharedVision / randomStart, and the 1-based players to put in it. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: obj({ force: { type: "integer" }, name: { type: "string" }, allied: { type: "boolean" }, alliedVictory: { type: "boolean" }, sharedVision: { type: "boolean" }, randomStart: { type: "boolean" }, players: { type: "array", items: { type: "integer" } } }, ["force"]) } }, ["forces"]) },
+      describe: (input) => {
+        const fs = list(input.forces);
+        return `Set force${fs.length === 1 ? "" : "s"} ${fs.map((f) => str(f.force)).join(", ")}: ${fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || "nothing"}`;
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? `${plural(num(r.changed), "force")} changed` : "";
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5013,6 +5219,11 @@ function settingsTools() {
     },
     {
       def: { name: "set_unit_type", description: 'Unit Settings for one unit type: hitPoints (whole points), shields, armor, buildTime (frames), mineralCost, gasCost, weapon damage / bonus by weapon id, a custom name ("" restores the default), and availability \u2014 who may build it: `available` entries of { player: 1\u201312 or "default", value: true / false / "default" }. Setting any number turns "use default" off for the type; useDefault: true puts it back on the game\'s values. Not undoable.', inputSchema: obj({ unit: { type: "string" }, useDefault: { type: "boolean" }, name: { type: "string" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, armor: { type: "integer" }, buildTime: { type: "integer" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, weapons: { type: "array", items: obj({ id: { type: "integer" }, damage: { type: "integer" }, bonus: { type: "integer" } }, ["id"]) }, available: { type: "array", items: obj({ player: { type: "string" }, value: { type: "string" } }, ["player", "value"]) } }, ["unit"]) },
+      describe: (input) => `Unit settings for ${str(input.unit)}: ${fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || "nothing"}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? r.changed ? "changed" : "nothing changed" : "";
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5040,6 +5251,11 @@ function settingsTools() {
     },
     {
       def: { name: "set_upgrade", description: `Upgrade Settings for one upgrade: mineralCost / gasCost / timeCost (frames) and their per-level factors, and levels \u2014 entries of { player: 1\u201312 or "default", start, max, useDefault } for each player's starting and maximum level. Setting a cost turns "use default" off; useDefault: true restores the game's. Not undoable.`, inputSchema: obj({ upgrade: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, mineralFactor: { type: "integer" }, gasCost: { type: "integer" }, gasFactor: { type: "integer" }, timeCost: { type: "integer" }, timeFactor: { type: "integer" }, levels: { type: "array", items: obj({ player: { type: "string" }, start: { type: "integer" }, max: { type: "integer" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["upgrade"]) },
+      describe: (input) => `Upgrade settings for ${str(input.upgrade)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || "nothing"}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? r.changed ? "changed" : "nothing changed" : "";
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5061,6 +5277,11 @@ function settingsTools() {
     },
     {
       def: { name: "set_tech", description: `Technology Settings for one technology: mineralCost / gasCost / researchTime (frames) / energyCost, and state \u2014 entries of { player: 1\u201312 or "default", available, researched, useDefault }. Setting a cost turns "use default" off; useDefault: true restores the game's. Not undoable.`, inputSchema: obj({ tech: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, researchTime: { type: "integer" }, energyCost: { type: "integer" }, state: { type: "array", items: obj({ player: { type: "string" }, available: { type: "boolean" }, researched: { type: "boolean" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["tech"]) },
+      describe: (input) => `Technology settings for ${str(input.tech)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || "nothing"}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? r.changed ? "changed" : "nothing changed" : "";
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5082,6 +5303,7 @@ function settingsTools() {
     },
     {
       def: { name: "set_map_version", description: 'Scenario \u25B8 Map Revision: "original" (StarCraft 1.00, .scm), "hybrid" (1.04, .scm), "broodwar" (.scx) or "remastered" (.scx, wide string table). Ask before changing it. Not undoable.', inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
+      describe: (input) => `Set the map revision to ${str(input.version)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5095,6 +5317,7 @@ function settingsTools() {
     },
     {
       def: { name: "add_sound", description: "Add a WAV path to the sound table (the file itself must already be in the archive or be added through the Sound Editor). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
+      describe: (input) => `Add the sound ${str(input.path)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5118,6 +5341,15 @@ function terrainTools() {
   return [
     {
       def: { name: "paint_terrain", description: "Paint a tile rect (x1, y1 exclusive) with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. The brush bleeds: a shore or cliff between two terrains takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and painting right up to water or a cliff redraws its edge. `keep` lists terrain ids not to paint over (water, for instance): tiles of those terrains inside the rect are left alone. The result says which terrains the rect painted over. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" }, description: "terrain ids to leave alone inside the rect" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
+      describe: (input, { api }) => `Paint ${api.terrain.types().find((t) => t.id === num(input.terrain))?.name ?? `terrain ${str(input.terrain)}`} over ${rectText(input)}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        if (!r) return "";
+        const parts = [r.changed ? plural(num(r.tiles), "tile") : "nothing changed"];
+        if (r.paintedOver && typeof r.paintedOver === "object") parts.push(`over ${Object.entries(r.paintedOver).map(([k, v]) => `${k} \xD7${v}`).join(", ")}`);
+        if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0]));
+        return parts.join("; ");
+      },
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf3(input, api);
@@ -5148,6 +5380,7 @@ function terrainTools() {
     },
     {
       def: { name: "resize_map", description: "Scenario \u25B8 Resize / Crop Map to width \xD7 height tiles. `anchor` says where the current content stays: 0 top-left, 1 top, 2 top-right, 3 left, 4 centre (default), 5 right, 6 bottom-left, 7 bottom, 8 bottom-right. Objects outside the new bounds are dropped and the undo history is cleared, so ask before doing this.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer", description: "terrain id for the new ground" } }, ["width", "height"]) },
+      describe: (input) => `Resize the map to ${num(input.width)} \xD7 ${num(input.height)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5165,6 +5398,10 @@ function triggerTools() {
   return [
     {
       def: { name: "add_triggers_text", description: "Append triggers written in the editor's text format (the format list_triggers_text shows; grammar in the reference). Parse errors are reported and nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
+      describe: (input) => {
+        const n2 = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length;
+        return `Add ${n2 ? plural(n2, input.briefing === true ? "briefing trigger" : "trigger") : "triggers"} from text`;
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5183,6 +5420,7 @@ function triggerTools() {
     },
     {
       def: { name: "replace_trigger", description: "Replace one trigger (1-based index, as list_triggers_text numbers them) with one written in the text format. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
+      describe: (input) => `Replace trigger #${num(input.index)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5203,6 +5441,7 @@ function triggerTools() {
     },
     {
       def: { name: "remove_triggers", description: "Remove triggers by 1-based index. Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
+      describe: (input) => `Remove ${plural(ints2(input.indices).length, "trigger")} ${indexList(ints2(input.indices))}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5217,6 +5456,7 @@ function triggerTools() {
     },
     {
       def: { name: "move_trigger", description: "Move a trigger from one 1-based position to another (triggers run in list order). Not undoable.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }, ["from", "to"]) },
+      describe: (input) => `Move trigger #${num(input.from)} to #${num(input.to)}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5230,6 +5470,7 @@ function triggerTools() {
     },
     {
       def: { name: "set_trigger_flags", description: "Turn Preserve Trigger on or off for triggers by 1-based index (to disable a condition or action, replace the trigger with a `;` before that line). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
+      describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints2(input.indices).length, "trigger")}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5250,6 +5491,7 @@ function triggerTools() {
     },
     {
       def: { name: "set_string", description: "Overwrite one string in the table by index (everything that points at it shows the new text), or add a new string with index 0 and get its index back. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
+      describe: (input) => `${num(input.index) > 0 ? `Set string ${num(input.index)}` : "Add a string"}: "${str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}\u2026` : str(input.text)}"`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5265,6 +5507,7 @@ function triggerTools() {
     },
     {
       def: { name: "name_switch", description: 'Name a switch (0-based index; "" clears the name). Not undoable.', inputSchema: obj({ index: { type: "integer" }, name: { type: "string" } }, ["index", "name"]) },
+      describe: (input) => `Name switch ${num(input.index)} "${str(input.name)}"`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5276,6 +5519,7 @@ function triggerTools() {
     },
     {
       def: { name: "set_properties", description: "Set the scenario's name and/or description (Map Properties). Not undoable.", inputSchema: obj({ name: { type: "string" }, description: { type: "string" } }) },
+      describe: (input) => `Set the map's ${[input.name !== void 0 && "name", input.description !== void 0 && "description"].filter(Boolean).join(" and ") || "properties"}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -5290,6 +5534,7 @@ function triggerTools() {
     },
     {
       def: { name: "simulate_triggers", description: "Run the map's triggers through the Trigger Script plugin's trigger-cycle interpreter for some cycles (Deaths, Switches, Always and Never are modelled; other conditions count as false) and report the actions that fired and the switches set at the end. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
+      describe: (input) => `Simulate the triggers for ${plural(num(input.cycles, 30), "cycle")}`,
       writes: false,
       run: (input, { api }) => {
         const script = scriptBridge(api);
@@ -6340,6 +6585,7 @@ function umsTools() {
   return [
     {
       def: { name: "guide", description: "Read a genre guide before designing or judging a scenario: how a madness map, a defense, an RPG, a bound, a diplomacy map, an arena or a survival map is built, its players and forces, the trigger systems it runs on (by toolkit kind), and the pitfalls. `id` is one of the guides, or a free description of the map to pick the nearest; no id lists them. `basics` is death counters, hyper triggers, locations and the game's limits.", inputSchema: obj({ id: { type: "string" } }) },
+      describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
       writes: false,
       run: (input) => {
         const id = str(input.id);
@@ -6359,6 +6605,14 @@ ${guideIndex()}`;
     },
     {
       def: { name: "ums_build", description: "Build one trigger system from the toolkit (see ums_kinds) and append its triggers to the map. `params` are the kind's parameters as strings \u2014 a location or unit by name, a number as digits, a list comma-separated; `{p}` in a location name means the player number. Problems are reported and nothing is added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      describe: (input) => {
+        const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
+        return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`;
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : "";
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -6464,6 +6718,48 @@ function newConversationId() {
   if (c2?.randomUUID) return c2.randomUUID();
   return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
+function groupTurns(messages) {
+  const turns = [];
+  const calls = /* @__PURE__ */ new Map();
+  let cur = null;
+  for (const m of messages) {
+    if (m.role === "user" && !m.content.some((c2) => c2.type === "tool_result")) {
+      cur = { user: m.content.filter(isText).map((c2) => c2.text), steps: [], answer: null };
+      turns.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    if (m.role === "user") {
+      for (const c2 of m.content) {
+        if (c2.type !== "tool_result") continue;
+        const call = calls.get(c2.toolUseId);
+        if (!call) continue;
+        if (typeof c2.content === "string") call.result = c2.content;
+        else {
+          call.result = c2.content.filter((p) => p.type === "text").map((p) => p.text).join("\n") || void 0;
+          call.image = c2.content.find((p) => p.type === "image")?.source;
+        }
+        call.failed = !!c2.isError;
+      }
+      continue;
+    }
+    const usesTools = m.content.some((c2) => c2.type === "tool_use");
+    for (const c2 of m.content) {
+      if (c2.type === "thinking") cur.steps.push({ kind: "thinking", text: c2.thinking });
+      else if (c2.type === "text") {
+        if (usesTools) cur.steps.push({ kind: "narration", text: c2.text });
+        else cur.answer = cur.answer ? `${cur.answer}
+
+${c2.text}` : c2.text;
+      } else if (c2.type === "tool_use") {
+        const step = { kind: "call", name: c2.name, input: c2.input ?? {} };
+        calls.set(c2.id, step);
+        cur.steps.push(step);
+      }
+    }
+  }
+  return turns;
+}
 var PHASE_LABELS = { idle: "Ready", waiting: "Waiting for the model", thinking: "Thinking", writing: "Writing", tools: "Working on the map", stopped: "Stopped", failed: "Failed" };
 var isText = (c2) => c2.type === "text";
 function intentOverlay(api) {
@@ -6526,9 +6822,7 @@ function openAssistant(ctx, state) {
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
       const clock = h("span", { className: "ai-dim ai-mono" }, "");
       const cost = h("span", { className: "ai-pill", title: "What this panel has cost \xB7 what the session has cost" }, "");
-      const shimmer = w.progressBar({ value: null, percent: false });
-      shimmer.hidden = true;
-      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost), shimmer);
+      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost));
       let phase = "idle";
       let startedAt = 0;
       let clockTimer = null;
@@ -6544,7 +6838,6 @@ function openAssistant(ctx, state) {
         phaseLabel.textContent = PHASE_LABELS[next];
         phaseDetail.textContent = detail;
         const busy = next === "waiting" || next === "thinking" || next === "writing" || next === "tools";
-        shimmer.hidden = !busy;
         if (busy && clockTimer === null) {
           tickClock();
           clockTimer = window.setInterval(tickClock, 1e3);
@@ -6559,8 +6852,20 @@ function openAssistant(ctx, state) {
       };
       setCost();
       const chat = h("div", { className: "ai-chat" });
-      const scroll = () => {
+      let pinned = true;
+      const jump = w.button("Jump to latest", { ghost: true, onClick: () => {
+        pinned = true;
         chat.scrollTop = chat.scrollHeight;
+        jump.hidden = true;
+      } });
+      jump.classList.add("ai-jump");
+      jump.hidden = true;
+      chat.addEventListener("scroll", () => {
+        pinned = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 24;
+        jump.hidden = pinned;
+      });
+      const scroll = () => {
+        if (pinned) chat.scrollTop = chat.scrollHeight;
       };
       const addUser = (text) => {
         chat.append(h("div", { className: "ai-msg is-user" }, text));
@@ -6572,39 +6877,108 @@ function openAssistant(ctx, state) {
         scroll();
         return el;
       };
-      const addThinking = () => {
-        if (!ctx.settings().showThinking) return () => {
-        };
-        let fold = null;
-        let foldBody = null;
-        return (text) => {
-          if (!text) return;
-          if (!fold) {
-            foldBody = h("div", { className: "ai-body" });
-            fold = h("details", null, h("summary", null, "Reasoning"), foldBody);
-            chat.append(fold);
-          }
-          foldBody.append(document.createTextNode(text));
+      const activity = () => {
+        const block = w.fold({ open: true, busy: true, text: "Working\u2026" });
+        block.classList.add("ai-act");
+        const steps = w.steps({ tail: 3 });
+        steps.running(true);
+        block.body.append(steps);
+        chat.append(block);
+        scroll();
+        let failed = 0;
+        let think = null;
+        const live = (text) => block.set(text);
+        const step = (tool, name, input2) => {
+          const row = steps.add(input2 ? describeStep(tool, name, input2, ctx) : `${prettyName(name)}\u2026`, { icon: tool?.writes ? "\u270E" : "\u25B8", title: input2 ? describeCall(name, input2) : void 0, running: true });
+          if (tool?.writes) row.element.classList.add("ai-write");
+          const n2 = steps.count();
+          const start2 = (input3) => {
+            const text = describeStep(tool, name, input3, ctx);
+            row.set(text, describeCall(name, input3));
+            live(`Step ${n2} \xB7 ${text}`);
+            return text;
+          };
+          live(`Step ${n2} \xB7 ${row.element.querySelector(".step-label")?.textContent ?? ""}`);
           scroll();
+          return {
+            row,
+            start: start2,
+            done(out) {
+              const rep = reportStep(tool, out);
+              row.done(rep ? `\u2192 ${rep}` : "");
+              row.element.title += `
+\u2192 ${summarizeResult(out)}`;
+              if (typeof out !== "string" && out.image) {
+                const shot = h("button", { type: "button", className: "ai-act-shot", title: "Click to enlarge" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" }));
+                shot.addEventListener("click", () => shot.classList.toggle("is-open"));
+                row.append(shot);
+              }
+              scroll();
+            },
+            fail(message) {
+              failed++;
+              row.fail(`\u2717 ${message}`);
+              row.element.title += `
+\u2717 ${message}`;
+              scroll();
+            },
+            skip() {
+              row.skip("not called");
+              row.element.title = "The model named this tool but did not call it.";
+            }
+          };
         };
-      };
-      const addTool = (tool, call, pending) => {
-        const mark = h("span", { className: "ai-tool-mark" }, pending ? w.spinner({ size: "sm" }) : "\u2026");
-        const code = h("code", null, call);
-        const row = h(
-          "div",
-          { className: `ai-tool${pending ? " is-pending" : ""}`, title: call },
-          h("span", { className: tool?.writes ? "ai-gold" : "ai-dim", title: tool?.writes ? tool.settings ? "changes the map (a settings transaction, not undoable)" : "changes the map (one undo step)" : "reads" }, tool?.writes ? "\u270E" : "\u25B8"),
-          code,
-          mark
-        );
-        chat.append(row);
-        scroll();
-        return { row, mark, code };
-      };
-      const addNote = (text, ...extra) => {
-        chat.append(h("div", { className: "ai-turn" }, h("span", { className: "ai-grow" }, text), ...extra));
-        scroll();
+        return {
+          el: block,
+          live,
+          step,
+          /** Rows and notes so far, to place a note before the rows a round adds. */
+          size: () => steps.size(),
+          /** Tool steps so far. */
+          count: () => steps.count(),
+          /** The model's words in a round that went on to call tools: narration, kept small. */
+          note(text, at) {
+            steps.note(renderMarkdown(text), at);
+            scroll();
+          },
+          /** Reasoning, streamed into one fold for the whole turn (never its signature). */
+          think(text) {
+            if (!text || !ctx.settings().showThinking) return;
+            if (!think) {
+              think = w.fold({ text: "Reasoning" });
+              think.classList.add("ai-act-think");
+              block.body.insertBefore(think, steps);
+            }
+            think.body.append(document.createTextNode(text));
+            scroll();
+          },
+          /** A blank line between one round's reasoning and the next. */
+          thinkBreak() {
+            if (think?.body.textContent) think.body.append(document.createTextNode("\n\n"));
+          },
+          finish(o) {
+            steps.running(false);
+            block.open = false;
+            if (steps.size() === 0 && !think) {
+              block.remove();
+              return;
+            }
+            const parts = [];
+            if (o.stopped) parts.push("Stopped");
+            const count = steps.count();
+            if (count) parts.push(plural(count, "step"));
+            else if (think) parts.push("Thought");
+            if (o.edits) parts.push(plural(o.edits, "edit"));
+            if (o.settings) parts.push(`${plural(o.settings, "settings change")} (not undoable)`);
+            if (failed) parts.push(h("span", { className: "error" }, `${failed} failed`));
+            if (o.secs !== void 0) parts.push(`${o.secs} s`);
+            if (o.cost) parts.push(formatUsd(o.cost));
+            block.mark(failed ? "\u2717" : "\u2713", failed ? "error" : "ok");
+            block.set(...parts.flatMap((p, i) => i ? [" \xB7 ", p] : [p]));
+            if (o.undo) block.action(o.undo);
+            scroll();
+          }
+        };
       };
       const context = h("div", { className: "ai-context" });
       const chipRow = h("div", { className: "ai-chips" });
@@ -6657,14 +7031,28 @@ function openAssistant(ctx, state) {
         }
       });
       const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c2) => `${m.role === "user" ? "You" : "Assistant"}: ${c2.text}`).join("\n")).filter(Boolean).join("\n\n");
-      for (const m of state.messages) {
-        for (const c2 of m.content) {
-          if (c2.type === "text") {
-            if (m.role === "user") addUser(c2.text);
-            else addAssistant(c2.text);
-          } else if (c2.type === "thinking") addThinking()(c2.thinking);
-          else if (c2.type === "tool_use") addTool(byName2.get(c2.name), describeCall(c2.name, c2.input), false).mark.textContent = "\u2713";
+      for (const t of groupTurns(state.messages)) {
+        for (const u of t.user) addUser(u);
+        const act = activity();
+        let edits = 0, settingsWrites = 0;
+        for (const s of t.steps) {
+          if (s.kind === "thinking") act.think(s.text);
+          else if (s.kind === "narration") act.note(s.text);
+          else {
+            const tool = byName2.get(s.name);
+            const row = act.step(tool, s.name, s.input);
+            if (s.failed) row.fail(s.result ?? "failed");
+            else {
+              row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done.");
+              if (tool?.writes) {
+                if (tool.settings) settingsWrites++;
+                else edits++;
+              }
+            }
+          }
         }
+        act.finish({ edits, settings: settingsWrites });
+        if (t.answer) addAssistant(t.answer);
       }
       const viewPicture = async () => {
         const v = api.view.visible();
@@ -6678,24 +7066,14 @@ function openAssistant(ctx, state) {
       };
       const runTool = async (call, row) => {
         const tool = byName2.get(call.name);
-        const described = describeCall(call.name, call.input ?? {});
-        row.code.textContent = described;
-        row.row.title = described;
-        row.row.classList.remove("is-pending");
-        row.mark.replaceChildren(w.spinner({ size: "sm" }));
-        setPhase("tools", call.name.replace(/_/g, " "));
+        const what = row.start(call.input ?? {});
+        setPhase("tools", what);
         const footprint = footprintOf(api, call.name, call.input ?? {});
         intent.show(footprint);
         try {
           if (!tool) throw new Error(`no tool called ${call.name}`);
           const out = await tool.run(call.input ?? {}, ctx);
-          if (typeof out !== "string" && out.image) {
-            chat.append(h("div", { className: "ai-shot" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" })));
-            scroll();
-          }
-          row.mark.textContent = "\u2713";
-          row.row.title = `${described}
-\u2192 ${summarizeResult(out)}`;
+          row.done(out);
           if (!footprintEmpty(footprint)) {
             const kind = tool.writes ? "change" : "attention";
             for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool.writes ? 700 : 400 });
@@ -6704,10 +7082,7 @@ function openAssistant(ctx, state) {
           }
           return { result: toContent(call.id, typeof out === "string" ? capResult(out) : out), tool, failed: false };
         } catch (err) {
-          row.mark.textContent = "\u2717";
-          row.row.classList.add("ai-bad");
-          row.row.title = `${described}
-\u2717 ${err.message}`;
+          row.fail(err.message);
           return { result: toContent(call.id, `Error: ${err.message}`, true), tool, failed: true };
         } finally {
           intent.show(null);
@@ -6722,6 +7097,7 @@ function openAssistant(ctx, state) {
         }
         if (!preset) input.value = "";
         more.hidden = true;
+        pinned = true;
         addUser(text);
         const content = [{ type: "text", text }];
         if (attach.input.checked) {
@@ -6744,13 +7120,33 @@ function openAssistant(ctx, state) {
         const settingsWrites = [];
         const maxRounds = Math.max(1, ctx.settings().maxRounds || 24);
         let stoppedAtLimit = false;
+        let turnCost = 0;
+        const act = activity();
+        const finishActivity = (stopped) => {
+          const secs = Math.round((Date.now() - startedAt) / 1e3);
+          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
+          const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+            let count = 0;
+            for (let i = 0; i < undoSteps; i++) {
+              const label = api.document.history().undo;
+              if (!label || !label.startsWith("AI:")) break;
+              if (!api.document.undo()) break;
+              count++;
+            }
+            e.currentTarget.disabled = true;
+            phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+          } }) : null;
+          act.finish({ secs, cost: turnCost, edits: edits.length, settings: settingsWrites.length, undo, stopped });
+        };
         try {
           for (let round = 0; round < maxRounds; round++) {
             setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
+            if (round > 0) act.live(`${plural(act.count(), "step")} so far \xB7 waiting for the model`);
             let streamed = "";
             const stream = { el: null };
             let renderQueued = false;
-            const think = addThinking();
+            const roundStart = act.size();
+            act.thinkBreak();
             const pendingRows = /* @__PURE__ */ new Map();
             const paint = () => {
               renderQueued = false;
@@ -6772,7 +7168,7 @@ function openAssistant(ctx, state) {
               signal: running.signal,
               onThinking: (t) => {
                 if (phase === "waiting") setPhase("thinking");
-                think(t);
+                act.think(t);
               },
               onDelta: (t) => {
                 if (phase !== "writing") setPhase("writing");
@@ -6787,40 +7183,43 @@ function openAssistant(ctx, state) {
                 }
               },
               onToolUse: (id, name) => {
-                setPhase("tools", `${name.replace(/_/g, " ")}\u2026`);
-                pendingRows.set(id, addTool(byName2.get(name), `${name}(\u2026)`, true));
+                setPhase("tools", `${prettyName(name)}\u2026`);
+                pendingRows.set(id, act.step(byName2.get(name), name, null));
               },
               onProgress: () => {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
             }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
-            state.spent = (state.spent ?? 0) + (r.usage.chargedUsd ?? r.usage.costUsd);
+            const charged = r.usage.chargedUsd ?? r.usage.costUsd;
+            state.spent = (state.spent ?? 0) + charged;
+            turnCost += charged;
             setCost();
             const answer = r.output.content;
             state.messages.push({ role: "assistant", content: answer });
             const finalText = answer.filter(isText).map((c2) => c2.text).join("\n\n").trim();
-            if (stream.el) {
+            const calls = answer.filter((c2) => c2.type === "tool_use");
+            const continues = calls.length > 0 && r.output.stopReason === "tool_use";
+            if (continues) {
+              stream.el?.remove();
+              if (finalText) act.note(finalText, roundStart);
+            } else if (stream.el) {
               if (finalText) stream.el.replaceChildren(renderMarkdown(finalText));
               else stream.el.remove();
             } else if (finalText) addAssistant(finalText);
-            const calls = answer.filter((c2) => c2.type === "tool_use");
             if (r.output.stopReason === "refusal") {
               setPhase("failed", "The model declined.");
               break;
             }
-            if (calls.length === 0 || r.output.stopReason !== "tool_use") break;
+            if (!continues) break;
             const results = [];
             for (const call of calls) {
-              const row = pendingRows.get(call.id) ?? addTool(byName2.get(call.name), describeCall(call.name, call.input ?? {}), false);
+              const row = pendingRows.get(call.id) ?? act.step(byName2.get(call.name), call.name, null);
               pendingRows.delete(call.id);
               const { result, tool, failed } = await runTool(call, row);
               results.push(result);
               if (tool?.writes && !failed) (tool.settings ? settingsWrites : edits).push(call.name);
             }
-            for (const row of pendingRows.values()) {
-              row.mark.textContent = "\u2717";
-              row.row.title = "The model named this tool but did not call it.";
-            }
+            for (const row of pendingRows.values()) row.skip();
             state.messages.push({ role: "user", content: results });
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
@@ -6829,29 +7228,13 @@ function openAssistant(ctx, state) {
             setPhase("stopped", `after ${maxRounds} rounds of tool calls; AI Options sets the limit`);
             more.hidden = false;
           } else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
-          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
-          if (edits.length || settingsWrites.length) {
-            const parts = [];
-            if (edits.length) parts.push(`${edits.length} edit${edits.length === 1 ? "" : "s"}`);
-            if (settingsWrites.length) parts.push(`${settingsWrites.length} settings change${settingsWrites.length === 1 ? "" : "s"} (not undoable)`);
-            const undoButton = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
-              let count = 0;
-              for (let i = 0; i < undoSteps; i++) {
-                const label = api.document.history().undo;
-                if (!label || !label.startsWith("AI:")) break;
-                if (!api.document.undo()) break;
-                count++;
-              }
-              e.currentTarget.disabled = true;
-              phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
-            } }) : null;
-            addNote(`This turn: ${parts.join(", ")}.`, ...undoButton ? [undoButton] : []);
-          }
+          finishActivity(stoppedAtLimit);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           const last = state.messages[state.messages.length - 1];
           if (last?.role === "user") state.messages.pop();
+          finishActivity(true);
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
@@ -6864,7 +7247,7 @@ function openAssistant(ctx, state) {
       };
       append(root, [
         strip,
-        chat,
+        h("div", { className: "ai-chat-wrap" }, chat, jump),
         context,
         chipRow,
         input,
@@ -7614,24 +7997,22 @@ function openScenario(ctx, presetPrompt) {
         designBox.hidden = false;
         foldAsk();
       };
-      const stepsBox = h("div", { className: "ai-steps", hidden: true });
+      const stepsBox = w.steps();
+      stepsBox.hidden = true;
       const afterBox = h("div", { className: "ai-btns", hidden: true });
       const findingsBox = h("div", null);
       const addStep = (label) => {
-        const mark = h("span", { className: "ai-step-mark" }, "\u25CB");
-        const detail = h("span", { className: "ai-dim" }, "");
-        const row = h("div", { className: "ai-step is-pending" }, mark, h("span", { className: "ai-grow" }, label), detail);
-        stepsBox.append(row);
+        const row = stepsBox.add(label);
         return {
           set(s, text = "") {
-            row.className = `ai-step is-${s}`;
-            if (s === "running") mark.replaceChildren(w.spinner({ size: "sm" }));
-            else mark.textContent = s === "done" ? "\u2713" : s === "failed" ? "\u2717" : s === "skipped" ? "\u2013" : "\u25CB";
-            this.detail(text);
+            if (s === "running") row.start(text);
+            else if (s === "done") row.done(text);
+            else if (s === "failed") row.fail(text);
+            else if (s === "skipped") row.skip(text);
+            else row.detail(text);
           },
           detail(text) {
-            detail.textContent = text;
-            detail.title = text;
+            row.detail(text);
           }
         };
       };

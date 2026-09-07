@@ -164,3 +164,25 @@ describe("referenceFor", () => {
     expect(referenceFor(api)![2]).not.toContain("is called");
   });
 });
+
+describe("replaying a transcript", () => {
+  it("groups the stored messages into turns: the ask, the work, the answer", async () => {
+    const { groupTurns } = await import("../ai/assistant");
+    const turns = groupTurns([
+      { role: "user", content: [{ type: "text", text: "Hi" }] },
+      { role: "assistant", content: [{ type: "thinking", thinking: "hm", signature: "s" }, { type: "text", text: "Looking." }, { type: "tool_use", id: "t1", name: "map_info", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", toolUseId: "t1", content: "{\"width\":64}" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "t2", name: "screenshot", input: {} }, { type: "tool_use", id: "t3", name: "nope", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", toolUseId: "t2", content: [{ type: "text", text: "Tiles." }, { type: "image", source: { mediaType: "image/png", data: "AA" } }] }, { type: "tool_result", toolUseId: "t3", content: "Error: no", isError: true }] },
+      { role: "assistant", content: [{ type: "text", text: "Done." }] },
+      { role: "user", content: [{ type: "text", text: "Thanks" }] },
+      { role: "assistant", content: [{ type: "text", text: "Sure." }] },
+    ]);
+    expect(turns.map((t) => t.user)).toEqual([["Hi"], ["Thanks"]]);
+    expect(turns[0].answer).toBe("Done.");
+    expect(turns[0].steps.map((s) => s.kind)).toEqual(["thinking", "narration", "call", "call", "call"]);
+    const calls = turns[0].steps.filter((s) => s.kind === "call") as { name: string; result?: string; failed?: boolean; image?: unknown }[];
+    expect(calls.map((c) => [c.name, c.result, !!c.failed, !!c.image])).toEqual([["map_info", "{\"width\":64}", false, false], ["screenshot", "Tiles.", false, true], ["nope", "Error: no", true, false]]);
+    expect(turns[1]).toEqual({ user: ["Thanks"], steps: [], answer: "Sure." });
+  });
+});

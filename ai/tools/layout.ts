@@ -17,7 +17,7 @@ import { shiftShapes } from "../shapes";
 import { fitBase } from "../bases";
 import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
-import { capResult, list, num, obj, ownerOf, str, TILE, type Tool } from "./common";
+import { capResult, jsonOf, list, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
 
 /** Human and computer slots, 1-based, from the settings. */
 function slots(api: PluginApi): { humans: number[]; computers: number[] } {
@@ -70,6 +70,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "layout_preset", description: "Lay a preset out over the whole map: the terrain (with ramps and bridges that fit, where the tileset has them), the named locations, a start location per human player, a little decoration. Replaces the terrain and clears units, doodads and sprites first; triggers and settings stay. `params` are the preset's parameters as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
+      describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`; },
+      report: (result) => { const r = jsonOf(result); return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${plural(r.locations.length, "location")}` : ""}` : ""; },
       writes: true,
       run: (input, { api }) => {
         const id = str(input.preset);
@@ -106,6 +108,8 @@ export function layoutTools(): Tool[] {
           units: { type: "array", items: { type: "object", additionalProperties: true } },
         }, ["shapes"]),
       },
+      describe: (input) => { const ops = list(input.shapes).map((sh) => str(sh.op)).filter(Boolean); return ops.length ? `Paint ${plural(ops.length, "shape")}: ${tally(ops)}` : "Paint shapes"; },
+      report: (result) => { const r = jsonOf(result); return r ? String(r.painted) : ""; },
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
@@ -126,6 +130,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already on the map, near a tile, going down south-west or south-east (the only ways the game's ramps go). Tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit. A ramp fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for — a tile-aligned cliff takes none; to make such an edge, paint a plateau with paint_shapes instead.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
+      describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
+      report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
       run: (input, { api }) => {
         const ramps = rampsOf(api);
@@ -144,6 +150,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
+      report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
       run: (input, { api }) => {
         const bridges = bridgesOf(api);
@@ -173,6 +181,8 @@ export function layoutTools(): Tool[] {
           hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" },
         }),
       },
+      describe: (input) => `Lay a base${input.player !== undefined ? ` for Player ${num(input.player)}` : ""}${input.x !== undefined ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
+      report: (result) => { const r = jsonOf(result); if (!r) return ""; const p = (r.placed ?? {}) as Record<string, number>; const parts = [`${plural(num(p.minerals), "patch").replace("patchs", "patches")}, ${plural(num(p.geysers), "geyser")} to the ${String(r.direction)}`]; if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0])); return parts.join("; "); },
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
@@ -250,6 +260,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" } }) },
+      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}?`,
+      report: (result) => { const r = jsonOf(result); return r ? (r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}`) : ""; },
       writes: false,
       run: (input, { api }) => {
         const mask = walkMask(api);
@@ -279,6 +291,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "scenario_rules", description: "The game's own rules a scenario breaks silently, checked on the open map: a human or computer slot that owns nothing (defeated at once, and its triggers never run); a human without a start location; a trigger list that counts time without hyper triggers. With fix: true, a computer that owns nothing gets an Overlord in the top-right corner to keep it in the game.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
+      report: (result) => { const r = jsonOf(result); if (!r) return ""; const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : []; const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0; return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems"; },
       writes: true,
       run: (input, { api }) => {
         const scn = api.document.scenario();

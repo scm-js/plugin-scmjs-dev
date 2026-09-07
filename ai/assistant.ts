@@ -6,25 +6,28 @@
  * answered together, and the loop continues while the model keeps calling tools, up to
  * the rounds the settings allow.
  *
- * What the person sees while it works is the point of this file. A *state strip* names
- * the phase — waiting, thinking, writing, running a tool — with the seconds and the cost;
- * the model's words stream in as they arrive; a tool call shows as a pending row the
- * moment the model commits to it and fills in when it runs; the map shows the call's
- * footprint in teal while it runs (an overlay) and flashes the result in gold
- * (`api.view.flash`); the status bar carries the same state so the panel can be closed;
- * Escape stops. After a turn that changed the map a line says what changed with a button
- * that undoes that turn's edits. The history is trimmed from the front in chunks, keeping
- * each tool call with its result — a chunk rather than one message at a time, because
- * every trim invalidates the server's cache of the conversation.
+ * What the person sees while it works is the point of this file. The transcript reads as
+ * you asked → it answered, with the turn's work in one *activity block* between: a step
+ * per tool call, in words (what it did, then what came back), the model's words between
+ * calls as dim notes, and one fold for its reasoning. While the turn runs the block is
+ * open on its last few steps with a live line; when it ends the block folds to one line —
+ * steps, edits, failures, seconds, cost, an Undo for that turn's edits — and the answer
+ * sits under it. A *state strip* above names the phase — waiting, thinking, writing, the
+ * step it is on — with the seconds and the cost; the status bar carries the same so the
+ * panel can be closed; Escape stops. The map shows a call's footprint in teal while it
+ * runs (an overlay) and flashes the result in gold (`api.view.flash`). The transcript
+ * scrolls with the work only while it is at the bottom. The history is trimmed from the
+ * front in chunks, keeping each tool call with its result — a chunk rather than one
+ * message at a time, because every trim invalidates the server's cache of the conversation.
  */
-import type { EditorLayer, OverlayHandle, PluginApi } from "@scm-js/plugin-api";
+import type { EditorLayer, FoldElement, OverlayHandle, PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent, AgentMessage, ImageInput } from "../protocol";
 import { ScmjsError, describeError, formatUsd } from "../client";
 import { imageInput, mapFacts, selectionLines } from "./facts";
 import { footprintEmpty, footprintOf, type Footprint } from "./intent";
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
-import { capResult, describeCall, summarizeResult, toContent, tools, type Tool } from "./tools";
+import { capResult, describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, toContent, tools, type Tool, type ToolResult } from "./tools";
 import { append, h, recipeOptions, styled, type Ctx } from "./ui";
 
 /** Past this many messages the history is trimmed… */
@@ -118,6 +121,50 @@ export interface AssistantHandle {
   ask(text: string, send?: boolean): void;
 }
 
+/** One turn of a replayed transcript: what was asked, the work, and the answer. */
+export interface ReplayTurn {
+  user: string[];
+  steps: ({ kind: "thinking"; text: string } | { kind: "narration"; text: string } | { kind: "call"; name: string; input: Record<string, unknown>; result?: string; image?: ImageInput; failed?: boolean })[];
+  answer: string | null;
+}
+
+/**
+ * The stored messages as turns, for the panel to replay. A plain user message starts a
+ * turn; an assistant message's text is the answer unless it also calls tools, in which
+ * case it is narration; each tool call takes its result from the user message after it.
+ */
+export function groupTurns(messages: AgentMessage[]): ReplayTurn[] {
+  const turns: ReplayTurn[] = [];
+  const calls = new Map<string, Extract<ReplayTurn["steps"][number], { kind: "call" }>>();
+  let cur: ReplayTurn | null = null;
+  for (const m of messages) {
+    if (m.role === "user" && !m.content.some((c) => c.type === "tool_result")) {
+      cur = { user: m.content.filter(isText).map((c) => c.text), steps: [], answer: null };
+      turns.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    if (m.role === "user") {
+      for (const c of m.content) {
+        if (c.type !== "tool_result") continue;
+        const call = calls.get(c.toolUseId);
+        if (!call) continue;
+        if (typeof c.content === "string") call.result = c.content;
+        else { call.result = c.content.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("\n") || undefined; call.image = (c.content.find((p) => p.type === "image") as { source: ImageInput } | undefined)?.source; }
+        call.failed = !!c.isError;
+      }
+      continue;
+    }
+    const usesTools = m.content.some((c) => c.type === "tool_use");
+    for (const c of m.content) {
+      if (c.type === "thinking") cur.steps.push({ kind: "thinking", text: c.thinking });
+      else if (c.type === "text") { if (usesTools) cur.steps.push({ kind: "narration", text: c.text }); else cur.answer = cur.answer ? `${cur.answer}\n\n${c.text}` : c.text; }
+      else if (c.type === "tool_use") { const step = { kind: "call" as const, name: c.name, input: c.input ?? {} }; calls.set(c.id, step); cur.steps.push(step); }
+    }
+  }
+  return turns;
+}
+
 type Phase = "idle" | "waiting" | "thinking" | "writing" | "tools" | "stopped" | "failed";
 
 const PHASE_LABELS: Record<Phase, string> = { idle: "Ready", waiting: "Waiting for the model", thinking: "Thinking", writing: "Writing", tools: "Working on the map", stopped: "Stopped", failed: "Failed" };
@@ -181,10 +228,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
       const clock = h("span", { className: "ai-dim ai-mono" }, "");
       const cost = h("span", { className: "ai-pill", title: "What this panel has cost · what the session has cost" }, "");
-      // The sliding bar under the line while a request is out — the editor's, not a strip of our own.
-      const shimmer = w.progressBar({ value: null, percent: false });
-      shimmer.hidden = true;
-      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost), shimmer);
+      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost));
       let phase: Phase = "idle";
       let startedAt = 0;
       let clockTimer: number | null = null;
@@ -196,7 +240,6 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         phaseLabel.textContent = PHASE_LABELS[next];
         phaseDetail.textContent = detail;
         const busy = next === "waiting" || next === "thinking" || next === "writing" || next === "tools";
-        shimmer.hidden = !busy;
         if (busy && clockTimer === null) { tickClock(); clockTimer = window.setInterval(tickClock, 1000); }
         if (!busy && clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; clock.textContent = ""; }
         ctx.presence?.set({ text: busy ? `AI · ${PHASE_LABELS[next].toLowerCase()}${detail ? ` · ${detail}` : ""}` : state.spent ? `AI · ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
@@ -205,33 +248,102 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
       setCost();
 
       /* ── the transcript ── */
+      // Autoscroll follows only while the view is at the bottom; scrolling up to read stays
+      // put, with a button back to the latest.
       const chat = h("div", { className: "ai-chat" });
-      const scroll = () => { chat.scrollTop = chat.scrollHeight; };
+      let pinned = true;
+      const jump = w.button("Jump to latest", { ghost: true, onClick: () => { pinned = true; chat.scrollTop = chat.scrollHeight; jump.hidden = true; } });
+      jump.classList.add("ai-jump");
+      jump.hidden = true;
+      chat.addEventListener("scroll", () => { pinned = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 24; jump.hidden = pinned; });
+      const scroll = () => { if (pinned) chat.scrollTop = chat.scrollHeight; };
       const addUser = (text: string) => { chat.append(h("div", { className: "ai-msg is-user" }, text)); scroll(); };
       const addAssistant = (text: string) => { const el = h("div", { className: "ai-msg is-assistant" }, renderMarkdown(text)); chat.append(el); scroll(); return el; };
-      // The model's reasoning summary, streamed while it thinks; shown folded, never its signature.
-      const addThinking = (): ((text: string) => void) => {
-        if (!ctx.settings().showThinking) return () => {};
-        let fold: HTMLDetailsElement | null = null;
-        let foldBody: HTMLElement | null = null;
-        return (text) => {
-          if (!text) return;
-          if (!fold) { foldBody = h("div", { className: "ai-body" }); fold = h("details", null, h("summary", null, "Reasoning"), foldBody); chat.append(fold); }
-          foldBody!.append(document.createTextNode(text));
+
+      /**
+       * A turn's work as one block: the reasoning fold, then a step per tool call with what
+       * it did and what came back, and the model's words between calls as dim notes. Open
+       * while the turn runs, showing the last few steps and a live line; folded to one line
+       * — steps, edits, failures, seconds, cost, an Undo — when the turn ends.
+       */
+      const activity = () => {
+        const block = w.fold({ open: true, busy: true, text: "Working…" });
+        block.classList.add("ai-act");
+        const steps = w.steps({ tail: 3 });
+        steps.running(true);
+        block.body.append(steps);
+        chat.append(block);
+        scroll();
+        let failed = 0;
+        let think: FoldElement | null = null;
+        const live = (text: string) => block.set(text);
+        const step = (tool: Tool | undefined, name: string, input: Record<string, unknown> | null) => {
+          const row = steps.add(input ? describeStep(tool, name, input, ctx) : `${prettyName(name)}…`, { icon: tool?.writes ? "✎" : "▸", title: input ? describeCall(name, input) : undefined, running: true });
+          if (tool?.writes) row.element.classList.add("ai-write");
+          const n = steps.count();
+          const start = (input: Record<string, unknown>) => {
+            const text = describeStep(tool, name, input, ctx);
+            row.set(text, describeCall(name, input));
+            live(`Step ${n} · ${text}`);
+            return text;
+          };
+          live(`Step ${n} · ${row.element.querySelector(".step-label")?.textContent ?? ""}`);
           scroll();
+          return {
+            row, start,
+            done(out: ToolResult) {
+              const rep = reportStep(tool, out);
+              row.done(rep ? `→ ${rep}` : "");
+              row.element.title += `\n→ ${summarizeResult(out)}`;
+              if (typeof out !== "string" && out.image) {
+                const shot = h("button", { type: "button", className: "ai-act-shot", title: "Click to enlarge" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" }));
+                shot.addEventListener("click", () => shot.classList.toggle("is-open"));
+                row.append(shot);
+              }
+              scroll();
+            },
+            fail(message: string) { failed++; row.fail(`✗ ${message}`); row.element.title += `\n✗ ${message}`; scroll(); },
+            skip() { row.skip("not called"); row.element.title = "The model named this tool but did not call it."; },
+          };
+        };
+        return {
+          el: block, live, step,
+          /** Rows and notes so far, to place a note before the rows a round adds. */
+          size: () => steps.size(),
+          /** Tool steps so far. */
+          count: () => steps.count(),
+          /** The model's words in a round that went on to call tools: narration, kept small. */
+          note(text: string, at?: number) { steps.note(renderMarkdown(text), at); scroll(); },
+          /** Reasoning, streamed into one fold for the whole turn (never its signature). */
+          think(text: string) {
+            if (!text || !ctx.settings().showThinking) return;
+            if (!think) { think = w.fold({ text: "Reasoning" }); think.classList.add("ai-act-think"); block.body.insertBefore(think, steps); }
+            think.body.append(document.createTextNode(text));
+            scroll();
+          },
+          /** A blank line between one round's reasoning and the next. */
+          thinkBreak() { if (think?.body.textContent) think.body.append(document.createTextNode("\n\n")); },
+          finish(o: { secs?: number; cost?: number; edits?: number; settings?: number; undo?: HTMLElement | null; stopped?: boolean }) {
+            steps.running(false);
+            block.open = false;
+            if (steps.size() === 0 && !think) { block.remove(); return; }
+            const parts: (string | HTMLElement)[] = [];
+            if (o.stopped) parts.push("Stopped");
+            const count = steps.count();
+            if (count) parts.push(plural(count, "step")); else if (think) parts.push("Thought");
+            if (o.edits) parts.push(plural(o.edits, "edit"));
+            if (o.settings) parts.push(`${plural(o.settings, "settings change")} (not undoable)`);
+            if (failed) parts.push(h("span", { className: "error" }, `${failed} failed`));
+            if (o.secs !== undefined) parts.push(`${o.secs} s`);
+            if (o.cost) parts.push(formatUsd(o.cost));
+            block.mark(failed ? "✗" : "✓", failed ? "error" : "ok");
+            block.set(...parts.flatMap((p, i) => (i ? [" · ", p] : [p])));
+            if (o.undo) block.action(o.undo);
+            scroll();
+          },
         };
       };
-      const addTool = (tool: Tool | undefined, call: string, pending: boolean) => {
-        const mark = h("span", { className: "ai-tool-mark" }, pending ? w.spinner({ size: "sm" }) : "…");
-        const code = h("code", null, call);
-        const row = h("div", { className: `ai-tool${pending ? " is-pending" : ""}`, title: call },
-          h("span", { className: tool?.writes ? "ai-gold" : "ai-dim", title: tool?.writes ? (tool.settings ? "changes the map (a settings transaction, not undoable)" : "changes the map (one undo step)") : "reads" }, tool?.writes ? "✎" : "▸"),
-          code, mark);
-        chat.append(row);
-        scroll();
-        return { row, mark, code };
-      };
-      const addNote = (text: string, ...extra: HTMLElement[]) => { chat.append(h("div", { className: "ai-turn" }, h("span", { className: "ai-grow" }, text), ...extra)); scroll(); };
+      type Activity = ReturnType<typeof activity>;
 
       /* ── what the model sees, and the chips ── */
       const context = h("div", { className: "ai-context" });
@@ -264,13 +376,23 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
 
       const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c) => `${m.role === "user" ? "You" : "Assistant"}: ${c.text}`).join("\n")).filter(Boolean).join("\n\n");
 
-      // Replay what the panel already holds.
-      for (const m of state.messages) {
-        for (const c of m.content) {
-          if (c.type === "text") { if (m.role === "user") addUser(c.text); else addAssistant(c.text); }
-          else if (c.type === "thinking") addThinking()(c.thinking);
-          else if (c.type === "tool_use") addTool(byName.get(c.name), describeCall(c.name, c.input), false).mark.textContent = "✓";
+      // Replay what the panel already holds, a block per turn.
+      for (const t of groupTurns(state.messages)) {
+        for (const u of t.user) addUser(u);
+        const act = activity();
+        let edits = 0, settingsWrites = 0;
+        for (const s of t.steps) {
+          if (s.kind === "thinking") act.think(s.text);
+          else if (s.kind === "narration") act.note(s.text);
+          else {
+            const tool = byName.get(s.name);
+            const row = act.step(tool, s.name, s.input);
+            if (s.failed) row.fail(s.result ?? "failed");
+            else { row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done."); if (tool?.writes) { if (tool.settings) settingsWrites++; else edits++; } }
+          }
         }
+        act.finish({ edits, settings: settingsWrites });
+        if (t.answer) addAssistant(t.answer);
       }
 
       const viewPicture = async (): Promise<ImageInput | null> => {
@@ -285,25 +407,16 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
       };
 
       /** Run one tool call, showing its footprint while it runs and flashing what it touched after. */
-      const runTool = async (call: Extract<AgentContent, { type: "tool_use" }>, row: ReturnType<typeof addTool>): Promise<{ result: AgentContent; tool: Tool | undefined; failed: boolean }> => {
+      const runTool = async (call: Extract<AgentContent, { type: "tool_use" }>, row: ReturnType<Activity["step"]>): Promise<{ result: AgentContent; tool: Tool | undefined; failed: boolean }> => {
         const tool = byName.get(call.name);
-        const described = describeCall(call.name, call.input ?? {});
-        row.code.textContent = described;
-        row.row.title = described;
-        row.row.classList.remove("is-pending");
-        row.mark.replaceChildren(w.spinner({ size: "sm" }));
-        setPhase("tools", call.name.replace(/_/g, " "));
+        const what = row.start(call.input ?? {});
+        setPhase("tools", what);
         const footprint = footprintOf(api, call.name, call.input ?? {});
         intent.show(footprint);
         try {
           if (!tool) throw new Error(`no tool called ${call.name}`);
           const out = await tool.run(call.input ?? {}, ctx);
-          if (typeof out !== "string" && out.image) {
-            chat.append(h("div", { className: "ai-shot" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" })));
-            scroll();
-          }
-          row.mark.textContent = "✓";
-          row.row.title = `${described}\n→ ${summarizeResult(out)}`;
+          row.done(out);
           if (!footprintEmpty(footprint)) {
             const kind = tool.writes ? "change" : "attention";
             for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool.writes ? 700 : 400 });
@@ -312,9 +425,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
           }
           return { result: toContent(call.id, typeof out === "string" ? capResult(out) : out), tool, failed: false };
         } catch (err) {
-          row.mark.textContent = "✗";
-          row.row.classList.add("ai-bad");
-          row.row.title = `${described}\n✗ ${(err as Error).message}`;
+          row.fail((err as Error).message);
           return { result: toContent(call.id, `Error: ${(err as Error).message}`, true), tool, failed: true };
         } finally {
           intent.show(null);
@@ -327,6 +438,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         if (!api.document.isOpen()) { setPhase("failed", "Open a map first."); return; }
         if (!preset) input.value = "";
         more.hidden = true;
+        pinned = true;
         addUser(text);
         const content: AgentContent[] = [{ type: "text", text }];
         if (attach.input.checked) {
@@ -347,15 +459,32 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         const settingsWrites: string[] = [];
         const maxRounds = Math.max(1, ctx.settings().maxRounds || 24);
         let stoppedAtLimit = false;
+        let turnCost = 0;
+        const act = activity();
+        const finishActivity = (stopped: boolean) => {
+          const secs = Math.round((Date.now() - startedAt) / 1000);
+          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
+          const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+            let count = 0;
+            for (let i = 0; i < undoSteps; i++) { const label = api.document.history().undo; if (!label || !label.startsWith("AI:")) break; if (!api.document.undo()) break; count++; }
+            (e.currentTarget as HTMLButtonElement).disabled = true;
+            phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+          } }) : null;
+          act.finish({ secs, cost: turnCost, edits: edits.length, settings: settingsWrites.length, undo, stopped });
+        };
         try {
           for (let round = 0; round < maxRounds; round++) {
             setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
-            // What streams in: the words into a message that grows, the reasoning into its fold, tool starts into pending rows.
+            if (round > 0) act.live(`${plural(act.count(), "step")} so far · waiting for the model`);
+            // What streams in: the words into a message that grows, the reasoning into the
+            // turn's fold, tool starts into pending steps. The words are the answer until the
+            // round turns out to call tools, when they become a note in the block instead.
             let streamed = "";
             const stream: { el: HTMLElement | null } = { el: null };
             let renderQueued = false;
-            const think = addThinking();
-            const pendingRows = new Map<string, ReturnType<typeof addTool>>();
+            const roundStart = act.size();
+            act.thinkBreak();
+            const pendingRows = new Map<string, ReturnType<Activity["step"]>>();
             const paint = () => { renderQueued = false; if (stream.el) { stream.el.replaceChildren(renderMarkdown(streamed), h("span", { className: "ai-caret" })); scroll(); } };
             state.messages = trimHistory(state.messages);
             state.conversation ??= newConversationId();
@@ -368,62 +497,55 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
               reference: referenceFor(api),
             }, {
               signal: running.signal,
-              onThinking: (t) => { if (phase === "waiting") setPhase("thinking"); think(t); },
+              onThinking: (t) => { if (phase === "waiting") setPhase("thinking"); act.think(t); },
               onDelta: (t) => {
                 if (phase !== "writing") setPhase("writing");
                 streamed += t;
                 if (!stream.el) { stream.el = h("div", { className: "ai-msg is-assistant" }); chat.append(stream.el); }
                 if (!renderQueued) { renderQueued = true; requestAnimationFrame(paint); }
               },
-              onToolUse: (id, name) => { setPhase("tools", `${name.replace(/_/g, " ")}…`); pendingRows.set(id, addTool(byName.get(name), `${name}(…)`, true)); },
+              onToolUse: (id, name) => { setPhase("tools", `${prettyName(name)}…`); pendingRows.set(id, act.step(byName.get(name), name, null)); },
               onProgress: () => { if (phase === "waiting" || phase === "thinking") tickClock(); },
             }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
-            state.spent = (state.spent ?? 0) + (r.usage.chargedUsd ?? r.usage.costUsd);
+            const charged = r.usage.chargedUsd ?? r.usage.costUsd;
+            state.spent = (state.spent ?? 0) + charged;
+            turnCost += charged;
             setCost();
             // Kept exactly as returned — thinking blocks included — and sent back unchanged next
             // turn, since the model refuses to continue a tool-using turn without them.
             const answer = r.output.content;
             state.messages.push({ role: "assistant", content: answer });
             const finalText = answer.filter(isText).map((c) => c.text).join("\n\n").trim();
-            if (stream.el) { if (finalText) stream.el.replaceChildren(renderMarkdown(finalText)); else stream.el.remove(); }
-            else if (finalText) addAssistant(finalText);
             const calls = answer.filter((c): c is Extract<AgentContent, { type: "tool_use" }> => c.type === "tool_use");
+            const continues = calls.length > 0 && r.output.stopReason === "tool_use";
+            if (continues) { stream.el?.remove(); if (finalText) act.note(finalText, roundStart); }
+            else if (stream.el) { if (finalText) stream.el.replaceChildren(renderMarkdown(finalText)); else stream.el.remove(); }
+            else if (finalText) addAssistant(finalText);
             if (r.output.stopReason === "refusal") { setPhase("failed", "The model declined."); break; }
-            if (calls.length === 0 || r.output.stopReason !== "tool_use") break;
+            if (!continues) break;
             const results: AgentContent[] = [];
             for (const call of calls) {
-              const row = pendingRows.get(call.id) ?? addTool(byName.get(call.name), describeCall(call.name, call.input ?? {}), false);
+              const row = pendingRows.get(call.id) ?? act.step(byName.get(call.name), call.name, null);
               pendingRows.delete(call.id);
               const { result, tool, failed } = await runTool(call, row);
               results.push(result);
               if (tool?.writes && !failed) (tool.settings ? settingsWrites : edits).push(call.name);
             }
-            for (const row of pendingRows.values()) { row.mark.textContent = "✗"; row.row.title = "The model named this tool but did not call it."; }
+            for (const row of pendingRows.values()) row.skip();
             state.messages.push({ role: "user", content: results });
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1000);
           if (stoppedAtLimit) { setPhase("stopped", `after ${maxRounds} rounds of tool calls; AI Options sets the limit`); more.hidden = false; }
           else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
-          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
-          if (edits.length || settingsWrites.length) {
-            const parts: string[] = [];
-            if (edits.length) parts.push(`${edits.length} edit${edits.length === 1 ? "" : "s"}`);
-            if (settingsWrites.length) parts.push(`${settingsWrites.length} settings change${settingsWrites.length === 1 ? "" : "s"} (not undoable)`);
-            const undoButton = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
-              let count = 0;
-              for (let i = 0; i < undoSteps; i++) { const label = api.document.history().undo; if (!label || !label.startsWith("AI:")) break; if (!api.document.undo()) break; count++; }
-              (e.currentTarget as HTMLButtonElement).disabled = true;
-              phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
-            } }) : null;
-            addNote(`This turn: ${parts.join(", ")}.`, ...(undoButton ? [undoButton] : []));
-          }
+          finishActivity(stoppedAtLimit);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           // Keep the history consistent: drop a user message the model never answered.
           const last = state.messages[state.messages.length - 1];
           if (last?.role === "user") state.messages.pop();
+          finishActivity(true);
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
@@ -437,7 +559,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
 
       append(root, [
         strip,
-        chat,
+        h("div", { className: "ai-chat-wrap" }, chat, jump),
         context,
         chipRow,
         input,
