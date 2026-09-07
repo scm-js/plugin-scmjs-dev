@@ -4774,6 +4774,12 @@ var Counters = class {
     this.used.push(unit);
     return unit;
   }
+  nextSwitch = 255;
+  /** A switch by its numbered name, from the top down — a name the map does not have would not parse. */
+  takeSwitch(what) {
+    if (this.nextSwitch < 1) throw new ToolkitError([`no switch left for ${what}`]);
+    return `Switch ${this.nextSwitch--}`;
+  }
 };
 var P = (name, description, required = false) => ({ name, description, required });
 var KINDS = [
@@ -5160,7 +5166,7 @@ var KINDS = [
         if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
       }
       if (finish) {
-        const sw = "Course finished";
+        const sw = dc.takeSwitch("the finish");
         for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(sw, "not set")], [a.setSwitch(sw, "set"), a.text(`Player ${p} has finished!`), a.victory()]));
         triggers.push(trigger(players2, [c.switch(sw, "set"), c.bring(CUR, unit, finish, "Exactly", 0)], [a.defeat()]));
       }

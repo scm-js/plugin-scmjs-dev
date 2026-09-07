@@ -66,7 +66,7 @@ describe("the UMS toolkit", () => {
     expect(b.text).toContain('Create Unit("Player 2", "Zerg Zergling", 1, "Goal")');
     expect(b.text).toContain("Victory()");
     expect(b.text).toContain("Defeat()");
-    expect(b.text).toContain('Set Switch("Course finished", set)');
+    expect(b.text).toContain('Set Switch("Switch 255", set)');
     expect(buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena" }, ctx).text).not.toContain("Victory()");
   });
 
