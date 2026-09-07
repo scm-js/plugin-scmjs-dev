@@ -24,7 +24,7 @@ import type { EditorLayer, FoldElement, OverlayHandle, PluginApi } from "@scm-js
 import type { AgentContent, AgentMessage, ImageInput } from "../protocol";
 import { ScmjsError, describeError, formatUsd } from "../client";
 import { imageInput, mapFacts, selectionLines } from "./facts";
-import { footprintEmpty, footprintOf, type Footprint } from "./intent";
+import { followBox, footprintEmpty, footprintOf, type Footprint } from "./intent";
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
 import { capResult, describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, toContent, tools, type Tool, type ToolResult } from "./tools";
@@ -357,7 +357,12 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         chipRow.replaceChildren(...chipsFor(open ? api.selection.layer() : "terrain", selected, open ? api.triggers.list().length : 0).map((q) => h("button", { type: "button", className: "ai-chip", title: q.text, onClick: () => { input.value = q.text; input.focus(); } }, q.label)));
       };
       refreshContext();
-      const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", refreshContext), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext)];
+      // Following: the view glides to each call's spot while a turn runs, unless the user
+      // moves it — a "view" event that is neither a reveal of ours nor a tool's own `go_to`
+      // hands the view back to them until the next turn.
+      let following = false, revealing = false, toolRunning = false;
+      const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", refreshContext), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext),
+        api.events.on("view", () => { if (following && !revealing && !toolRunning) following = false; })];
 
       /* ── buttons ── */
       const send = w.button("Send", { primary: true, onClick: () => void submit() });
@@ -415,7 +420,14 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         intent.show(footprint);
         try {
           if (!tool) throw new Error(`no tool called ${call.name}`);
-          const out = await tool.run(call.input ?? {}, ctx);
+          const box = following ? followBox(api, footprint) : null;
+          if (box) {
+            revealing = true;
+            try { if (!(await api.view.reveal(box, { fit: true }))) following = false; } finally { revealing = false; }
+          }
+          toolRunning = true;
+          let out: Awaited<ReturnType<Tool["run"]>>;
+          try { out = await tool.run(call.input ?? {}, ctx); } finally { toolRunning = false; }
           row.done(out);
           if (!footprintEmpty(footprint)) {
             const kind = tool.writes ? "change" : "attention";
@@ -451,6 +463,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         }
         state.messages.push({ role: "user", content });
         running = new AbortController();
+        following = ctx.settings().followMap && api.document.isOpen();
         send.setBusy(true);
         stop.hidden = false;
         startedAt = Date.now();
@@ -549,6 +562,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
+          following = false;
           startedAt = 0;
           send.setBusy(false);
           stop.hidden = true;

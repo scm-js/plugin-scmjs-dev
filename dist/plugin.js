@@ -366,7 +366,8 @@ var DEFAULT_SETTINGS = {
   showThinking: true,
   maxRounds: 24,
   attachView: false,
-  dockAssistant: false
+  dockAssistant: false,
+  followMap: true
 };
 var KEY = "settings";
 function newDeviceId() {
@@ -911,9 +912,105 @@ function footprintOf(api, name, input) {
     case "select": {
       return { ...EMPTY, rects: rectOf(input, width, height, false), units: ints(input.units), locations: ints(input.locations) };
     }
+    case "layout_preset":
+      return { ...EMPTY, rects: [{ x0: 0, y0: 0, x1: width, y1: height }] };
+    case "place_ramp":
+    case "place_bridge": {
+      const x = Math.round(n(input.x)), y = Math.round(n(input.y));
+      if (!Number.isInteger(x) || !Number.isInteger(y)) return EMPTY;
+      const x0 = Math.max(0, x - 4), y0 = Math.max(0, y - 4), x1 = Math.min(width, x + 5), y1 = Math.min(height, y + 5);
+      return x1 > x0 && y1 > y0 ? { ...EMPTY, rects: [{ x0, y0, x1, y1 }] } : EMPTY;
+    }
+    case "paint_shapes":
+      return { ...EMPTY, rects: shapesBox(input, width, height) };
     default:
       return EMPTY;
   }
+}
+function shapesBox(input, width, height) {
+  if (!Array.isArray(input.shapes)) return [];
+  const dx = Math.round(n(input.originX, 0)), dy = Math.round(n(input.originY, 0));
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (l2, t2, r2, b2) => {
+    x0 = Math.min(x0, l2);
+    y0 = Math.min(y0, t2);
+    x1 = Math.max(x1, r2);
+    y1 = Math.max(y1, b2);
+  };
+  for (const raw of input.shapes) {
+    if (!raw || typeof raw !== "object") continue;
+    const s = raw;
+    const op = [s.op, s.type, s.kind, s.shape].find((v) => typeof v === "string");
+    switch (op) {
+      case "ground":
+      case "border":
+        return [{ x0: 0, y0: 0, x1: width, y1: height }];
+      case "rect":
+      case "plateau": {
+        const x = n(s.x), y = n(s.y), w = n(s.w), h3 = n(s.h);
+        if ([x, y, w, h3].every(Number.isFinite)) grow(x, y, x + w, y + h3);
+        break;
+      }
+      case "diamond":
+      case "ellipse": {
+        const cx = n(s.cx), cy = n(s.cy), rx = n(s.rx), ry = n(s.ry, rx);
+        if ([cx, cy, rx, ry].every(Number.isFinite)) grow(cx - rx, cy - ry, cx + rx, cy + ry);
+        break;
+      }
+      case "polygon":
+      case "stroke":
+      case "lane": {
+        const half = Math.ceil((op === "polygon" ? 0 : n(s.width, 1) + (op === "lane" ? 2 * n(s.wallWidth, 1) : 0)) / 2);
+        if (!Array.isArray(s.points)) break;
+        for (const p of s.points) {
+          if (!Array.isArray(p)) continue;
+          const px = n(p[0]), py = n(p[1]);
+          if (Number.isFinite(px) && Number.isFinite(py)) grow(px - half, py - half, px + half + 1, py + half + 1);
+        }
+        break;
+      }
+      case "ramp":
+      case "bridge": {
+        const x = n(s.x), y = n(s.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) grow(x - 4, y - 4, x + 5, y + 5);
+        break;
+      }
+    }
+  }
+  if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return [];
+  const l = Math.max(0, Math.floor(x0 + dx)), t = Math.max(0, Math.floor(y0 + dy)), r = Math.min(width, Math.ceil(x1 + dx)), b = Math.min(height, Math.ceil(y1 + dy));
+  return r > l && b > t ? [{ x0: l, y0: t, x1: r, y1: b }] : [];
+}
+function followBox(api, f) {
+  const info = api.document.info();
+  if (!info || footprintEmpty(f)) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (l, t, r, b) => {
+    x0 = Math.min(x0, l);
+    y0 = Math.min(y0, t);
+    x1 = Math.max(x1, r);
+    y1 = Math.max(y1, b);
+  };
+  for (const r of f.rects) grow(r.x0, r.y0, r.x1, r.y1);
+  const scn = f.units.length || f.locations.length ? api.document.scenario() : null;
+  if (scn) {
+    for (const i of f.units) {
+      const u = scn.units[i];
+      if (u) grow(Math.floor(u.x / 32), Math.floor(u.y / 32), Math.ceil(u.x / 32) + 1, Math.ceil(u.y / 32) + 1);
+    }
+    for (const i of f.locations) {
+      const l = scn.locations[i];
+      if (l && i !== 63) grow(Math.floor(Math.min(l.left, l.right) / 32), Math.floor(Math.min(l.top, l.bottom) / 32), Math.ceil(Math.max(l.left, l.right) / 32), Math.ceil(Math.max(l.top, l.bottom) / 32));
+    }
+  }
+  if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return null;
+  x0 = Math.max(0, x0);
+  y0 = Math.max(0, y0);
+  x1 = Math.min(info.width, x1);
+  y1 = Math.min(info.height, y1);
+  if (x1 <= x0 || y1 <= y0) return null;
+  if (x1 - x0 >= info.width && y1 - y0 >= info.height) return null;
+  return { x0, y0, x1, y1 };
 }
 function footprintEmpty(f) {
   return f.rects.length === 0 && f.units.length === 0 && f.locations.length === 0;
@@ -1855,7 +1952,7 @@ function gameLayer(p) {
   out.push("```");
   out.push("");
   out.push("## TrigScript (compile_script, build_script)");
-  out.push(`Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 \u2026 P8, every condition and action as a lower-case function; enumerated words are the short ones: ">=", "add", "set"). program(() => { \u2026 }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches; if / while / for / functions inside; conditions in an if, actions as statements; everything read from outside is computed at build time, so a trigger argument cannot be a program variable.`);
+  out.push(`Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 \u2026 P8, every condition and action as a lower-case function; enumerated words are the short ones: ">=", "add", "set"). program(() => { \u2026 }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches, let objects records; if / while / for / switch / ?: / functions inside (returning numbers or booleans) and game((\u2026) => \u2026) functions outside, called from any program; conditions in an if, actions as statements; a while runs one iteration per trigger cycle, a for with fixed bounds is unrolled; everything read from outside is computed at build time, so a condition argument, a text, a location, a unit or a player cannot be a program variable \u2014 an amount (setResources, setDeaths, setScore, setCountdownTimer) or a unit count (createUnit, killUnitAt, removeUnitAt, giveUnits) can. Arithmetic: + \u2212, \xD7 by a constant, / and % by a constant, Math.min / max / abs, clamp().`);
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");
@@ -6984,7 +7081,17 @@ function openAssistant(ctx, state) {
         } }, q2.label)));
       };
       refreshContext();
-      const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", refreshContext), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext)];
+      let following = false, revealing = false, toolRunning = false;
+      const offs = [
+        api.events.on("selection", refreshContext),
+        api.events.on("clipboard", refreshContext),
+        api.events.on("document", refreshContext),
+        api.events.on("layer", refreshContext),
+        api.events.on("triggers", refreshContext),
+        api.events.on("view", () => {
+          if (following && !revealing && !toolRunning) following = false;
+        })
+      ];
       const send = w.button("Send", { primary: true, onClick: () => void submit() });
       const stop = w.button("Stop", { ghost: true, onClick: () => running?.abort() });
       stop.hidden = true;
@@ -7062,7 +7169,22 @@ function openAssistant(ctx, state) {
         intent.show(footprint);
         try {
           if (!tool) throw new Error(`no tool called ${call.name}`);
-          const out = await tool.run(call.input ?? {}, ctx);
+          const box = following ? followBox(api, footprint) : null;
+          if (box) {
+            revealing = true;
+            try {
+              if (!await api.view.reveal(box, { fit: true })) following = false;
+            } finally {
+              revealing = false;
+            }
+          }
+          toolRunning = true;
+          let out;
+          try {
+            out = await tool.run(call.input ?? {}, ctx);
+          } finally {
+            toolRunning = false;
+          }
           row.done(out);
           if (!footprintEmpty(footprint)) {
             const kind = tool.writes ? "change" : "attention";
@@ -7102,6 +7224,7 @@ function openAssistant(ctx, state) {
         }
         state.messages.push({ role: "user", content });
         running = new AbortController();
+        following = ctx.settings().followMap && api.document.isOpen();
         send.setBusy(true);
         stop.hidden = false;
         startedAt = Date.now();
@@ -7228,6 +7351,7 @@ function openAssistant(ctx, state) {
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
+          following = false;
           startedAt = 0;
           send.setBusy(false);
           stop.hidden = true;
@@ -8644,6 +8768,9 @@ function openOptions(ctx, store) {
       const attachBox = w.checkbox("Send a picture of the visible area with every message", { value: s.attachView, onChange: (v) => {
         store.set({ attachView: v });
       } });
+      const followBox2 = w.checkbox("Follow the assistant's work around the map", { value: s.followMap, onChange: (v) => {
+        store.set({ followMap: v });
+      } });
       root.append(
         w.group(
           "Account",
@@ -8669,9 +8796,10 @@ function openOptions(ctx, store) {
             { className: "ai-body" },
             w.form([{ label: "Rounds per message", field: roundsField }]),
             attachBox,
+            followBox2,
             dockBox,
             thinkingBox,
-            h("div", { className: "ai-hint" }, "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. The dock setting applies the next time the assistant opens.")
+            h("div", { className: "ai-hint" }, "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens.")
           )
         )
       );

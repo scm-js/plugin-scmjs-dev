@@ -44,11 +44,13 @@ export interface Settings {
   attachView: boolean;
   /** The assistant floats over the map (the default) or lives in the right dock under the built-in panels. */
   dockAssistant: boolean;
+  /** The map view follows the assistant's work: it glides to where each call lands and zooms out to fit. Off the moment the user moves the view during a turn. */
+  followMap: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
-  ai: true, quality: "standard", showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false,
+  ai: true, quality: "standard", showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false, followMap: true,
 };
 
 const KEY = "settings";

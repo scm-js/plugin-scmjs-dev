@@ -42,6 +42,7 @@ export function openOptions(ctx: Ctx, store: SettingsStore) {
       const dockBox = w.checkbox("Dock the assistant at the right, under the Properties panel, instead of floating over the map", { value: s.dockAssistant, onChange: (v) => { store.set({ dockAssistant: v }); } });
       const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => { store.set({ maxRounds: Math.max(1, Math.min(100, Math.round(v || 24))) }); } });
       const attachBox = w.checkbox("Send a picture of the visible area with every message", { value: s.attachView, onChange: (v) => { store.set({ attachView: v }); } });
+      const followBox = w.checkbox("Follow the assistant's work around the map", { value: s.followMap, onChange: (v) => { store.set({ followMap: v }); } });
 
       root.append(
         w.group("Account",
@@ -61,9 +62,10 @@ export function openOptions(ctx: Ctx, store: SettingsStore) {
           h("div", { className: "ai-body" },
             w.form([{ label: "Rounds per message", field: roundsField }]),
             attachBox,
+            followBox,
             dockBox,
             thinkingBox,
-            h("div", { className: "ai-hint" }, "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. The dock setting applies the next time the assistant opens."),
+            h("div", { className: "ai-hint" }, "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens."),
           ),
         ),
       );

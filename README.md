@@ -147,10 +147,12 @@ screenshot it took as a thumbnail. While the turn runs the block is open on its 
 steps; when it ends it folds to one line — steps, edits, failures, seconds, cost — with an
 Undo for that turn's edits. A strip at the top says what is happening — waiting,
 thinking, writing, the step it is on — with the seconds and the cost; the map outlines
-what a call is about to touch in teal and flashes what it changed in gold; the status
-bar's AI cell shows the same state, so the panel can be closed while it works; Escape
-stops. The transcript follows the work only while it is scrolled to the bottom. The chips
-above the input follow the layer and the selection. It can read everything: the map's
+what a call is about to touch in teal and flashes what it changed in gold, and the view
+glides to each spot as the work moves about the map, zooming out when a spot is larger
+than the view (never in) — scroll or zoom yourself and it leaves the view to you for the
+rest of the turn; the status bar's AI cell shows the same state, so the panel can be
+closed while it works; Escape stops. The transcript follows the work only while it is
+scrolled to the bottom. The chips above the input follow the layer and the selection. It can read everything: the map's
 facts and statistics, units (with every record field), doodads, sprites, locations,
 strings, switches, sounds, the triggers as text, the trigger script and its declarations,
 the settings of any unit type, upgrade or technology, the fog, a coarse terrain grid or
@@ -200,9 +202,9 @@ the matching item, or the assistant with a message started.
 **Options** (Tools ▸ AI ▸ Options…) is short on purpose. *Quality* is how hard the model
 works on a request, and so what it costs: *Standard* gives each feature the setting it was
 tuned for, *Quick* the cheapest one, *Thorough* the highest. Under *Assistant*: the rounds
-of tool calls per message, the picture tick, the dock, and whether the model's reasoning
-summary is shown while it works. Which model answers is the service's business and is
-never asked.
+of tool calls per message, the picture tick, whether the view follows the work (on to
+begin with), the dock, and whether the model's reasoning summary is shown while it
+works. Which model answers is the service's business and is never asked.
 
 ## Costs
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PluginApi } from "@scm-js/plugin-api";
-import { footprintEmpty, footprintOf } from "../ai/intent";
+import { followBox, footprintEmpty, footprintOf } from "../ai/intent";
 import { GUIDES, guideById, guideFor, guideIndex } from "../ai/guides";
 import { layoutPrompt, paramsToText, textToParams } from "../ai/dialogs/scenario";
 import type { UmsDesign } from "../protocol";
@@ -8,6 +8,33 @@ import type { UmsDesign } from "../protocol";
 const api = { document: { info: () => ({ width: 64, height: 48 }) } } as unknown as PluginApi;
 
 describe("tool-call footprints", () => {
+  it("boxes the layout calls: shapes by their geometry and origin, ramps and bridges round their tile, a preset as the map", () => {
+    expect(footprintOf(api, "layout_preset", { preset: "corner-camps" }).rects).toEqual([{ x0: 0, y0: 0, x1: 64, y1: 48 }]);
+    expect(footprintOf(api, "place_ramp", { x: 2, y: 30, side: "sw" }).rects).toEqual([{ x0: 0, y0: 26, x1: 7, y1: 35 }]);
+    expect(footprintOf(api, "place_bridge", { x: "a", y: 3 }).rects).toEqual([]);
+    const shapes = footprintOf(api, "paint_shapes", { originX: 10, originY: 5, shapes: [
+      { op: "rect", x: 0, y: 0, w: 4, h: 3, terrain: 1 },
+      { op: "ellipse", cx: 10, cy: 10, rx: 2, ry: 1 },
+      { op: "stroke", points: [[20, 0], [20, 12]], width: 3 },
+      { op: "ramp", x: 2, y: 2, side: "se" },
+    ] });
+    expect(shapes.rects).toEqual([{ x0: 8, y0: 3, x1: 33, y1: 20 }]); // the ramp box (-2 → 8) wins the left edge, the stroke (20 + 2 + 1 → 33) the right
+    expect(footprintOf(api, "paint_shapes", { shapes: [{ op: "rect", x: 1, y: 1, w: 2, h: 2 }, { op: "ground", terrain: 3 }] }).rects).toEqual([{ x0: 0, y0: 0, x1: 64, y1: 48 }]);
+    expect(footprintOf(api, "paint_shapes", { shapes: [{ op: "polygon" }] }).rects).toEqual([]);
+    expect(footprintOf(api, "paint_shapes", { shapes: "no" }).rects).toEqual([]);
+  });
+
+  it("says where the view should go to watch a call, and when there is nowhere", () => {
+    const scn = { units: [{ x: 100, y: 200 }], locations: [{ left: 64, top: 64, right: 128, bottom: 96 }] };
+    const withMap = { document: { info: () => ({ width: 64, height: 48 }), scenario: () => scn } } as unknown as PluginApi;
+    expect(followBox(withMap, { rects: [], units: [], locations: [] })).toBeNull();
+    expect(followBox(withMap, { rects: [{ x0: 0, y0: 0, x1: 64, y1: 48 }], units: [], locations: [] })).toBeNull(); // the whole map: nowhere to go
+    expect(followBox(withMap, { rects: [{ x0: 0, y0: 0, x1: 64, y1: 10 }], units: [], locations: [] })).toEqual({ x0: 0, y0: 0, x1: 64, y1: 10 });
+    expect(followBox(withMap, { rects: [{ x0: 2, y0: 2, x1: 4, y1: 4 }], units: [0], locations: [0, 9] })).toEqual({ x0: 2, y0: 2, x1: 5, y1: 8 });
+    expect(followBox(withMap, { rects: [], units: [7], locations: [] })).toBeNull(); // no such unit
+    expect(followBox({ document: { info: () => null } } as unknown as PluginApi, { rects: [{ x0: 0, y0: 0, x1: 1, y1: 1 }], units: [], locations: [] })).toBeNull();
+  });
+
   it("reads rects, tiles and indices out of a call's arguments", () => {
     expect(footprintOf(api, "paint_terrain", { x0: -3, y0: 2, x1: 10, y1: 99, terrain: 1 }).rects).toEqual([{ x0: 0, y0: 2, x1: 10, y1: 48 }]);
     expect(footprintOf(api, "place_units", { units: [{ unit: "m", player: 1, x: 3, y: 4 }, { x: 99, y: 0 }] }).rects).toEqual([{ x0: 3, y0: 4, x1: 4, y1: 5 }]);
