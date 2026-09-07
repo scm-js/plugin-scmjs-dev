@@ -4184,6 +4184,32 @@ var ELEVATION_BITS = (c2) => [
   ["excludeMediumAir", c2.location.elevation.MediumAir],
   ["excludeHighAir", c2.location.elevation.HighAir]
 ];
+function scatterInRect(api, cat, rect, want, fits, random = Math.random) {
+  let placed = 0, refused = 0;
+  if (want <= 0) return { placed, refused };
+  const taken = [];
+  const overlaps2 = (a2, b) => a2.x0 < b.x1 && b.x0 < a2.x1 && a2.y0 < b.y1 && b.y0 < a2.y1;
+  api.document.edit(`AI: scatter ${cat.name}`, (tx) => {
+    for (let attempt = 0; attempt < want * 8 && placed < want; attempt++) {
+      const d = cat.doodads[Math.floor(random() * cat.doodads.length)];
+      const x0 = rect.x0 + Math.floor(random() * Math.max(1, rect.x1 - rect.x0 - d.width + 1));
+      const y0 = rect.y0 + Math.floor(random() * Math.max(1, rect.y1 - rect.y0 - d.height + 1));
+      const open = (x2) => x2 >= rect.x0 && x2 + d.width <= rect.x1 && !taken.some((t) => overlaps2(t, { x0: x2, y0, x1: x2 + d.width, y1: y0 + d.height })) && fits(d, x2, y0);
+      const x = open(x0) ? x0 : open(x0 + 1) ? x0 + 1 : open(x0 - 1) ? x0 - 1 : -1;
+      if (x < 0) {
+        refused++;
+        continue;
+      }
+      if (tx.placeDoodad(d.id, x, y0) < 0) {
+        refused++;
+        continue;
+      }
+      taken.push({ x0: x, y0, x1: x + d.width, y1: y0 + d.height });
+      placed++;
+    }
+  });
+  return { placed, refused };
+}
 function objectTools() {
   return [
     {
@@ -4348,7 +4374,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, skipping spots that do not fit. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
+      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, only where the editor's own placement rule says the doodad fits: on the ground its category names (a Water doodad on water, a Snow one on snow), clear of other doodads. Spots on other ground are refused and the result says how many, so scatter a category over its own ground. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
       describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
@@ -4357,16 +4383,9 @@ function objectTools() {
         if (!cat || cat.doodads.length === 0) return `No doodad category called "${str(input.category)}"; call list_doodad_categories.`;
         const density = Math.max(0, Math.min(1, num(input.density, 0.3)));
         const want = Math.round(density * ((rect.x1 - rect.x0) * (rect.y1 - rect.y0)) / 12);
-        let placed = 0;
-        api.document.edit(`AI: scatter ${cat.name}`, (tx) => {
-          for (let attempt = 0; attempt < want * 5 && placed < want; attempt++) {
-            const d = cat.doodads[Math.floor(Math.random() * cat.doodads.length)];
-            const tx0 = rect.x0 + Math.floor(Math.random() * Math.max(1, rect.x1 - rect.x0 - d.width));
-            const ty0 = rect.y0 + Math.floor(Math.random() * Math.max(1, rect.y1 - rect.y0 - d.height));
-            if (tx.placeDoodad(d.id, tx0, ty0) >= 0) placed++;
-          }
-        });
-        return `Placed ${placed} of ${want} wanted.`;
+        const { placed, refused } = scatterInRect(api, cat, rect, want, (d, x, y) => api.query.doodadPlacement(d.id, x, y)?.ok === true);
+        if (placed === want) return `Placed ${placed} of ${want} wanted.`;
+        return `Placed ${placed} of ${want} wanted; ${plural(refused, "spot")} refused because the ground there is not what ${cat.name} doodads stand on (or another doodad is there). To place more, scatter over the ${cat.name} ground itself.`;
       }
     },
     {
