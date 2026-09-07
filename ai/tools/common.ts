@@ -97,8 +97,15 @@ export function byName<T extends { label: string; value: number }>(items: T[], n
   return within.length >= 1 ? within[0] : null;
 }
 
+/** Names that ask for a mineral field without saying which of the three looks: the caller is free to vary the type. */
+const ANY_MINERAL = ["mineral field", "minerals", "mineral patch", "mineral"];
+
+export function isAnyMineralName(name: string): boolean {
+  return ANY_MINERAL.includes(name.trim().toLowerCase());
+}
+
 const UNIT_ALIASES: Record<string, string> = {
-  "mineral field": "Mineral Field (Type 1)", minerals: "Mineral Field (Type 1)", "mineral patch": "Mineral Field (Type 1)", mineral: "Mineral Field (Type 1)",
+  ...Object.fromEntries(ANY_MINERAL.map((n) => [n, "Mineral Field (Type 1)"])),
   geyser: "Vespene Geyser", gas: "Vespene Geyser", start: "Start Location", "start location": "Start Location",
   marine: "Terran Marine", zergling: "Zerg Zergling", zealot: "Protoss Zealot", scv: "Terran SCV", drone: "Zerg Drone", probe: "Protoss Probe",
   "command center": "Terran Command Center", hatchery: "Zerg Hatchery", nexus: "Protoss Nexus",

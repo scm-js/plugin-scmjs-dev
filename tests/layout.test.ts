@@ -107,11 +107,17 @@ describe("layoutBase", () => {
 });
 
 describe("resources", () => {
-  it("baseResources alternates the three mineral types, values the end patches and the geyser", () => {
+  it("baseResources mixes the three mineral types, values the end patches and the geyser", () => {
     const lay = layoutBase(hall, DEFAULT_SPEC);
     const res = baseResources(lay, { ...DEFAULT_VALUES, endPatches: 750 });
     expect(res.length).toBe(9);
-    expect(res.slice(0, 8).map((r) => r.unitId)).toEqual([176, 177, 178, 176, 177, 178, 176, 177]);
+    const looks = res.slice(0, 8).map((r) => r.unitId);
+    // Every patch is one of the three, no two beside each other are alike, and more than one type is used.
+    expect(looks.every((id) => (MINERAL_FIELDS as readonly number[]).includes(id))).toBe(true);
+    expect(looks.some((id, i) => i > 0 && id === looks[i - 1])).toBe(false);
+    expect(new Set(looks).size).toBeGreaterThan(1);
+    // The same line laid again is the same line.
+    expect(baseResources(lay, { ...DEFAULT_VALUES, endPatches: 750 }).map((r) => r.unitId)).toEqual(res.map((r) => r.unitId));
     expect(res[0].amount).toBe(750);
     expect(res[7].amount).toBe(750);
     expect(res[3].amount).toBe(1500);

@@ -15,7 +15,7 @@ import { floodFrom, nearestWalkable, reachTouches, walkMask } from "../reach";
 import { renderPlan, summarizeRender } from "../render";
 import { shiftShapes } from "../shapes";
 import { fitBase } from "../bases";
-import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
+import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, mineralLooks, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
 import { capResult, jsonOf, list, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
 
@@ -239,7 +239,8 @@ export function layoutTools(): Tool[] {
             tx.updateUnits([index], (rec) => ({ resourceAmount: value, validStates: rec.validStates | api.consts.unit.used.Resources }));
             return true;
           };
-          layout.minerals.forEach((r, i) => { if (resource(MINERAL_FIELDS[i % 3], r, amount)) placed.minerals++; });
+          const looks = mineralLooks(layout.minerals);
+          layout.minerals.forEach((r, i) => { if (resource(looks[i], r, amount)) placed.minerals++; });
           for (const r of layout.geysers) if (resource(VESPENE_GEYSER, r, gas)) placed.geysers++;
         });
         const laid = angleDirection(fitted.direction);

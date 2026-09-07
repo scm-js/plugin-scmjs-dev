@@ -2927,6 +2927,23 @@ function rectImages(r, images, toward) {
     return rectAt(p.x, p.y, { w: r.w, h: r.h }, toward);
   });
 }
+function tileNoise(x, y) {
+  const h3 = Math.imul(x * 73856093 ^ y * 19349663, 73244475) >>> 0;
+  return (h3 ^ h3 >>> 15) >>> 0;
+}
+function mineralTypeAt(x, y) {
+  return MINERAL_FIELDS[tileNoise(x, y) % 3];
+}
+function mineralLooks(rects, look = "mixed") {
+  if (look !== "mixed") return rects.map(() => MINERAL_FIELDS[look]);
+  const all = MINERAL_FIELDS;
+  let prev = -1;
+  return rects.map((rect) => {
+    const others = all.filter((id) => id !== prev);
+    prev = others[tileNoise(rect.x, rect.y) % others.length];
+    return prev;
+  });
+}
 
 // ai/plan.ts
 var DIRECTIONS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
@@ -3320,9 +3337,10 @@ function renderPlan(api, input, options) {
         } else findings.push(`player ${b.player}'s start location at ${b.hall.x},${b.hall.y} is refused there (${describePlacement(api, START_LOCATION, c2.x, c2.y)})`);
       }
       let refusedHere = 0;
+      const looks = mineralLooks(b.layout.minerals);
       b.layout.minerals.forEach((r, i) => {
         const rc = centreOf(r);
-        const id = MINERAL_FIELDS[i % 3];
+        const id = looks[i];
         if (!tx.canPlaceUnit(id, rc.x, rc.y)) {
           refusedHere++;
           return;
@@ -3625,11 +3643,12 @@ function byName(items, name) {
   const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
   return within.length >= 1 ? within[0] : null;
 }
+var ANY_MINERAL = ["mineral field", "minerals", "mineral patch", "mineral"];
+function isAnyMineralName(name) {
+  return ANY_MINERAL.includes(name.trim().toLowerCase());
+}
 var UNIT_ALIASES = {
-  "mineral field": "Mineral Field (Type 1)",
-  minerals: "Mineral Field (Type 1)",
-  "mineral patch": "Mineral Field (Type 1)",
-  mineral: "Mineral Field (Type 1)",
+  ...Object.fromEntries(ANY_MINERAL.map((n2) => [n2, "Mineral Field (Type 1)"])),
   geyser: "Vespene Geyser",
   gas: "Vespene Geyser",
   start: "Start Location",
@@ -4049,8 +4068,9 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
             tx.updateUnits([index], (rec) => ({ resourceAmount: value, validStates: rec.validStates | api.consts.unit.used.Resources }));
             return true;
           };
+          const looks = mineralLooks(layout.minerals);
           layout.minerals.forEach((r, i) => {
-            if (resource(MINERAL_FIELDS[i % 3], r, amount)) placed.minerals++;
+            if (resource(looks[i], r, amount)) placed.minerals++;
           });
           for (const r of layout.geysers) if (resource(VESPENE_GEYSER, r, gas)) placed.geysers++;
         });
@@ -4180,11 +4200,12 @@ function objectTools() {
         const refused = [];
         api.document.edit("AI: place units", (tx) => {
           for (const u of wanted) {
-            const id = unitIdByName2(api, str(u.unit));
-            if (id === null) {
+            const named = unitIdByName2(api, str(u.unit));
+            if (named === null) {
               refused.push(`no unit called "${str(u.unit)}"`);
               continue;
             }
+            const id = isAnyMineralName(str(u.unit)) ? mineralTypeAt(num(u.x), num(u.y)) : named;
             const px = num(u.x) * TILE2 + TILE2 / 2, py = num(u.y) * TILE2 + TILE2 / 2;
             const owner = ownerOf(u.player, 0);
             if (!tx.canPlaceUnit(id, px, py)) {

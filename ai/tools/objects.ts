@@ -1,6 +1,7 @@
 /** Writes on objects: units, doodads, sprites, locations, fog. Each is one undo step. */
 import type { PluginApi } from "@scm-js/plugin-api";
-import { bool, capResult, doodadByName, fieldsGiven, indexList, ints, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
+import { bool, capResult, doodadByName, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
+import { mineralTypeAt } from "../layout";
 
 /**
  * The special-property tick each input key sets: the `stateFlags` bit and the
@@ -38,8 +39,10 @@ export function objectTools(): Tool[] {
         const refused: string[] = [];
         api.document.edit("AI: place units", (tx) => {
           for (const u of wanted) {
-            const id = unitIdByName(api, str(u.unit));
-            if (id === null) { refused.push(`no unit called "${str(u.unit)}"`); continue; }
+            const named = unitIdByName(api, str(u.unit));
+            if (named === null) { refused.push(`no unit called "${str(u.unit)}"`); continue; }
+            // "minerals" names no particular one of the three looks, so the tile picks it and a scattering of patches is mixed.
+            const id = isAnyMineralName(str(u.unit)) ? mineralTypeAt(num(u.x), num(u.y)) : named;
             const px = num(u.x) * TILE + TILE / 2, py = num(u.y) * TILE + TILE / 2;
             const owner = ownerOf(u.player, 0);
             if (!tx.canPlaceUnit(id, px, py)) { refused.push(`${api.names.unit(id)} at ${num(u.x)},${num(u.y)}: ${api.query.placement(id, px, py)?.reason ?? "refused"}`); continue; }

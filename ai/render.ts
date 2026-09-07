@@ -9,7 +9,7 @@
  */
 import type { EditResult, EditTransaction, PluginApi } from "@scm-js/plugin-api";
 import { unitIdByName } from "./facts";
-import { DEFAULT_GAS, DEFAULT_MINERALS, MINERAL_FIELDS, NEUTRAL, START_LOCATION, TILE, VESPENE_GEYSER, centreOf } from "./layout";
+import { DEFAULT_GAS, DEFAULT_MINERALS, mineralLooks, NEUTRAL, START_LOCATION, TILE, VESPENE_GEYSER, centreOf } from "./layout";
 import {
   baseFootprint, checkPlan, chooseRamp, enforceSymmetry, paintGroups, placeBases, scatterDoodads, unitRect, usableSymmetry,
   type DoodadChoice, type PlanContext,
@@ -132,9 +132,10 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
         else findings.push(`player ${b.player}'s start location at ${b.hall.x},${b.hall.y} is refused there (${describePlacement(api, START_LOCATION, c.x, c.y)})`);
       }
       let refusedHere = 0;
+      const looks = mineralLooks(b.layout.minerals);
       b.layout.minerals.forEach((r, i) => {
         const rc = centreOf(r);
-        const id = MINERAL_FIELDS[i % 3];
+        const id = looks[i];
         if (!tx.canPlaceUnit(id, rc.x, rc.y)) { refusedHere++; return; }
         setResource(api, tx, tx.placeUnit(id, NEUTRAL, rc.x, rc.y), DEFAULT_MINERALS);
         placed.resources++;

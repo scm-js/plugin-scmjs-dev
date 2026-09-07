@@ -382,15 +382,42 @@ export interface ResourceValues {
 
 export const DEFAULT_VALUES: ResourceValues = { minerals: DEFAULT_MINERALS, gas: DEFAULT_GAS, endPatches: null, look: "mixed" };
 
+/** A number fixed by a tile, spread evenly over the tiles around it: the same map every time, without a pattern the eye can follow. */
+function tileNoise(x: number, y: number): number {
+  const h = Math.imul((x * 73856093) ^ (y * 19349663), 0x45d9f3b) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+
+/** Which of the three mineral field types stands on a tile. The three mine alike and only look different, so the choice is the tile's. */
+export function mineralTypeAt(x: number, y: number): number {
+  return MINERAL_FIELDS[tileNoise(x, y) % 3];
+}
+
+/**
+ * The mineral types along a line of patches, in order. A cycle of the three reads as a
+ * pattern on the map, so each patch takes its type from its own tile, and never the type
+ * of the patch beside it — the mix of Blizzard's own maps, and the same line every time.
+ */
+export function mineralLooks(rects: readonly TileRect[], look: MineralLook = "mixed"): number[] {
+  if (look !== "mixed") return rects.map(() => MINERAL_FIELDS[look]);
+  const all = MINERAL_FIELDS as readonly number[];
+  let prev = -1;
+  return rects.map((rect) => {
+    const others = all.filter((id) => id !== prev);
+    prev = others[tileNoise(rect.x, rect.y) % others.length];
+    return prev;
+  });
+}
+
 /** The resources of a laid-out base as unit types with amounts, in line order. */
 export function baseResources(layout: BaseLayout, values: ResourceValues): PlacedResource[] {
   const out: PlacedResource[] = [];
   const n = layout.minerals.length;
+  const looks = mineralLooks(layout.minerals, values.look);
   layout.minerals.forEach((rect, i) => {
     const end = i === 0 || i === n - 1;
     const amount = end && values.endPatches !== null ? values.endPatches : values.minerals;
-    const unitId = values.look === "mixed" ? MINERAL_FIELDS[i % 3] : MINERAL_FIELDS[values.look];
-    out.push({ unitId, rect, amount });
+    out.push({ unitId: looks[i], rect, amount });
   });
   for (const rect of layout.geysers) out.push({ unitId: VESPENE_GEYSER, rect, amount: values.gas });
   return out;
