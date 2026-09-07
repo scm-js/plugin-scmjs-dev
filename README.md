@@ -87,7 +87,7 @@ asks for a ramp gets one where the editor's placement check says the ramp fits (
 down south-west or south-east, as the game's do); bridges the same way, over a channel
 painted for them, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers,
 spawn cycles, kill-to-cash, income, waves, lives, shops, heal spots, respawn, teleports,
-kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, rescue by
+kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, escalation stages, rescue by
 touch — are built by code from their parameters, instantly and the same way every time;
 anything else is written as a trigger script through Write Triggers' compile loop when the
 Trigger Script plugin is on. Afterwards, Review it or hand it to the assistant.

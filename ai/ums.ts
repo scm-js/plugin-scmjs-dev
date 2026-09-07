@@ -510,6 +510,59 @@ const KINDS: Kind[] = [
     },
   },
   {
+    perPlayer: true,
+    spec: {
+      kind: "stages",
+      description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds — the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
+      params: [P("every", "seconds per stage (default 240)"), P("stages", "how many stages (default 6)"), P("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P("location", "the spawn location; may contain {p}", true), P("from", "the first stage that spawns (default 1)"), P("interval", "seconds between the extra spawns (default 15)"), P("count", "units per extra spawn at the first spawning stage (default 2)"), P("growth", "more units per stage (default 1)"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location the spawned units attack-move to (default none)"), P("minerals", "minerals paid to each player at each new stage (default 0)"), P("message", "text shown at each new stage; {stage} is the number (default none)"), P("players", "humans (default), all, or player numbers"), P("owner", "each (default), computer, or a player number")],
+    },
+    build(r, ctx, dc) {
+      const every = r.int("every", 240, 10, 7200);
+      const stages = r.int("stages", 6, 1, 20);
+      const units = r.list("units");
+      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
+      const location = r.str("location");
+      const from = r.int("from", 1, 1, 20);
+      const interval = r.int("interval", 15, 1, 3600);
+      const count = r.int("count", 2, 1, 200);
+      const growth = r.int("growth", 1, 0, 100);
+      const limit = r.int("limit", 0, 0, 1700);
+      const attack = r.str("attack", "");
+      const minerals = r.int("minerals", 0, 0);
+      const message = r.str("message", "");
+      const players = r.players("players");
+      const ownerRaw = r.str("owner", "each");
+      const stage = dc.take("the stage counter");
+      const timer = dc.take("the stage spawn timer");
+      const cycles = cyclesFor(interval, ctx.hyper);
+      const triggers: string[] = [];
+      for (const p of players) {
+        const loc = fillTemplate(location, p);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
+        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? (ctx.computers[0] ?? p) : Number(ownerRaw) || p;
+        for (let k = 1; k <= stages; k++) {
+          // The stage rises on the clock; each player keeps its own copy of the counter.
+          const actions = [a.setDeaths(p, stage, "Set To", k)];
+          if (minerals > 0) actions.push(a.setResources(p, "Add", minerals, "ore"));
+          if (message) actions.push(a.text(message.replace(/\{stage\}/g, String(k))));
+          triggers.push(trigger([p], [c.elapsed("At least", every * k), c.deaths(p, stage, "Exactly", k - 1)], actions));
+          if (k < from) continue;
+          const unit = units[Math.min(units.length - 1, k - from)] ?? "Zerg Zergling";
+          const n = Math.min(200, count + growth * (k - from));
+          const conditions = [c.deaths(p, stage, "Exactly", k), c.deaths(p, timer, "At least", cycles)];
+          if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
+          const spawn = [a.setDeaths(p, timer, "Set To", 0), a.create(owner, unit, n, loc)];
+          if (attack) spawn.push(a.order(owner, unit, loc, attackLoc, "attack"));
+          spawn.push(a.preserve());
+          triggers.push(trigger([p], conditions, spawn));
+        }
+        triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
+      }
+      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from} every ${interval} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers)`] };
+    },
+  },
+  {
     spec: {
       kind: "shop",
       description: "Buy a unit: a player who brings `buyer` to `location` with `price` minerals pays and gets `unit` at `deliver`.",

@@ -51,6 +51,7 @@ A *madness* map is a symmetric free-for-all where the map spawns each player's a
 - \`spawn\`: a unit every few seconds at \`Spawn {p}\`, owned by the player (\`owner: each\`), with \`attack\` set to the arena so the units go and fight. Several spawn systems for several unit types; \`limit\` keeps the unit count under control.
 - \`auto-attack\` on each player's units from Anywhere to the arena keeps stragglers moving.
 - \`kill-to-cash\` or \`income\` so there is something to spend; unit and upgrade costs go through Unit Settings.
+- \`stages\` so the game does not stall: every few minutes a stage rises, pays, and adds a heavier spawn.
 - \`last-standing\` with \`unit: Buildings\` (the hall is the life) or a hero unit.
 - \`leaderboard\` kills, \`objectives\`.
 

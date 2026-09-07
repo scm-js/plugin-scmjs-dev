@@ -87,3 +87,47 @@ export function scriptBridge(api: PluginApi): ScriptBridge | null {
     open: (line) => { run("open", line ? { line } : {}); },
   };
 }
+
+/**
+ * The declarations as the model needs them, not as the compiler does. The generated file
+ * lists every name twice (a camel-case constant and the StarEdit name in quotes), all 256
+ * switches and every AI script — 72k characters, of which the model reads a few. The
+ * compiler still checks the script against the whole file, so a name trimmed here that
+ * the model uses anyway still compiles. Units keep their camel-case constants (the quoted
+ * form is a rule, stated once); switches keep the first sixteen and every named one; AI
+ * scripts become an index signature.
+ */
+export function trimDeclarations(text: string): string {
+  let out = text;
+  // Units: drop the quoted twins.
+  out = out.replace(/(declare const Units: \{\n)([\s\S]*?)(\n\};)/, (_m, head: string, body: string, tail: string) => {
+    const kept = body.split("\n").filter((line) => !/^\s*readonly "/.test(line));
+    return `${head}  // Every unit is also indexable by its StarEdit name: Units["Terran Marine"].\n${kept.join("\n")}${tail}`;
+  });
+  // Switches: the first sixteen numbered ones and every named one.
+  out = out.replace(/(declare const Switches: \{\n)([\s\S]*?)(\n\};)/, (_m, head: string, body: string, tail: string) => {
+    const kept = body.split("\n").filter((line) => {
+      const m = /^\s*readonly (?:"?)(Switch ?(\d+))"?:/.exec(line);
+      if (!m) return true;
+      return Number(m[2]) <= 16 && !line.includes('"');
+    });
+    return `${head}  // Switch1 … Switch256 exist; the first sixteen are listed. A switch given a name in the map is listed by that name.\n${kept.join("\n")}${tail}`;
+  });
+  // AI scripts: any name goes; the list is long and rarely wanted.
+  out = out.replace(/declare const AiScripts: \{\n[\s\S]*?\n\};/, "declare const AiScripts: { readonly [name: string]: AiScriptId<number> }; // every StarEdit AI script by its name (\"Terran Custom Level\") or four-letter code");
+  return out;
+}
+
+/** Trigger text with runs of identical lines folded — three hyper triggers are 186 lines of Wait(0). */
+export function compactTriggers(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    let j = i;
+    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
+    const n = j - i + 1;
+    if (n >= 3) { out.push(lines[i], `${/^\s*/.exec(lines[i])![0]}// … the line above ${n} times`); i = j; }
+    else out.push(lines[i]);
+  }
+  return out.join("\n");
+}

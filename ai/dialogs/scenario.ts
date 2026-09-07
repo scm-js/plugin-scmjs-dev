@@ -25,7 +25,7 @@ import { START_LOCATION, TILE, centreOf } from "../layout";
 import { buildPreset, presetSpecs, PresetError } from "../presets";
 import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
-import { hasScriptPlugin, scriptBridge, type CompileResult } from "../script";
+import { compactTriggers, hasScriptPlugin, scriptBridge, trimDeclarations, type CompileResult } from "../script";
 import { toolkitContext, addSystem } from "../tools/ums";
 import { paramsOf, systemKinds, ToolkitError } from "../ums";
 import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
@@ -282,7 +282,8 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const existing = bridge.state();
         const prompt = `System "${system.name}" of the scenario "${d.name}" (${d.genre}). ${system.description}\n\nThe scenario's premise: ${d.premise}\nLocations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.\nHyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
-        const input = { prompt, declarations: bridge.declarations(), script: existing?.source ?? undefined, existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 30_000) : undefined };
+        // The declarations and the hand triggers as the model needs them — a third of what the compiler sees.
+        const input = { prompt, declarations: trimDeclarations(bridge.declarations()), script: existing?.source ?? undefined, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 30_000) : undefined };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;

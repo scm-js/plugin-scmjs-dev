@@ -32,6 +32,19 @@ describe("the UMS toolkit", () => {
     expect(hasLocation(["Spawn 1", "Arena"], "anywhere")).toBe(true);
   });
 
+  it("builds stages: the counter rises on the clock, extra spawns from a stage on, pay and a message per stage", () => {
+    const b = buildSystem("stages", { every: "120", stages: "3", units: "Zerg Hydralisk, Zerg Ultralisk", location: "Spawn {p}", from: "2", interval: "10", count: "2", growth: "1", minerals: "50", message: "Stage {stage}!", attack: "Arena" }, ctx);
+    // Per player: 3 stage triggers, 2 spawn triggers (stages 2 and 3), 1 timer.
+    expect(b.count).toBe(2 * (3 + 2 + 1));
+    expect(b.text).toContain('Elapsed Time(At least, 240)');
+    expect(b.text).toContain('Display Text Message(Always Display, "Stage 2!")');
+    expect(b.text).toContain('Set Resources("Player 1", Add, 50, ore)');
+    expect(b.text).toContain('Create Unit("Player 1", "Zerg Hydralisk", 2, "Spawn 1")');
+    expect(b.text).toContain('Create Unit("Player 2", "Zerg Ultralisk", 3, "Spawn 2")');
+    expect(b.text).toContain('Order("Player 1", "Zerg Hydralisk", "Spawn 1", "Arena", attack)');
+    expect(b.dcUsed).toHaveLength(2);
+  });
+
   it("counts trigger cycles at the map's rate", () => {
     expect(cyclesFor(10, true)).toBe(120);
     expect(cyclesFor(10, false)).toBe(5);

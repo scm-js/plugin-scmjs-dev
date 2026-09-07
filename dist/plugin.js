@@ -1150,6 +1150,39 @@ function scriptBridge(api) {
     }
   };
 }
+function trimDeclarations(text) {
+  let out = text;
+  out = out.replace(/(declare const Units: \{\n)([\s\S]*?)(\n\};)/, (_m, head, body, tail) => {
+    const kept = body.split("\n").filter((line) => !/^\s*readonly "/.test(line));
+    return `${head}  // Every unit is also indexable by its StarEdit name: Units["Terran Marine"].
+${kept.join("\n")}${tail}`;
+  });
+  out = out.replace(/(declare const Switches: \{\n)([\s\S]*?)(\n\};)/, (_m, head, body, tail) => {
+    const kept = body.split("\n").filter((line) => {
+      const m = /^\s*readonly (?:"?)(Switch ?(\d+))"?:/.exec(line);
+      if (!m) return true;
+      return Number(m[2]) <= 16 && !line.includes('"');
+    });
+    return `${head}  // Switch1 \u2026 Switch256 exist; the first sixteen are listed. A switch given a name in the map is listed by that name.
+${kept.join("\n")}${tail}`;
+  });
+  out = out.replace(/declare const AiScripts: \{\n[\s\S]*?\n\};/, 'declare const AiScripts: { readonly [name: string]: AiScriptId<number> }; // every StarEdit AI script by its name ("Terran Custom Level") or four-letter code');
+  return out;
+}
+function compactTriggers(text) {
+  const lines = text.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let j = i;
+    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
+    const n2 = j - i + 1;
+    if (n2 >= 3) {
+      out.push(lines[i], `${/^\s*/.exec(lines[i])[0]}// \u2026 the line above ${n2} times`);
+      i = j;
+    } else out.push(lines[i]);
+  }
+  return out.join("\n");
+}
 
 // ai/reference.ts
 var ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"];
@@ -4377,6 +4410,7 @@ A *madness* map is a symmetric free-for-all where the map spawns each player's a
 - \`spawn\`: a unit every few seconds at \`Spawn {p}\`, owned by the player (\`owner: each\`), with \`attack\` set to the arena so the units go and fight. Several spawn systems for several unit types; \`limit\` keeps the unit count under control.
 - \`auto-attack\` on each player's units from Anywhere to the arena keeps stragglers moving.
 - \`kill-to-cash\` or \`income\` so there is something to spend; unit and upgrade costs go through Unit Settings.
+- \`stages\` so the game does not stall: every few minutes a stage rises, pays, and adds a heavier spawn.
 - \`last-standing\` with \`unit: Buildings\` (the hall is the life) or a hero unit.
 - \`leaderboard\` kills, \`objectives\`.
 
@@ -4971,6 +5005,58 @@ var KINDS = [
       }
       triggers.push(trigger(players2, [c.deaths(enemy, counter, "At least", waves), c.command(enemy, "Any unit", "Exactly", 0), c.elapsed("At least", interval * waves + 10)], [a.text("The last wave is dead."), a.victory()]));
       return { triggers, notes: [`${waves} waves, the last at ${interval * waves} s; the enemy player must own nothing else, or the victory never comes`] };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "stages",
+      description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds \u2014 the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
+      params: [P("every", "seconds per stage (default 240)"), P("stages", "how many stages (default 6)"), P("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P("location", "the spawn location; may contain {p}", true), P("from", "the first stage that spawns (default 1)"), P("interval", "seconds between the extra spawns (default 15)"), P("count", "units per extra spawn at the first spawning stage (default 2)"), P("growth", "more units per stage (default 1)"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location the spawned units attack-move to (default none)"), P("minerals", "minerals paid to each player at each new stage (default 0)"), P("message", "text shown at each new stage; {stage} is the number (default none)"), P("players", "humans (default), all, or player numbers"), P("owner", "each (default), computer, or a player number")]
+    },
+    build(r, ctx, dc) {
+      const every = r.int("every", 240, 10, 7200);
+      const stages = r.int("stages", 6, 1, 20);
+      const units = r.list("units");
+      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
+      const location2 = r.str("location");
+      const from = r.int("from", 1, 1, 20);
+      const interval = r.int("interval", 15, 1, 3600);
+      const count = r.int("count", 2, 1, 200);
+      const growth = r.int("growth", 1, 0, 100);
+      const limit = r.int("limit", 0, 0, 1700);
+      const attack = r.str("attack", "");
+      const minerals = r.int("minerals", 0, 0);
+      const message = r.str("message", "");
+      const players2 = r.players("players");
+      const ownerRaw = r.str("owner", "each");
+      const stage = dc.take("the stage counter");
+      const timer = dc.take("the stage spawn timer");
+      const cycles = cyclesFor(interval, ctx.hyper);
+      const triggers = [];
+      for (const p of players2) {
+        const loc2 = fillTemplate(location2, p);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
+        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
+        for (let k = 1; k <= stages; k++) {
+          const actions = [a.setDeaths(p, stage, "Set To", k)];
+          if (minerals > 0) actions.push(a.setResources(p, "Add", minerals, "ore"));
+          if (message) actions.push(a.text(message.replace(/\{stage\}/g, String(k))));
+          triggers.push(trigger([p], [c.elapsed("At least", every * k), c.deaths(p, stage, "Exactly", k - 1)], actions));
+          if (k < from) continue;
+          const unit = units[Math.min(units.length - 1, k - from)] ?? "Zerg Zergling";
+          const n2 = Math.min(200, count + growth * (k - from));
+          const conditions = [c.deaths(p, stage, "Exactly", k), c.deaths(p, timer, "At least", cycles)];
+          if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
+          const spawn = [a.setDeaths(p, timer, "Set To", 0), a.create(owner, unit, n2, loc2)];
+          if (attack) spawn.push(a.order(owner, unit, loc2, attackLoc, "attack"));
+          spawn.push(a.preserve());
+          triggers.push(trigger([p], conditions, spawn));
+        }
+        triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
+      }
+      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from} every ${interval} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers)`] };
     }
   },
   {
@@ -6827,7 +6913,7 @@ The scenario's premise: ${d.premise}
 Locations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.
 Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
-        const input = { prompt, declarations: bridge.declarations(), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 3e4) : void 0 };
+        const input = { prompt, declarations: trimDeclarations(bridge.declarations()), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0 };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
