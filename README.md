@@ -252,10 +252,12 @@ shapes copied from the server's `src/protocol.ts` (keep them identical). The AI 
 `ai/`: `install.ts` puts the AI contributions in and takes them out; `options.ts` is the
 Options dialog; `ui.ts` the runner every AI dialog shares; `facts.ts` and `reference.ts`
 what the model is told about the map; `grid.ts` / `plan.ts` / `render.ts` the layout
-language and its rendering; `layout.ts` the Melee Wizard's base geometry, vendored;
-`tools.ts`, `tools/` and `assistant.ts` the tool-using conversation; `intent.ts` where a
-tool call lands on the map; `ums.ts` the toolkit of trigger systems and `guides.ts` the
-genre guides; `slots.ts` the buttons inside the editor's own dialogs; `markdown.ts` a
+language and its rendering, `shapes.ts` the shape language's compiler, `ramps.ts` what a
+tileset's ramps and bridges fit (measured tables included), `presets.ts` the layout
+presets, `reach.ts` the walkability flood fill; `layout.ts` the Melee Wizard's base
+geometry, vendored; `tools.ts`, `tools/` and `assistant.ts` the tool-using conversation;
+`intent.ts` where a tool call lands on the map; `ums.ts` the toolkit of trigger systems
+and `guides.ts` the genre guides; `slots.ts` the buttons inside the editor's own dialogs; `markdown.ts` a
 small renderer; `dialogs/` one file per menu item. `tests/` runs it all against a fake
 `fetch` and a fake popup.
 
