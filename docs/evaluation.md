@@ -29,6 +29,38 @@ correctness of the change are requirements, not columns to trade against price.
   the two apart: a cold first turn shows a one-hour write of the reference layers and the
   tools, a warm one shows reads only.
 
+## Running it with the script
+
+`scripts/evaluate.mjs` drives the whole set in a headless Chromium against the dev server
+and the real service, and does everything "Running one task" describes except judging
+the change:
+
+```sh
+# in scm-js: npm run dev            (its build vendors the pinned plugin)
+npm i --no-save playwright && npx playwright install chromium     # once
+SCMJS_SESSION=<session> AI_SERVER_ADMIN_TOKEN=<token> \
+  node scripts/evaluate.mjs --maps ~/maps --start cold [--only 1,2,R3] [--timeout 20]
+node scripts/evaluate.mjs --list
+```
+
+The session is the admin account's, copied from the browser (DevTools ▸ Application ▸
+Local Storage ▸ the editor's origin ▸ `scmjs.plugin.scmjs-dev.settings` ▸ `session`);
+the script signs a fresh browser context in with it for every task, so nothing about the
+run touches your own editor state. The maps folder holds the five maps; task 0a writes
+`Scenario.scx` into it, and `Broken.scx` is made by hand (task 0b). For each task the
+script drops the map, types the prompt where the task says (the assistant, Make
+Scenario…, Write Triggers…), waits for it to finish, reads Check Map, saves the map as
+`docs/evaluation/<id>-<start>.scx`, pulls the server's calls since the task started, and
+appends the row to `docs/evaluation/results.csv`; `<id>-<start>.json` beside it holds the
+transcript, the tool rows, the Check Map findings and the call rows. `change_correct` is
+left empty for you to fill after looking at the map. R6 and R8 are listed as manual and
+skipped. `scripts/evaluation-tasks.mjs` holds the prompts; the wording there and here is
+the same, and a change to one is a change to both.
+
+To check the driving without spending anything, run it against the guide's stand-in
+server (`scripts/lib/guide-scmjs-mock.mjs` in scm-js, session `guide-session`); its
+answers are canned, so only the mechanics are tested.
+
 ## Running one task
 
 1. Open the map. In the AI Assistant press **Clear** so the conversation is new.
@@ -56,7 +88,7 @@ correctness of the change are requirements, not columns to trade against price.
 
 ## What to record
 
-One row per task and start (cold or warm). Keep them in `docs/evaluation-results.csv`
+One row per task and start (cold or warm). Keep them in `docs/evaluation/results.csv`
 with these columns:
 
 ```
@@ -116,7 +148,7 @@ Map: BGH. Prompt:
 > mentions the eight start positions and the plentiful minerals.
 
 Correct: Scenario ▸ Map Properties shows the new name and a description of two sentences
-with both facts. Expect one or two rounds and no tool failures. The log's first call is
+with both facts. Check Map is under Tools. Expect one or two rounds and no tool failures. The log's first call is
 the one-hour write when cold; the map layer is rewritten on the next turn because the
 name changed (the reference includes it), so a follow-up in the same conversation should
 show a small write.

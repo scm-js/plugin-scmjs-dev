@@ -1,2 +1,6 @@
 node_modules/
 *.tsbuildinfo
+# The evaluation runs: the maps are made from game data, the records are per run
+docs/evaluation/*
+!docs/evaluation/results.csv
+maps/

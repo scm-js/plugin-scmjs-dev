@@ -274,7 +274,8 @@ geometry, vendored, and `bases.ts` that geometry fitted to the ground there is; 
 and `guides.ts` the genre guides; `slots.ts` the buttons inside the editor's own dialogs; `markdown.ts` a
 small renderer; `dialogs/` one file per menu item. `tests/` runs it all against a fake
 `fetch` and a fake popup. `docs/evaluation.md` is the fixed set of live tasks run against
-the assistant before and after a change, and how to read the server's call log for them.
+the assistant before and after a change, and how to read the server's call log for them;
+`npm run evaluate` drives it in a headless browser.
 
 To run against a server on your own machine, open the editor with
 `?scmjs-server=http://localhost:8080` once; the address is kept until the editor is opened
