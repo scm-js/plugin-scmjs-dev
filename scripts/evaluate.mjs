@@ -285,10 +285,34 @@ async function runScenario(p, task, r) {
 
 async function callsSince(since) {
   if (!ADMIN) return null;
-  const res = await fetch(`${SERVER}/v1/admin/calls?since=${encodeURIComponent(since.toISOString())}&limit=500`, { headers: { authorization: `Bearer ${ADMIN}` } });
+  const res = await fetch(`${SERVER}/v1/admin/calls?since=${encodeURIComponent(since.toISOString())}&limit=500&prompt=1`, { headers: { authorization: `Bearer ${ADMIN}` } });
   if (!res.ok) throw new Error(`${res.status} from /v1/admin/calls: ${(await res.text()).slice(0, 200)}`);
   const { calls } = await res.json();
-  return calls.filter((c) => Date.parse(c.at) >= since.getTime() - 5000 && c.recipe !== "warmup");
+  return calls.filter((c) => Date.parse(c.at) >= since.getTime() - 5000 && c.recipe !== "warmup").map(withBlocks);
+}
+
+/**
+ * The kept prompt (admin callers only) reduced to what the cost questions need: each
+ * block of the request with its first line, its size and whether it sits under a cache
+ * breakpoint, and the tool list's size. The full prompt is not kept in the record.
+ */
+function withBlocks(call) {
+  const { prompt, ...rest } = call;
+  const req = prompt?.request;
+  if (!req) return rest;
+  const head = (text) => (text ?? "").split("\n")[0].slice(0, 60);
+  const blocks = [];
+  for (const b of Array.isArray(req.system) ? req.system : []) blocks.push({ where: "system", head: head(b.text), chars: b.text?.length ?? 0, cached: !!b.cache_control });
+  for (const [i, m] of (req.messages ?? []).entries()) {
+    const content = Array.isArray(m.content) ? m.content : [{ type: "text", text: m.content }];
+    for (const b of content) {
+      const chars = b.type === "text" ? b.text?.length ?? 0 : b.type === "tool_result" ? JSON.stringify(b.content ?? "").length : b.type === "image" ? b.source?.bytes ?? 0 : JSON.stringify(b.input ?? "").length;
+      if (i < (req.messages.length - 6) && b.type !== "text") continue; // only the tail's tool traffic, block by block
+      blocks.push({ where: `${m.role}#${i}`, type: b.type, head: b.type === "text" ? head(b.text) : b.name ?? b.type, chars, cached: !!b.cache_control });
+    }
+  }
+  const tools = req.tools ?? [];
+  return { ...rest, blocks, toolsChars: JSON.stringify(tools).length, toolNames: tools.length };
 }
 
 function summarize(calls, r) {
