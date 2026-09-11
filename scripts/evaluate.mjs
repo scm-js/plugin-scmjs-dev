@@ -63,6 +63,7 @@ async function loadPlaywright() {
   process.exit(1);
 }
 
+const log = (text) => console.log(`   ${new Date().toTimeString().slice(0, 8)}  ${text}`);
 const COLUMNS = ["date", "task", "start", "conversation", "done_claimed", "change_correct", "check_map", "rounds", "continues", "tool_calls", "tool_failures", "retries", "cost_usd", "charged_usd", "seconds", "cache_write_1h_tokens", "cache_read_tokens", "uncached_input_tokens", "stop_reason", "notes"];
 
 /* ── the browser ──────────────────────────────────────────────────────────────── */
@@ -197,6 +198,7 @@ async function runAssistant(p, task, ctx, r) {
   }
 
   let phase = await p.settle();
+  log(`assistant ${/is-(\w+)/.exec(phase)?.[1] ?? "settled"}: ${await p.phaseDetail()}`);
   if (task.offlineAfterSteps) await ctx.setOffline(false);
   let continues = 0;
   while (task.continues && continues < task.continues && /is-stopped/.test(phase)) {
@@ -232,6 +234,7 @@ async function runTriggers(p, task, r) {
   // Written when Build appears; then let a repair round, if one is running, finish.
   const written = await p.until(async () => await dlg.locator("button", { hasText: /^Build$/ }).isVisible().catch(() => false));
   if (!written) { r.notes.push("Write did not finish in time"); r.done_claimed = "timeout"; return; }
+  log("script written, building");
   let last = "", same = 0;
   await p.until(async () => { const s = await p.status(); if (/asking for a repair/.test(s)) { same = 0; return false; } same = s === last ? same + 1 : 0; last = s; return same >= 4; }, TIMEOUT_MS, 500);
   r.repairs = (await dlg.locator(".ai-runner").innerText().catch(() => "")).match(/repair \(\d of \d\)/g)?.length ?? 0;
@@ -257,9 +260,11 @@ async function runScenario(p, task, r) {
   await dlg.locator("button", { hasText: /^Design$/ }).click();
   const designed = await p.until(async () => await dlg.locator("button", { hasText: /^Build$/ }).isVisible().catch(() => false));
   if (!designed) { r.notes.push("Design did not finish in time"); r.done_claimed = "timeout"; return; }
+  log("designed, building");
   r.design = await dlg.locator(".ai-design, .dlg-body").first().innerText().catch(() => "");
   await dlg.locator("button", { hasText: /^Build$/ }).click();
   const built = await p.statusMatches(/^Built |failed step|^Kept the open map/);
+  log(built.text || "build timed out");
   r.steps = await p.stepSummary(dlg);
   r.tool_calls = r.steps.length;
   r.tool_failures = r.steps.filter((s) => /fail/.test(s.state)).length;
@@ -344,6 +349,7 @@ async function main() {
         else if (task.kind === "scenario") await runScenario(p, task, r);
         r.seconds = Math.round((Date.now() - t0) / 1000);
         await p.closeDialogs();
+        log("checking and saving");
         try {
           const issues = await p.checkMap();
           r.issues = issues;
