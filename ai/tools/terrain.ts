@@ -1,6 +1,6 @@
 /** Terrain writes and the map-level transactions. */
 import type { Diamond, PluginApi } from "@scm-js/plugin-api";
-import { capResult, jsonOf, list, num, obj, plural, rectOf, rectSchema, rectText, str, type TileRect, type Tool } from "./common";
+import { capResult, fail, jsonOf, list, num, obj, plural, rectOf, rectSchema, rectText, str, type TileRect, type Tool } from "./common";
 
 /**
  * The diamonds a tile rect paints. The editor's `diamondsIn` is inclusive of the rect's
@@ -53,7 +53,7 @@ export function terrainTools(): Tool[] {
       settings: true,
       run: (input, { api }) => {
         const r = api.document.resize({ width: Math.round(num(input.width)), height: Math.round(num(input.height)), anchor: Math.round(num(input.anchor, 4)), terrainId: input.terrain === undefined ? undefined : Math.round(num(input.terrain)) });
-        if (!r) return "No map is open.";
+        if (!r) return fail("No map is open.");
         const info = api.document.info();
         return `Resized to ${info?.width} × ${info?.height}. Dropped ${r.unitsDropped} units, ${r.spritesDropped} sprites, ${r.doodadsDropped} doodads; clamped ${r.locationsClamped} locations${r.isomRebuilt ? "" : "; ISOM is the fill's lattice"}. The undo history was cleared.`;
       },

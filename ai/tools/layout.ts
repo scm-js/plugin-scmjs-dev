@@ -17,7 +17,7 @@ import { shiftShapes } from "../shapes";
 import { fitBase } from "../bases";
 import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, mineralLooks, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
-import { capResult, jsonOf, list, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
+import { capResult, fail, jsonOf, list, noSuchUnit, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
 
 /** Human and computer slots, 1-based, from the settings. */
 function slots(api: PluginApi): { humans: number[]; computers: number[] } {
@@ -75,9 +75,9 @@ export function layoutTools(): Tool[] {
       writes: true,
       run: (input, { api }) => {
         const id = str(input.preset);
-        if (!presetById(id)) return `No preset is called "${id}". The presets:\n${presetSpecs().map((p) => p.id).join(", ")}`;
+        if (!presetById(id)) return fail(`No preset is called "${id}". The presets:\n${presetSpecs().map((p) => p.id).join(", ")}`);
         const info = api.document.info();
-        if (!info) return "No map is open.";
+        if (!info) return fail("No map is open.");
         const raw = input.params && typeof input.params === "object" ? (input.params as Record<string, unknown>) : {};
         const params: Record<string, string> = {};
         for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
@@ -88,7 +88,7 @@ export function layoutTools(): Tool[] {
           const built = buildPreset(id, params, { width: info.width, height: info.height, terrains: terrainVocab(api), rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api), humans: humans.length ? humans : [1], doodadCategories: doodadCategoryNames(api) });
           plan = built.plan; notes = built.notes;
         } catch (err) {
-          if (err instanceof PresetError) return `Not laid out:\n${err.problems.map((p) => `- ${p}`).join("\n")}`;
+          if (err instanceof PresetError) return fail(`Not laid out:\n${err.problems.map((p) => `- ${p}`).join("\n")}`);
           throw err;
         }
         const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${id} layout`, clearArea: true });
@@ -113,9 +113,9 @@ export function layoutTools(): Tool[] {
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
-        if (!info) return "No map is open.";
+        if (!info) return fail("No map is open.");
         const shapes = readShapes(input.shapes);
-        if (typeof shapes === "string") return shapes;
+        if (typeof shapes === "string") return fail(shapes);
         const dx = Math.round(num(input.originX)), dy = Math.round(num(input.originY));
         const locations = list<Record<string, unknown>>(input.locations).map((l) => ({ name: str(l.name, "Location"), x0: Math.round(num(l.x0)) + dx, y0: Math.round(num(l.y0)) + dy, x1: Math.round(num(l.x1)) + dx, y1: Math.round(num(l.y1)) + dy }));
         const units = list<Record<string, unknown>>(input.units).map((u) => ({ unit: str(u.unit), player: Math.round(num(u.player, 12)), x: Math.round(num(u.x)) + dx, y: Math.round(num(u.y)) + dy }));
@@ -142,7 +142,7 @@ export function layoutTools(): Tool[] {
         const fit = fitRamp({ x, y, direction: side }, ramps, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true);
         if (!fit) {
           const pairs = (VERIFIED_RAMPS[tileset] ?? []).map(([lo, hi]) => `${lo} → ${hi}`).join(", ") || "none the brush's cliffs can take";
-          return `No ramp fits within 12 tiles of ${x},${y} going ${side}. A ramp needs a straight diagonal cliff run facing ${side === "sw" ? "south-west" : "south-east"}, between ground this tileset has ramps for (${pairs}). Paint a plateau with a ramps parameter through paint_shapes to make such an edge.`;
+          return fail(`No ramp fits within 12 tiles of ${x},${y} going ${side}. A ramp needs a straight diagonal cliff run facing ${side === "sw" ? "south-west" : "south-east"}, between ground this tileset has ramps for (${pairs}). Paint a plateau with a ramps parameter through paint_shapes to make such an edge.`);
         }
         const r = api.document.edit("AI: place ramp", (tx) => { tx.placeDoodad(fit.doodadId, fit.tx, fit.ty); });
         return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}×${fit.height})`, notes: r.notes });
@@ -159,7 +159,7 @@ export function layoutTools(): Tool[] {
         if (!bridgePairOf(api)) return "This tileset's bridges need bank pieces the isometric brush does not draw, so no bridge can be placed here. For a crossing, leave a gap of ground in the water.";
         const x = Math.round(num(input.x)), y = Math.round(num(input.y));
         const fit = fitDoodad({ x, y }, bridges, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true, { dx: 14, dy: 10 });
-        if (!fit) return `No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`;
+        if (!fit) return fail(`No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`);
         const r = api.document.edit("AI: place bridge", (tx) => { tx.placeDoodad(fit.doodadId, fit.tx, fit.ty); });
         return capResult({ placed: `${fit.name} at ${fit.tx},${fit.ty} (${fit.width}×${fit.height})`, notes: r.notes });
       },
@@ -187,9 +187,9 @@ export function layoutTools(): Tool[] {
       run: (input, { api }) => {
         const info = api.document.info();
         const scn = api.document.scenario();
-        if (!info || !scn) return "No map is open.";
+        if (!info || !scn) return fail("No map is open.");
         const player = input.player === undefined ? null : ownerOf(input.player, -1);
-        if (player !== null && (player < 0 || player > 7)) return "player must be 1–8.";
+        if (player !== null && (player < 0 || player > 7)) return fail("player must be 1–8.");
         let hall: Footprint;
         if (input.x !== undefined && input.y !== undefined) {
           hall = { x: Math.round(num(input.x)), y: Math.round(num(input.y)), w: HALL.w, h: HALL.h };
@@ -202,7 +202,7 @@ export function layoutTools(): Tool[] {
         if (!inMap(hall, info.width, info.height)) return `A ${HALL.w} × ${HALL.h} hall at ${hall.x},${hall.y} hangs off the map.`;
         const centre = centreOf(hall);
         const askedDirection = str(input.direction).toLowerCase();
-        if (askedDirection && !(DIRECTIONS as readonly string[]).includes(askedDirection)) return `direction must be a compass point: ${DIRECTIONS.join(", ")}.`;
+        if (askedDirection && !(DIRECTIONS as readonly string[]).includes(askedDirection)) return fail(`direction must be a compass point: ${DIRECTIONS.join(", ")}.`);
         const direction = askedDirection ? directionAngle(askedDirection as (typeof DIRECTIONS)[number]) : snapAngle(outwardDirection(centre.x, centre.y, info.width, info.height));
         const minerals = Math.max(0, Math.min(12, Math.round(num(input.minerals, 8))));
         const geysers = Math.max(0, Math.min(2, Math.round(num(input.geysers, 1))));
@@ -210,7 +210,7 @@ export function layoutTools(): Tool[] {
         const gas = Math.max(0, Math.round(num(input.gas, DEFAULT_GAS)));
         const geyserSide = str(input.geyserSide) === "left" ? "left" : str(input.geyserSide) === "right" ? "right" : "auto";
         const hallUnit = str(input.hall) ? unitIdByName(api, str(input.hall)) : null;
-        if (str(input.hall) && hallUnit === null) return `No unit is called "${str(input.hall)}".`;
+        if (str(input.hall) && hallUnit === null) return noSuchUnit(api, str(input.hall));
         if (hallUnit !== null && player === null) return "A hall needs a player to own it.";
         // The editor's own check, on the map as it is now: ground, the edge, and the units already there.
         const fits = (r: Footprint) => {
@@ -268,7 +268,7 @@ export function layoutTools(): Tool[] {
         const ignoreBridges = input.ignoreBridges === true;
         const blocked = ignoreBridges ? bridgeFootprints(api) : [];
         const mask = walkMask(api, blocked);
-        if (!mask) return "No map is open, or the tileset graphics are not loaded.";
+        if (!mask) return fail("No map is open, or the tileset graphics are not loaded.");
         const from = pointOf(api, input, "from"), to = pointOf(api, input, "to");
         if (typeof from === "string") return from;
         if (typeof to === "string") return to;
@@ -300,7 +300,7 @@ export function layoutTools(): Tool[] {
       writes: true,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
+        if (!scn) return fail("No map is open.");
         const { humans, computers } = slots(api);
         const owned = new Set(scn.units.map((u) => u.owner + 1));
         const problems: string[] = [];

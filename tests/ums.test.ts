@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSystem, buildSystems, cyclesFor, dcUnitsFrom, hasLocation, kindByName, kindsText, paramsOf, systemKinds, ToolkitError, trigger, type ToolkitContext } from "../ai/ums";
+import { buildSystem, buildSystems, Counters, cyclesFor, waitingOn, dcUnitsFrom, hasLocation, kindByName, kindsText, paramsOf, systemKinds, ToolkitError, trigger, type ToolkitContext } from "../ai/ums";
 
 const ctx: ToolkitContext = { humans: [1, 2], computers: [5], hyper: true, dcUnits: ["Cave (Unused)", "Cantina (Unused)"], locations: ["Spawn 1", "Spawn 2", "Arena", "Goal", "Shop"] };
 
@@ -161,6 +161,28 @@ describe("the UMS toolkit", () => {
     expect(waves.text).toContain('Order("Player 5", "Any unit", "Spawn 1", "Goal", attack)');
     expect(waves.text).toContain('Deaths("Player 5", "Cantina (Unused)", At least, 3);\n\tCommand("Player 5", "Any unit", Exactly, 0);\n\tElapsed Time(At least, 100);');
     expect(() => buildSystems([{ kind: "lives", params: { lives: "1", goal: "Goal" } }, { kind: "waves", params: { spawn: "Spawn 1", goal: "Goal", units: "Zerg Zergling" } }, { kind: "income", params: {} }], ctx)).toThrow(/no death-counter unit left/);
+  });
+
+  it("passes over the counters and switches the map's triggers already use", () => {
+    // What a map's own triggers count on is handed to the context; the allocator steps past it.
+    const lives = buildSystem("lives", { lives: "10", goal: "Goal" }, { ...ctx, usedDcUnits: ["Cave (Unused)"] });
+    expect(lives.dcUsed).toEqual(["Cantina (Unused)"]);
+    // Two systems built one after the other on a map, each from a fresh context: the second sees the first's counter in use.
+    const spawn = buildSystem("spawn", { location: "Spawn 1", unit: "Zerg Zergling", players: "1" }, ctx);
+    const income = buildSystem("income", {}, { ...ctx, usedDcUnits: spawn.dcUsed });
+    expect(spawn.dcUsed).toEqual(["Cave (Unused)"]);
+    expect(income.dcUsed).toEqual(["Cantina (Unused)"]);
+    expect(() => buildSystem("lives", { lives: "1", goal: "Goal" }, { ...ctx, usedDcUnits: ctx.dcUnits })).toThrow(/2 already in use by the map's triggers/);
+    const dc = new Counters({ ...ctx, usedSwitches: ["Switch 255", "switch 253"] });
+    expect(dc.takeSwitch("a")).toBe("Switch 254");
+    expect(dc.takeSwitch("b")).toBe("Switch 252");
+  });
+
+  it("says which missing locations a designed system waits for", () => {
+    const missing = ["Goal", "Spawn 3", "Shop"];
+    expect(waitingOn({ params: [{ key: "spawn", value: "Spawn {p}" }, { key: "goal", value: "Goal" }] }, missing)).toEqual(["Goal", "Spawn 3"]);
+    expect(waitingOn({ params: [{ key: "location", value: "Arena" }] }, missing)).toEqual([]);
+    expect(waitingOn({ params: [{ key: "location", value: "Anywhere" }] }, missing)).toEqual([]);
   });
 
   it("builds the RPG pieces: shop, heal, respawn, give, teleport, kill zone", () => {

@@ -1,6 +1,6 @@
 /** Writes on objects: units, doodads, sprites, locations, fog. Each is one undo step. */
 import type { PluginApi } from "@scm-js/plugin-api";
-import { bool, capResult, doodadByName, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
+import { bool, capResult, doodadByName, fail, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
 import { mineralTypeAt } from "../layout";
 import type { TileRect } from "../grid";
 
@@ -181,7 +181,7 @@ export function objectTools(): Tool[] {
       run: (input, { api }) => {
         const rect = rectOf(input, api);
         const cat = api.palette.doodadCategories().find((c) => c.name.toLowerCase() === str(input.category).toLowerCase()) ?? api.palette.doodadCategories().find((c) => c.name.toLowerCase().includes(str(input.category).toLowerCase()));
-        if (!cat || cat.doodads.length === 0) return `No doodad category called "${str(input.category)}"; call list_doodad_categories.`;
+        if (!cat || cat.doodads.length === 0) return fail(`No doodad category called "${str(input.category)}"; call list_doodad_categories.`);
         const density = Math.max(0, Math.min(1, num(input.density, 0.3)));
         const want = Math.round(density * ((rect.x1 - rect.x0) * (rect.y1 - rect.y0)) / 12);
         const { placed, refused } = scatterInRect(api, cat, rect, want, (d, x, y) => api.query.doodadPlacement(d.id, x, y)?.ok === true);
@@ -233,7 +233,7 @@ export function objectTools(): Tool[] {
       run: (input, { api }) => {
         const index = Math.round(num(input.index, -1));
         const scn = api.document.scenario();
-        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return "No such location (slot 63 is Anywhere).";
+        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return fail("No such location (slot 63 is Anywhere).");
         const patch: Record<string, unknown> = {};
         if (typeof input.name === "string") patch.name = input.name;
         if (input.x0 !== undefined && input.x1 !== undefined) { const r = rectOf(input, api); Object.assign(patch, { left: r.x0 * TILE, top: r.y0 * TILE, right: r.x1 * TILE, bottom: r.y1 * TILE }); }

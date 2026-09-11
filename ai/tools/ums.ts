@@ -7,16 +7,45 @@
 import type { PluginApi } from "@scm-js/plugin-api";
 import { guideById, guideFor, guideIndex } from "../guides";
 import { buildSystem, dcUnitsFrom, kindsText, ToolkitError, type Params, type ToolkitContext } from "../ums";
-import { capResult, jsonOf, num, obj, plural, str, type Tool } from "./common";
+import { capResult, fail, jsonOf, num, obj, plural, str, type Tool } from "./common";
 
-/** Who is human and who is computer on the open map, and which death-counter units and locations it has. */
+/**
+ * Who is human and who is computer on the open map, which death-counter units and
+ * locations it has, and which counters and switches its triggers already use — read
+ * afresh for every build, so the system built a moment ago counts as in use for the next.
+ */
 export function toolkitContext(api: PluginApi, options: { hyper?: boolean; extraLocations?: string[] } = {}): ToolkitContext {
   const players = api.settings.players();
   const humans = players.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1);
   const computers = players.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1);
-  const hyper = options.hyper ?? api.triggers.list().some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
+  const triggers = api.triggers.list();
+  const hyper = options.hyper ?? triggers.some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
   const locations = [...usedLocationNames(api), ...(options.extraLocations ?? [])];
-  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations };
+  const used = usedTriggerState(api, triggers);
+  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
+}
+
+/**
+ * The death-counter units and switches the map's triggers read or write, by the names the
+ * toolkit uses — a Deaths condition or Set Deaths action names a unit, a Switch condition
+ * or Set Switch action a switch. What a hand-written trigger, a TrigScript build or an
+ * earlier system counts on, so a new system stays off it.
+ */
+export function usedTriggerState(api: PluginApi, triggers = api.triggers.list()): { dcUnits: string[]; switches: string[] } {
+  const { condition, action } = api.consts.triggers;
+  const units = new Set<number>();
+  const switches = new Set<number>();
+  for (const t of triggers) {
+    for (const c of t.conditions) {
+      if (c.type === condition.Deaths) units.add(c.unitId);
+      else if (c.type === condition.Switch) switches.add(c.resource);
+    }
+    for (const a of t.actions) {
+      if (a.type === action.SetDeaths) units.add(a.unitId);
+      else if (a.type === action.SetSwitch) switches.add(a.target);
+    }
+  }
+  return { dcUnits: [...units].map((id) => api.names.unit(id)), switches: [...switches].map((i) => api.names.switch(i)) };
 }
 
 /** The names of the locations in use on the open map (a slot with an area or a name), Anywhere included. */
@@ -69,8 +98,8 @@ export function umsTools(): Tool[] {
           const r = addSystem(api, kind, params, toolkitContext(api));
           return capResult({ added: r.count, triggers: api.triggers.list().length, notes: r.notes });
         } catch (err) {
-          if (err instanceof ToolkitError) return `Not built:\n${err.problems.map((p) => `- ${p}`).join("\n")}`;
-          return `Not built: ${(err as Error).message}`;
+          if (err instanceof ToolkitError) return fail(`Not built:\n${err.problems.map((p) => `- ${p}`).join("\n")}`);
+          return fail(`Not built: ${(err as Error).message}`);
         }
       },
     },

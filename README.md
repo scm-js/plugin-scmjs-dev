@@ -79,6 +79,9 @@ one spawn or shop entry serves everyone. Build folds the design away and goes st
 step, each step a row that passes or fails on its own: the map, the terrain and the named
 locations (the long step, with its clock and the model's reasoning under the rows),
 players and forces, every system, the objectives and briefing, the name, Check Map. A
+system whose location the plan did not draw waits rather than building against a box in
+the middle of the map: its row says which location it needs, and once you have drawn
+it, "Build the waiting systems" builds the rest. A
 design that fits a *layout preset* (corner camps around an arena, lanes from spawns to
 a goal, a walled arena, a bound's course, a town with a chain of regions) gets its
 terrain from the plugin itself, from the design's few numbers, with no
@@ -146,7 +149,8 @@ line per tool call in plain words (▸ a read, ✎ a change) with what came back
 the model's words between calls kept small, its reasoning in a fold of its own, a
 screenshot it took as a thumbnail. While the turn runs the block is open on its last few
 steps; when it ends it folds to one line — steps, edits, failures, seconds, cost — with an
-Undo for that turn's edits. A strip at the top says what is happening — waiting,
+Undo for that turn's edits, live for as long as nothing has been edited or undone since
+(after that it goes grey: use the Edit menu). A strip at the top says what is happening — waiting,
 thinking, writing, the step it is on — with the seconds and the cost; the map outlines
 what a call is about to touch in teal and flashes what it changed in gold, and the view
 glides to each spot as the work moves about the map, zooming out when a spot is larger

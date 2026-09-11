@@ -23,11 +23,12 @@
 import type { EditorLayer, FoldElement, OverlayHandle, PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent, AgentMessage, ImageInput } from "../protocol";
 import { ScmjsError, describeError, formatUsd } from "../client";
-import { imageInput, mapFacts, selectionLines } from "./facts";
+import { executeCalls, MAP_CHANGED, type ExecuteHooks } from "./execute";
+import { imageInput, mapFacts, selectionLines, shrinkImage } from "./facts";
 import { followBox, footprintEmpty, footprintOf, type Footprint } from "./intent";
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
-import { capResult, describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, toContent, tools, type Tool, type ToolResult } from "./tools";
+import { describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
 import { append, h, recipeOptions, styled, type Ctx } from "./ui";
 
 /** Past this many messages the history is trimmed… */
@@ -46,9 +47,59 @@ export const KEEP_IMAGES = 2;
  */
 export function trimHistory(messages: AgentMessage[], keep = KEEP_MESSAGES, to = TRIM_TO): AgentMessage[] {
   if (messages.length <= keep) return messages;
-  let start = Math.max(0, messages.length - Math.min(to, keep));
-  while (start < messages.length && (messages[start].role !== "user" || messages[start].content.some((c) => c.type === "tool_result"))) start++;
-  return pruneImages(messages.slice(start), KEEP_IMAGES);
+  const clean = (m: AgentMessage) => m.role === "user" && !m.content.some((c) => c.type === "tool_result");
+  const from = Math.max(0, messages.length - Math.min(to, keep));
+  let start = from;
+  while (start < messages.length && !clean(messages[start])) start++;
+  if (start < messages.length) return pruneImages(messages.slice(start), KEEP_IMAGES);
+  // One instruction followed by a long run of tool rounds: no clean user message in the
+  // tail. Keep the brief — it is what the person asked for — and the tail from an
+  // assistant turn, so every tool call still has its results.
+  if (!clean(messages[0])) return messages;
+  let at = from;
+  while (at < messages.length && messages[at].role !== "assistant") at++;
+  return pruneImages([messages[0], ...messages.slice(at)], KEEP_IMAGES);
+}
+
+/** What a request's history may weigh: the server takes 1.5 MB by default, and the facts, the reference and the tools ride in the same body. */
+export const MAX_HISTORY_BYTES = 1_100_000;
+
+/**
+ * The history cut to fit the request: pictures first (all but the newest, then that one),
+ * then whole exchanges from the front with the brief kept, as `trimHistory` does. A
+ * screenshot-heavy turn used to fail with a body-too-large error partway through.
+ */
+export function fitHistory(messages: AgentMessage[], maxBytes = MAX_HISTORY_BYTES): AgentMessage[] {
+  const size = (m: AgentMessage[]) => byteLength(JSON.stringify(m));
+  let out = messages;
+  if (size(out) <= maxBytes) return out;
+  for (const keep of [1, 0]) {
+    out = pruneImages(out, keep);
+    if (size(out) <= maxBytes) return out;
+  }
+  while (out.length > 1 && size(out) > maxBytes) {
+    const cut = trimHistory(out, out.length - 1, Math.max(1, out.length - 2));
+    if (cut.length >= out.length) break;
+    out = cut;
+  }
+  return out;
+}
+
+const byteLength = (s: string) => (typeof TextEncoder !== "undefined" ? new TextEncoder().encode(s).length : s.length);
+
+/**
+ * The history after a turn failed: a user message the model never answered goes, unless
+ * it holds tool results — those record edits that were made, and the next request
+ * continues from them.
+ */
+export function afterFailedTurn(messages: AgentMessage[]): AgentMessage[] {
+  const last = messages[messages.length - 1];
+  return last?.role === "user" && !last.content.some((c) => c.type === "tool_result") ? messages.slice(0, -1) : messages;
+}
+
+/** Whether the turn's undo button still undoes that turn: nothing was edited or undone since it finished. */
+export function undoStillApplies(after: { undo: string | null; undoDepth: number }, now: { undo: string | null; undoDepth: number }): boolean {
+  return now.undoDepth === after.undoDepth && now.undo === after.undo;
 }
 
 /** Replace every picture but the last `keepLast` with a note, copying only the messages that change. */
@@ -303,7 +354,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
               scroll();
             },
             fail(message: string) { failed++; row.fail(`✗ ${message}`); row.element.title += `\n✗ ${message}`; scroll(); },
-            skip() { row.skip("not called"); row.element.title = "The model named this tool but did not call it."; },
+            skip(reason = "not called") { row.skip(reason); row.element.title = reason === "not called" ? "The model named this tool but did not call it." : reason; },
           };
         };
         return {
@@ -361,7 +412,16 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
       // moves it — a "view" event that is neither a reveal of ours nor a tool's own `go_to`
       // hands the view back to them until the next turn.
       let following = false, revealing = false, toolRunning = false;
-      const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", refreshContext), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext),
+      // Each turn's Undo button, with the history as the turn left it: a button whose
+      // history has moved on (an edit, an undo) would undo the wrong thing, so it goes grey.
+      const undoButtons: { button: HTMLButtonElement; after: ReturnType<PluginApi["document"]["history"]> }[] = [];
+      const STALE_UNDO = "Other edits came after this turn's; undo them first, from the Edit menu.";
+      const refreshUndo = () => {
+        if (!api.document.isOpen()) return;
+        const now = api.document.history();
+        for (const u of undoButtons) if (!u.button.disabled && !undoStillApplies(u.after, now)) { u.button.disabled = true; u.button.title = STALE_UNDO; }
+      };
+      const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", () => { refreshContext(); refreshUndo(); }), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext),
         api.events.on("view", () => { if (following && !revealing && !toolRunning) following = false; })];
 
       /* ── buttons ── */
@@ -408,40 +468,52 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         let ppt = 8;
         while (ppt > 1 && (rect.x1 - rect.x0) * ppt * (rect.y1 - rect.y0) * ppt > 1_200_000) ppt = ppt > 8 ? ppt / 2 : ppt - 1;
         const blob = await api.graphics.renderRect(rect, { pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, grid: 0 });
-        return blob ? imageInput(blob) : null;
+        return blob ? imageInput(await shrinkImage(blob)) : null;
       };
 
-      /** Run one tool call, showing its footprint while it runs and flashing what it touched after. */
-      const runTool = async (call: Extract<AgentContent, { type: "tool_use" }>, row: ReturnType<Activity["step"]>): Promise<{ result: AgentContent; tool: Tool | undefined; failed: boolean }> => {
-        const tool = byName.get(call.name);
-        const what = row.start(call.input ?? {});
-        setPhase("tools", what);
-        const footprint = footprintOf(api, call.name, call.input ?? {});
-        intent.show(footprint);
-        try {
-          if (!tool) throw new Error(`no tool called ${call.name}`);
-          const box = following ? followBox(api, footprint) : null;
-          if (box) {
-            revealing = true;
-            try { if (!(await api.view.reveal(box, { fit: true }))) following = false; } finally { revealing = false; }
-          }
-          toolRunning = true;
-          let out: Awaited<ReturnType<Tool["run"]>>;
-          try { out = await tool.run(call.input ?? {}, ctx); } finally { toolRunning = false; }
-          row.done(out);
-          if (!footprintEmpty(footprint)) {
-            const kind = tool.writes ? "change" : "attention";
-            for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool.writes ? 700 : 400 });
-            if (footprint.units.length) api.view.flash({ units: footprint.units, kind });
-            if (footprint.locations.length) api.view.flash({ locations: footprint.locations, kind });
-          }
-          return { result: toContent(call.id, typeof out === "string" ? capResult(out) : out), tool, failed: false };
-        } catch (err) {
-          row.fail((err as Error).message);
-          return { result: toContent(call.id, `Error: ${(err as Error).message}`, true), tool, failed: true };
-        } finally {
-          intent.show(null);
-        }
+      /**
+       * What the panel does around each call the executor runs: the row starts and ends,
+       * the footprint is outlined while the call runs, the view glides there, and what a
+       * write touched flashes after.
+       */
+      const hooksFor = (rows: Map<string, ReturnType<Activity["step"]>>, act: Activity): ExecuteHooks => {
+        const footprints = new Map<string, Footprint>();
+        const rowFor = (call: { id: string; name: string; input?: Record<string, unknown> }, tool: Tool | undefined) => {
+          let row = rows.get(call.id);
+          if (!row) { row = act.step(tool, call.name, call.input ?? {}); rows.set(call.id, row); }
+          return row;
+        };
+        return {
+          async before(call, tool) {
+            const what = rowFor(call, tool).start(call.input ?? {});
+            setPhase("tools", what);
+            const footprint = footprintOf(api, call.name, call.input ?? {});
+            footprints.set(call.id, footprint);
+            intent.show(footprint);
+            const box = following ? followBox(api, footprint) : null;
+            if (box) {
+              revealing = true;
+              try { if (!(await api.view.reveal(box, { fit: true }))) following = false; } finally { revealing = false; }
+            }
+            toolRunning = true;
+          },
+          after(call, tool, outcome) {
+            toolRunning = false;
+            intent.show(null);
+            const row = rowFor(call, tool);
+            if (outcome.kind === "done") {
+              row.done(outcome.result);
+              const footprint = footprints.get(call.id);
+              if (footprint && !footprintEmpty(footprint)) {
+                const kind = tool?.writes ? "change" : "attention";
+                for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool?.writes ? 700 : 400 });
+                if (footprint.units.length) api.view.flash({ units: footprint.units, kind });
+                if (footprint.locations.length) api.view.flash({ locations: footprint.locations, kind });
+              }
+            } else if (outcome.kind === "failed") row.fail(outcome.message);
+            else row.skip(outcome.reason);
+          },
+        };
       };
 
       const submit = async (preset?: string) => {
@@ -463,6 +535,8 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         }
         state.messages.push({ role: "user", content });
         running = new AbortController();
+        // The map this turn is about: a tool never runs against a map that came in front later.
+        const turnDoc = api.document.id();
         following = ctx.settings().followMap && api.document.isOpen();
         send.setBusy(true);
         stop.hidden = false;
@@ -476,13 +550,19 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         const act = activity();
         const finishActivity = (stopped: boolean) => {
           const secs = Math.round((Date.now() - startedAt) / 1000);
-          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
+          const after = api.document.history();
+          const undoSteps = Math.max(0, after.undoDepth - historyBefore);
           const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+            const button = e.currentTarget as HTMLButtonElement;
+            if (!undoStillApplies(after, api.document.history())) { button.disabled = true; button.title = STALE_UNDO; phaseDetail.textContent = STALE_UNDO; return; }
             let count = 0;
             for (let i = 0; i < undoSteps; i++) { const label = api.document.history().undo; if (!label || !label.startsWith("AI:")) break; if (!api.document.undo()) break; count++; }
-            (e.currentTarget as HTMLButtonElement).disabled = true;
+            button.disabled = true;
             phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+            refreshUndo();
           } }) : null;
+          refreshUndo();
+          if (undo) undoButtons.push({ button: undo as HTMLButtonElement, after });
           act.finish({ secs, cost: turnCost, edits: edits.length, settings: settingsWrites.length, undo, stopped });
         };
         try {
@@ -499,7 +579,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
             act.thinkBreak();
             const pendingRows = new Map<string, ReturnType<Activity["step"]>>();
             const paint = () => { renderQueued = false; if (stream.el) { stream.el.replaceChildren(renderMarkdown(streamed), h("span", { className: "ai-caret" })); scroll(); } };
-            state.messages = trimHistory(state.messages);
+            state.messages = fitHistory(trimHistory(state.messages));
             state.conversation ??= newConversationId();
             const turn = state.turn ?? 0;
             state.turn = turn + 1;
@@ -536,16 +616,16 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
             else if (finalText) addAssistant(finalText);
             if (r.output.stopReason === "refusal") { setPhase("failed", "The model declined."); break; }
             if (!continues) break;
-            const results: AgentContent[] = [];
-            for (const call of calls) {
-              const row = pendingRows.get(call.id) ?? act.step(byName.get(call.name), call.name, null);
-              pendingRows.delete(call.id);
-              const { result, tool, failed } = await runTool(call, row);
-              results.push(result);
-              if (tool?.writes && !failed) (tool.settings ? settingsWrites : edits).push(call.name);
-            }
-            for (const row of pendingRows.values()) row.skip();
-            state.messages.push({ role: "user", content: results });
+            // Stop between calls stops the calls: what is left is answered as not run, and
+            // the turn ends once the model has been told so. The same for a map switch.
+            const batch = await executeCalls(calls, { api, tools: byName, ctx, signal: running.signal, turnDoc }, hooksFor(pendingRows, act));
+            const called = new Set(calls.map((c) => c.id));
+            for (const [id, row] of pendingRows) if (!called.has(id)) row.skip();
+            edits.push(...batch.edits);
+            settingsWrites.push(...batch.settingsWrites);
+            state.messages.push({ role: "user", content: batch.results });
+            if (batch.stopped) throw new ScmjsError("aborted", "Stopped.");
+            if (batch.mapChanged) throw new Error(MAP_CHANGED);
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1000);
@@ -555,9 +635,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
-          // Keep the history consistent: drop a user message the model never answered.
-          const last = state.messages[state.messages.length - 1];
-          if (last?.role === "user") state.messages.pop();
+          state.messages = afterFailedTurn(state.messages);
           finishActivity(true);
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {

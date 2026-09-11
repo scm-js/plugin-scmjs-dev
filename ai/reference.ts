@@ -203,40 +203,80 @@ function mapLayer(p: ReferenceParts): string {
 
 export type ReferencePart = "units" | "doodads" | "triggers";
 export const REFERENCE_PARTS: readonly ReferencePart[] = ["units", "doodads", "triggers"];
+export type ReferenceSection = "conditions" | "actions" | "briefing" | "values" | "scripts";
+export const REFERENCE_SECTIONS: readonly ReferenceSection[] = ["conditions", "actions", "briefing", "values", "scripts"];
 
-/** One of the long tables, for the reference tool. */
-export function buildReferenceDetail(p: ReferenceParts, part: ReferencePart): string {
+export interface ReferenceFilter {
+  /** Keep only the rows whose name contains this, case-insensitively. */
+  query?: string;
+  /** The triggers part only: one of its sections. */
+  section?: ReferenceSection;
+}
+
+/**
+ * One of the long tables, for the reference tool — whole, or the rows a query names,
+ * so a question about one unit or one action does not cost the whole table.
+ */
+export function buildReferenceDetail(p: ReferenceParts, part: ReferencePart, filter: ReferenceFilter = {}): string {
   const out: string[] = [];
+  const q = (filter.query ?? "").trim().toLowerCase();
+  const hit = (name: string) => !q || name.toLowerCase().includes(q);
+  const heading = (all: number, kept: number, what: string) => (q ? ` (${kept} of ${all} ${what} matching "${filter.query!.trim()}")` : "");
+  const want = (s: ReferenceSection) => !filter.section || filter.section === s;
   switch (part) {
-    case "units":
-      out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
-      for (const u of p.units) {
+    case "units": {
+      const units = p.units.filter((u) => hit(u.name) || (u.customName !== undefined && hit(u.customName)));
+      out.push(`## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.${heading(p.units.length, units.length, "units")}`);
+      for (const u of units) {
         const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
         out.push(`${u.id}: ${u.name}${u.customName ? ` ("${u.customName}" here)` : ""} | ${u.race} | ${u.width}×${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
       }
       break;
-    case "doodads":
-      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)`);
-      for (const c of p.doodadCategories) out.push(`- ${c.name} (${c.doodads.length}): ${c.doodads.map((d) => `${d.name} [${d.id}] ${d.width}×${d.height}`).join(", ")}`);
+    }
+    case "doodads": {
+      // A query names a category (all of it) or doodads within categories.
+      const categories = p.doodadCategories.map((c) => (hit(c.name) ? c : { ...c, doodads: c.doodads.filter((d) => hit(d.name)) })).filter((c) => c.doodads.length);
+      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)${heading(p.doodadCategories.length, categories.length, "categories")}`);
+      for (const c of categories) out.push(`- ${c.name} (${c.doodads.length}): ${c.doodads.map((d) => `${d.name} [${d.id}] ${d.width}×${d.height}`).join(", ")}`);
       break;
-    case "triggers":
-      out.push("## Trigger conditions (name(argument: kind, …))");
-      for (const c of p.conditions) out.push(`- ${c.name}(${c.args.map((a) => `${a.label}: ${a.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Trigger actions");
-      for (const a of p.actions) out.push(`- ${a.name}(${a.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Briefing actions");
-      for (const a of p.briefingActions) out.push(`- ${a.name}(${a.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Argument values by kind");
-      for (const c of p.choices) if (c.labels.length) out.push(`- ${c.kind}: ${c.labels.join(", ")}`);
+    }
+    case "triggers": {
+      const conditions = p.conditions.filter((c) => hit(c.name));
+      const actions = p.actions.filter((a) => hit(a.name));
+      const briefing = p.briefingActions.filter((a) => hit(a.name));
+      const choices = p.choices.filter((c) => c.labels.length && (hit(c.kind) || c.labels.some(hit)));
+      if (want("conditions")) {
+        out.push(`## Trigger conditions (name(argument: kind, …))${heading(p.conditions.length, conditions.length, "conditions")}`);
+        for (const c of conditions) out.push(`- ${c.name}(${c.args.map((a) => `${a.label}: ${a.kind}`).join(", ")})`);
+        out.push("");
+      }
+      if (want("actions")) {
+        out.push(`## Trigger actions${heading(p.actions.length, actions.length, "actions")}`);
+        for (const a of actions) out.push(`- ${a.name}(${a.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+        out.push("");
+      }
+      if (want("briefing")) {
+        out.push(`## Briefing actions${heading(p.briefingActions.length, briefing.length, "briefing actions")}`);
+        for (const a of briefing) out.push(`- ${a.name}(${a.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+        out.push("");
+      }
+      if (want("values")) {
+        out.push("## Argument values by kind");
+        for (const c of choices) out.push(`- ${c.kind}: ${c.labels.join(", ")}`);
+        if (!q) {
       out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
       out.push("- location: a location name of this map (list_locations); switch: a switch name or \"Switch N\" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)");
-      if (p.aiScripts.length) { out.push(""); out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`); }
+        }
+      }
+      if (want("scripts") && p.aiScripts.length) {
+        const scripts = p.aiScripts.filter(hit);
+        out.push("");
+        out.push(`## AI scripts (Run AI Script)${heading(p.aiScripts.length, scripts.length, "scripts")}: ${scripts.join("; ")}`);
+      }
       break;
+    }
   }
-  return out.join("\n");
+  return out.join("\n").trim();
 }
 
 /** The map layer's inputs, gathered fresh each turn: they are what an edit can change. */
@@ -302,7 +342,7 @@ export function referenceFor(api: PluginApi): ReferenceLayers | undefined {
 }
 
 /** One of the long tables for the open map, for the reference tool. */
-export function referenceDetailFor(api: PluginApi, part: ReferencePart): string | undefined {
+export function referenceDetailFor(api: PluginApi, part: ReferencePart, filter: ReferenceFilter = {}): string | undefined {
   const c = cached(api);
-  return c ? buildReferenceDetail(c.parts, part) : undefined;
+  return c ? buildReferenceDetail(c.parts, part, filter) : undefined;
 }

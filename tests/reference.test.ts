@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildReference, buildReferenceDetail, buildReferenceLayers, type ReferenceParts } from "../ai/reference";
-import { chipsFor, pruneImages, QUICK_PROMPTS, trimHistory } from "../ai/assistant";
+import { paged } from "../ai/tools/common";
+import { windowOf } from "../ai/tools/script";
+import { afterFailedTurn, chipsFor, fitHistory, pruneImages, QUICK_PROMPTS, TRIM_TO, trimHistory, undoStillApplies } from "../ai/assistant";
 import type { AgentMessage } from "../protocol";
 
 const parts: ReferenceParts = {
@@ -71,6 +73,23 @@ describe("reference layers", () => {
     expect(renamed[2]).not.toBe(map);
   });
 
+  it("answers a query's rows of a long table, and one section of the triggers", () => {
+    const units = buildReferenceDetail(parts, "units", { query: "ghost" });
+    expect(units).toContain('(1 of 2 units matching "ghost")');
+    expect(units).toContain("1: Terran Ghost");
+    expect(units).not.toContain("0: Terran Marine");
+    expect(buildReferenceDetail(parts, "units", { query: "sniper" })).toContain("Terran Ghost"); // the map's own name for it
+    expect(buildReferenceDetail(parts, "doodads", { query: "tree" })).toContain("Jungle Tree");
+    expect(buildReferenceDetail(parts, "doodads", { query: "rock" })).not.toContain("Jungle Tree");
+    const actions = buildReferenceDetail(parts, "triggers", { section: "actions" });
+    expect(actions).toContain("## Trigger actions");
+    expect(actions).not.toContain("## Trigger conditions");
+    expect(actions).not.toContain("## Argument values");
+    const bring = buildReferenceDetail(parts, "triggers", { query: "bring" });
+    expect(bring).toContain("- Bring(");
+    expect(bring).not.toContain("- Display Text Message(");
+  });
+
   it("answers the long tables on demand", () => {
     const units = buildReferenceDetail(parts, "units");
     expect(units).toContain("0: Terran Marine | T | 1×1 | ground | 40/0/0 | 50/0 | 360 | Gauss Rifle 6");
@@ -104,6 +123,73 @@ describe("assistant history", () => {
     const ten = m.slice(0, 10);
     expect(trimHistory(ten, 10)).toBe(ten);
     expect(QUICK_PROMPTS.length).toBeGreaterThan(3);
+  });
+
+  it("keeps the brief and whole exchanges when one instruction runs many tool rounds", () => {
+    const m: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "build the whole scenario" }] }];
+    for (let i = 0; i < 30; i++) {
+      m.push({ role: "assistant", content: [{ type: "tool_use", id: `t${i}`, name: "x", input: {} }] });
+      m.push({ role: "user", content: [{ type: "tool_result", toolUseId: `t${i}`, content: "ok" }] });
+    }
+    const t = trimHistory(m); // 61 messages and not one clean user message after the first
+    expect(t.length).toBeGreaterThan(1);
+    expect(t.length).toBeLessThanOrEqual(TRIM_TO + 1);
+    expect(t[0]).toBe(m[0]);
+    expect(t[1].role).toBe("assistant");
+    const uses = new Set(t.flatMap((x) => x.content.filter((c) => c.type === "tool_use").map((c) => (c as { id: string }).id)));
+    for (const x of t) for (const c of x.content) if (c.type === "tool_result") expect(uses.has(c.toolUseId)).toBe(true);
+  });
+
+  it("fits the history to the request's size: pictures first, then whole exchanges, the brief kept", () => {
+    const picture = { type: "image" as const, source: { mediaType: "image/png" as const, data: "A".repeat(400_000) } };
+    const m: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "the brief" }] }];
+    for (let i = 0; i < 4; i++) {
+      m.push({ role: "assistant", content: [{ type: "tool_use", id: `t${i}`, name: "screenshot", input: {} }] });
+      m.push({ role: "user", content: [{ type: "tool_result", toolUseId: `t${i}`, content: [{ type: "text", text: "shot" }, picture] }] });
+    }
+    expect(JSON.stringify(m).length).toBeGreaterThan(1_000_000);
+    const fit = fitHistory(m, 1_000_000);
+    expect(JSON.stringify(fit).length).toBeLessThanOrEqual(1_000_000);
+    expect(fit[0]).toBe(m[0]);
+    expect(fit).toHaveLength(m.length); // one picture kept was enough; no exchange had to go
+    // Text alone past the cap: exchanges go from the front, the brief stays, every result keeps its call.
+    const long: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "the brief" }] }];
+    for (let i = 0; i < 40; i++) {
+      long.push({ role: "assistant", content: [{ type: "tool_use", id: `t${i}`, name: "x", input: {} }] });
+      long.push({ role: "user", content: [{ type: "tool_result", toolUseId: `t${i}`, content: "x".repeat(50_000) }] });
+    }
+    const cut = fitHistory(long, 500_000);
+    expect(JSON.stringify(cut).length).toBeLessThanOrEqual(500_000);
+    expect(cut[0]).toBe(long[0]);
+    expect(cut[1].role).toBe("assistant");
+    expect(cut.length).toBeGreaterThan(2);
+    const small = long.slice(0, 3);
+    expect(fitHistory(small, 500_000)).toBe(small); // under the cap nothing moves
+  });
+
+  it("keeps the tool results of a turn that failed after its edits, and drops an unanswered question", () => {
+    const asked: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "q" }] }];
+    expect(afterFailedTurn(asked)).toEqual([]);
+    const edited: AgentMessage[] = [...asked, { role: "assistant", content: [{ type: "tool_use", id: "t", name: "place", input: {} }] }, { role: "user", content: [{ type: "tool_result", toolUseId: "t", content: "placed" }] }];
+    expect(afterFailedTurn(edited)).toBe(edited);
+  });
+
+  it("knows when a turn's Undo no longer applies", () => {
+    const after = { undo: "AI: place units", undoDepth: 4 };
+    expect(undoStillApplies(after, { undo: "AI: place units", undoDepth: 4 })).toBe(true);
+    expect(undoStillApplies(after, { undo: "Paint terrain", undoDepth: 5 })).toBe(false); // the person edited since
+    expect(undoStillApplies(after, { undo: "AI: earlier", undoDepth: 3 })).toBe(false); // something was undone since
+  });
+
+  it("pages a list and windows a long text", () => {
+    const rows = Array.from({ length: 7 }, (_, i) => i);
+    expect(paged(rows, {}, 3, 10)).toEqual({ count: 3, matched: 7, next: 3, items: [0, 1, 2] });
+    expect(paged(rows, { offset: 3, limit: 3 }, 3, 10)).toEqual({ count: 3, matched: 7, offset: 3, next: 6, items: [3, 4, 5] });
+    expect(paged(rows, { offset: 6 }, 3, 10)).toEqual({ count: 1, matched: 7, offset: 6, items: [6] });
+    expect(paged(rows, { limit: 99 }, 3, 5)).toMatchObject({ count: 5, next: 5 });
+    expect(windowOf("short", 0, 100)).toBe("short");
+    expect(windowOf("abcdefghij", 0, 4)).toBe("10 characters in all; showing 0–4; ask again with offset=4 for the rest.\n\nabcd");
+    expect(windowOf("abcdefghij", 8, 4)).toBe("10 characters in all; showing 8–10.\n\nij");
   });
 
   it("keeps only the newest pictures when it trims", () => {

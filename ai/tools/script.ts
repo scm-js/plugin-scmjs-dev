@@ -1,18 +1,28 @@
 /** The trigger script, the view, the history and the selection. */
-import { capResult, ints, num, obj, plural, rectOf, str, TILE, type Tool } from "./common";
+import { capResult, fail, ints, num, obj, plural, rectOf, str, TILE, type Tool } from "./common";
 import { describeDiagnostic, NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
+
+export const DECLARATIONS_WINDOW = 60_000;
+
+/** A window of a long text, whole when it fits, else with a first line saying where the rest starts. */
+export function windowOf(text: string, offset: number, size: number): string {
+  if (text.length <= size && offset === 0) return text;
+  const slice = text.slice(offset, offset + size);
+  const next = offset + slice.length;
+  return `${text.length} characters in all; showing ${offset}–${next}${next < text.length ? `; ask again with offset=${next} for the rest` : ""}.\n\n${slice}`;
+}
 
 export function scriptTools(): Tool[] {
   return [
     {
       def: { name: "script_state", description: "The map's TrigScript: whether there is one, its files, whether the built block is intact.", inputSchema: obj({}) },
       writes: false,
-      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const s = script.state(); return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 60_000) : "No map is open."; },
+      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return fail(NO_SCRIPT_PLUGIN); const s = script.state(); return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 60_000) : "No map is open."; },
     },
     {
-      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script.", inputSchema: obj({}) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script. Comes in windows of 60,000 characters: the first line says where to ask again with `offset` for the rest.", inputSchema: obj({ offset: { type: "integer", description: "the character to start at; the previous window's answer says which" } }) },
       writes: false,
-      run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const d = script.declarations({ compact: true }); return d.length > 60_000 ? `${d.slice(0, 60_000)}\n… cut.` : d; },
+      run: (input, { api }) => { const script = scriptBridge(api); if (!script) return fail(NO_SCRIPT_PLUGIN); return windowOf(script.declarations({ compact: true }), Math.max(0, Math.round(num(input.offset))), DECLARATIONS_WINDOW); },
     },
     {
       def: { name: "compile_script", description: "Check a TrigScript (ordinary TypeScript that runs to record triggers; read script_declarations first) without building it: type-check it, run it, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts; the map's other script files stay as they are.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
@@ -20,9 +30,9 @@ export function scriptTools(): Tool[] {
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
         const r = await script.compile(str(input.source));
-        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n, p) => n + p.count, 0)}` : ""}.` : capResult({ errors: r.diagnostics.map(describeDiagnostic) });
+        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n, p) => n + p.count, 0)}` : ""}.` : fail(capResult({ errors: r.diagnostics.map(describeDiagnostic) }));
       },
     },
     {
@@ -32,9 +42,9 @@ export function scriptTools(): Tool[] {
       settings: true,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) });
+        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
       },
     },
     {

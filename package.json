@@ -1,6 +1,6 @@
 {
   "name": "@scm-js/plugin-scmjs-dev",
-  "version": "1.14.5",
+  "version": "1.16.0",
   "private": true,
   "description": "scmjs.dev — a plugin for the scmJS StarCraft map editor: your account, map storage with revisions, and the AI features (scenarios, maps, triggers, an assistant) on one free trial and one sign-in.",
   "author": "Jeany",

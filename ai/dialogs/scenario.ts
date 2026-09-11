@@ -27,7 +27,7 @@ import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
 import { compactTriggers, hasScriptPlugin, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { toolkitContext, addSystem } from "../tools/ums";
-import { paramsOf, systemKinds, ToolkitError } from "../ums";
+import { paramsOf, systemKinds, ToolkitError, waitingOn } from "../ums";
 import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
 import { openReview } from "./review";
 
@@ -50,6 +50,15 @@ interface Step {
   /** Shown beside the row while it runs, for a step that takes a while. */
   hint?: string;
   run: () => Promise<string>;
+}
+
+/** A system step that cannot build yet: the locations it names are not on the map. Not a failure — it waits. */
+class Waiting extends Error {
+  readonly locations: string[];
+  constructor(locations: string[]) {
+    super(`waits for location${locations.length === 1 ? "" : "s"} ${locations.map((l) => `"${l}"`).join(", ")}`);
+    this.locations = locations;
+  }
 }
 
 /** The effort the terrain step asks for: the plan is a coarse grid, so the standard quality runs it at medium rather than the server's high, which spent minutes reasoning on a 32×32 grid. */
@@ -339,7 +348,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
-            placeMissingLocations();
+            noteMissingLocations();
             return summarizeRender(rendered);
           },
         });
@@ -356,19 +365,14 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             if (!r) throw new Error(runner.lastError ?? "no plan came back");
             return r.output;
         };
-        /** A location the design needs that the plan did not make is put at the centre, named, and reported — the systems still build. */
-        const placeMissingLocations = () => {
+        /** The design's locations that are not on the map. A system that names one waits rather than building against a box at the centre, where a goal or a spawn would spoil the game. */
+        const missingLocations = () => {
             const have = new Set(api.document.scenario()!.locations.map((_, i) => api.names.location(i).toLowerCase()));
-            const missing = locationNames.filter((n) => !have.has(n.toLowerCase()));
-            if (missing.length) {
-              api.document.edit("AI: missing locations", (tx) => {
-                missing.forEach((name, i) => {
-                  const cx = Math.floor(cur.width / 2) + (i % 4) * 5 - 8, cy = Math.floor(cur.height / 2) + Math.floor(i / 4) * 5 - 8;
-                  tx.addLocation({ left: cx * TILE, top: cy * TILE, right: (cx + 4) * TILE, bottom: (cy + 4) * TILE }, name);
-                });
-              });
-              findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4×4 boxes; move them where they belong`);
-            }
+            return locationNames.filter((n) => !have.has(n.toLowerCase()));
+        };
+        const noteMissingLocations = () => {
+            const missing = missingLocations();
+            if (missing.length) findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place: ${missing.join(", ")}. The systems that need them wait; draw the locations (Layers ▸ Locations), then build the waiting systems below.`);
         };
         steps.push({
           label: "Players and forces",
@@ -419,12 +423,15 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
           },
         });
+        const systemStepFrom = steps.length;
         for (const s of d.systems) {
           steps.push({
             label: `${s.kind === "custom" ? "Script" : "System"}: ${s.name}`,
             run: async () => {
               if (s.kind === "custom") return writeCustom(s, d);
               if (!kinds.has(s.kind)) throw new Error(`the toolkit has no kind "${s.kind}"`);
+              const needs = waitingOn(s, missingLocations());
+              if (needs.length) throw new Waiting(needs);
               try {
                 const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { hyper, extraLocations: locationNames }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n) => `${s.name}: ${n}`));
@@ -469,6 +476,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const rows = steps.map((s) => addStep(s.label));
         stepsBox.scrollIntoView({ block: "nearest" });
         let failed = 0;
+        const waiting: number[] = [];
         for (let i = 0; i < steps.length; i++) {
           rows[i].set("running", steps[i].hint ?? "");
           // The long steps ask the service: their row carries the same clock as the runner, so the wait is visible where the eye is.
@@ -481,12 +489,32 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             if (left > 0) await new Promise((r) => setTimeout(r, left));
             rows[i].set("done", text);
           } catch (err) {
+            if (err instanceof Waiting) { waiting.push(i); rows[i].set("skipped", err.message); continue; }
             failed++;
             rows[i].set("failed", (err as Error).message);
             findings.push(`${steps[i].label}: ${(err as Error).message}`);
             if (i === 0) { for (let j = 1; j < steps.length; j++) rows[j].set("skipped", "not run"); break; }
           }
         }
+        /** The waiting systems, once their locations exist: each is tried again and waits on if they still do not. */
+        const buildWaiting = async () => {
+          const again = waiting.splice(0);
+          waitButton.setBusy(true);
+          for (const i of again) {
+            rows[i].set("running");
+            try { rows[i].set("done", await steps[i].run()); } catch (err) {
+              if (err instanceof Waiting) { waiting.push(i); rows[i].set("skipped", err.message); } else { rows[i].set("failed", (err as Error).message); findings.push(`${steps[i].label}: ${(err as Error).message}`); }
+            }
+          }
+          waitButton.setBusy(false);
+          waitBox.hidden = waiting.length === 0;
+          waitHint.textContent = waitingText();
+          if (waiting.length === 0) api.ui.status(`AI: built the rest of ${d.name}`);
+        };
+        const waitingText = () => `${waiting.length} system${waiting.length === 1 ? "" : "s"} wait${waiting.length === 1 ? "s" : ""} for locations the plan did not place: ${[...new Set(waiting.flatMap((i) => waitingOn(d.systems[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ")}. Draw them, then build.`;
+        const waitButton = w.button("Build the waiting systems", { onClick: () => void buildWaiting() });
+        const waitHint = h("span", { className: "ai-hint" }, "");
+        const waitBox = h("div", { className: "ai-btns", hidden: true }, waitButton, waitHint);
         runner.onTick = null;
         state.built = true;
         buildButton.setBusy(false);
@@ -499,8 +527,9 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
           w.button("Open the assistant", { onClick: () => { dialog.close(); api.commands.run("ask", `I just built the scenario "${d.name}" (${d.genre}) from a design: ${d.systems.map((s) => s.name).join(", ")}. Look it over and tell me what to fix first.`); } }),
           h("span", { className: "ai-hint" }, failed ? `${failed} step${failed === 1 ? "" : "s"} failed; the rest went in. Every edit is an undo step, the settings and triggers are not.` : "Built. Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit."),
         );
+        if (waiting.length) { waitHint.textContent = waitingText(); waitBox.hidden = false; afterBox.after(waitBox); }
         afterBox.hidden = false;
-        runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : `Built ${d.name}.`);
+        runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : waiting.length ? `Built ${d.name}; ${waiting.length} waiting.` : `Built ${d.name}.`);
         api.ui.status(`AI: built ${d.name}`);
       };
 

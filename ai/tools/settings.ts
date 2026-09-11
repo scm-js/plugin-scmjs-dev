@@ -1,5 +1,5 @@
 /** The Scenario menu's dialogs: players, forces, unit / upgrade / technology settings, the revision. Transactions outside the undo model. */
-import { bool, byName, capResult, colorIndexOf, fieldsGiven, ints, jsonOf, list, num, obj, plural, slotOf, str, techIdByName, unitIdByName, upgradeIdByName, type Tool } from "./common";
+import { bool, byName, capResult, colorIndexOf, fail, fieldsGiven, ints, jsonOf, list, noSuchTech, noSuchUnit, noSuchUpgrade, num, obj, plural, slotOf, str, techIdByName, unitIdByName, upgradeIdByName, type Tool } from "./common";
 
 export function settingsTools(): Tool[] {
   return [
@@ -57,7 +57,7 @@ export function settingsTools(): Tool[] {
       settings: true,
       run: (input, { api }) => {
         const id = unitIdByName(api, str(input.unit));
-        if (id === null) return `No unit is called "${str(input.unit)}".`;
+        if (id === null) return noSuchUnit(api, str(input.unit));
         const patch: Record<string, unknown> = {};
         for (const k of ["hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost"]) if (input[k] !== undefined) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== undefined) patch.useDefault = bool(input.useDefault);
@@ -80,7 +80,7 @@ export function settingsTools(): Tool[] {
       settings: true,
       run: (input, { api }) => {
         const id = upgradeIdByName(api, str(input.upgrade));
-        if (id === null) return `No upgrade is called "${str(input.upgrade)}".`;
+        if (id === null) return noSuchUpgrade(api, str(input.upgrade));
         const patch: Record<string, unknown> = {};
         for (const k of ["mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor"]) if (input[k] !== undefined) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== undefined) patch.useDefault = bool(input.useDefault);
@@ -98,7 +98,7 @@ export function settingsTools(): Tool[] {
       settings: true,
       run: (input, { api }) => {
         const id = techIdByName(api, str(input.tech));
-        if (id === null) return `No technology is called "${str(input.tech)}".`;
+        if (id === null) return noSuchTech(api, str(input.tech));
         const patch: Record<string, unknown> = {};
         for (const k of ["mineralCost", "gasCost", "researchTime", "energyCost"]) if (input[k] !== undefined) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== undefined) patch.useDefault = bool(input.useDefault);
@@ -115,7 +115,7 @@ export function settingsTools(): Tool[] {
       settings: true,
       run: (input, { api }) => {
         const v = str(input.version) as "original" | "hybrid" | "broodwar" | "remastered";
-        if (!["original", "hybrid", "broodwar", "remastered"].includes(v)) return "Unknown version.";
+        if (!["original", "hybrid", "broodwar", "remastered"].includes(v)) return fail("Unknown version.");
         const r = api.document.update("AI: map revision", (tx) => { tx.setVersion(v); });
         return r.changed ? `Now ${api.settings.version()?.label}. Sections touched: ${r.sections.join(", ")}.` : "Already that revision.";
       },

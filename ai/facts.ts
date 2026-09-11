@@ -185,6 +185,33 @@ export async function imageInput(blob: Blob): Promise<ImageInput> {
   return { mediaType, data: btoa(s) };
 }
 
+/** The most a picture may weigh before base64: under the server's image cap, with the rest of the request beside it. */
+export const MAX_IMAGE_BYTES = 700_000;
+
+/**
+ * A picture no larger than `maxBytes`: re-encoded as WebP and, while still too large,
+ * drawn smaller. Left as it is where the page cannot draw (a test, an old browser).
+ */
+export async function shrinkImage(blob: Blob, maxBytes = MAX_IMAGE_BYTES): Promise<Blob> {
+  if (blob.size <= maxBytes || typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  const bitmap = await createImageBitmap(blob);
+  let scale = 1;
+  let best = blob;
+  for (let i = 0; i < 4; i++) {
+    const w = Math.max(1, Math.round(bitmap.width * scale)), h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(w, h);
+    const g = canvas.getContext("2d");
+    if (!g) break;
+    g.drawImage(bitmap, 0, 0, w, h);
+    const out = await canvas.convertToBlob({ type: "image/webp", quality: 0.82 });
+    if (out.size < best.size) best = out;
+    if (out.size <= maxBytes) break;
+    scale *= Math.sqrt(maxBytes / out.size) * 0.95;
+  }
+  bitmap.close();
+  return best;
+}
+
 /** A scale that keeps a picture of `w × h` tiles under roughly `maxPixels`. */
 export function pixelsPerTileFor(w: number, h: number, wanted: number, maxPixels = 2_000_000): number {
   let ppt = wanted;

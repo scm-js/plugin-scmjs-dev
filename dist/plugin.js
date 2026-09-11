@@ -681,6 +681,296 @@ function shortDay(iso) {
   return d.toLocaleDateString(void 0, { weekday: "short", month: "short", day: "numeric" });
 }
 
+// ai/tools/common.ts
+var TILE = 32;
+var RESULT_CAP = 8e3;
+var fail = (message) => ({ error: message });
+var isFailure = (r) => typeof r !== "string" && typeof r.error === "string";
+var num = (v, d = 0) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d;
+var str = (v, d = "") => typeof v === "string" ? v : typeof v === "number" ? String(v) : d;
+var bool = (v) => typeof v === "boolean" ? v : typeof v === "string" && /^(true|yes|on)$/i.test(v) ? true : typeof v === "string" && /^(false|no|off)$/i.test(v) ? false : void 0;
+var list = (v) => Array.isArray(v) ? v : [];
+var ints = (v) => list(v).map((x) => Math.round(num(x, -1))).filter((x) => x >= 0);
+function rectOf(input, api) {
+  const info = api.document.info();
+  const W = info?.width ?? 0, H = info?.height ?? 0;
+  const x0 = Math.max(0, Math.min(W, Math.round(num(input.x0)))), y0 = Math.max(0, Math.min(H, Math.round(num(input.y0))));
+  const x1 = Math.max(x0, Math.min(W, Math.round(num(input.x1, W)))), y1 = Math.max(y0, Math.min(H, Math.round(num(input.y1, H))));
+  return { x0, y0, x1, y1 };
+}
+var hasRect = (input) => input.x0 !== void 0 || input.x1 !== void 0 || input.y0 !== void 0 || input.y1 !== void 0;
+var rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
+var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
+var pageSchema = { limit: { type: "integer", description: "at most this many" }, offset: { type: "integer", description: "skip this many matches; `next` in the answer is the offset of the page after" } };
+function paged(rows, input, defaultLimit, maxLimit) {
+  const limit = Math.max(1, Math.min(maxLimit, Math.round(num(input.limit, defaultLimit))));
+  const offset = Math.max(0, Math.round(num(input.offset)));
+  const items = rows.slice(offset, offset + limit);
+  return { count: items.length, matched: rows.length, ...offset ? { offset } : {}, ...offset + items.length < rows.length ? { next: offset + items.length } : {}, items };
+}
+function pageReport(result) {
+  const r = jsonOf(result);
+  if (!r || r.count === void 0) return "";
+  return `${num(r.count)} of ${num(r.matched ?? r.total)}${r.next !== void 0 ? ", more follow" : ""}`;
+}
+function capResult(value, cap = RESULT_CAP) {
+  const s = typeof value === "string" ? value : JSON.stringify(value);
+  return s.length <= cap ? s : `${s.slice(0, cap)}
+\u2026 cut: ${s.length - cap} more characters. Ask with a narrower filter.`;
+}
+function ownerName(o) {
+  return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
+}
+function ownerOf(v, d = 11) {
+  if (typeof v === "string" && /neutral/i.test(v)) return 11;
+  const n2 = num(v, d + 1);
+  if (n2 >= 12) return 11;
+  return Math.max(0, Math.round(n2) - 1);
+}
+function slotOf(v) {
+  if (v === void 0 || v === null) return null;
+  if (typeof v === "string" && /^default$/i.test(v.trim())) return "default";
+  const n2 = Math.round(num(v, -1));
+  return n2 >= 1 && n2 <= 12 ? n2 - 1 : null;
+}
+function byName(items, name) {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  const numeric = /^\d+$/.test(wanted) ? Number(wanted) : null;
+  if (numeric !== null) return items.find((i) => i.value === numeric) ?? null;
+  const exact = items.find((i) => i.label.toLowerCase() === wanted);
+  if (exact) return exact;
+  const starts = items.filter((i) => i.label.toLowerCase().startsWith(wanted));
+  if (starts.length === 1) return starts[0];
+  const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
+  if (within.length <= 1) return within[0] ?? null;
+  const plainForm = new RegExp(`^(?:(?:terran|zerg|protoss) )?${wanted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?: \\([^)]*\\))?$`);
+  const plain = within.filter((i) => plainForm.test(i.label.toLowerCase()));
+  if (plain.length === 0) return null;
+  const shortest = Math.min(...plain.map((i) => i.label.length));
+  const best = plain.filter((i) => i.label.length === shortest);
+  return best.length === 1 ? best[0] : null;
+}
+function nameCandidates(items, name, max = 6) {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return [];
+  return items.filter((i) => i.label.toLowerCase().includes(wanted)).slice(0, max).map((i) => i.label);
+}
+function noSuchName(kind, name, items) {
+  const c2 = nameCandidates(items, name);
+  return fail(`No ${kind} is called "${name}".${c2.length ? ` Did you mean ${c2.map((x) => `"${x}"`).join(", ")}?` : ""}`);
+}
+var noSuchUnit = (api, name) => noSuchName("unit", name, api.names.units().filter((u) => u.value < 228));
+var noSuchUpgrade = (api, name) => noSuchName("upgrade", name, api.names.upgrades());
+var noSuchTech = (api, name) => noSuchName("technology", name, api.names.techs());
+var ANY_MINERAL = ["mineral field", "minerals", "mineral patch", "mineral"];
+function isAnyMineralName(name) {
+  return ANY_MINERAL.includes(name.trim().toLowerCase());
+}
+var UNIT_ALIASES = {
+  ...Object.fromEntries(ANY_MINERAL.map((n2) => [n2, "Mineral Field (Type 1)"])),
+  geyser: "Vespene Geyser",
+  gas: "Vespene Geyser",
+  start: "Start Location",
+  "start location": "Start Location",
+  marine: "Terran Marine",
+  zergling: "Zerg Zergling",
+  zealot: "Protoss Zealot",
+  scv: "Terran SCV",
+  drone: "Zerg Drone",
+  probe: "Protoss Probe",
+  "command center": "Terran Command Center",
+  hatchery: "Zerg Hatchery",
+  nexus: "Protoss Nexus"
+};
+function unitIdByName(api, name) {
+  const alias = UNIT_ALIASES[name.trim().toLowerCase()];
+  const items = api.names.units().filter((u) => u.value < 228);
+  return byName(items, alias ?? name)?.value ?? null;
+}
+function upgradeIdByName(api, name) {
+  return byName(api.names.upgrades(), name)?.value ?? null;
+}
+function techIdByName(api, name) {
+  return byName(api.names.techs(), name)?.value ?? null;
+}
+function doodadByName(api, name) {
+  const wanted = name.trim().toLowerCase();
+  const all = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
+  if (/^\d+$/.test(wanted)) return all.find((d) => d.id === Number(wanted)) ?? null;
+  const exact = all.find((d) => d.name.toLowerCase() === wanted);
+  if (exact) return exact;
+  const within = all.filter((d) => d.name.toLowerCase().includes(wanted));
+  if (within.length) return within[Math.floor(Math.random() * within.length)];
+  const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === wanted || c2.name.toLowerCase().includes(wanted));
+  return cat && cat.doodads.length ? cat.doodads[Math.floor(Math.random() * cat.doodads.length)] : null;
+}
+function spriteByName(api, kind, name) {
+  const wanted = name.trim().toLowerCase();
+  if (/^\d+$/.test(wanted)) return Number(wanted);
+  if (kind === "unit") return unitIdByName(api, name);
+  const ids = api.palette.spriteGroups().flatMap((g) => g.ids);
+  const named = ids.map((id) => ({ value: id, label: api.palette.spriteName("pure", id) }));
+  return byName(named, name)?.value ?? null;
+}
+var PLAYER_COLOR_NAMES = ["Red", "Blue", "Teal", "Purple", "Orange", "Brown", "White", "Yellow", "Green", "Pale Yellow", "Tan", "Dark Aqua", "Pale Green", "Bluish Grey", "Pale Yellow 2", "Cyan"];
+function colorIndexOf(v) {
+  if (typeof v === "number") return v >= 0 && v < 256 ? Math.round(v) : null;
+  const s = str(v).trim().toLowerCase();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) return Number(s);
+  const i = PLAYER_COLOR_NAMES.findIndex((n2) => n2.toLowerCase() === s);
+  return i >= 0 ? i : null;
+}
+function toContent(toolUseId, result, isError = false) {
+  if (typeof result === "string") return { type: "tool_result", toolUseId, content: result, isError };
+  if (isFailure(result)) return { type: "tool_result", toolUseId, content: result.error, isError: true };
+  const parts = [];
+  if (result.text) parts.push({ type: "text", text: result.text });
+  if (result.image) parts.push({ type: "image", source: result.image });
+  return { type: "tool_result", toolUseId, content: parts.length ? parts : "Done.", isError };
+}
+function describeCall(name, input) {
+  const args = Object.entries(input).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.length > 40 ? `${v.slice(0, 40)}\u2026` : v) : Array.isArray(v) ? `[${v.length}]` : typeof v === "object" && v ? "{\u2026}" : String(v)}`).join(", ");
+  return `${name}(${args})`;
+}
+function prettyName(name) {
+  const s = words(name);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+var words = (key) => key.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+var RECT_KEYS = /* @__PURE__ */ new Set(["x0", "y0", "x1", "y1"]);
+function describeStep(tool, name, input, ctx) {
+  if (tool?.describe) {
+    try {
+      const s = tool.describe(input, ctx);
+      if (s) return s;
+    } catch {
+    }
+  }
+  const parts = [];
+  if (RECT_KEYS.size && [...RECT_KEYS].every((k) => typeof input[k] === "number")) parts.push(`${input.x0},${input.y0}\u2013${input.x1},${input.y1}`);
+  for (const [k, v] of Object.entries(input)) {
+    if (parts.length >= 2 || RECT_KEYS.has(k)) continue;
+    if (typeof v === "string" && v.trim() && v.length <= 32) parts.push(v);
+    else if (typeof v === "number") parts.push(`${words(k)} ${v}`);
+    else if (typeof v === "boolean") parts.push(v ? words(k) : `not ${words(k)}`);
+  }
+  return parts.length ? `${prettyName(name)}: ${parts.join(", ")}` : prettyName(name);
+}
+function reportStep(tool, result) {
+  if (isFailure(result)) return cut(result.error.split("\n")[0], 80);
+  if (tool?.report) {
+    try {
+      const s = tool.report(result);
+      if (s) return s;
+    } catch {
+    }
+  }
+  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
+  const text = result.trim();
+  if (text.startsWith("{") || text.startsWith("[")) {
+    try {
+      const v = JSON.parse(text.replace(/\n… cut: \d+ more characters\..*$/s, (m) => text.endsWith(m) ? "" : m));
+      const shape = describeShape(v);
+      if (shape) return shape;
+    } catch {
+    }
+  }
+  return cut(text.split("\n")[0], 80);
+}
+function describeShape(v) {
+  if (Array.isArray(v)) return plural(v.length, "item");
+  if (!v || typeof v !== "object") return "";
+  const parts = [];
+  for (const [k, val] of Object.entries(v)) {
+    if (parts.length >= 3) break;
+    const key = words(k);
+    if (Array.isArray(val)) parts.push(`${val.length} ${key}`);
+    else if (typeof val === "number") parts.push(`${key} ${val}`);
+    else if (typeof val === "string" && val.length <= 24 && parts.length === 0) parts.push(val);
+  }
+  return parts.join(", ");
+}
+var cut = (s, n2) => s.length > n2 ? `${s.slice(0, n2 - 1)}\u2026` : s;
+function summarizeResult(result) {
+  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? "(picture)" : "Done.");
+  const line = text.split("\n")[0];
+  return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
+}
+var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
+function jsonOf(result) {
+  const text = typeof result === "string" ? result : isFailure(result) ? "" : result.text ?? "";
+  if (!text.startsWith("{") && !text.startsWith("[")) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+function tally(names, max = 3) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const n2 of names) counts.set(n2, (counts.get(n2) ?? 0) + 1);
+  const parts = [...counts].map(([n2, c2]) => c2 === 1 ? n2 : `${n2} \xD7${c2}`);
+  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
+}
+function indexList(indices, max = 3) {
+  const shown = indices.slice(0, max).map((i) => `#${i}`).join(", ");
+  return indices.length > max ? `${shown} +${indices.length - max}` : shown;
+}
+var rectText = (input) => `${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`;
+function fieldsGiven(input, keys) {
+  return keys.filter((k) => input[k] !== void 0).map((k) => k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(", ");
+}
+function placedReport(result) {
+  const r = jsonOf(result);
+  if (!r) return "";
+  const placed = Array.isArray(r.placed) ? r.placed.length : 0;
+  const refused = Array.isArray(r.refused) ? r.refused : [];
+  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
+  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
+}
+
+// ai/execute.ts
+var MAP_CHANGED = "the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on";
+var STOPPED = "Not run: the turn was stopped.";
+async function executeCalls(calls, deps, hooks = {}) {
+  const out = { results: [], edits: [], settingsWrites: [], stopped: false, mapChanged: false };
+  for (const call of calls) {
+    const tool = deps.tools.get(call.name);
+    const input = call.input ?? {};
+    if (deps.signal.aborted) {
+      out.stopped = true;
+      out.results.push(toContent(call.id, STOPPED, true));
+      hooks.after?.(call, tool, { kind: "skipped", reason: STOPPED });
+      continue;
+    }
+    if (deps.api.document.id() !== deps.turnDoc) {
+      out.mapChanged = true;
+      out.results.push(toContent(call.id, `Error: ${MAP_CHANGED}`, true));
+      hooks.after?.(call, tool, { kind: "failed", message: MAP_CHANGED });
+      continue;
+    }
+    try {
+      await hooks.before?.(call, tool);
+      if (!tool) throw new Error(`no tool called ${call.name}`);
+      const result = await tool.run(input, deps.ctx);
+      out.results.push(toContent(call.id, result));
+      if (isFailure(result)) {
+        hooks.after?.(call, tool, { kind: "failed", message: result.error });
+        continue;
+      }
+      if (tool.writes) (tool.settings ? out.settingsWrites : out.edits).push(call.name);
+      hooks.after?.(call, tool, { kind: "done", result });
+    } catch (err) {
+      const message = err.message;
+      out.results.push(toContent(call.id, `Error: ${message}`, true));
+      hooks.after?.(call, tool, { kind: "failed", message });
+    }
+  }
+  return out;
+}
+
 // ai/facts.ts
 var TRIGGER_TEXT_BUDGET = 6e4;
 function players(api) {
@@ -818,7 +1108,7 @@ function unitNames(api) {
   const first = ["Start Location", "Mineral Field (Type 1)", "Mineral Field (Type 2)", "Mineral Field (Type 3)", "Vespene Geyser"];
   return [...first.filter((n2) => all.includes(n2)), ...all.filter((n2) => !first.includes(n2))];
 }
-function unitIdByName(api, name) {
+function unitIdByName2(api, name) {
   const wanted = name.trim().toLowerCase();
   const aliases = { "mineral field": "mineral field (type 1)", minerals: "mineral field (type 1)", "mineral patch": "mineral field (type 1)", geyser: "vespene geyser", "start location": "start location" };
   const target = aliases[wanted] ?? wanted;
@@ -834,6 +1124,26 @@ async function imageInput(blob) {
   const mediaType = blob.type === "image/jpeg" || blob.type === "image/webp" ? blob.type : "image/png";
   return { mediaType, data: btoa(s) };
 }
+var MAX_IMAGE_BYTES = 7e5;
+async function shrinkImage(blob, maxBytes = MAX_IMAGE_BYTES) {
+  if (blob.size <= maxBytes || typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  const bitmap = await createImageBitmap(blob);
+  let scale = 1;
+  let best = blob;
+  for (let i = 0; i < 4; i++) {
+    const w = Math.max(1, Math.round(bitmap.width * scale)), h3 = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(w, h3);
+    const g = canvas.getContext("2d");
+    if (!g) break;
+    g.drawImage(bitmap, 0, 0, w, h3);
+    const out = await canvas.convertToBlob({ type: "image/webp", quality: 0.82 });
+    if (out.size < best.size) best = out;
+    if (out.size <= maxBytes) break;
+    scale *= Math.sqrt(maxBytes / out.size) * 0.95;
+  }
+  bitmap.close();
+  return best;
+}
 function pixelsPerTileFor(w, h3, wanted, maxPixels = 2e6) {
   let ppt = wanted;
   while (ppt > 1 && w * ppt * h3 * ppt > maxPixels) ppt = ppt > 8 ? ppt / 2 : ppt - 1;
@@ -843,8 +1153,8 @@ function pixelsPerTileFor(w, h3, wanted, maxPixels = 2e6) {
 // ai/intent.ts
 var EMPTY = { rects: [], units: [], locations: [] };
 var n = (v, d = NaN) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d;
-var ints = (v) => Array.isArray(v) ? v.map((x) => Math.round(n(x))).filter((x) => Number.isInteger(x) && x >= 0) : [];
-function rectOf(input, width, height, whole) {
+var ints2 = (v) => Array.isArray(v) ? v.map((x) => Math.round(n(x))).filter((x) => Number.isInteger(x) && x >= 0) : [];
+function rectOf2(input, width, height, whole) {
   const has = ["x0", "y0", "x1", "y1"].some((k) => input[k] !== void 0);
   if (!has) return whole ? [{ x0: 0, y0: 0, x1: width, y1: height }] : [];
   const x0 = Math.max(0, Math.min(width, Math.round(n(input.x0, 0)))), y0 = Math.max(0, Math.min(height, Math.round(n(input.y0, 0))));
@@ -869,13 +1179,13 @@ function footprintOf(api, name, input) {
     case "paint_terrain":
     case "set_fog":
     case "scatter_doodads":
-      return { ...EMPTY, rects: rectOf(input, width, height, false) };
+      return { ...EMPTY, rects: rectOf2(input, width, height, false) };
     case "screenshot":
     case "terrain_at":
     case "fog_at":
     case "list_doodads":
     case "list_sprites":
-      return { ...EMPTY, rects: rectOf(input, width, height, name === "screenshot") };
+      return { ...EMPTY, rects: rectOf2(input, width, height, name === "screenshot") };
     case "place_units":
       return { ...EMPTY, rects: tilesOf(input.units, width, height) };
     case "place_base": {
@@ -890,19 +1200,19 @@ function footprintOf(api, name, input) {
       return { ...EMPTY, rects: tilesOf(input.sprites, width, height) };
     case "move_units": {
       const moves = Array.isArray(input.moves) ? input.moves : [];
-      return { ...EMPTY, rects: tilesOf(moves, width, height), units: ints(moves.map((m) => m.index)) };
+      return { ...EMPTY, rects: tilesOf(moves, width, height), units: ints2(moves.map((m) => m.index)) };
     }
     case "remove_units":
     case "update_units":
-      return { ...EMPTY, units: ints(input.indices) };
+      return { ...EMPTY, units: ints2(input.indices) };
     case "add_location":
-      return { ...EMPTY, rects: rectOf(input, width, height, false) };
+      return { ...EMPTY, rects: rectOf2(input, width, height, false) };
     case "edit_location": {
       const index = Math.round(n(input.index));
-      return { ...EMPTY, rects: rectOf(input, width, height, false), locations: Number.isInteger(index) && index >= 0 ? [index] : [] };
+      return { ...EMPTY, rects: rectOf2(input, width, height, false), locations: Number.isInteger(index) && index >= 0 ? [index] : [] };
     }
     case "remove_locations":
-      return { ...EMPTY, locations: ints(input.indices) };
+      return { ...EMPTY, locations: ints2(input.indices) };
     case "go_to": {
       const x = n(input.x), y = n(input.y);
       if (Number.isFinite(x) && Number.isFinite(y)) return { ...EMPTY, rects: tilesOf([{ x, y }], width, height) };
@@ -910,7 +1220,7 @@ function footprintOf(api, name, input) {
       return { ...EMPTY, units: Number.isFinite(unit) ? [unit] : [], locations: Number.isFinite(location2) ? [location2] : [] };
     }
     case "select": {
-      return { ...EMPTY, rects: rectOf(input, width, height, false), units: ints(input.units), locations: ints(input.locations) };
+      return { ...EMPTY, rects: rectOf2(input, width, height, false), units: ints2(input.units), locations: ints2(input.locations) };
     }
     case "layout_preset":
       return { ...EMPTY, rects: [{ x0: 0, y0: 0, x1: width, y1: height }] };
@@ -1578,7 +1888,7 @@ function compileShapes(shapes, ctx) {
       case "plateau": {
         const id = terrainOf(s, what);
         if (id === null) return;
-        const r = rectOf2(s);
+        const r = rectOf3(s);
         if (!r) {
           findings.push(`${what} has no size; skipped`);
           return;
@@ -1813,7 +2123,7 @@ function shapesToLayout(plan, ctx) {
   };
   return { plan: out, findings: compiled.findings, passes: compiled.passes };
 }
-function rectOf2(s) {
+function rectOf3(s) {
   if (typeof s.x !== "number" || typeof s.y !== "number" || typeof s.w !== "number" || typeof s.h !== "number" || s.w <= 0 || s.h <= 0) return null;
   return { x0: Math.round(s.x), y0: Math.round(s.y), x1: Math.round(s.x + s.w), y1: Math.round(s.y + s.h) };
 }
@@ -2149,41 +2459,66 @@ function mapLayer(p) {
   return out.join("\n");
 }
 var REFERENCE_PARTS = ["units", "doodads", "triggers"];
-function buildReferenceDetail(p, part) {
+var REFERENCE_SECTIONS = ["conditions", "actions", "briefing", "values", "scripts"];
+function buildReferenceDetail(p, part, filter = {}) {
   const out = [];
+  const q2 = (filter.query ?? "").trim().toLowerCase();
+  const hit = (name) => !q2 || name.toLowerCase().includes(q2);
+  const heading = (all, kept, what) => q2 ? ` (${kept} of ${all} ${what} matching "${filter.query.trim()}")` : "";
+  const want = (s) => !filter.section || filter.section === s;
   switch (part) {
-    case "units":
-      out.push("## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.");
-      for (const u of p.units) {
+    case "units": {
+      const units = p.units.filter((u) => hit(u.name) || u.customName !== void 0 && hit(u.customName));
+      out.push(`## Units (id: name | race | size in tiles | kind | hp/shields/armor | minerals/gas | build frames | weapons). units.dat values; unit_type shows the map's own.${heading(p.units.length, units.length, "units")}`);
+      for (const u of units) {
         const kind = u.building ? "building" : u.flyer ? "flyer" : "ground";
         out.push(`${u.id}: ${u.name}${u.customName ? ` ("${u.customName}" here)` : ""} | ${u.race} | ${u.width}\xD7${u.height} | ${kind} | ${u.hitPoints}/${u.shields}/${u.armor} | ${u.minerals}/${u.gas} | ${u.buildTime}${u.weapons ? ` | ${u.weapons}` : ""}`);
       }
       break;
-    case "doodads":
-      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)`);
-      for (const c2 of p.doodadCategories) out.push(`- ${c2.name} (${c2.doodads.length}): ${c2.doodads.map((d) => `${d.name} [${d.id}] ${d.width}\xD7${d.height}`).join(", ")}`);
+    }
+    case "doodads": {
+      const categories = p.doodadCategories.map((c2) => hit(c2.name) ? c2 : { ...c2, doodads: c2.doodads.filter((d) => hit(d.name)) }).filter((c2) => c2.doodads.length);
+      out.push(`## Doodads of the ${p.tileset} tileset (place_doodads takes a name or id; scatter_doodads takes a category)${heading(p.doodadCategories.length, categories.length, "categories")}`);
+      for (const c2 of categories) out.push(`- ${c2.name} (${c2.doodads.length}): ${c2.doodads.map((d) => `${d.name} [${d.id}] ${d.width}\xD7${d.height}`).join(", ")}`);
       break;
-    case "triggers":
-      out.push("## Trigger conditions (name(argument: kind, \u2026))");
-      for (const c2 of p.conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Trigger actions");
-      for (const a2 of p.actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Briefing actions");
-      for (const a2 of p.briefingActions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
-      out.push("");
-      out.push("## Argument values by kind");
-      for (const c2 of p.choices) if (c2.labels.length) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
-      out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
-      out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
-      if (p.aiScripts.length) {
+    }
+    case "triggers": {
+      const conditions = p.conditions.filter((c2) => hit(c2.name));
+      const actions = p.actions.filter((a2) => hit(a2.name));
+      const briefing = p.briefingActions.filter((a2) => hit(a2.name));
+      const choices = p.choices.filter((c2) => c2.labels.length && (hit(c2.kind) || c2.labels.some(hit)));
+      if (want("conditions")) {
+        out.push(`## Trigger conditions (name(argument: kind, \u2026))${heading(p.conditions.length, conditions.length, "conditions")}`);
+        for (const c2 of conditions) out.push(`- ${c2.name}(${c2.args.map((a2) => `${a2.label}: ${a2.kind}`).join(", ")})`);
         out.push("");
-        out.push(`## AI scripts (Run AI Script): ${p.aiScripts.join("; ")}`);
+      }
+      if (want("actions")) {
+        out.push(`## Trigger actions${heading(p.actions.length, actions.length, "actions")}`);
+        for (const a2 of actions) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+        out.push("");
+      }
+      if (want("briefing")) {
+        out.push(`## Briefing actions${heading(p.briefingActions.length, briefing.length, "briefing actions")}`);
+        for (const a2 of briefing) out.push(`- ${a2.name}(${a2.args.map((x) => `${x.label}: ${x.kind}`).join(", ")})`);
+        out.push("");
+      }
+      if (want("values")) {
+        out.push("## Argument values by kind");
+        for (const c2 of choices) out.push(`- ${c2.kind}: ${c2.labels.join(", ")}`);
+        if (!q2) {
+          out.push("- unit: a unit name from the reference, or the groups Any unit, Men, Buildings, Factories");
+          out.push('- location: a location name of this map (list_locations); switch: a switch name or "Switch N" (1-based); text / wav: a string; number / amount / count / duration / percent: an integer (duration in milliseconds, 1000 per second at Fastest is about 24 frames)');
+        }
+      }
+      if (want("scripts") && p.aiScripts.length) {
+        const scripts = p.aiScripts.filter(hit);
+        out.push("");
+        out.push(`## AI scripts (Run AI Script)${heading(p.aiScripts.length, scripts.length, "scripts")}: ${scripts.join("; ")}`);
       }
       break;
+    }
   }
-  return out.join("\n");
+  return out.join("\n").trim();
 }
 function gatherMap(api) {
   const info = api.document.info();
@@ -2235,9 +2570,9 @@ function cached(api) {
 function referenceFor(api) {
   return cached(api)?.layers;
 }
-function referenceDetailFor(api, part) {
+function referenceDetailFor(api, part, filter = {}) {
   const c2 = cached(api);
-  return c2 ? buildReferenceDetail(c2.parts, part) : void 0;
+  return c2 ? buildReferenceDetail(c2.parts, part, filter) : void 0;
 }
 
 // ai/presets.ts
@@ -2726,7 +3061,7 @@ function reachTouches(mask, reach, r) {
 }
 
 // ai/layout.ts
-var TILE = 32;
+var TILE2 = 32;
 var HALL = { w: 4, h: 3 };
 var MINERAL = { w: 2, h: 1 };
 var GEYSER = { w: 4, h: 2 };
@@ -2746,15 +3081,15 @@ function chebGap(a2, b) {
   return Math.max(gx, gy);
 }
 function centreOf(r) {
-  return { x: (r.x + r.w / 2) * TILE, y: (r.y + r.h / 2) * TILE };
+  return { x: (r.x + r.w / 2) * TILE2, y: (r.y + r.h / 2) * TILE2 };
 }
 function rectAt(px, py, size, toward) {
   const axis = (p, n2, c2) => {
-    const v = p / TILE - n2 / 2;
+    const v = p / TILE2 - n2 / 2;
     if (c2 === void 0 || Math.abs(v - Math.floor(v) - 0.5) > 1e-9) return Math.round(v);
     const lo = Math.floor(v);
     const hi = lo + 1;
-    return Math.abs((lo + n2 / 2) * TILE - c2) <= Math.abs((hi + n2 / 2) * TILE - c2) ? lo : hi;
+    return Math.abs((lo + n2 / 2) * TILE2 - c2) <= Math.abs((hi + n2 / 2) * TILE2 - c2) ? lo : hi;
   };
   return { x: axis(px, size.w, toward?.x), y: axis(py, size.h, toward?.y), w: size.w, h: size.h };
 }
@@ -2879,8 +3214,8 @@ function layoutBase(hall, spec) {
   return { hall, minerals, geysers, short };
 }
 function outwardDirection(px, py, width, height) {
-  const cx = width * TILE / 2;
-  const cy = height * TILE / 2;
+  const cx = width * TILE2 / 2;
+  const cy = height * TILE2 / 2;
   const dx = px - cx;
   const dy = py - cy;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return Math.PI;
@@ -3094,13 +3429,13 @@ function usableSymmetry(mode, width, height) {
   return symmetryAvailable(mode, width, height) ? mode : "none";
 }
 function imageCell(f, cx, cy, cellSize) {
-  const p = f({ x: (cx + 0.5) * cellSize * TILE, y: (cy + 0.5) * cellSize * TILE });
-  return { x: Math.floor(p.x / (cellSize * TILE)), y: Math.floor(p.y / (cellSize * TILE)) };
+  const p = f({ x: (cx + 0.5) * cellSize * TILE2, y: (cy + 0.5) * cellSize * TILE2 });
+  return { x: Math.floor(p.x / (cellSize * TILE2)), y: Math.floor(p.y / (cellSize * TILE2)) };
 }
 function enforceSymmetry(plan, width, height) {
   const mode = usableSymmetry(plan.symmetry, width, height);
   if (mode === "none") return { ...plan, symmetry: "none" };
-  const images = symmetryImages(mode, width * TILE, height * TILE);
+  const images = symmetryImages(mode, width * TILE2, height * TILE2);
   const grid = plan.grid.map((r) => r.split(""));
   const seen = /* @__PURE__ */ new Set();
   for (let cy = 0; cy < plan.rows; cy++) {
@@ -3120,8 +3455,8 @@ function enforceSymmetry(plan, width, height) {
   return { ...plan, symmetry: mode, grid: grid.map((r) => r.join("")) };
 }
 function placeBases(bases, mode, width, height) {
-  const images = symmetryImages(usableSymmetry(mode, width, height), width * TILE, height * TILE);
-  const toward = { x: width * TILE / 2, y: height * TILE / 2 };
+  const images = symmetryImages(usableSymmetry(mode, width, height), width * TILE2, height * TILE2);
+  const toward = { x: width * TILE2 / 2, y: height * TILE2 / 2 };
   const out = [];
   let nextPlayer = 1;
   const used = /* @__PURE__ */ new Set();
@@ -3444,14 +3779,14 @@ function renderPlan(api, input, options) {
       }
     }
     for (const u of plan.units) {
-      const id = unitIdByName(api, u.unit);
+      const id = unitIdByName2(api, u.unit);
       if (id === null) {
         findings.push(`no unit is called "${u.unit}"`);
         continue;
       }
       const size = api.palette.unitSize(id);
-      const px = u.x * TILE + TILE / 2;
-      const py = u.y * TILE + TILE / 2;
+      const px = u.x * TILE2 + TILE2 / 2;
+      const py = u.y * TILE2 + TILE2 / 2;
       const owner = u.player >= 12 ? NEUTRAL : u.player - 1;
       if (!tx.canPlaceUnit(id, px, py)) {
         findings.push(`${u.unit} at ${u.x},${u.y} is refused there (${describePlacement(api, id, px, py)})`);
@@ -3460,8 +3795,8 @@ function renderPlan(api, input, options) {
       const index = tx.placeUnit(id, owner, px, py);
       if (u.amount !== void 0) setResource(api, tx, index, u.amount);
       placed.units++;
-      const w = size ? Math.max(1, Math.round(size.width / TILE)) : 1;
-      const hgt = size ? Math.max(1, Math.round(size.height / TILE)) : 1;
+      const w = size ? Math.max(1, Math.round(size.width / TILE2)) : 1;
+      const hgt = size ? Math.max(1, Math.round(size.height / TILE2)) : 1;
       occupied.push(unitRect(px, py, w, hgt));
     }
     const scattered = scatterDoodads(plan, ctx, categories, (r) => occupied.some((o) => o.x0 < r.x1 && r.x0 < o.x1 && o.y0 < r.y1 && r.y0 < o.y1), DOODAD_MARGIN);
@@ -3480,7 +3815,7 @@ function renderPlan(api, input, options) {
     }
     if (refusedGround > 0) findings.push(`decoration: ${refusedGround} spot${refusedGround === 1 ? "" : "s"} left bare where the ground turned out to be shore, cliff or another terrain`);
     for (const l of plan.locations) {
-      const index = tx.addLocation({ left: l.x0 * TILE, top: l.y0 * TILE, right: l.x1 * TILE, bottom: l.y1 * TILE }, l.name);
+      const index = tx.addLocation({ left: l.x0 * TILE2, top: l.y0 * TILE2, right: l.x1 * TILE2, bottom: l.y1 * TILE2 }, l.name);
       if (index < 0) findings.push(`no free slot for location "${l.name}"`);
       else placed.locations++;
     }
@@ -3498,7 +3833,7 @@ function doodadSnapshot(api) {
   return scn.doodads.map((d) => {
     const info = api.palette.doodadInfo(d.doodadId);
     const width = info?.width ?? 1, height = info?.height ?? 1;
-    return { doodadId: d.doodadId, x: d.x, y: d.y, tx: Math.floor(d.x / TILE) - Math.floor(width / 2), ty: Math.floor(d.y / TILE) - Math.floor(height / 2), width, height, name: info?.name ?? `doodad ${d.doodadId}` };
+    return { doodadId: d.doodadId, x: d.x, y: d.y, tx: Math.floor(d.x / TILE2) - Math.floor(width / 2), ty: Math.floor(d.y / TILE2) - Math.floor(height / 2), width, height, name: info?.name ?? `doodad ${d.doodadId}` };
   });
 }
 function removedDoodads(before, after, cleared) {
@@ -3628,222 +3963,6 @@ function fitBase(hall, spec) {
   return best;
 }
 
-// ai/tools/common.ts
-var TILE2 = 32;
-var RESULT_CAP = 8e3;
-var num = (v, d = 0) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : d;
-var str = (v, d = "") => typeof v === "string" ? v : typeof v === "number" ? String(v) : d;
-var bool = (v) => typeof v === "boolean" ? v : typeof v === "string" && /^(true|yes|on)$/i.test(v) ? true : typeof v === "string" && /^(false|no|off)$/i.test(v) ? false : void 0;
-var list = (v) => Array.isArray(v) ? v : [];
-var ints2 = (v) => list(v).map((x) => Math.round(num(x, -1))).filter((x) => x >= 0);
-function rectOf3(input, api) {
-  const info = api.document.info();
-  const W = info?.width ?? 0, H = info?.height ?? 0;
-  const x0 = Math.max(0, Math.min(W, Math.round(num(input.x0)))), y0 = Math.max(0, Math.min(H, Math.round(num(input.y0))));
-  const x1 = Math.max(x0, Math.min(W, Math.round(num(input.x1, W)))), y1 = Math.max(y0, Math.min(H, Math.round(num(input.y1, H))));
-  return { x0, y0, x1, y1 };
-}
-var hasRect = (input) => input.x0 !== void 0 || input.x1 !== void 0 || input.y0 !== void 0 || input.y1 !== void 0;
-var rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
-var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
-function capResult(value, cap = RESULT_CAP) {
-  const s = typeof value === "string" ? value : JSON.stringify(value);
-  return s.length <= cap ? s : `${s.slice(0, cap)}
-\u2026 cut: ${s.length - cap} more characters. Ask with a narrower filter.`;
-}
-function ownerName(o) {
-  return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
-}
-function ownerOf(v, d = 11) {
-  if (typeof v === "string" && /neutral/i.test(v)) return 11;
-  const n2 = num(v, d + 1);
-  if (n2 >= 12) return 11;
-  return Math.max(0, Math.round(n2) - 1);
-}
-function slotOf(v) {
-  if (v === void 0 || v === null) return null;
-  if (typeof v === "string" && /^default$/i.test(v.trim())) return "default";
-  const n2 = Math.round(num(v, -1));
-  return n2 >= 1 && n2 <= 12 ? n2 - 1 : null;
-}
-function byName(items, name) {
-  const wanted = name.trim().toLowerCase();
-  if (!wanted) return null;
-  const numeric = /^\d+$/.test(wanted) ? Number(wanted) : null;
-  if (numeric !== null) return items.find((i) => i.value === numeric) ?? null;
-  const exact = items.find((i) => i.label.toLowerCase() === wanted);
-  if (exact) return exact;
-  const starts = items.filter((i) => i.label.toLowerCase().startsWith(wanted));
-  if (starts.length === 1) return starts[0];
-  const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
-  return within.length >= 1 ? within[0] : null;
-}
-var ANY_MINERAL = ["mineral field", "minerals", "mineral patch", "mineral"];
-function isAnyMineralName(name) {
-  return ANY_MINERAL.includes(name.trim().toLowerCase());
-}
-var UNIT_ALIASES = {
-  ...Object.fromEntries(ANY_MINERAL.map((n2) => [n2, "Mineral Field (Type 1)"])),
-  geyser: "Vespene Geyser",
-  gas: "Vespene Geyser",
-  start: "Start Location",
-  "start location": "Start Location",
-  marine: "Terran Marine",
-  zergling: "Zerg Zergling",
-  zealot: "Protoss Zealot",
-  scv: "Terran SCV",
-  drone: "Zerg Drone",
-  probe: "Protoss Probe",
-  "command center": "Terran Command Center",
-  hatchery: "Zerg Hatchery",
-  nexus: "Protoss Nexus"
-};
-function unitIdByName2(api, name) {
-  const alias = UNIT_ALIASES[name.trim().toLowerCase()];
-  const items = api.names.units().filter((u) => u.value < 228);
-  return byName(items, alias ?? name)?.value ?? null;
-}
-function upgradeIdByName(api, name) {
-  return byName(api.names.upgrades(), name)?.value ?? null;
-}
-function techIdByName(api, name) {
-  return byName(api.names.techs(), name)?.value ?? null;
-}
-function doodadByName(api, name) {
-  const wanted = name.trim().toLowerCase();
-  const all = api.palette.doodadCategories().flatMap((c2) => c2.doodads);
-  if (/^\d+$/.test(wanted)) return all.find((d) => d.id === Number(wanted)) ?? null;
-  const exact = all.find((d) => d.name.toLowerCase() === wanted);
-  if (exact) return exact;
-  const within = all.filter((d) => d.name.toLowerCase().includes(wanted));
-  if (within.length) return within[Math.floor(Math.random() * within.length)];
-  const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === wanted || c2.name.toLowerCase().includes(wanted));
-  return cat && cat.doodads.length ? cat.doodads[Math.floor(Math.random() * cat.doodads.length)] : null;
-}
-function spriteByName(api, kind, name) {
-  const wanted = name.trim().toLowerCase();
-  if (/^\d+$/.test(wanted)) return Number(wanted);
-  if (kind === "unit") return unitIdByName2(api, name);
-  const ids = api.palette.spriteGroups().flatMap((g) => g.ids);
-  const named = ids.map((id) => ({ value: id, label: api.palette.spriteName("pure", id) }));
-  return byName(named, name)?.value ?? null;
-}
-var PLAYER_COLOR_NAMES = ["Red", "Blue", "Teal", "Purple", "Orange", "Brown", "White", "Yellow", "Green", "Pale Yellow", "Tan", "Dark Aqua", "Pale Green", "Bluish Grey", "Pale Yellow 2", "Cyan"];
-function colorIndexOf(v) {
-  if (typeof v === "number") return v >= 0 && v < 256 ? Math.round(v) : null;
-  const s = str(v).trim().toLowerCase();
-  if (!s) return null;
-  if (/^\d+$/.test(s)) return Number(s);
-  const i = PLAYER_COLOR_NAMES.findIndex((n2) => n2.toLowerCase() === s);
-  return i >= 0 ? i : null;
-}
-function toContent(toolUseId, result, isError = false) {
-  if (typeof result === "string") return { type: "tool_result", toolUseId, content: result, isError };
-  const parts = [];
-  if (result.text) parts.push({ type: "text", text: result.text });
-  if (result.image) parts.push({ type: "image", source: result.image });
-  return { type: "tool_result", toolUseId, content: parts.length ? parts : "Done.", isError };
-}
-function describeCall(name, input) {
-  const args = Object.entries(input).map(([k, v]) => `${k}=${typeof v === "string" ? JSON.stringify(v.length > 40 ? `${v.slice(0, 40)}\u2026` : v) : Array.isArray(v) ? `[${v.length}]` : typeof v === "object" && v ? "{\u2026}" : String(v)}`).join(", ");
-  return `${name}(${args})`;
-}
-function prettyName(name) {
-  const s = words(name);
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-var words = (key) => key.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
-var RECT_KEYS = /* @__PURE__ */ new Set(["x0", "y0", "x1", "y1"]);
-function describeStep(tool, name, input, ctx) {
-  if (tool?.describe) {
-    try {
-      const s = tool.describe(input, ctx);
-      if (s) return s;
-    } catch {
-    }
-  }
-  const parts = [];
-  if (RECT_KEYS.size && [...RECT_KEYS].every((k) => typeof input[k] === "number")) parts.push(`${input.x0},${input.y0}\u2013${input.x1},${input.y1}`);
-  for (const [k, v] of Object.entries(input)) {
-    if (parts.length >= 2 || RECT_KEYS.has(k)) continue;
-    if (typeof v === "string" && v.trim() && v.length <= 32) parts.push(v);
-    else if (typeof v === "number") parts.push(`${words(k)} ${v}`);
-    else if (typeof v === "boolean") parts.push(v ? words(k) : `not ${words(k)}`);
-  }
-  return parts.length ? `${prettyName(name)}: ${parts.join(", ")}` : prettyName(name);
-}
-function reportStep(tool, result) {
-  if (tool?.report) {
-    try {
-      const s = tool.report(result);
-      if (s) return s;
-    } catch {
-    }
-  }
-  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
-  const text = result.trim();
-  if (text.startsWith("{") || text.startsWith("[")) {
-    try {
-      const v = JSON.parse(text.replace(/\n… cut: \d+ more characters\..*$/s, (m) => text.endsWith(m) ? "" : m));
-      const shape = describeShape(v);
-      if (shape) return shape;
-    } catch {
-    }
-  }
-  return cut(text.split("\n")[0], 80);
-}
-function describeShape(v) {
-  if (Array.isArray(v)) return plural(v.length, "item");
-  if (!v || typeof v !== "object") return "";
-  const parts = [];
-  for (const [k, val] of Object.entries(v)) {
-    if (parts.length >= 3) break;
-    const key = words(k);
-    if (Array.isArray(val)) parts.push(`${val.length} ${key}`);
-    else if (typeof val === "number") parts.push(`${key} ${val}`);
-    else if (typeof val === "string" && val.length <= 24 && parts.length === 0) parts.push(val);
-  }
-  return parts.join(", ");
-}
-var cut = (s, n2) => s.length > n2 ? `${s.slice(0, n2 - 1)}\u2026` : s;
-function summarizeResult(result) {
-  const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
-  const line = text.split("\n")[0];
-  return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
-}
-var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
-function jsonOf(result) {
-  const text = typeof result === "string" ? result : result.text ?? "";
-  if (!text.startsWith("{") && !text.startsWith("[")) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-function tally(names, max = 3) {
-  const counts = /* @__PURE__ */ new Map();
-  for (const n2 of names) counts.set(n2, (counts.get(n2) ?? 0) + 1);
-  const parts = [...counts].map(([n2, c2]) => c2 === 1 ? n2 : `${n2} \xD7${c2}`);
-  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
-}
-function indexList(indices, max = 3) {
-  const shown = indices.slice(0, max).map((i) => `#${i}`).join(", ");
-  return indices.length > max ? `${shown} +${indices.length - max}` : shown;
-}
-var rectText = (input) => `${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`;
-function fieldsGiven(input, keys) {
-  return keys.filter((k) => input[k] !== void 0).map((k) => k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(", ");
-}
-function placedReport(result) {
-  const r = jsonOf(result);
-  if (!r) return "";
-  const placed = Array.isArray(r.placed) ? r.placed.length : 0;
-  const refused = Array.isArray(r.refused) ? r.refused : [];
-  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
-  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
-}
-
 // ai/tools/layout.ts
 function slots(api) {
   const players2 = api.settings.players();
@@ -3862,7 +3981,7 @@ function pointOf(api, input, prefix) {
   const index = scn.locations.findIndex((l2, i) => (l2.left !== l2.right || l2.nameIndex > 0) && api.names.location(i).toLowerCase() === name.toLowerCase());
   if (index < 0) return `no location is called "${name}" (see list_locations)`;
   const l = scn.locations[index];
-  return { x: Math.floor((Math.min(l.left, l.right) + Math.max(l.left, l.right)) / 2 / TILE2), y: Math.floor((Math.min(l.top, l.bottom) + Math.max(l.top, l.bottom)) / 2 / TILE2), label: name };
+  return { x: Math.floor((Math.min(l.left, l.right) + Math.max(l.left, l.right)) / 2 / TILE), y: Math.floor((Math.min(l.top, l.bottom) + Math.max(l.top, l.bottom)) / 2 / TILE), label: name };
 }
 var SHAPE_OPS = ["ground", "rect", "diamond", "ellipse", "polygon", "stroke", "border", "plateau", "lane", "ramp", "bridge"];
 function readShapes(raw) {
@@ -3896,10 +4015,10 @@ function layoutTools() {
       writes: true,
       run: (input, { api }) => {
         const id = str(input.preset);
-        if (!presetById(id)) return `No preset is called "${id}". The presets:
-${presetSpecs().map((p) => p.id).join(", ")}`;
+        if (!presetById(id)) return fail(`No preset is called "${id}". The presets:
+${presetSpecs().map((p) => p.id).join(", ")}`);
         const info = api.document.info();
-        if (!info) return "No map is open.";
+        if (!info) return fail("No map is open.");
         const raw = input.params && typeof input.params === "object" ? input.params : {};
         const params = {};
         for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
@@ -3911,8 +4030,8 @@ ${presetSpecs().map((p) => p.id).join(", ")}`;
           plan = built.plan;
           notes = built.notes;
         } catch (err) {
-          if (err instanceof PresetError) return `Not laid out:
-${err.problems.map((p) => `- ${p}`).join("\n")}`;
+          if (err instanceof PresetError) return fail(`Not laid out:
+${err.problems.map((p) => `- ${p}`).join("\n")}`);
           throw err;
         }
         const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${id} layout`, clearArea: true });
@@ -3944,9 +4063,9 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
-        if (!info) return "No map is open.";
+        if (!info) return fail("No map is open.");
         const shapes = readShapes(input.shapes);
-        if (typeof shapes === "string") return shapes;
+        if (typeof shapes === "string") return fail(shapes);
         const dx = Math.round(num(input.originX)), dy = Math.round(num(input.originY));
         const locations = list(input.locations).map((l) => ({ name: str(l.name, "Location"), x0: Math.round(num(l.x0)) + dx, y0: Math.round(num(l.y0)) + dy, x1: Math.round(num(l.x1)) + dx, y1: Math.round(num(l.y1)) + dy }));
         const units = list(input.units).map((u) => ({ unit: str(u.unit), player: Math.round(num(u.player, 12)), x: Math.round(num(u.x)) + dx, y: Math.round(num(u.y)) + dy }));
@@ -3989,7 +4108,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         const fit = fitRamp({ x, y, direction: side }, ramps, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true);
         if (!fit) {
           const pairs = (VERIFIED_RAMPS[tileset] ?? []).map(([lo, hi]) => `${lo} \u2192 ${hi}`).join(", ") || "none the brush's cliffs can take";
-          return `No ramp fits within 12 tiles of ${x},${y} going ${side}. A ramp needs a straight diagonal cliff run facing ${side === "sw" ? "south-west" : "south-east"}, between ground this tileset has ramps for (${pairs}). Paint a plateau with a ramps parameter through paint_shapes to make such an edge.`;
+          return fail(`No ramp fits within 12 tiles of ${x},${y} going ${side}. A ramp needs a straight diagonal cliff run facing ${side === "sw" ? "south-west" : "south-east"}, between ground this tileset has ramps for (${pairs}). Paint a plateau with a ramps parameter through paint_shapes to make such an edge.`);
         }
         const r = api.document.edit("AI: place ramp", (tx) => {
           tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
@@ -4011,7 +4130,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         if (!bridgePairOf(api)) return "This tileset's bridges need bank pieces the isometric brush does not draw, so no bridge can be placed here. For a crossing, leave a gap of ground in the water.";
         const x = Math.round(num(input.x)), y = Math.round(num(input.y));
         const fit = fitDoodad({ x, y }, bridges, (id, tx, ty) => api.query.doodadPlacement(id, tx, ty)?.ok === true, { dx: 14, dy: 10 });
-        if (!fit) return `No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`;
+        if (!fit) return fail(`No bridge fits within 14 tiles of ${x},${y}. The water there is not a diagonal channel of the width this tileset's bridges span; a bridge shape in paint_shapes paints one and fits the bridge.`);
         const r = api.document.edit("AI: place bridge", (tx) => {
           tx.placeDoodad(fit.doodadId, fit.tx, fit.ty);
         });
@@ -4048,9 +4167,9 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       run: (input, { api }) => {
         const info = api.document.info();
         const scn = api.document.scenario();
-        if (!info || !scn) return "No map is open.";
+        if (!info || !scn) return fail("No map is open.");
         const player2 = input.player === void 0 ? null : ownerOf(input.player, -1);
-        if (player2 !== null && (player2 < 0 || player2 > 7)) return "player must be 1\u20138.";
+        if (player2 !== null && (player2 < 0 || player2 > 7)) return fail("player must be 1\u20138.");
         let hall;
         if (input.x !== void 0 && input.y !== void 0) {
           hall = { x: Math.round(num(input.x)), y: Math.round(num(input.y)), w: HALL.w, h: HALL.h };
@@ -4063,15 +4182,15 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         if (!inMap(hall, info.width, info.height)) return `A ${HALL.w} \xD7 ${HALL.h} hall at ${hall.x},${hall.y} hangs off the map.`;
         const centre = centreOf(hall);
         const askedDirection = str(input.direction).toLowerCase();
-        if (askedDirection && !DIRECTIONS.includes(askedDirection)) return `direction must be a compass point: ${DIRECTIONS.join(", ")}.`;
+        if (askedDirection && !DIRECTIONS.includes(askedDirection)) return fail(`direction must be a compass point: ${DIRECTIONS.join(", ")}.`);
         const direction = askedDirection ? directionAngle(askedDirection) : snapAngle(outwardDirection(centre.x, centre.y, info.width, info.height));
         const minerals = Math.max(0, Math.min(12, Math.round(num(input.minerals, 8))));
         const geysers = Math.max(0, Math.min(2, Math.round(num(input.geysers, 1))));
         const amount = Math.max(0, Math.round(num(input.amount, DEFAULT_MINERALS)));
         const gas = Math.max(0, Math.round(num(input.gas, DEFAULT_GAS)));
         const geyserSide = str(input.geyserSide) === "left" ? "left" : str(input.geyserSide) === "right" ? "right" : "auto";
-        const hallUnit = str(input.hall) ? unitIdByName(api, str(input.hall)) : null;
-        if (str(input.hall) && hallUnit === null) return `No unit is called "${str(input.hall)}".`;
+        const hallUnit = str(input.hall) ? unitIdByName2(api, str(input.hall)) : null;
+        if (str(input.hall) && hallUnit === null) return noSuchUnit(api, str(input.hall));
         if (hallUnit !== null && player2 === null) return "A hall needs a player to own it.";
         const fits = (r) => {
           const c2 = centreOf(r);
@@ -4080,7 +4199,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         };
         const fitted = fitBase(hall, { minerals, geysers, geyserSide, direction, fits });
         const { layout } = fitted;
-        const startHere = scn.units.some((u) => u.unitId === START_LOCATION && Math.abs(u.x - centre.x) < TILE2 && Math.abs(u.y - centre.y) < TILE2);
+        const startHere = scn.units.some((u) => u.unitId === START_LOCATION && Math.abs(u.x - centre.x) < TILE && Math.abs(u.y - centre.y) < TILE);
         const placed = { start: 0, hall: 0, minerals: 0, geysers: 0 };
         const notes = [];
         api.document.edit("AI: place base", (tx) => {
@@ -4137,7 +4256,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         const ignoreBridges = input.ignoreBridges === true;
         const blocked = ignoreBridges ? bridgeFootprints(api) : [];
         const mask = walkMask(api, blocked);
-        if (!mask) return "No map is open, or the tileset graphics are not loaded.";
+        if (!mask) return fail("No map is open, or the tileset graphics are not loaded.");
         const from = pointOf(api, input, "from"), to = pointOf(api, input, "to");
         if (typeof from === "string") return from;
         if (typeof to === "string") return to;
@@ -4149,7 +4268,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         const target = toWalkable ? to : nearestWalkable(mask, to.x, to.y);
         const scn = api.document.scenario();
         const toIndex = scn.locations.findIndex((l, i) => (l.left !== l.right || l.nameIndex > 0) && api.names.location(i).toLowerCase() === to.label.toLowerCase());
-        const box = toIndex >= 0 ? { x0: Math.floor(Math.min(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE2), y0: Math.floor(Math.min(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE2), x1: Math.ceil(Math.max(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE2), y1: Math.ceil(Math.max(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE2) } : null;
+        const box = toIndex >= 0 ? { x0: Math.floor(Math.min(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE), y0: Math.floor(Math.min(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE), x1: Math.ceil(Math.max(scn.locations[toIndex].left, scn.locations[toIndex].right) / TILE), y1: Math.ceil(Math.max(scn.locations[toIndex].top, scn.locations[toIndex].bottom) / TILE) } : null;
         const ok = box ? reachTouches(mask, reach, box) : !!target && reach[target.y * mask.width + target.x] === 1;
         let n2 = 0;
         for (let i = 0; i < reach.length; i++) n2 += reach[i];
@@ -4175,7 +4294,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
       writes: true,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
+        if (!scn) return fail("No map is open.");
         const { humans, computers } = slots(api);
         const owned = new Set(scn.units.map((u) => u.owner + 1));
         const problems = [];
@@ -4183,11 +4302,11 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`;
         for (const p of humans) if (!owned.has(p)) problems.push(`Player ${p} (human) owns no unit; a human is placed by the start location, so check it has one and that the triggers or the melee start give it something`);
         const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
         for (const p of humans) if (!starts.has(p)) problems.push(`Player ${p} (human) has no start location`);
-        const keeper = unitIdByName(api, "Zerg Overlord");
+        const keeper = unitIdByName2(api, "Zerg Overlord");
         for (const p of computers) {
           if (owned.has(p)) continue;
           if (input.fix === true && keeper !== null) {
-            const px = (scn.width - 2) * TILE2, py = (2 + fixed.length * 2) * TILE2;
+            const px = (scn.width - 2) * TILE, py = (2 + fixed.length * 2) * TILE;
             api.document.edit(`AI: keeper for player ${p}`, (tx) => {
               tx.placeUnit(keeper, p - 1, px, py);
             });
@@ -4261,13 +4380,13 @@ function objectTools() {
         const refused = [];
         api.document.edit("AI: place units", (tx) => {
           for (const u of wanted) {
-            const named = unitIdByName2(api, str(u.unit));
+            const named = unitIdByName(api, str(u.unit));
             if (named === null) {
               refused.push(`no unit called "${str(u.unit)}"`);
               continue;
             }
             const id = isAnyMineralName(str(u.unit)) ? mineralTypeAt(num(u.x), num(u.y)) : named;
-            const px = num(u.x) * TILE2 + TILE2 / 2, py = num(u.y) * TILE2 + TILE2 / 2;
+            const px = num(u.x) * TILE + TILE / 2, py = num(u.y) * TILE + TILE / 2;
             const owner = ownerOf(u.player, 0);
             if (!tx.canPlaceUnit(id, px, py)) {
               refused.push(`${api.names.unit(id)} at ${num(u.x)},${num(u.y)}: ${api.query.placement(id, px, py)?.reason ?? "refused"}`);
@@ -4283,11 +4402,11 @@ function objectTools() {
     },
     {
       def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints2(input.indices).length, "unit")} ${indexList(ints2(input.indices))}`,
+      describe: (input) => `Remove ${plural(ints(input.indices).length, "unit")} ${indexList(ints(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove units", (tx) => {
-          tx.removeUnits(ints2(input.indices));
+          tx.removeUnits(ints(input.indices));
         });
         return `Removed ${plural(r.units, "unit")}.`;
       }
@@ -4302,7 +4421,7 @@ function objectTools() {
           for (const m of list(input.moves)) {
             const index = num(m.index, -1);
             if (index < 0 || index >= tx.scenario.units.length) continue;
-            n2 += tx.updateUnits([index], () => ({ x: num(m.x) * TILE2 + TILE2 / 2, y: num(m.y) * TILE2 + TILE2 / 2 }));
+            n2 += tx.updateUnits([index], () => ({ x: num(m.x) * TILE + TILE / 2, y: num(m.y) * TILE + TILE / 2 }));
           }
         });
         return `Moved ${plural(n2, "unit")}.`;
@@ -4310,10 +4429,10 @@ function objectTools() {
     },
     {
       def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
-      describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints2(input.indices).length, "unit")}`,
+      describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints(input.indices).length, "unit")}`,
       writes: true,
       run: (input, { api }) => {
-        const indices = ints2(input.indices);
+        const indices = ints(input.indices);
         const used0 = api.consts.unit.used;
         const pct = (v) => Math.max(0, Math.min(100, Math.round(num(v))));
         let n2 = 0;
@@ -4388,22 +4507,22 @@ function objectTools() {
     },
     {
       def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints2(input.indices).length, "doodad")} ${indexList(ints2(input.indices))}`,
+      describe: (input) => `Remove ${plural(ints(input.indices).length, "doodad")} ${indexList(ints(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove doodads", (tx) => {
-          tx.removeDoodads(ints2(input.indices));
+          tx.removeDoodads(ints(input.indices));
         });
         return `Removed ${plural(r.doodads, "doodad")}.`;
       }
     },
     {
       def: { name: "convert_doodads", description: "Convert doodads (by index, from list_doodads) to plain terrain: the tiles stay as ground, the doodad record goes, an overlay stays as an ordinary sprite. Use it when a ramp or cliff piece is to be touched up tile by tile afterwards. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Convert ${plural(ints2(input.indices).length, "doodad")} to terrain`,
+      describe: (input) => `Convert ${plural(ints(input.indices).length, "doodad")} to terrain`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: convert doodads to terrain", (tx) => {
-          tx.convertDoodads(ints2(input.indices));
+          tx.convertDoodads(ints(input.indices));
         });
         return `Converted ${plural(r.doodads, "doodad")} to terrain.`;
       }
@@ -4413,9 +4532,9 @@ function objectTools() {
       describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
-        const rect = rectOf3(input, api);
+        const rect = rectOf(input, api);
         const cat = api.palette.doodadCategories().find((c2) => c2.name.toLowerCase() === str(input.category).toLowerCase()) ?? api.palette.doodadCategories().find((c2) => c2.name.toLowerCase().includes(str(input.category).toLowerCase()));
-        if (!cat || cat.doodads.length === 0) return `No doodad category called "${str(input.category)}"; call list_doodad_categories.`;
+        if (!cat || cat.doodads.length === 0) return fail(`No doodad category called "${str(input.category)}"; call list_doodad_categories.`);
         const density = Math.max(0, Math.min(1, num(input.density, 0.3)));
         const want = Math.round(density * ((rect.x1 - rect.x0) * (rect.y1 - rect.y0)) / 12);
         const { placed, refused } = scatterInRect(api, cat, rect, want, (d, x, y) => api.query.doodadPlacement(d.id, x, y)?.ok === true);
@@ -4442,7 +4561,7 @@ function objectTools() {
               refused.push(`no ${kind} sprite called "${str(s.sprite)}"`);
               continue;
             }
-            const index = tx.placeSprite(kind, id, ownerOf(s.player, 0), num(s.x) * TILE2 + TILE2 / 2, num(s.y) * TILE2 + TILE2 / 2, { flipped: bool(s.flipped) ?? false, disabled: bool(s.disabled) ?? kind === "unit" });
+            const index = tx.placeSprite(kind, id, ownerOf(s.player, 0), num(s.x) * TILE + TILE / 2, num(s.y) * TILE + TILE / 2, { flipped: bool(s.flipped) ?? false, disabled: bool(s.disabled) ?? kind === "unit" });
             placed.push({ index, kind, name: api.palette.spriteName(kind, id), x: num(s.x), y: num(s.y) });
           }
         });
@@ -4451,11 +4570,11 @@ function objectTools() {
     },
     {
       def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints2(input.indices).length, "sprite")}`,
+      describe: (input) => `Remove ${plural(ints(input.indices).length, "sprite")}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove sprites", (tx) => {
-          tx.removeSprites(ints2(input.indices));
+          tx.removeSprites(ints(input.indices));
         });
         return `Removed ${plural(r.sprites, "sprite")}.`;
       }
@@ -4465,10 +4584,10 @@ function objectTools() {
       describe: (input) => `Add location "${str(input.name, "Location")}" at ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
-        const rect = rectOf3(input, api);
+        const rect = rectOf(input, api);
         let index = -1;
         api.document.edit(`AI: location ${str(input.name)}`, (tx) => {
-          index = tx.addLocation({ left: rect.x0 * TILE2, top: rect.y0 * TILE2, right: rect.x1 * TILE2, bottom: rect.y1 * TILE2 }, str(input.name, "Location"));
+          index = tx.addLocation({ left: rect.x0 * TILE, top: rect.y0 * TILE, right: rect.x1 * TILE, bottom: rect.y1 * TILE }, str(input.name, "Location"));
         });
         return index < 0 ? "No free location slot." : `Added location ${index} "${str(input.name)}".`;
       }
@@ -4480,12 +4599,12 @@ function objectTools() {
       run: (input, { api }) => {
         const index = Math.round(num(input.index, -1));
         const scn = api.document.scenario();
-        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return "No such location (slot 63 is Anywhere).";
+        if (!scn || index < 0 || index >= scn.locations.length || index === api.consts.location.anywhere) return fail("No such location (slot 63 is Anywhere).");
         const patch = {};
         if (typeof input.name === "string") patch.name = input.name;
         if (input.x0 !== void 0 && input.x1 !== void 0) {
-          const r = rectOf3(input, api);
-          Object.assign(patch, { left: r.x0 * TILE2, top: r.y0 * TILE2, right: r.x1 * TILE2, bottom: r.y1 * TILE2 });
+          const r = rectOf(input, api);
+          Object.assign(patch, { left: r.x0 * TILE, top: r.y0 * TILE, right: r.x1 * TILE, bottom: r.y1 * TILE });
         }
         const bits = ELEVATION_BITS(api.consts);
         if (bits.some(([k]) => input[k] !== void 0)) {
@@ -4505,22 +4624,22 @@ function objectTools() {
     },
     {
       def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints2(input.indices).length, "location")} ${indexList(ints2(input.indices))}`,
+      describe: (input) => `Remove ${plural(ints(input.indices).length, "location")} ${indexList(ints(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove locations", (tx) => {
-          tx.removeLocations(ints2(input.indices).filter((i) => i !== api.consts.location.anywhere));
+          tx.removeLocations(ints(input.indices).filter((i) => i !== api.consts.location.anywhere));
         });
         return `Removed ${plural(r.locations, "location")}.`;
       }
     },
     {
       def: { name: "set_fog", description: 'Fog of war over a tile rect for 1-based players: mode "fog" (starts unexplored) or "clear". One undo step.', inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
-      describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints2(input.players).length === 1 ? "" : "s"} ${ints2(input.players).join(", ")}`,
+      describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints(input.players).length === 1 ? "" : "s"} ${ints(input.players).join(", ")}`,
       writes: true,
       run: (input, { api }) => {
-        const rect = rectOf3(input, api);
-        const players2 = ints2(input.players).filter((p) => p >= 1 && p <= 8);
+        const rect = rectOf(input, api);
+        const players2 = ints(input.players).filter((p) => p >= 1 && p <= 8);
         const mask = players2.reduce((m, p) => m | 1 << p - 1, 0);
         const r = api.document.edit("AI: fog of war", (tx) => {
           tx.setFog(rect, mask, str(input.mode) === "clear" ? "clear" : "fog");
@@ -4975,12 +5094,15 @@ async function openRegion(ctx, preset) {
 function readTools() {
   return [
     {
-      def: { name: "reference", description: 'The long tables the reference block leaves out. part "units": every unit type with hit points, shields, armour, costs, build time and weapons. "doodads": every doodad of this tileset by category, with ids and sizes. "triggers": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, \u2026) and the AI scripts. Read "triggers" once before writing triggers.', inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] } }, ["part"]) },
+      def: { name: "reference", description: 'The long tables the reference block leaves out. part "units": every unit type with hit points, shields, armour, costs, build time and weapons. "doodads": every doodad of this tileset by category, with ids and sizes. "triggers": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, \u2026) and the AI scripts. Read "triggers" once before writing triggers. `query` keeps only the rows whose name contains it (a unit, a doodad or category, a condition or action); `section` narrows the triggers part to conditions, actions, briefing, values or scripts.', inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] }, query: { type: "string" }, section: { type: "string", enum: [...REFERENCE_SECTIONS] } }, ["part"]) },
       writes: false,
       run: (input, { api }) => {
         const part = str(input.part);
-        if (!REFERENCE_PARTS.includes(part)) return `part must be one of ${REFERENCE_PARTS.join(", ")}.`;
-        return capResult(referenceDetailFor(api, part) ?? "No map is open.", 8e4);
+        if (!REFERENCE_PARTS.includes(part)) return fail(`part must be one of ${REFERENCE_PARTS.join(", ")}.`);
+        const section = str(input.section);
+        if (section && !REFERENCE_SECTIONS.includes(section)) return fail(`section must be one of ${REFERENCE_SECTIONS.join(", ")}.`);
+        const text = referenceDetailFor(api, part, { query: str(input.query), section: section || void 0 });
+        return text === void 0 ? fail("No map is open.") : capResult(text, 8e4);
       }
     },
     {
@@ -4988,7 +5110,7 @@ function readTools() {
       writes: false,
       run: (_i, { api }) => {
         const info = api.document.info();
-        if (!info) return "No map is open.";
+        if (!info) return fail("No map is open.");
         const starts = new Set(api.query.startLocations().map((s) => s.owner));
         return capResult({
           name: info.name,
@@ -5030,21 +5152,17 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_units", description: "Units on the map: index, name, owner, tile x/y, resource amount for minerals and geysers. Filter by owner (1-based player, 12 neutral), by name (substring), or by a tile rect. `details` adds every record field (hit points %, shields %, energy %, hangar, state flags, serial).", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, limit: { type: "integer", description: "at most this many, default 200" }, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" }, description: "only these unit indices" } }) },
-      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints2(input.indices))}` : ""}`,
-      report: (result) => {
-        const r = jsonOf(result);
-        return r && r.count !== void 0 ? `${num(r.count)} of ${num(r.total)}` : "";
-      },
+      def: { name: "list_units", description: "Units on the map: index, name, owner, tile x/y, resource amount for minerals and geysers. Filter by owner (1-based player, 12 neutral), by name (substring), or by a tile rect. `details` adds every record field (hit points %, shields %, energy %, hangar, state flags, serial). Pages of 200: `next` in the answer is the `offset` of the page after.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" }, description: "only these unit indices" } }) },
+      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}`,
+      report: pageReport,
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
+        if (!scn) return fail("No map is open.");
         const owner = input.owner === void 0 ? null : ownerOf(input.owner);
         const name = str(input.name).toLowerCase();
-        const rect = hasRect(input) ? rectOf3(input, api) : null;
+        const rect = hasRect(input) ? rectOf(input, api) : null;
         const only = Array.isArray(input.indices) ? new Set(input.indices.map((v) => num(v, -1))) : null;
-        const limit = Math.max(1, Math.min(1e3, num(input.limit, 200)));
         const details = input.details === true;
         const out = [];
         scn.units.forEach((u, index) => {
@@ -5052,53 +5170,53 @@ function readTools() {
           if (owner !== null && u.owner !== owner) return;
           const n2 = api.names.unit(u.unitId);
           if (name && !n2.toLowerCase().includes(name)) return;
-          const tx = Math.floor(u.x / TILE2), ty = Math.floor(u.y / TILE2);
+          const tx = Math.floor(u.x / TILE), ty = Math.floor(u.y / TILE);
           if (rect && (tx < rect.x0 || ty < rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
-          if (out.length >= limit) return;
           const row = { index, name: n2, owner: ownerName(u.owner), x: tx, y: ty };
           if (u.resourceAmount) row.amount = u.resourceAmount;
           if (details) Object.assign(row, { px: u.x, py: u.y, hitPointsPercent: u.hitPointsPercent, shieldPercent: u.shieldPercent, energyPercent: u.energyPercent, hangar: u.hangarUnits, cloaked: !!(u.stateFlags & 1), burrowed: !!(u.stateFlags & 2), inTransit: !!(u.stateFlags & 4), hallucinated: !!(u.stateFlags & 8), invincible: !!(u.stateFlags & 16), serial: u.serial });
           out.push(row);
         });
-        return capResult({ count: out.length, total: scn.units.length, units: out });
+        const p = paged(out, input, 200, 1e3);
+        return capResult({ count: p.count, matched: p.matched, total: scn.units.length, offset: p.offset, next: p.next, units: p.items });
       }
     },
     {
-      def: { name: "list_doodads", description: "Doodads placed on the map: index, name, category, top-left tile, size. Optionally within a tile rect.", inputSchema: obj({ ...rectSchema, limit: { type: "integer" } }) },
+      def: { name: "list_doodads", description: "Doodads placed on the map: index, name, category, top-left tile, size. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      report: pageReport,
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
-        const rect = hasRect(input) ? rectOf3(input, api) : null;
-        const limit = Math.max(1, Math.min(2e3, num(input.limit, 300)));
+        if (!scn) return fail("No map is open.");
+        const rect = hasRect(input) ? rectOf(input, api) : null;
         const out = [];
         scn.doodads.forEach((d, index) => {
           const info = api.palette.doodadInfo(d.doodadId);
-          const tx = Math.floor(d.x / TILE2) - Math.floor((info?.width ?? 1) / 2), ty = Math.floor(d.y / TILE2) - Math.floor((info?.height ?? 1) / 2);
+          const tx = Math.floor(d.x / TILE) - Math.floor((info?.width ?? 1) / 2), ty = Math.floor(d.y / TILE) - Math.floor((info?.height ?? 1) / 2);
           if (rect && (tx + (info?.width ?? 1) <= rect.x0 || ty + (info?.height ?? 1) <= rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
-          if (out.length >= limit) return;
           out.push({ index, id: d.doodadId, name: info?.name ?? `doodad ${d.doodadId}`, category: info?.category, x: tx, y: ty, width: info?.width, height: info?.height });
         });
-        return capResult({ count: out.length, total: scn.doodads.length, doodads: out });
+        const p = paged(out, input, 300, 2e3);
+        return capResult({ count: p.count, matched: p.matched, total: scn.doodads.length, offset: p.offset, next: p.next, doodads: p.items });
       }
     },
     {
-      def: { name: "list_sprites", description: "Sprites (THG2) on the map: index, kind (pure sprite or unit sprite), name, owner, tile. Optionally within a tile rect.", inputSchema: obj({ ...rectSchema, limit: { type: "integer" } }) },
+      def: { name: "list_sprites", description: "Sprites (THG2) on the map: index, kind (pure sprite or unit sprite), name, owner, tile. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      report: pageReport,
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
-        const rect = hasRect(input) ? rectOf3(input, api) : null;
-        const limit = Math.max(1, Math.min(2e3, num(input.limit, 300)));
+        if (!scn) return fail("No map is open.");
+        const rect = hasRect(input) ? rectOf(input, api) : null;
         const out = [];
         scn.sprites.forEach((s, index) => {
           const kind = (s.flags & api.consts.sprite.flags.PureSprite) !== 0 ? "pure" : "unit";
-          const tx = Math.floor(s.x / TILE2), ty = Math.floor(s.y / TILE2);
+          const tx = Math.floor(s.x / TILE), ty = Math.floor(s.y / TILE);
           if (rect && (tx < rect.x0 || ty < rect.y0 || tx >= rect.x1 || ty >= rect.y1)) return;
-          if (out.length >= limit) return;
           out.push({ index, kind, id: s.spriteId, name: api.palette.spriteName(kind, s.spriteId), owner: ownerName(s.owner), x: tx, y: ty, flipped: (s.flags & api.consts.sprite.flags.Flipped) !== 0, disabled: (s.flags & api.consts.sprite.flags.Disabled) !== 0 });
         });
-        return capResult({ count: out.length, total: scn.sprites.length, sprites: out });
+        const p = paged(out, input, 300, 2e3);
+        return capResult({ count: p.count, matched: p.matched, total: scn.sprites.length, offset: p.offset, next: p.next, sprites: p.items });
       }
     },
     {
@@ -5106,34 +5224,35 @@ function readTools() {
       writes: false,
       run: (_i, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
+        if (!scn) return fail("No map is open.");
         const out = [];
         scn.locations.forEach((l, i) => {
           if (i === api.consts.location.anywhere || l.left === 0 && l.top === 0 && l.right === 0 && l.bottom === 0) return;
-          out.push({ index: i, name: api.names.location(i), x0: Math.floor(Math.min(l.left, l.right) / TILE2), y0: Math.floor(Math.min(l.top, l.bottom) / TILE2), x1: Math.ceil(Math.max(l.left, l.right) / TILE2), y1: Math.ceil(Math.max(l.top, l.bottom) / TILE2), ...l.elevationFlags ? { excludes: l.elevationFlags } : {} });
+          out.push({ index: i, name: api.names.location(i), x0: Math.floor(Math.min(l.left, l.right) / TILE), y0: Math.floor(Math.min(l.top, l.bottom) / TILE), x1: Math.ceil(Math.max(l.left, l.right) / TILE), y1: Math.ceil(Math.max(l.top, l.bottom) / TILE), ...l.elevationFlags ? { excludes: l.elevationFlags } : {} });
         });
         return capResult({ count: out.length, locations: out, note: "Slot 63 is Anywhere and cannot be edited." });
       }
     },
     {
-      def: { name: "list_strings", description: "The string table: index and text, with what uses each (map name, location, trigger \u2026). `query` filters by substring; `unused` lists only strings nothing references.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, limit: { type: "integer" } }) },
+      def: { name: "list_strings", description: "The string table: index and text, with what uses each (map name, location, trigger \u2026). `query` filters by substring; `unused` lists only strings nothing references. Pages of 200: `next` is the `offset` of the page after.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, ...pageSchema }) },
+      report: pageReport,
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
+        if (!scn) return fail("No map is open.");
         const usage = api.query.stringUsage();
         const unused = new Set(api.query.unusedStrings());
         const q2 = str(input.query).toLowerCase();
-        const limit = Math.max(1, Math.min(2e3, num(input.limit, 200)));
         const out = [];
-        for (let i = 1; i < scn.strings.strings.length && out.length < limit; i++) {
+        for (let i = 1; i < scn.strings.strings.length; i++) {
           const text = api.names.string(i);
           if (text === null || text === "") continue;
           if (input.unused === true && !unused.has(i)) continue;
           if (q2 && !text.toLowerCase().includes(q2)) continue;
           out.push({ index: i, text: text.length > 200 ? `${text.slice(0, 200)}\u2026` : text, usedBy: (usage.get(i) ?? []).slice(0, 6).map((u) => `${u.kind}${"index" in u && u.index !== void 0 ? ` ${u.index}` : ""}`) });
         }
-        return capResult({ count: out.length, slots: scn.strings.strings.length, strings: out });
+        const p = paged(out, input, 200, 2e3);
+        return capResult({ count: p.count, matched: p.matched, slots: scn.strings.strings.length, offset: p.offset, next: p.next, strings: p.items });
       }
     },
     {
@@ -5195,7 +5314,7 @@ ${text}`, 3e4);
       run: (input, ctx) => {
         const { api } = ctx;
         if (hasRect(input)) {
-          const rect = rectOf3(input, api);
+          const rect = rectOf(input, api);
           const cell = Math.max(1, Math.min(16, num(input.cellSize, Math.ceil(Math.max(rect.x1 - rect.x0, rect.y1 - rect.y0) / 48))));
           const g = sampleGrid(terrainAtTile(ctx), rect, cell);
           const names = Object.fromEntries(Object.entries(g.legend).map(([ch, id]) => [ch, api.terrain.types().find((t2) => t2.id === id)?.name ?? id]));
@@ -5215,8 +5334,8 @@ ${text}`, 3e4);
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
-        const rect = rectOf3(input, api);
+        if (!scn) return fail("No map is open.");
+        const rect = rectOf(input, api);
         const p = Math.max(1, Math.min(8, Math.round(num(input.player, 1)))) - 1;
         if (!scn.mask) return "The map has no MASK section: every tile starts unexplored for everyone.";
         const cell = Math.max(1, Math.min(16, num(input.cellSize, Math.ceil(Math.max(rect.x1 - rect.x0, rect.y1 - rect.y0) / 64))));
@@ -5241,10 +5360,10 @@ ${text}`, 3e4);
       describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
       writes: false,
       run: (input, { api }) => {
-        const id = unitIdByName2(api, str(input.unit));
-        if (id === null) return `No unit is called "${str(input.unit)}".`;
-        const v = api.query.placement(id, num(input.x) * TILE2 + TILE2 / 2, num(input.y) * TILE2 + TILE2 / 2);
-        if (!v) return "No map is open.";
+        const id = unitIdByName(api, str(input.unit));
+        if (id === null) return noSuchUnit(api, str(input.unit));
+        const v = api.query.placement(id, num(input.x) * TILE + TILE / 2, num(input.y) * TILE + TILE / 2);
+        if (!v) return fail("No map is open.");
         return v.problem ? `No: ${v.reason ?? v.problem}${v.blocker >= 0 ? ` (unit index ${v.blocker})` : ""}.` : "Yes.";
       }
     },
@@ -5258,14 +5377,14 @@ ${text}`, 3e4);
       writes: false,
       run: async (input, { api }) => {
         const info = api.document.info();
-        if (!info) return "No map is open.";
-        const rect = hasRect(input) ? rectOf3(input, api) : { x0: 0, y0: 0, x1: info.width, y1: info.height };
+        if (!info) return fail("No map is open.");
+        const rect = hasRect(input) ? rectOf(input, api) : { x0: 0, y0: 0, x1: info.width, y1: info.height };
         let ppt = Math.max(1, Math.min(32, num(input.pixelsPerTile, 8)));
         while (ppt > 1 && (rect.x1 - rect.x0) * ppt * (rect.y1 - rect.y0) * ppt > 12e5) ppt = ppt > 8 ? ppt / 2 : ppt - 1;
         await api.tileset.load();
         const blob = await api.graphics.renderRect(rect, { pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, grid: 0 });
         if (!blob) return "The map cannot be rendered (tileset graphics missing).";
-        return { text: `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`, image: await imageInput(blob) };
+        return { text: `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`, image: await imageInput(await shrinkImage(blob)) };
       }
     },
     {
@@ -5273,8 +5392,8 @@ ${text}`, 3e4);
       writes: false,
       run: (_i, { api }) => {
         const scn = api.document.scenario();
-        if (!scn) return "No map is open.";
-        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE2), y: Math.floor((scn.units[i]?.y ?? 0) / TILE2) }));
+        if (!scn) return fail("No map is open.");
+        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE), y: Math.floor((scn.units[i]?.y ?? 0) / TILE) }));
         return capResult({
           layer: api.selection.layer(),
           markedArea: api.selection.markedArea(),
@@ -5339,7 +5458,7 @@ ${text}`, 3e4);
             return hits.length ? capResult(hits.map((c2) => ({ name: c2.name, briefing: c2.briefing, args: c2.args.map((a2) => `${a2.label}: ${a2.kind}`) }))) : `No action matches "${q2}".`;
           }
           default:
-            return `Unknown kind "${kind}".`;
+            return fail(`Unknown kind "${kind}".`);
         }
       }
     },
@@ -5355,8 +5474,8 @@ ${text}`, 3e4);
       def: { name: "unit_type", description: `This map's settings for a unit type (Unit Settings dialog): whether it uses the game's defaults, hit points, shields, armor, build time, cost, weapon damage, custom name, and who may build it. Names are matched loosely; "marine" works.`, inputSchema: obj({ unit: { type: "string" } }, ["unit"]) },
       writes: false,
       run: (input, { api }) => {
-        const id = unitIdByName2(api, str(input.unit));
-        if (id === null) return `No unit is called "${str(input.unit)}".`;
+        const id = unitIdByName(api, str(input.unit));
+        if (id === null) return noSuchUnit(api, str(input.unit));
         const t = api.settings.unitType(id);
         return t ? capResult({ ...t, availability: { defaultAvailable: t.availability.defaultAvailable, players: Object.fromEntries(t.availability.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
       }
@@ -5366,7 +5485,7 @@ ${text}`, 3e4);
       writes: false,
       run: (input, { api }) => {
         const hit = byName(api.names.upgrades(), str(input.upgrade));
-        if (!hit) return `No upgrade is called "${str(input.upgrade)}".`;
+        if (!hit) return noSuchUpgrade(api, str(input.upgrade));
         const u = api.settings.upgrade(hit.value);
         return u ? capResult({ ...u, levels: { defaultStart: u.levels.defaultStart, defaultMax: u.levels.defaultMax, players: Object.fromEntries(u.levels.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
       }
@@ -5376,7 +5495,7 @@ ${text}`, 3e4);
       writes: false,
       run: (input, { api }) => {
         const hit = byName(api.names.techs(), str(input.tech));
-        if (!hit) return `No technology is called "${str(input.tech)}".`;
+        if (!hit) return noSuchTech(api, str(input.tech));
         const t = api.settings.tech(hit.value);
         return t ? capResult({ ...t, state: { defaultAvailable: t.state.defaultAvailable, defaultResearched: t.state.defaultResearched, players: Object.fromEntries(t.state.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
       }
@@ -5385,6 +5504,15 @@ ${text}`, 3e4);
 }
 
 // ai/tools/script.ts
+var DECLARATIONS_WINDOW = 6e4;
+function windowOf(text, offset, size) {
+  if (text.length <= size && offset === 0) return text;
+  const slice = text.slice(offset, offset + size);
+  const next = offset + slice.length;
+  return `${text.length} characters in all; showing ${offset}\u2013${next}${next < text.length ? `; ask again with offset=${next} for the rest` : ""}.
+
+${slice}`;
+}
 function scriptTools() {
   return [
     {
@@ -5392,20 +5520,18 @@ function scriptTools() {
       writes: false,
       run: (_i, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
         const s = script.state();
         return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 6e4) : "No map is open.";
       }
     },
     {
-      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script.", inputSchema: obj({}) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script. Comes in windows of 60,000 characters: the first line says where to ask again with `offset` for the rest.", inputSchema: obj({ offset: { type: "integer", description: "the character to start at; the previous window's answer says which" } }) },
       writes: false,
-      run: (_i, { api }) => {
+      run: (input, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
-        const d = script.declarations({ compact: true });
-        return d.length > 6e4 ? `${d.slice(0, 6e4)}
-\u2026 cut.` : d;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
+        return windowOf(script.declarations({ compact: true }), Math.max(0, Math.round(num(input.offset))), DECLARATIONS_WINDOW);
       }
     },
     {
@@ -5414,9 +5540,9 @@ function scriptTools() {
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
         const r = await script.compile(str(input.source));
-        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n2, p) => n2 + p.count, 0)}` : ""}.` : capResult({ errors: r.diagnostics.map(describeDiagnostic) });
+        return r.ok ? `Compiles: ${r.triggers.length} triggers${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n2, p) => n2 + p.count, 0)}` : ""}.` : fail(capResult({ errors: r.diagnostics.map(describeDiagnostic) }));
       }
     },
     {
@@ -5426,9 +5552,9 @@ function scriptTools() {
       settings: true,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
-        if (!script) return NO_SCRIPT_PLUGIN;
+        if (!script) return fail(NO_SCRIPT_PLUGIN);
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) });
+        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
       }
     },
     {
@@ -5461,7 +5587,7 @@ function scriptTools() {
     {
       def: { name: "select", description: "Show the user something: select units, sprites, doodads or locations by index (switching to that layer), or mark a tile rect. Pass an empty list to clear.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
       describe: (input) => {
-        const parts = ["units", "sprites", "doodads", "locations"].filter((k) => Array.isArray(input[k])).map((k) => `${ints2(input[k]).length} ${k}`);
+        const parts = ["units", "sprites", "doodads", "locations"].filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`);
         if (input.x0 !== void 0 && input.x1 !== void 0) parts.push(`the area ${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`);
         return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection";
       },
@@ -5470,28 +5596,28 @@ function scriptTools() {
         const done = [];
         if (Array.isArray(input.units)) {
           api.selection.setLayer("units");
-          api.selection.setUnits(ints2(input.units));
-          done.push(`${ints2(input.units).length} units`);
+          api.selection.setUnits(ints(input.units));
+          done.push(`${ints(input.units).length} units`);
         }
         if (Array.isArray(input.sprites)) {
           api.selection.setLayer("sprites");
-          api.selection.setSprites(ints2(input.sprites));
-          done.push(`${ints2(input.sprites).length} sprites`);
+          api.selection.setSprites(ints(input.sprites));
+          done.push(`${ints(input.sprites).length} sprites`);
         }
         if (Array.isArray(input.doodads)) {
           api.selection.setLayer("doodads");
-          api.selection.setDoodads(ints2(input.doodads));
-          done.push(`${ints2(input.doodads).length} doodads`);
+          api.selection.setDoodads(ints(input.doodads));
+          done.push(`${ints(input.doodads).length} doodads`);
         }
         if (Array.isArray(input.locations)) {
           api.selection.setLayer("locations");
-          api.selection.setLocations(ints2(input.locations));
-          done.push(`${ints2(input.locations).length} locations`);
+          api.selection.setLocations(ints(input.locations));
+          done.push(`${ints(input.locations).length} locations`);
         }
         if (input.x0 !== void 0 && input.x1 !== void 0) {
-          const r = rectOf3(input, api);
+          const r = rectOf(input, api);
           api.selection.markArea(r);
-          api.view.center((r.x0 + r.x1) / 2 * TILE2, (r.y0 + r.y1) / 2 * TILE2);
+          api.view.center((r.x0 + r.x1) / 2 * TILE, (r.y0 + r.y1) / 2 * TILE);
           done.push(`area ${r.x0},${r.y0}\u2013${r.x1},${r.y1}`);
         }
         return done.length ? `Selected ${done.join(", ")}.` : "Nothing to select.";
@@ -5576,7 +5702,7 @@ function settingsTools() {
               const v = bool(f[k]);
               if (v !== void 0) patch[k] = v;
             }
-            if (Array.isArray(f.players)) patch.players = ints2(f.players).map((p) => p - 1).filter((p) => p >= 0 && p < 8);
+            if (Array.isArray(f.players)) patch.players = ints(f.players).map((p) => p - 1).filter((p) => p >= 0 && p < 8);
             if (tx.forces.set(force, patch)) changed++;
           }
         });
@@ -5593,8 +5719,8 @@ function settingsTools() {
       writes: true,
       settings: true,
       run: (input, { api }) => {
-        const id = unitIdByName2(api, str(input.unit));
-        if (id === null) return `No unit is called "${str(input.unit)}".`;
+        const id = unitIdByName(api, str(input.unit));
+        if (id === null) return noSuchUnit(api, str(input.unit));
         const patch = {};
         for (const k of ["hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost"]) if (input[k] !== void 0) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== void 0) patch.useDefault = bool(input.useDefault);
@@ -5626,7 +5752,7 @@ function settingsTools() {
       settings: true,
       run: (input, { api }) => {
         const id = upgradeIdByName(api, str(input.upgrade));
-        if (id === null) return `No upgrade is called "${str(input.upgrade)}".`;
+        if (id === null) return noSuchUpgrade(api, str(input.upgrade));
         const patch = {};
         for (const k of ["mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor"]) if (input[k] !== void 0) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== void 0) patch.useDefault = bool(input.useDefault);
@@ -5652,7 +5778,7 @@ function settingsTools() {
       settings: true,
       run: (input, { api }) => {
         const id = techIdByName(api, str(input.tech));
-        if (id === null) return `No technology is called "${str(input.tech)}".`;
+        if (id === null) return noSuchTech(api, str(input.tech));
         const patch = {};
         for (const k of ["mineralCost", "gasCost", "researchTime", "energyCost"]) if (input[k] !== void 0) patch[k] = Math.round(num(input[k]));
         if (input.useDefault !== void 0) patch.useDefault = bool(input.useDefault);
@@ -5674,7 +5800,7 @@ function settingsTools() {
       settings: true,
       run: (input, { api }) => {
         const v = str(input.version);
-        if (!["original", "hybrid", "broodwar", "remastered"].includes(v)) return "Unknown version.";
+        if (!["original", "hybrid", "broodwar", "remastered"].includes(v)) return fail("Unknown version.");
         const r = api.document.update("AI: map revision", (tx) => {
           tx.setVersion(v);
         });
@@ -5718,7 +5844,7 @@ function terrainTools() {
       },
       writes: true,
       run: (input, { api }) => {
-        const rect = rectOf3(input, api);
+        const rect = rectOf(input, api);
         const terrain = num(input.terrain);
         const type = api.terrain.types().find((t) => t.id === terrain) ?? api.terrain.types().find((t) => t.name.toLowerCase() === str(input.terrain).toLowerCase());
         if (!type) return `Terrain ${str(input.terrain)} is not one of this tileset's types; see the reference.`;
@@ -5751,7 +5877,7 @@ function terrainTools() {
       settings: true,
       run: (input, { api }) => {
         const r = api.document.resize({ width: Math.round(num(input.width)), height: Math.round(num(input.height)), anchor: Math.round(num(input.anchor, 4)), terrainId: input.terrain === void 0 ? void 0 : Math.round(num(input.terrain)) });
-        if (!r) return "No map is open.";
+        if (!r) return fail("No map is open.");
         const info = api.document.info();
         return `Resized to ${info?.width} \xD7 ${info?.height}. Dropped ${r.unitsDropped} units, ${r.spritesDropped} sprites, ${r.doodadsDropped} doodads; clamped ${r.locationsClamped} locations${r.isomRebuilt ? "" : "; ISOM is the fill's lattice"}. The undo history was cleared.`;
       }
@@ -5807,12 +5933,12 @@ function triggerTools() {
     },
     {
       def: { name: "remove_triggers", description: "Remove triggers by 1-based index. Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints2(input.indices).length, "trigger")} ${indexList(ints2(input.indices))}`,
+      describe: (input) => `Remove ${plural(ints(input.indices).length, "trigger")} ${indexList(ints(input.indices))}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
         const briefing = input.briefing === true;
-        const indices = ints2(input.indices).map((i) => i - 1).filter((i) => i >= 0);
+        const indices = ints(input.indices).map((i) => i - 1).filter((i) => i >= 0);
         let n2 = 0;
         api.document.update("AI: remove triggers", (tx) => {
           n2 = (briefing ? tx.briefing : tx.triggers).remove(indices);
@@ -5836,11 +5962,11 @@ function triggerTools() {
     },
     {
       def: { name: "set_trigger_flags", description: "Turn Preserve Trigger on or off for triggers by 1-based index (to disable a condition or action, replace the trigger with a `;` before that line). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
-      describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints2(input.indices).length, "trigger")}`,
+      describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints(input.indices).length, "trigger")}`,
       writes: true,
       settings: true,
       run: (input, { api }) => {
-        const indices = ints2(input.indices).map((i) => i - 1).filter((i) => i >= 0);
+        const indices = ints(input.indices).map((i) => i - 1).filter((i) => i >= 0);
         const preserved = bool(input.preserved);
         if (preserved === void 0) return "Say whether preserved should be true or false.";
         let n2 = 0;
@@ -6181,6 +6307,9 @@ function hasLocation(locations, name) {
   const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
   return locations.some((l) => re.test(l.toLowerCase()));
 }
+function waitingOn(system, missing) {
+  return missing.filter((m) => system.params.some((p) => p.value.trim().toLowerCase() !== "anywhere" && hasLocation([m], p.value)));
+}
 var Reader2 = class {
   problems = [];
   notes = [];
@@ -6285,20 +6414,32 @@ var Counters = class {
   next = 0;
   used = [];
   ctx;
+  taken;
+  takenSwitches;
   constructor(ctx) {
     this.ctx = ctx;
+    this.taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
+    this.takenSwitches = new Set((ctx.usedSwitches ?? []).map((s) => s.toLowerCase()));
   }
   take(what) {
+    while (this.next < this.ctx.dcUnits.length && this.taken.has(this.ctx.dcUnits[this.next].toLowerCase())) this.next++;
     const unit = this.ctx.dcUnits[this.next++];
-    if (!unit) throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length})`]);
+    if (!unit) {
+      const inUse = this.ctx.dcUnits.filter((u) => this.taken.has(u.toLowerCase()) && !this.used.includes(u)).length;
+      throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length}${inUse ? `, ${inUse} already in use by the map's triggers` : ""})`]);
+    }
+    this.taken.add(unit.toLowerCase());
     this.used.push(unit);
     return unit;
   }
   nextSwitch = 255;
   /** A switch by its numbered name, from the top down — a name the map does not have would not parse. */
   takeSwitch(what) {
+    while (this.nextSwitch >= 1 && this.takenSwitches.has(`switch ${this.nextSwitch}`)) this.nextSwitch--;
     if (this.nextSwitch < 1) throw new ToolkitError([`no switch left for ${what}`]);
-    return `Switch ${this.nextSwitch--}`;
+    const name = `Switch ${this.nextSwitch--}`;
+    this.takenSwitches.add(name.toLowerCase());
+    return name;
   }
 };
 var P2 = (name, description, required = false) => ({ name, description, required });
@@ -6926,9 +7067,27 @@ function toolkitContext(api, options = {}) {
   const players2 = api.settings.players();
   const humans = players2.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1);
   const computers = players2.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1);
-  const hyper = options.hyper ?? api.triggers.list().some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
+  const triggers = api.triggers.list();
+  const hyper = options.hyper ?? triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
   const locations = [...usedLocationNames(api), ...options.extraLocations ?? []];
-  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations };
+  const used = usedTriggerState(api, triggers);
+  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
+}
+function usedTriggerState(api, triggers = api.triggers.list()) {
+  const { condition, action } = api.consts.triggers;
+  const units = /* @__PURE__ */ new Set();
+  const switches = /* @__PURE__ */ new Set();
+  for (const t of triggers) {
+    for (const c2 of t.conditions) {
+      if (c2.type === condition.Deaths) units.add(c2.unitId);
+      else if (c2.type === condition.Switch) switches.add(c2.resource);
+    }
+    for (const a2 of t.actions) {
+      if (a2.type === action.SetDeaths) units.add(a2.unitId);
+      else if (a2.type === action.SetSwitch) switches.add(a2.target);
+    }
+  }
+  return { dcUnits: [...units].map((id) => api.names.unit(id)), switches: [...switches].map((i) => api.names.switch(i)) };
 }
 function usedLocationNames(api) {
   const scn = api.document.scenario();
@@ -6990,9 +7149,9 @@ ${guideIndex()}`;
           const r = addSystem(api, kind, params, toolkitContext(api));
           return capResult({ added: r.count, triggers: api.triggers.list().length, notes: r.notes });
         } catch (err) {
-          if (err instanceof ToolkitError) return `Not built:
-${err.problems.map((p) => `- ${p}`).join("\n")}`;
-          return `Not built: ${err.message}`;
+          if (err instanceof ToolkitError) return fail(`Not built:
+${err.problems.map((p) => `- ${p}`).join("\n")}`);
+          return fail(`Not built: ${err.message}`);
         }
       }
     }
@@ -7010,9 +7169,39 @@ var TRIM_TO = 40;
 var KEEP_IMAGES = 2;
 function trimHistory(messages, keep = KEEP_MESSAGES, to = TRIM_TO) {
   if (messages.length <= keep) return messages;
-  let start2 = Math.max(0, messages.length - Math.min(to, keep));
-  while (start2 < messages.length && (messages[start2].role !== "user" || messages[start2].content.some((c2) => c2.type === "tool_result"))) start2++;
-  return pruneImages(messages.slice(start2), KEEP_IMAGES);
+  const clean = (m) => m.role === "user" && !m.content.some((c2) => c2.type === "tool_result");
+  const from = Math.max(0, messages.length - Math.min(to, keep));
+  let start2 = from;
+  while (start2 < messages.length && !clean(messages[start2])) start2++;
+  if (start2 < messages.length) return pruneImages(messages.slice(start2), KEEP_IMAGES);
+  if (!clean(messages[0])) return messages;
+  let at = from;
+  while (at < messages.length && messages[at].role !== "assistant") at++;
+  return pruneImages([messages[0], ...messages.slice(at)], KEEP_IMAGES);
+}
+var MAX_HISTORY_BYTES = 11e5;
+function fitHistory(messages, maxBytes = MAX_HISTORY_BYTES) {
+  const size = (m) => byteLength(JSON.stringify(m));
+  let out = messages;
+  if (size(out) <= maxBytes) return out;
+  for (const keep of [1, 0]) {
+    out = pruneImages(out, keep);
+    if (size(out) <= maxBytes) return out;
+  }
+  while (out.length > 1 && size(out) > maxBytes) {
+    const cut2 = trimHistory(out, out.length - 1, Math.max(1, out.length - 2));
+    if (cut2.length >= out.length) break;
+    out = cut2;
+  }
+  return out;
+}
+var byteLength = (s) => typeof TextEncoder !== "undefined" ? new TextEncoder().encode(s).length : s.length;
+function afterFailedTurn(messages) {
+  const last = messages[messages.length - 1];
+  return last?.role === "user" && !last.content.some((c2) => c2.type === "tool_result") ? messages.slice(0, -1) : messages;
+}
+function undoStillApplies(after, now) {
+  return now.undoDepth === after.undoDepth && now.undo === after.undo;
 }
 function pruneImages(messages, keepLast) {
   let seen = 0;
@@ -7288,9 +7477,9 @@ function openAssistant(ctx, state) {
 \u2717 ${message}`;
               scroll();
             },
-            skip() {
-              row.skip("not called");
-              row.element.title = "The model named this tool but did not call it.";
+            skip(reason = "not called") {
+              row.skip(reason);
+              row.element.title = reason === "not called" ? "The model named this tool but did not call it." : reason;
             }
           };
         };
@@ -7361,10 +7550,23 @@ function openAssistant(ctx, state) {
       };
       refreshContext();
       let following = false, revealing = false, toolRunning = false;
+      const undoButtons = [];
+      const STALE_UNDO = "Other edits came after this turn's; undo them first, from the Edit menu.";
+      const refreshUndo = () => {
+        if (!api.document.isOpen()) return;
+        const now = api.document.history();
+        for (const u of undoButtons) if (!u.button.disabled && !undoStillApplies(u.after, now)) {
+          u.button.disabled = true;
+          u.button.title = STALE_UNDO;
+        }
+      };
       const offs = [
         api.events.on("selection", refreshContext),
         api.events.on("clipboard", refreshContext),
-        api.events.on("document", refreshContext),
+        api.events.on("document", () => {
+          refreshContext();
+          refreshUndo();
+        }),
         api.events.on("layer", refreshContext),
         api.events.on("triggers", refreshContext),
         api.events.on("view", () => {
@@ -7438,46 +7640,53 @@ function openAssistant(ctx, state) {
         let ppt = 8;
         while (ppt > 1 && (rect.x1 - rect.x0) * ppt * (rect.y1 - rect.y0) * ppt > 12e5) ppt = ppt > 8 ? ppt / 2 : ppt - 1;
         const blob = await api.graphics.renderRect(rect, { pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, grid: 0 });
-        return blob ? imageInput(blob) : null;
+        return blob ? imageInput(await shrinkImage(blob)) : null;
       };
-      const runTool = async (call, row) => {
-        const tool = byName2.get(call.name);
-        const what = row.start(call.input ?? {});
-        setPhase("tools", what);
-        const footprint = footprintOf(api, call.name, call.input ?? {});
-        intent.show(footprint);
-        try {
-          if (!tool) throw new Error(`no tool called ${call.name}`);
-          const box = following ? followBox(api, footprint) : null;
-          if (box) {
-            revealing = true;
-            try {
-              if (!await api.view.reveal(box, { fit: true })) following = false;
-            } finally {
-              revealing = false;
+      const hooksFor = (rows, act) => {
+        const footprints = /* @__PURE__ */ new Map();
+        const rowFor = (call, tool) => {
+          let row = rows.get(call.id);
+          if (!row) {
+            row = act.step(tool, call.name, call.input ?? {});
+            rows.set(call.id, row);
+          }
+          return row;
+        };
+        return {
+          async before(call, tool) {
+            const what = rowFor(call, tool).start(call.input ?? {});
+            setPhase("tools", what);
+            const footprint = footprintOf(api, call.name, call.input ?? {});
+            footprints.set(call.id, footprint);
+            intent.show(footprint);
+            const box = following ? followBox(api, footprint) : null;
+            if (box) {
+              revealing = true;
+              try {
+                if (!await api.view.reveal(box, { fit: true })) following = false;
+              } finally {
+                revealing = false;
+              }
             }
-          }
-          toolRunning = true;
-          let out;
-          try {
-            out = await tool.run(call.input ?? {}, ctx);
-          } finally {
+            toolRunning = true;
+          },
+          after(call, tool, outcome) {
             toolRunning = false;
+            intent.show(null);
+            const row = rowFor(call, tool);
+            if (outcome.kind === "done") {
+              row.done(outcome.result);
+              const footprint = footprints.get(call.id);
+              if (footprint && !footprintEmpty(footprint)) {
+                const kind = tool?.writes ? "change" : "attention";
+                for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool?.writes ? 700 : 400 });
+                if (footprint.units.length) api.view.flash({ units: footprint.units, kind });
+                if (footprint.locations.length) api.view.flash({ locations: footprint.locations, kind });
+              }
+            } else if (outcome.kind === "failed") row.fail(outcome.message);
+            else row.skip(outcome.reason);
           }
-          row.done(out);
-          if (!footprintEmpty(footprint)) {
-            const kind = tool.writes ? "change" : "attention";
-            for (const r of footprint.rects) api.view.flash({ rect: r, kind, ms: tool.writes ? 700 : 400 });
-            if (footprint.units.length) api.view.flash({ units: footprint.units, kind });
-            if (footprint.locations.length) api.view.flash({ locations: footprint.locations, kind });
-          }
-          return { result: toContent(call.id, typeof out === "string" ? capResult(out) : out), tool, failed: false };
-        } catch (err) {
-          row.fail(err.message);
-          return { result: toContent(call.id, `Error: ${err.message}`, true), tool, failed: true };
-        } finally {
-          intent.show(null);
-        }
+        };
       };
       const submit = async (preset) => {
         const text = (preset ?? input.value).trim();
@@ -7503,6 +7712,7 @@ function openAssistant(ctx, state) {
         }
         state.messages.push({ role: "user", content });
         running = new AbortController();
+        const turnDoc = api.document.id();
         following = ctx.settings().followMap && api.document.isOpen();
         send.setBusy(true);
         stop.hidden = false;
@@ -7516,8 +7726,16 @@ function openAssistant(ctx, state) {
         const act = activity();
         const finishActivity = (stopped) => {
           const secs = Math.round((Date.now() - startedAt) / 1e3);
-          const undoSteps = Math.max(0, api.document.history().undoDepth - historyBefore);
+          const after = api.document.history();
+          const undoSteps = Math.max(0, after.undoDepth - historyBefore);
           const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+            const button = e.currentTarget;
+            if (!undoStillApplies(after, api.document.history())) {
+              button.disabled = true;
+              button.title = STALE_UNDO;
+              phaseDetail.textContent = STALE_UNDO;
+              return;
+            }
             let count = 0;
             for (let i = 0; i < undoSteps; i++) {
               const label = api.document.history().undo;
@@ -7525,9 +7743,12 @@ function openAssistant(ctx, state) {
               if (!api.document.undo()) break;
               count++;
             }
-            e.currentTarget.disabled = true;
+            button.disabled = true;
             phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+            refreshUndo();
           } }) : null;
+          refreshUndo();
+          if (undo) undoButtons.push({ button: undo, after });
           act.finish({ secs, cost: turnCost, edits: edits.length, settings: settingsWrites.length, undo, stopped });
         };
         try {
@@ -7547,7 +7768,7 @@ function openAssistant(ctx, state) {
                 scroll();
               }
             };
-            state.messages = trimHistory(state.messages);
+            state.messages = fitHistory(trimHistory(state.messages));
             state.conversation ??= newConversationId();
             const turn = state.turn ?? 0;
             state.turn = turn + 1;
@@ -7603,16 +7824,14 @@ function openAssistant(ctx, state) {
               break;
             }
             if (!continues) break;
-            const results = [];
-            for (const call of calls) {
-              const row = pendingRows.get(call.id) ?? act.step(byName2.get(call.name), call.name, null);
-              pendingRows.delete(call.id);
-              const { result, tool, failed } = await runTool(call, row);
-              results.push(result);
-              if (tool?.writes && !failed) (tool.settings ? settingsWrites : edits).push(call.name);
-            }
-            for (const row of pendingRows.values()) row.skip();
-            state.messages.push({ role: "user", content: results });
+            const batch = await executeCalls(calls, { api, tools: byName2, ctx, signal: running.signal, turnDoc }, hooksFor(pendingRows, act));
+            const called = new Set(calls.map((c2) => c2.id));
+            for (const [id, row] of pendingRows) if (!called.has(id)) row.skip();
+            edits.push(...batch.edits);
+            settingsWrites.push(...batch.settingsWrites);
+            state.messages.push({ role: "user", content: batch.results });
+            if (batch.stopped) throw new ScmjsError("aborted", "Stopped.");
+            if (batch.mapChanged) throw new Error(MAP_CHANGED);
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1e3);
@@ -7624,8 +7843,7 @@ function openAssistant(ctx, state) {
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
-          const last = state.messages[state.messages.length - 1];
-          if (last?.role === "user") state.messages.pop();
+          state.messages = afterFailedTurn(state.messages);
           finishActivity(true);
           if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
@@ -8221,6 +8439,13 @@ var EXAMPLES2 = {
   "a tower defense": "A two-lane tower defense for up to four players: waves walk from the north spawns down the lanes to the goal at the south; players build turrets beside the lanes; twenty waves, shared lives."
 };
 var REPAIR_ROUNDS = 2;
+var Waiting = class extends Error {
+  locations;
+  constructor(locations) {
+    super(`waits for location${locations.length === 1 ? "" : "s"} ${locations.map((l) => `"${l}"`).join(", ")}`);
+    this.locations = locations;
+  }
+};
 function terrainEffort(quality) {
   return quality === "quick" ? "low" : quality === "thorough" ? "high" : "medium";
 }
@@ -8537,7 +8762,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
-            placeMissingLocations();
+            noteMissingLocations();
             return summarizeRender(rendered);
           }
         });
@@ -8562,18 +8787,13 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           if (!r) throw new Error(runner.lastError ?? "no plan came back");
           return r.output;
         };
-        const placeMissingLocations = () => {
+        const missingLocations = () => {
           const have = new Set(api.document.scenario().locations.map((_, i) => api.names.location(i).toLowerCase()));
-          const missing = locationNames2.filter((n2) => !have.has(n2.toLowerCase()));
-          if (missing.length) {
-            api.document.edit("AI: missing locations", (tx) => {
-              missing.forEach((name, i) => {
-                const cx = Math.floor(cur.width / 2) + i % 4 * 5 - 8, cy = Math.floor(cur.height / 2) + Math.floor(i / 4) * 5 - 8;
-                tx.addLocation({ left: cx * TILE, top: cy * TILE, right: (cx + 4) * TILE, bottom: (cy + 4) * TILE }, name);
-              });
-            });
-            findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place (${missing.join(", ")}) were put near the centre as 4\xD74 boxes; move them where they belong`);
-          }
+          return locationNames2.filter((n2) => !have.has(n2.toLowerCase()));
+        };
+        const noteMissingLocations = () => {
+          const missing = missingLocations();
+          if (missing.length) findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place: ${missing.join(", ")}. The systems that need them wait; draw the locations (Layers \u25B8 Locations), then build the waiting systems below.`);
         };
         steps.push({
           label: "Players and forces",
@@ -8603,19 +8823,19 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
                 missing.forEach((p, i) => {
                   const named = scn.locations.findIndex((l, li) => new RegExp(`\\b(start|spawn|base|home)\\s*${p}\\b`, "i").test(api.names.location(li)) && l.left !== l.right);
                   const loc2 = named >= 0 ? scn.locations[named] : null;
-                  const c2 = loc2 ? centreOf({ x: Math.floor(Math.min(loc2.left, loc2.right) / TILE), y: Math.floor(Math.min(loc2.top, loc2.bottom) / TILE), w: Math.max(1, Math.round(Math.abs(loc2.right - loc2.left) / TILE)), h: Math.max(1, Math.round(Math.abs(loc2.bottom - loc2.top) / TILE)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE, y: Math.floor(cur.height / 2) * TILE };
+                  const c2 = loc2 ? centreOf({ x: Math.floor(Math.min(loc2.left, loc2.right) / TILE2), y: Math.floor(Math.min(loc2.top, loc2.bottom) / TILE2), w: Math.max(1, Math.round(Math.abs(loc2.right - loc2.left) / TILE2)), h: Math.max(1, Math.round(Math.abs(loc2.bottom - loc2.top) / TILE2)) }) : { x: (Math.floor(cur.width / 2) + (i - missing.length / 2) * 6) * TILE2, y: Math.floor(cur.height / 2) * TILE2 };
                   tx.placeUnit(START_LOCATION, p - 1, c2.x, c2.y);
                 });
               });
               findings.push(`start locations for player${missing.length === 1 ? "" : "s"} ${missing.join(", ")} were placed by the editor; check where`);
             }
             const keepers = [];
-            const keeper = unitIdByName(api, "Zerg Overlord");
+            const keeper = unitIdByName2(api, "Zerg Overlord");
             const owned = new Set(api.document.scenario().units.map((u) => u.owner));
             for (const p of d.players.filter((x) => x.type === "computer")) {
               if (owned.has(p.slot - 1) || keeper === null) continue;
               api.document.edit(`AI: keeper for player ${p.slot}`, (tx) => {
-                const px = (cur.width - 2) * TILE, py = (2 + keepers.length * 2) * TILE;
+                const px = (cur.width - 2) * TILE2, py = (2 + keepers.length * 2) * TILE2;
                 tx.placeUnit(keeper, p.slot - 1, px, py);
               });
               keepers.push(p.slot);
@@ -8624,12 +8844,15 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
           }
         });
+        const systemStepFrom = steps.length;
         for (const s of d.systems) {
           steps.push({
             label: `${s.kind === "custom" ? "Script" : "System"}: ${s.name}`,
             run: async () => {
               if (s.kind === "custom") return writeCustom(s, d);
               if (!kinds.has(s.kind)) throw new Error(`the toolkit has no kind "${s.kind}"`);
+              const needs = waitingOn(s, missingLocations());
+              if (needs.length) throw new Waiting(needs);
               try {
                 const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { hyper, extraLocations: locationNames2 }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n2) => `${s.name}: ${n2}`));
@@ -8690,6 +8913,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const rows = steps.map((s) => addStep(s.label));
         stepsBox.scrollIntoView({ block: "nearest" });
         let failed = 0;
+        const waiting = [];
         for (let i = 0; i < steps.length; i++) {
           rows[i].set("running", steps[i].hint ?? "");
           runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
@@ -8700,6 +8924,11 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             if (left > 0) await new Promise((r) => setTimeout(r, left));
             rows[i].set("done", text);
           } catch (err) {
+            if (err instanceof Waiting) {
+              waiting.push(i);
+              rows[i].set("skipped", err.message);
+              continue;
+            }
             failed++;
             rows[i].set("failed", err.message);
             findings.push(`${steps[i].label}: ${err.message}`);
@@ -8709,6 +8938,32 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             }
           }
         }
+        const buildWaiting = async () => {
+          const again = waiting.splice(0);
+          waitButton.setBusy(true);
+          for (const i of again) {
+            rows[i].set("running");
+            try {
+              rows[i].set("done", await steps[i].run());
+            } catch (err) {
+              if (err instanceof Waiting) {
+                waiting.push(i);
+                rows[i].set("skipped", err.message);
+              } else {
+                rows[i].set("failed", err.message);
+                findings.push(`${steps[i].label}: ${err.message}`);
+              }
+            }
+          }
+          waitButton.setBusy(false);
+          waitBox.hidden = waiting.length === 0;
+          waitHint.textContent = waitingText();
+          if (waiting.length === 0) api.ui.status(`AI: built the rest of ${d.name}`);
+        };
+        const waitingText = () => `${waiting.length} system${waiting.length === 1 ? "" : "s"} wait${waiting.length === 1 ? "s" : ""} for locations the plan did not place: ${[...new Set(waiting.flatMap((i) => waitingOn(d.systems[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ")}. Draw them, then build.`;
+        const waitButton = w.button("Build the waiting systems", { onClick: () => void buildWaiting() });
+        const waitHint = h("span", { className: "ai-hint" }, "");
+        const waitBox = h("div", { className: "ai-btns", hidden: true }, waitButton, waitHint);
         runner.onTick = null;
         state.built = true;
         buildButton.setBusy(false);
@@ -8726,8 +8981,13 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           } }),
           h("span", { className: "ai-hint" }, failed ? `${failed} step${failed === 1 ? "" : "s"} failed; the rest went in. Every edit is an undo step, the settings and triggers are not.` : "Built. Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.")
         );
+        if (waiting.length) {
+          waitHint.textContent = waitingText();
+          waitBox.hidden = false;
+          afterBox.after(waitBox);
+        }
         afterBox.hidden = false;
-        runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : `Built ${d.name}.`);
+        runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : waiting.length ? `Built ${d.name}; ${waiting.length} waiting.` : `Built ${d.name}.`);
         api.ui.status(`AI: built ${d.name}`);
       };
       const askBody = h(

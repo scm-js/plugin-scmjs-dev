@@ -11,7 +11,12 @@ import type { Ctx } from "../ui";
 export const TILE = 32;
 export const RESULT_CAP = 8_000;
 
-export type ToolResult = string | { text?: string; image?: ImageInput };
+export type ToolResult = string | { text?: string; image?: ImageInput; error?: string };
+
+/** A failure: the model sees it marked as an error, the transcript shows it red, and it is never counted as an edit. */
+export const fail = (message: string): ToolResult => ({ error: message });
+
+export const isFailure = (r: ToolResult): r is { error: string } => typeof r !== "string" && typeof r.error === "string";
 
 export interface Tool {
   def: AgentTool;
@@ -56,6 +61,28 @@ export const rectSchema = { x0: { type: "integer", description: "left tile" }, y
 
 export const obj = (properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> => ({ type: "object", properties, ...(required.length ? { required } : {}) });
 
+/** The paging inputs every long list takes. */
+export const pageSchema = { limit: { type: "integer", description: "at most this many" }, offset: { type: "integer", description: "skip this many matches; `next` in the answer is the offset of the page after" } };
+
+/**
+ * A page of the rows that matched: `matched` counts every match, `next` is the offset of
+ * the page after when there is one, so the model can read on rather than ask again for
+ * the first page.
+ */
+export function paged<T>(rows: T[], input: Record<string, unknown>, defaultLimit: number, maxLimit: number): { count: number; matched: number; offset?: number; next?: number; items: T[] } {
+  const limit = Math.max(1, Math.min(maxLimit, Math.round(num(input.limit, defaultLimit))));
+  const offset = Math.max(0, Math.round(num(input.offset)));
+  const items = rows.slice(offset, offset + limit);
+  return { count: items.length, matched: rows.length, ...(offset ? { offset } : {}), ...(offset + items.length < rows.length ? { next: offset + items.length } : {}), items };
+}
+
+/** `12 of 340, more follow` for a paged list's step line. */
+export function pageReport(result: ToolResult): string {
+  const r = jsonOf(result);
+  if (!r || r.count === undefined) return "";
+  return `${num(r.count)} of ${num(r.matched ?? r.total)}${r.next !== undefined ? ", more follow" : ""}`;
+}
+
 /** JSON for a tool result, cut to the cap with a note. */
 export function capResult(value: unknown, cap = RESULT_CAP): string {
   const s = typeof value === "string" ? value : JSON.stringify(value);
@@ -83,7 +110,13 @@ export function slotOf(v: unknown): number | "default" | null {
   return n >= 1 && n <= 12 ? n - 1 : null;
 }
 
-/** Case-insensitive match of a name against a labelled list: exact first, then a unique prefix, then a substring. */
+/**
+ * Case-insensitive match of a name against a labelled list: exact first, then a unique
+ * prefix, then a substring. Several substring hits pick the one that is just the name
+ * with a race in front or a form in brackets after ("hydralisk" is Zerg Hydralisk, not
+ * the Den; "siege tank" the Tank Mode); anything less clear is null, and `nameCandidates`
+ * has what to offer instead.
+ */
 export function byName<T extends { label: string; value: number }>(items: T[], name: string): T | null {
   const wanted = name.trim().toLowerCase();
   if (!wanted) return null;
@@ -94,8 +127,31 @@ export function byName<T extends { label: string; value: number }>(items: T[], n
   const starts = items.filter((i) => i.label.toLowerCase().startsWith(wanted));
   if (starts.length === 1) return starts[0];
   const within = items.filter((i) => i.label.toLowerCase().includes(wanted));
-  return within.length >= 1 ? within[0] : null;
+  if (within.length <= 1) return within[0] ?? null;
+  const plainForm = new RegExp(`^(?:(?:terran|zerg|protoss) )?${wanted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?: \\([^)]*\\))?$`);
+  const plain = within.filter((i) => plainForm.test(i.label.toLowerCase()));
+  if (plain.length === 0) return null;
+  const shortest = Math.min(...plain.map((i) => i.label.length));
+  const best = plain.filter((i) => i.label.length === shortest);
+  return best.length === 1 ? best[0] : null;
 }
+
+/** The labels a name could have meant, for a "did you mean" — the substring hits, a few of them. */
+export function nameCandidates(items: { label: string }[], name: string, max = 6): string[] {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return [];
+  return items.filter((i) => i.label.toLowerCase().includes(wanted)).slice(0, max).map((i) => i.label);
+}
+
+/** The failure for a name nothing is called, naming what it could have meant. */
+export function noSuchName(kind: string, name: string, items: { label: string }[]): ToolResult {
+  const c = nameCandidates(items, name);
+  return fail(`No ${kind} is called "${name}".${c.length ? ` Did you mean ${c.map((x) => `"${x}"`).join(", ")}?` : ""}`);
+}
+
+export const noSuchUnit = (api: PluginApi, name: string) => noSuchName("unit", name, api.names.units().filter((u) => u.value < 228));
+export const noSuchUpgrade = (api: PluginApi, name: string) => noSuchName("upgrade", name, api.names.upgrades());
+export const noSuchTech = (api: PluginApi, name: string) => noSuchName("technology", name, api.names.techs());
 
 /** Names that ask for a mineral field without saying which of the three looks: the caller is free to vary the type. */
 const ANY_MINERAL = ["mineral field", "minerals", "mineral patch", "mineral"];
@@ -164,6 +220,7 @@ export function colorIndexOf(v: unknown): number | null {
 /** A tool result as agent content. */
 export function toContent(toolUseId: string, result: ToolResult, isError = false): AgentContent {
   if (typeof result === "string") return { type: "tool_result", toolUseId, content: result, isError };
+  if (isFailure(result)) return { type: "tool_result", toolUseId, content: result.error, isError: true };
   const parts: ({ type: "text"; text: string } | { type: "image"; source: ImageInput })[] = [];
   if (result.text) parts.push({ type: "text", text: result.text });
   if (result.image) parts.push({ type: "image", source: result.image });
@@ -210,6 +267,7 @@ export function describeStep(tool: { describe?(input: Record<string, unknown>, c
  * first line, cut short.
  */
 export function reportStep(tool: { report?(result: ToolResult): string } | undefined, result: ToolResult): string {
+  if (isFailure(result)) return cut(result.error.split("\n")[0], 80);
   if (tool?.report) { try { const s = tool.report(result); if (s) return s; } catch { /* the fallback */ } }
   if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
   const text = result.trim();
@@ -241,7 +299,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 
 /** The first line of a result, for the transcript row's tooltip. */
 export function summarizeResult(result: ToolResult): string {
-  const text = typeof result === "string" ? result : result.text ?? (result.image ? "(picture)" : "Done.");
+  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? "(picture)" : "Done.");
   const line = text.split("\n")[0];
   return line.length > 160 ? `${line.slice(0, 160)}…` : line;
 }
@@ -252,7 +310,7 @@ export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" :
 
 /** The JSON of a result, when it is one (a cut result parses no further than its cut). */
 export function jsonOf(result: ToolResult): Record<string, unknown> | null {
-  const text = typeof result === "string" ? result : result.text ?? "";
+  const text = typeof result === "string" ? result : isFailure(result) ? "" : result.text ?? "";
   if (!text.startsWith("{") && !text.startsWith("[")) return null;
   try { return JSON.parse(text) as Record<string, unknown>; } catch { return null; }
 }

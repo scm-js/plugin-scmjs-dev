@@ -1,8 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { PluginApi } from "@scm-js/plugin-api";
-import { byName, capResult, colorIndexOf, describeCall, ownerName, ownerOf, slotOf, summarizeResult } from "../ai/tools/common";
+import { byName, capResult, colorIndexOf, describeCall, nameCandidates, noSuchName, ownerName, ownerOf, slotOf, summarizeResult } from "../ai/tools/common";
 import { readShapes, SHAPE_OPS } from "../ai/tools/layout";
 import { paintableDiamonds } from "../ai/tools/terrain";
+import { usedTriggerState } from "../ai/tools/ums";
+
+describe("usedTriggerState", () => {
+  it("names the counters and switches the map's triggers read or write", () => {
+    const api = {
+      consts: { triggers: { condition: { Deaths: 15, Switch: 11 }, action: { SetDeaths: 45, SetSwitch: 13, Wait: 4 } } },
+      triggers: {
+        list: () => [
+          { conditions: [{ type: 15, unitId: 190, resource: 0 }, { type: 11, unitId: 0, resource: 11 }], actions: [{ type: 45, unitId: 191, target: 0 }, { type: 4, unitId: 0, target: 0 }] },
+          { conditions: [{ type: 15, unitId: 190, resource: 0 }], actions: [{ type: 13, unitId: 0, target: 254 }] },
+        ],
+      },
+      names: { unit: (id: number) => ({ 190: "Cave (Unused)", 191: "Cantina (Unused)" } as Record<number, string>)[id] ?? `unit ${id}`, switch: (i: number) => `Switch ${i + 1}` },
+    } as unknown as PluginApi;
+    expect(usedTriggerState(api)).toEqual({ dcUnits: ["Cave (Unused)", "Cantina (Unused)"], switches: ["Switch 12", "Switch 255"] });
+    expect(usedTriggerState({ ...api, triggers: { list: () => [] } } as unknown as PluginApi)).toEqual({ dcUnits: [], switches: [] });
+  });
+});
 
 describe("tool helpers", () => {
   it("maps 1-based tool players to 0-based owners and back", () => {
@@ -25,7 +43,13 @@ describe("tool helpers", () => {
     expect(byName(items, "Zerg Z")?.value).toBe(37);
     expect(byName(items, "ghost")?.value).toBe(1);
     expect(byName(items, "7")?.value).toBe(7);
-    expect(byName(items, "Terran")?.value).toBe(0); // several: the first substring hit
+    expect(byName(items, "Terran")).toBeNull(); // several, none of them plainly it
+    expect(nameCandidates(items, "Terran")).toEqual(["Terran Marine", "Terran Ghost", "Terran SCV"]);
+    const units = [{ value: 38, label: "Zerg Hydralisk" }, { value: 135, label: "Zerg Hydralisk Den" }, { value: 39, label: "Hunter Killer (Hydralisk)" }, { value: 5, label: "Terran Siege Tank (Tank Mode)" }, { value: 30, label: "Terran Siege Tank (Siege Mode)" }, { value: 28, label: "Edmund Duke (Tank Mode)" }];
+    expect(byName(units, "hydralisk")?.value).toBe(38); // the plain form beats the Den and the hero
+    expect(byName(units, "siege tank")?.value).toBe(5); // the shorter of the two forms
+    expect(byName(units, "tank mode")).toBeNull();
+    expect(noSuchName("unit", "tank mode", units)).toEqual({ error: 'No unit is called "tank mode". Did you mean "Terran Siege Tank (Tank Mode)", "Edmund Duke (Tank Mode)"?' });
     expect(byName(items, "")).toBeNull();
     expect(byName(items, "protoss")).toBeNull();
   });

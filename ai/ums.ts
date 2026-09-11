@@ -28,6 +28,10 @@ export interface ToolkitContext {
   dcUnits: string[];
   /** Location names on the map (or that the layout will make), for a check before use; empty = do not check. */
   locations?: string[];
+  /** Death-counter units the map's own triggers already count on (by name); the allocator passes over them. */
+  usedDcUnits?: string[];
+  /** Switches the map's own triggers already set or test (by name, "Switch 12"); the allocator passes over them. */
+  usedSwitches?: string[];
 }
 
 export interface BuiltSystem {
@@ -140,6 +144,12 @@ export function hasLocation(locations: string[], name: string): boolean {
   return locations.some((l) => re.test(l.toLowerCase()));
 }
 
+/** The missing locations a designed system names in its parameters — what it waits for before it can build. */
+export function waitingOn(system: { params: { key: string; value: string }[] }, missing: string[]): string[] {
+  // "Anywhere" is every map's; `hasLocation` says yes to it whatever the list holds.
+  return missing.filter((m) => system.params.some((p) => p.value.trim().toLowerCase() !== "anywhere" && hasLocation([m], p.value)));
+}
+
 /* ── Parameter reading ─────────────────────────────────── */
 
 class Reader {
@@ -231,25 +241,42 @@ class Reader {
   }
 }
 
-/** Hands out death-counter units, one per counter, from the context's list. */
+/**
+ * Hands out death-counter units, one per counter, from the context's list, and switches
+ * from the top down — passing over whatever the context says the map's own triggers
+ * already use, so a system built today does not share a counter with one built
+ * yesterday or with a hand-written trigger.
+ */
 export class Counters {
   private next = 0;
   readonly used: string[] = [];
   private readonly ctx: ToolkitContext;
+  private readonly taken: Set<string>;
+  private readonly takenSwitches: Set<string>;
   constructor(ctx: ToolkitContext) {
     this.ctx = ctx;
+    this.taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
+    this.takenSwitches = new Set((ctx.usedSwitches ?? []).map((s) => s.toLowerCase()));
   }
   take(what: string): string {
+    while (this.next < this.ctx.dcUnits.length && this.taken.has(this.ctx.dcUnits[this.next].toLowerCase())) this.next++;
     const unit = this.ctx.dcUnits[this.next++];
-    if (!unit) throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length})`]);
+    if (!unit) {
+      const inUse = this.ctx.dcUnits.filter((u) => this.taken.has(u.toLowerCase()) && !this.used.includes(u)).length;
+      throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length}${inUse ? `, ${inUse} already in use by the map's triggers` : ""})`]);
+    }
+    this.taken.add(unit.toLowerCase());
     this.used.push(unit);
     return unit;
   }
   private nextSwitch = 255;
   /** A switch by its numbered name, from the top down — a name the map does not have would not parse. */
   takeSwitch(what: string): string {
+    while (this.nextSwitch >= 1 && this.takenSwitches.has(`switch ${this.nextSwitch}`)) this.nextSwitch--;
     if (this.nextSwitch < 1) throw new ToolkitError([`no switch left for ${what}`]);
-    return `Switch ${this.nextSwitch--}`;
+    const name = `Switch ${this.nextSwitch--}`;
+    this.takenSwitches.add(name.toLowerCase());
+    return name;
   }
 }
 
