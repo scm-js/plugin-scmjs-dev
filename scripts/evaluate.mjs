@@ -195,7 +195,7 @@ async function runAssistant(p, task, ctx, r) {
   // the network under a stream just leaves the panel waiting for it).
   const refuse = "**/v1/recipes/**";
   if (task.refuseAfterSteps) {
-    const seen = await p.until(async () => (await p.steps(p.panel()).locator(".done, .failed").count()) >= task.refuseAfterSteps, TIMEOUT_MS, 250);
+    const seen = await p.until(async () => (await p.panel().locator(".steps .step.done, .steps .step.failed").count()) >= task.refuseAfterSteps, TIMEOUT_MS, 250);
     if (seen) { await ctx.route(refuse, (route) => route.abort("connectionfailed")); r.notes.push(`refused the next request after ${task.refuseAfterSteps} tool step(s)`); }
     else r.notes.push("no tool step completed, so no request was refused");
   }
@@ -311,7 +311,8 @@ function withBlocks(call) {
     for (const b of content) {
       const chars = b.type === "text" ? b.text?.length ?? 0 : b.type === "tool_result" ? JSON.stringify(b.content ?? "").length : b.type === "image" ? b.source?.bytes ?? 0 : JSON.stringify(b.input ?? "").length;
       if (i < (req.messages.length - 6) && b.type !== "text") continue; // only the tail's tool traffic, block by block
-      blocks.push({ where: `${m.role}#${i}`, type: b.type, head: b.type === "text" ? head(b.text) : b.name ?? b.type, chars, cached: !!b.cache_control });
+      const repair = b.type === "text" && /^(Your answer could not be used|## Repair)/.test(b.text ?? "");
+      blocks.push({ where: `${m.role}#${i}`, type: b.type, head: b.type === "text" ? head(b.text) : b.name ?? b.type, chars, cached: !!b.cache_control, ...(repair ? { text: b.text.slice(0, 3000) } : {}) });
     }
   }
   const tools = req.tools ?? [];
