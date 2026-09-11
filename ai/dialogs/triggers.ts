@@ -6,7 +6,7 @@
  * Build installs it the way TrigScript's own Build does.
  */
 import type { TriggersInput } from "../../protocol";
-import { describeDiagnostic, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
+import { compactTriggers, describeDiagnostic, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
 
 const REPAIR_ROUNDS = 2;
@@ -66,7 +66,7 @@ export function openTriggers(ctx: Ctx) {
           prompt: state.prompt,
           declarations,
           script: extend.input.checked && existing?.source ? existing.source : undefined,
-          existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 30_000) : undefined,
+          existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 30_000) : undefined,
         };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) return;

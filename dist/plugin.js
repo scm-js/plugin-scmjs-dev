@@ -9212,7 +9212,7 @@ function openTriggers(ctx) {
           prompt: state.prompt,
           declarations,
           script: extend.input.checked && existing?.source ? existing.source : void 0,
-          existingTriggers: hand.length > 0 ? api.triggers.text.print(hand).slice(0, 3e4) : void 0
+          existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0
         };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) return;
