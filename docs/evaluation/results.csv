@@ -1,23 +1,35 @@
 date,task,start,conversation,done_claimed,change_correct,check_map,rounds,continues,tool_calls,tool_failures,retries,cost_usd,charged_usd,seconds,cache_write_1h_tokens,cache_read_tokens,uncached_input_tokens,stop_reason,notes
-2026-09-11 19:30,1,cold,bbf4d920-d9bf-4cba-94d8-93cfc0225f35,yes,,pass,2,0,1,0,0,0.3200,0.3200,16,29029,28363,1672,end_turn|tool_use,
-2026-09-11 19:30,9,cold,c583462e-c058-4ea8-93e8-7b40c418c190,yes,,pass,5,0,12,0,0,0.2320,0.2320,53,0,158645,4183,end_turn|tool_use,
-2026-09-11 19:36,2,warm,4e627308-17f1-49bd-b79c-1f830adc5b75,yes,,1 warning,9,0,39,0,0,0.4094,0.4094,87,355,316232,6739,end_turn|tool_use,
-2026-09-11 19:38,3,warm,6cc9edae-6d05-4eb2-8e3d-c311839e9c28,yes,,1 warning,13,0,19,0,0,0.5637,0.5637,107,968,443214,8947,end_turn|tool_use,
-2026-09-11 19:40,4,warm,d4dea38c-7054-4a25-9894-b44e5b0b76ed,yes,,1 warning,19,0,22,1,0,0.7821,0.7821,175,223,638369,12755,end_turn|tool_use,
-2026-09-11 19:43,5,warm,0b5e9ee2-2e19-4faa-9cd6-bd59bfab7791,yes,,1 warning,3,0,4,0,0,0.1187,0.1187,38,0,88834,2050,end_turn|tool_use,
-2026-09-11 19:43,6,warm,0cd8a543-d639-4260-9558-b3406fc18673,yes,,1 warning,5,0,6,0,0,0.2031,0.2031,45,0,159437,3743,end_turn|tool_use,
-2026-09-11 19:44,7,warm,,yes,,1 warning,1,,,,,0.2040,0.2040,20,0,2681,2,end_turn,
-2026-09-11 19:45,8,warm,3b588753-5e1a-49a0-a545-60ba7c5fe98e,yes,,1 error,13,0,15,0,0,0.4011,0.4011,99,306,407727,10646,end_turn|tool_use,
-2026-09-11 19:46,R1,warm,,Built with 1 failed step.,,8 errors,2,,20,1,0,0.2198,0.2198,95,0,4078,8761,"error:Anthropic refused the request: 400 {""typ|end_turn",19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
-2026-09-11 19:48,R2,warm,be934a70-7648-41ce-9f7b-e793815b630c,yes,,pass,7,0,8,0,0,0.2622,0.2622,70,0,213004,5901,end_turn|tool_use,
-2026-09-11 19:49,R3,warm,fdec4c73-bba6-4fe6-bca8-8ff778621da8,yes,,1 warning,2,0,2,0,0,0.0476,0.0476,16,0,57112,1364,end_turn|tool_use,stopped during tools
-2026-09-11 20:07,R1,warm,,Built with 1 failed step.,,8 errors,3,,20,1,0,0.4326,0.4326,194,2664,6742,22125,end_turn,19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
-2026-09-11 20:11,R1,warm,,Built with 1 failed step.,,8 errors,3,,22,1,0,0.5565,0.5565,210,0,9406,20799,end_turn,21 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
-2026-09-11 20:14,R2,warm,2f5e7ab3-c7f0-46c8-8747-e265271f318d,yes,,pass,17,2,35,0,0,0.7467,0.7467,146,0,660105,15922,end_turn|tool_use,
-2026-09-11 20:32,R1,warm,,yes,,1 warning,1,,20,0,0,0.1999,0.1999,85,0,4078,8761,end_turn,"2 system(s) waiting: waits for location ""Armory Pad""; waits for location ""Medbay"""
-2026-09-11 20:34,R4,warm,51caedd6-ad20-4390-934b-23aa0ca35e22,yes,,1 warning,11,0,16,0,0,0.3998,0.3998,1207,0,357525,7536,end_turn|tool_use,"no tool step completed, so no request was refused"
-2026-09-11 20:54,R9,warm,,yes,,1 warning,4,,23,0,0,1.7854,1.7854,730,4615,7556,24164,end_turn,
-2026-09-11 21:22,R4,warm,7f38bff0-efa0-4e4e-b6f5-f37d8a1ec0b3,failed,,1 warning,1,0,2,0,0,0.0217,0.0217,11,0,28556,682,tool_use,refused the next request after 1 tool step(s)
-2026-09-11 21:23,R5,warm,af523530-438a-417a-9ba7-5d7fe17cc6a7,yes,,pass,2,0,1,0,0,0.0519,0.0519,15,1085,56364,1672,end_turn|tool_use,
-2026-09-11 21:23,R7,warm,d48607ef-be45-44ab-988e-0e5ebb337662,yes,,1 warning,6,0,7,0,0,0.2046,0.2046,59,142,182893,3472,end_turn|tool_use,
-2026-09-11 21:24,R10,warm,62801588-6323-4a03-b393-c4a7a6bfa125,yes,,pass,10,0,9,0,0,0.2539,0.2539,59,0,298315,8368,end_turn|tool_use,
+2026-09-11 19:30,1,cold,bbf4d920-d9bf-4cba-94d8-93cfc0225f35,yes,"yes: name set, two-sentence description with both facts",pass,2,0,1,0,0,0.3200,0.3200,16,29029,28363,1672,end_turn|tool_use,
+2026-09-11 19:30,9,cold,c583462e-c058-4ea8-93e8-7b40c418c190,yes,yes: no writes; 204 patches / 26 geysers correct,pass,5,0,12,0,0,0.2320,0.2320,53,0,158645,4183,end_turn|tool_use,
+2026-09-11 19:36,2,warm,4e627308-17f1-49bd-b79c-1f830adc5b75,yes,superseded by a later row,1 warning,9,0,39,0,0,0.4094,0.4094,87,355,316232,6739,end_turn|tool_use,
+2026-09-11 19:38,3,warm,6cc9edae-6d05-4eb2-8e3d-c311839e9c28,yes,superseded by a later row,1 warning,13,0,19,0,0,0.5637,0.5637,107,968,443214,8947,end_turn|tool_use,
+2026-09-11 19:40,4,warm,d4dea38c-7054-4a25-9894-b44e5b0b76ed,yes,superseded by a later row,1 warning,19,0,22,1,0,0.7821,0.7821,175,223,638369,12755,end_turn|tool_use,
+2026-09-11 19:43,5,warm,0b5e9ee2-2e19-4faa-9cd6-bd59bfab7791,yes,superseded by a later row,1 warning,3,0,4,0,0,0.1187,0.1187,38,0,88834,2050,end_turn|tool_use,
+2026-09-11 19:43,6,warm,0cd8a543-d639-4260-9558-b3406fc18673,yes,superseded by a later row,1 warning,5,0,6,0,0,0.2031,0.2031,45,0,159437,3743,end_turn|tool_use,
+2026-09-11 19:44,7,warm,,yes,superseded by a later row,1 warning,1,,,,,0.2040,0.2040,20,0,2681,2,end_turn,
+2026-09-11 19:45,8,warm,3b588753-5e1a-49a0-a545-60ba7c5fe98e,yes,superseded by a later row,1 error,13,0,15,0,0,0.4011,0.4011,99,306,407727,10646,end_turn|tool_use,
+2026-09-11 19:46,R1,warm,,Built with 1 failed step.,superseded by a later row,8 errors,2,,20,1,0,0.2198,0.2198,95,0,4078,8761,"error:Anthropic refused the request: 400 {""typ|end_turn",19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
+2026-09-11 19:48,R2,warm,be934a70-7648-41ce-9f7b-e793815b630c,yes,superseded by a later row,pass,7,0,8,0,0,0.2622,0.2622,70,0,213004,5901,end_turn|tool_use,
+2026-09-11 19:49,R3,warm,fdec4c73-bba6-4fe6-bca8-8ff778621da8,yes,"n/a: stopped mid-batch as intended; partial paint kept, follow-up answered",1 warning,2,0,2,0,0,0.0476,0.0476,16,0,57112,1364,end_turn|tool_use,stopped during tools
+2026-09-11 20:07,R1,warm,,Built with 1 failed step.,superseded by a later row,8 errors,3,,20,1,0,0.4326,0.4326,194,2664,6742,22125,end_turn,19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
+2026-09-11 20:11,R1,warm,,Built with 1 failed step.,superseded by a later row,8 errors,3,,22,1,0,0.5565,0.5565,210,0,9406,20799,end_turn,21 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
+2026-09-11 20:14,R2,warm,2f5e7ab3-c7f0-46c8-8747-e265271f318d,yes,"yes: 8 bunkers + 32 marines, one per base, outside the mineral line; no ramps on BGH so faced the open side",pass,17,2,35,0,0,0.7467,0.7467,146,0,660105,15922,end_turn|tool_use,
+2026-09-11 20:32,R1,warm,,yes,"yes: spawns, income and escalation on separate counters; 2 systems wait on undrawn locations by design",1 warning,1,,20,0,0,0.1999,0.1999,85,0,4078,8761,end_turn,"2 system(s) waiting: waits for location ""Armory Pad""; waits for location ""Medbay"""
+2026-09-11 20:34,R4,warm,51caedd6-ad20-4390-934b-23aa0ca35e22,yes,superseded by a later row,1 warning,11,0,16,0,0,0.3998,0.3998,1207,0,357525,7536,end_turn|tool_use,"no tool step completed, so no request was refused"
+2026-09-11 20:54,R9,warm,,yes,"yes: full CTF map, 25 locations, no waiting systems (case did not fire)",1 warning,4,,23,0,0,1.7854,1.7854,730,4615,7556,24164,end_turn,
+2026-09-11 21:22,R4,warm,7f38bff0-efa0-4e4e-b6f5-f37d8a1ec0b3,failed,superseded by a later row,1 warning,1,0,2,0,0,0.0217,0.0217,11,0,28556,682,tool_use,refused the next request after 1 tool step(s)
+2026-09-11 21:23,R5,warm,af523530-438a-417a-9ba7-5d7fe17cc6a7,yes,superseded by a later row,pass,2,0,1,0,0,0.0519,0.0519,15,1085,56364,1672,end_turn|tool_use,
+2026-09-11 21:23,R7,warm,d48607ef-be45-44ab-988e-0e5ebb337662,yes,superseded by a later row,1 warning,6,0,7,0,0,0.2046,0.2046,59,142,182893,3472,end_turn|tool_use,
+2026-09-11 21:24,R10,warm,62801588-6323-4a03-b393-c4a7a6bfa125,yes,"yes: 8 pictures under the limit, reasoned pick",pass,10,0,9,0,0,0.2539,0.2539,59,0,298315,8368,end_turn|tool_use,
+2026-09-11 21:42,R4,warm,e5c253d4-d2da-4885-b3c1-ff774d81decb,failed,"yes: the one edit kept with Undo, failure shown",1 warning,10,0,18,0,0,0.6349,0.6349,153,0,320083,6845,tool_use,refused the next request after the first edit
+2026-09-11 21:44,R5,warm,b0d53799-036c-4635-a23d-c68e897f8c35,yes,"yes: paged to all 238, per-player counts right",pass,4,0,3,0,0,0.2635,0.2635,58,0,127602,3346,end_turn|tool_use,
+2026-09-11 21:45,R7,warm,829b1516-82a1-4171-beb3-4e1a4d43421a,yes,superseded by a later row,4 errors,6,0,5,0,0,0.1862,0.1862,51,1232,174782,2747,end_turn|tool_use,
+2026-09-11 21:46,2,warm,8de83356-3e2e-4b9e-a180-e53c31727b18,yes,"yes: 68 messages rewritten, all under 50 chars, second person; other texts untouched",1 warning,10,0,36,0,0,0.4782,0.4782,82,355,380414,7488,end_turn|tool_use,
+2026-09-11 21:48,3,warm,18f6f4ac-e77d-443f-b409-b58d29ecaa43,yes,"partly: usable base, 8 patches + geyser, reachable; a straight line, not the arc the map's naturals use",1 warning,9,0,15,0,0,0.2994,0.2994,72,0,285667,6168,end_turn|tool_use,
+2026-09-11 21:49,4,warm,c7fd4cc5-3b95-483f-85e0-d0fd2fd28800,yes,superseded by a later row,4 errors,4,0,4,0,0,0.1530,0.1530,49,223,116301,2056,end_turn|tool_use,
+2026-09-11 21:50,5,warm,26181cbd-bb05-4427-a3d0-91b1e270f0fd,yes,no: planned the river and asked to confirm; nothing painted,1 warning,4,0,4,0,0,0.1435,0.1435,41,0,121267,2734,end_turn|tool_use,
+2026-09-11 21:51,6,warm,ae4bec5a-b556-4110-bdaf-db52e2bf65f4,yes,"yes: shop per player (Bring+Accumulate -> Firebat at spawn), 25-min countdown -> Victory while lives remain",1 warning,6,0,7,0,0,0.2273,0.2273,46,0,193019,4492,end_turn|tool_use,
+2026-09-11 21:52,7,warm,,yes,"yes: script extended in place, message added",1 warning,1,,,,,0.2042,0.2042,20,0,2681,2,end_turn,
+2026-09-11 21:52,8,warm,5a950c58-e5bf-456a-80e5-c14f523372b6,yes,"yes: start location placed, dead trigger removed; STR overflow reported as unfixable (no string tool)",1 error,11,0,16,0,0,0.3907,0.3907,88,306,343913,8850,end_turn|tool_use,
+2026-09-11 23:17,4,warm,d7683357-72aa-4a21-8821-b9a6d6751466,yes,"yes: 12x10 High Snow plateau at 115,63 with one SW ramp; bases untouched",1 warning,13,0,16,0,0,0.6904,0.6904,93,28642,384583,8970,end_turn|tool_use,
+2026-09-11 23:18,R7,warm,05a0d072-b754-4bbe-9ed2-728a11e8955f,yes,yes: river edge to edge with one land gap; said Badlands has no bridge,4 errors,5,0,5,0,0,0.1394,0.1394,35,919,145003,2447,end_turn|tool_use,
