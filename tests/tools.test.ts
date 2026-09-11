@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PluginApi } from "@scm-js/plugin-api";
 import { byName, capResult, colorIndexOf, describeCall, nameCandidates, noSuchName, ownerName, ownerOf, slotOf, summarizeResult } from "../ai/tools/common";
 import { readShapes, SHAPE_OPS } from "../ai/tools/layout";
+import { shapesRect } from "../ai/shapes";
 import { paintableDiamonds } from "../ai/tools/terrain";
 import { usedTriggerState } from "../ai/tools/ums";
 
@@ -88,6 +89,16 @@ describe("paint_shapes input", () => {
     expect(missing).toContain("Shape 2 names no op");
     expect(missing).toContain(SHAPE_OPS.join(", "));
     expect(readShapes([{ op: "river", terrain: 5 }])).toContain('Shape 1 has an op "river"');
+  });
+});
+
+describe("paint_shapes clear", () => {
+  it("clears only the rectangle the shapes touch, the whole map for ground or border", () => {
+    expect(shapesRect([{ op: "rect", terrain: 1, x: 10, y: 20, w: 5, h: 6 }], 128, 128)).toEqual({ x0: 10, y0: 20, x1: 15, y1: 26 });
+    expect(shapesRect([{ op: "stroke", terrain: 1, points: [[10, 10], [30, 12]], width: 6 }], 128, 128)).toEqual({ x0: 7, y0: 7, x1: 34, y1: 16 });
+    expect(shapesRect([{ op: "diamond", terrain: 1, cx: 3, cy: 3, rx: 5, ry: 5 }], 128, 128)).toEqual({ x0: 0, y0: 0, x1: 9, y1: 9 });
+    expect(shapesRect([{ op: "rect", terrain: 1, x: 10, y: 20, w: 5, h: 6 }, { op: "ground", terrain: 2 }], 96, 64)).toEqual({ x0: 0, y0: 0, x1: 96, y1: 64 });
+    expect(shapesRect([], 96, 64)).toEqual({ x0: 0, y0: 0, x1: 0, y1: 0 });
   });
 });
 

@@ -31,6 +31,8 @@ export interface RenderOptions {
   label: string;
   /** Clear units, sprites and doodads inside the plan's area first (a region redo). */
   clearArea?: boolean;
+  /** With `clearArea`: clear this rectangle instead of the plan's whole area (paint_shapes: what the shapes touch). */
+  clearRect?: TileRect;
 }
 
 export interface Rendered {
@@ -96,7 +98,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
 
   const before = doodadSnapshot(api);
   const result = api.document.edit(options.label, (tx) => {
-    if (options.clearArea) clearArea(api, tx, area);
+    if (options.clearArea) clearArea(api, tx, options.clearRect ?? area);
 
     // Terrain.
     if (!hasTileset) {

@@ -546,6 +546,33 @@ export function shapeText(s: Shape): string {
   return parts.join(" ");
 }
 
+/**
+ * The tiles the shapes touch, as one rectangle clamped to the map: what `clear` on
+ * paint_shapes is allowed to remove under. A `ground` or `border` covers the map; a
+ * stroke or lane reaches half its width past its points, and its bank or wall past
+ * that; a ramp or bridge stamp is taken as 16 tiles around its site.
+ */
+export function shapesRect(shapes: readonly Shape[], width: number, height: number): { x0: number; y0: number; x1: number; y1: number } {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (ax: number, ay: number, bx: number, by: number) => { x0 = Math.min(x0, ax); y0 = Math.min(y0, ay); x1 = Math.max(x1, bx); y1 = Math.max(y1, by); };
+  for (const s of shapes) {
+    switch (s.op) {
+      case "ground": case "border": grow(0, 0, width, height); break;
+      case "rect": case "plateau": if ([s.x, s.y, s.w, s.h].every((v) => typeof v === "number")) grow(s.x!, s.y!, s.x! + s.w!, s.y! + s.h!); break;
+      case "diamond": case "ellipse": if ([s.cx, s.cy, s.rx, s.ry].every((v) => typeof v === "number")) grow(s.cx! - s.rx!, s.cy! - s.ry!, s.cx! + s.rx! + 1, s.cy! + s.ry! + 1); break;
+      case "polygon": case "stroke": case "lane": {
+        const reach = s.op === "polygon" ? 0 : Math.ceil((s.width ?? 4) / 2) + (s.op === "stroke" ? (typeof s.bank === "number" ? s.bankWidth ?? 7 : 0) : (typeof s.wall === "number" ? s.wallWidth ?? 3 : 0));
+        for (const [px, py] of s.points ?? []) grow(px - reach, py - reach, px + reach + 1, py + reach + 1);
+        if (s.op === "stroke") for (const b of s.bridges ?? []) { const [bx, by] = Array.isArray(b) ? b : [b.x, b.y]; grow(bx - 16, by - 16, bx + 16, by + 16); }
+        break;
+      }
+      case "ramp": case "bridge": if (typeof s.x === "number" && typeof s.y === "number") grow(s.x - 16, s.y - 16, s.x + 16, s.y + 16); break;
+    }
+  }
+  if (!Number.isFinite(x0)) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+  return { x0: Math.max(0, Math.floor(x0)), y0: Math.max(0, Math.floor(y0)), x1: Math.min(width, Math.ceil(x1)), y1: Math.min(height, Math.ceil(y1)) };
+}
+
 /** The same shapes moved by (dx, dy) tiles — for shapes written relative to an area's corner. */
 export function shiftShapes(shapes: readonly Shape[], dx: number, dy: number): Shape[] {
   if (!dx && !dy) return [...shapes];

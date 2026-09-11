@@ -2296,6 +2296,48 @@ function pairAround(cells, width, height, x, y, ctx, known) {
   }
   return null;
 }
+function shapesRect(shapes, width, height) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (ax, ay, bx, by) => {
+    x0 = Math.min(x0, ax);
+    y0 = Math.min(y0, ay);
+    x1 = Math.max(x1, bx);
+    y1 = Math.max(y1, by);
+  };
+  for (const s of shapes) {
+    switch (s.op) {
+      case "ground":
+      case "border":
+        grow(0, 0, width, height);
+        break;
+      case "rect":
+      case "plateau":
+        if ([s.x, s.y, s.w, s.h].every((v) => typeof v === "number")) grow(s.x, s.y, s.x + s.w, s.y + s.h);
+        break;
+      case "diamond":
+      case "ellipse":
+        if ([s.cx, s.cy, s.rx, s.ry].every((v) => typeof v === "number")) grow(s.cx - s.rx, s.cy - s.ry, s.cx + s.rx + 1, s.cy + s.ry + 1);
+        break;
+      case "polygon":
+      case "stroke":
+      case "lane": {
+        const reach = s.op === "polygon" ? 0 : Math.ceil((s.width ?? 4) / 2) + (s.op === "stroke" ? typeof s.bank === "number" ? s.bankWidth ?? 7 : 0 : typeof s.wall === "number" ? s.wallWidth ?? 3 : 0);
+        for (const [px, py] of s.points ?? []) grow(px - reach, py - reach, px + reach + 1, py + reach + 1);
+        if (s.op === "stroke") for (const b of s.bridges ?? []) {
+          const [bx, by] = Array.isArray(b) ? b : [b.x, b.y];
+          grow(bx - 16, by - 16, bx + 16, by + 16);
+        }
+        break;
+      }
+      case "ramp":
+      case "bridge":
+        if (typeof s.x === "number" && typeof s.y === "number") grow(s.x - 16, s.y - 16, s.x + 16, s.y + 16);
+        break;
+    }
+  }
+  if (!Number.isFinite(x0)) return { x0: 0, y0: 0, x1: 0, y1: 0 };
+  return { x0: Math.max(0, Math.floor(x0)), y0: Math.max(0, Math.floor(y0)), x1: Math.min(width, Math.ceil(x1)), y1: Math.min(height, Math.ceil(y1)) };
+}
 function shiftShapes(shapes, dx, dy) {
   if (!dx && !dy) return [...shapes];
   return shapes.map((s) => {
@@ -3667,7 +3709,7 @@ function renderPlan(api, input, options) {
   const placed = { diamonds: 0, tiles: 0, starts: 0, resources: 0, ramps: 0, bridges: 0, doodads: 0, units: 0, locations: 0 };
   const before = doodadSnapshot(api);
   const result = api.document.edit(options.label, (tx) => {
-    if (options.clearArea) clearArea(api, tx, area);
+    if (options.clearArea) clearArea(api, tx, options.clearRect ?? area);
     if (!hasTileset) {
       findings.push("the tileset graphics are not loaded, so the terrain was not painted");
     } else if (hasIsom) {
@@ -4042,12 +4084,12 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     {
       def: {
         name: "paint_shapes",
-        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Painting the ground under a doodad removes it (the result names it): paint water before placing a bridge, and keep later strokes \u2014 whose round ends reach half their width past each point \u2014 off a bridge\'s tiles. Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes units, doodads and sprites under the painted area first. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Painting the ground under a doodad removes it (the result names it): paint water before placing a bridge, and keep later strokes \u2014 whose round ends reach half their width past each point \u2014 off a bridge\'s tiles. Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for `ground` or `border`); leave it off unless the area is meant to start empty \u2014 repainting ground under a unit keeps the unit. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
         inputSchema: obj({
           shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" },
           originY: { type: "integer" },
-          clear: { type: "boolean" },
+          clear: { type: "boolean", description: "remove units, doodads and sprites inside the shapes' rectangle first; default false" },
           locations: { type: "array", items: { type: "object", additionalProperties: true } },
           units: { type: "array", items: { type: "object", additionalProperties: true } }
         }, ["shapes"])
@@ -4086,7 +4128,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           locations,
           notes: []
         };
-        const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: "AI: paint shapes", clearArea: input.clear === true });
+        const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: "AI: paint shapes", clearArea: input.clear === true, clearRect: shapesRect(plan.shapes ?? [], info.width, info.height) });
         if (!rendered) return "The shapes could not be rendered.";
         return capResult({ painted: summarizeRender(rendered), notes: rendered.findings });
       }
