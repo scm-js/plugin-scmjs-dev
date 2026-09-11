@@ -4,17 +4,17 @@
  *
  * `kind` is how the task is driven: `assistant` types the prompt into the AI Assistant,
  * `scenario` runs Make Scenario… (Design, then Build), `triggers` runs Write Triggers…
- * (Write, then Build). `map` is a file in the maps folder, or absent for a task that
- * starts on a new map. `manual` marks a case the script cannot drive (a tab switch, a
+ * (Write, then Build). `map` is a file in the maps folder; `newMap` makes one with
+ * File ▸ New… instead (an assistant task on a tileset no fixture map has). `manual` marks a case the script cannot drive (a tab switch, a
  * hand edit between turns); it is listed and skipped. `maxRounds` lowers the tool-round
  * limit for one task, `continues` how many times Continue is pressed at that limit,
- * `stopOn: "tools"` presses Stop inside the first tool batch, `refuseAfterSteps: n`
- * refuses the next request to the server once n tool steps have completed.
+ * `stopOn: "tools"` presses Stop inside the first tool batch, `refuseAfterEdit` refuses
+ * the next request to the server once a tool step that changed the map has completed
+ * (`refuseAfterSteps: n` counts any n steps).
  */
 
 export const MAPS = {
   bgh: "(8)Big Game Hunters.scm",
-  ice: "(2)Ice Floes.scx",
   thaw: "(4)Spring Thaw.scx",
   scenario: "Scenario.scx",
   broken: "Broken.scx",
@@ -73,13 +73,13 @@ export const TASKS = [
     prompt: "For every start position, put a bunker with four marines inside just outside the mineral line, facing the nearest ramp. Do all eight without stopping to ask; after each one, say which is done.",
   },
   { id: "R3", title: "Stop between tool calls", kind: "assistant", map: MAPS.thaw, prompt: PLATEAU, stopOn: "tools", followUp: "What did you manage to do before I stopped you?" },
-  { id: "R4", title: "Failure after successful edits", kind: "assistant", map: MAPS.thaw, prompt: BASE, refuseAfterSteps: 1 },
+  { id: "R4", title: "Failure after successful edits", kind: "assistant", map: MAPS.thaw, prompt: BASE, refuseAfterEdit: true },
   {
     id: "R5", title: "Paging to the last page", kind: "assistant", map: MAPS.bgh,
-    prompt: "How many units are on this map in total, and how many of them belong to Player 8? List Player 8's units.",
+    prompt: "List every unit on this map with its owner and tile position, then give the total and how many each player owns.",
   },
   { id: "R6", title: "Change maps during a response", manual: "Run task 1 on Big Game Hunters with a second map open and switch tabs while it runs." },
-  { id: "R7", title: "No ramps or bridges on ice", kind: "assistant", map: MAPS.ice, prompt: RIVER },
+  { id: "R7", title: "A tileset with no bridges", kind: "assistant", newMap: { width: 96, height: 96, tileset: "badlands" }, prompt: RIVER },
   { id: "R8", title: "An older turn's Undo", manual: "Run tasks 1 and 4 in one conversation, paint a few tiles by hand, press the Undo button on task 1's row." },
   {
     id: "R9", title: "Required location missing", kind: "scenario",

@@ -106,9 +106,9 @@ from `cost_usd` when a failed request's completed calls were charged to the limi
 
 | Name in this document | File | Why |
 | --- | --- | --- |
-| BGH | `(8)Big Game Hunters.scm` | Eight players, many units, long lists: paging, naming, a big base |
-| Ice Floes | `(2)Ice Floes.scx` | The ice tileset has no ramps or bridges the brush can place |
-| Spring Thaw | `(4)Spring Thaw.scx` | Four players, room for a plateau and a river |
+| BGH | `(8)Big Game Hunters.scm` | Eight players, 238 units, long lists: paging, naming, a big base |
+| Spring Thaw | `(4)Spring Thaw.scx` | Four players on Ice, 256 × 128, room for a plateau and a river; the tileset has ramps and bridges |
+| Badlands | made by the script | A new 96 × 96 map on a tileset with no bridges (Badlands, Installation and Ash World have none) |
 | Scenario | made in task 0 | A Make Scenario map with several systems and a script |
 | Broken | made in task 0 | A map with a missing start location and a trigger naming a location that no longer exists |
 
@@ -195,9 +195,7 @@ Map: Spring Thaw. Prompt:
 > exactly one bridge.
 
 Correct: continuous water, one bridge doodad on a diagonal the river bends onto, walkable
-across it. Compare with the same prompt on **Ice Floes**, which must answer that ice has
-no bridge and offer a ford or a gap instead of placing nothing silently (regression
-case R7 below).
+across it. The same prompt on a tileset with no bridges is regression case R7.
 
 ### 6. A multi-system scenario
 
@@ -287,8 +285,9 @@ works (the tool results block is complete, so the server does not reject the his
 ### R4. Failure after successful edits
 
 Map: Spring Thaw. Prompt as task 3, but make the next request to the server fail after
-the first tool row succeeds (the script refuses it; by hand, set the account's balance
-to a few cents first). Disconnecting the network does not do it: the stream already
+the first tool row that changed the map (the script refuses it; by hand, set the
+account's balance to a few cents first). After a read-only row the failure proves
+nothing, since there is no edit to keep. Disconnecting the network does not do it: the stream already
 running is left waiting, not failed.
 
 Correct: the edits already made stay on the map with their undo labels, the panel shows
@@ -299,12 +298,13 @@ account and counted against the limiter.
 
 Map: BGH. Prompt:
 
-> How many units are on this map in total, and how many of them belong to Player 8? List
-> Player 8's units.
+> List every unit on this map with its owner and tile position, then give the total and
+> how many each player owns.
 
-Correct: the model follows `next` until the last page rather than answering from the
-first page (the total must match the editor's Statistics). Count the `list_units` calls
-and check each one's `offset`.
+Big Game Hunters has 238 units and a page holds 200, so the list needs a second page.
+Correct: the model follows `next` to the last page rather than answering from the first
+(the total must match the editor's Statistics, and every player's count must be right).
+Count the `list_units` calls and check the second one's `offset`.
 
 ### R6. Change maps during a response
 
@@ -313,13 +313,13 @@ Map: BGH. Prompt as task 1. While it is running, switch to another open map tab.
 Correct: the response finishes against BGH (the turn is bound to the document id), the
 other map is untouched, and the panel says which map the answer belongs to.
 
-### R7. A tileset with no ramps or bridges
+### R7. A tileset with no bridges
 
-Map: Ice Floes. Prompt as task 5.
+Map: a new 96 × 96 Badlands map (the script makes it with File ▸ New). Prompt as task 5.
 
-Correct: the model reports that the tileset has no bridge and proposes an alternative
-rather than claiming a bridge was placed. Look for `place_bridge` returning a failure
-envelope and the model reading it.
+Correct: the model reports that the tileset has no bridge and proposes an alternative,
+a ford or a gap, rather than claiming a bridge was placed. Look for the shape or
+`place_bridge` call returning a failure envelope and the model reading it.
 
 ### R8. An older turn's Undo
 

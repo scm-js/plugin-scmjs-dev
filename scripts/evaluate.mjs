@@ -97,6 +97,16 @@ function driver(page) {
       await page.dispatchEvent(".app", "drop", { dataTransfer: dt });
       await wait(3000);
     },
+    /** File ▸ New…: the tileset card, the two size selects, Create. */
+    async newMap({ width, height, tileset }) {
+      await p.menu("File", /^New/);
+      const dlg = p.dlg();
+      await dlg.locator(".tileset-card", { hasText: new RegExp(tileset, "i") }).first().click();
+      await dlg.locator("select").nth(0).selectOption(String(width));
+      await dlg.locator("select").nth(1).selectOption(String(height));
+      await dlg.locator("button", { hasText: /^Create$/ }).click();
+      await wait(2500);
+    },
     async menu(top, item) {
       await page.click(`.menubar button:has-text("${top}")`); await wait(200);
       await page.locator(".menu-item", { hasText: item }).first().click(); await wait(800);
@@ -194,15 +204,19 @@ async function runAssistant(p, task, ctx, r) {
   // The next request to the server is refused (the one in flight is left alone: cutting
   // the network under a stream just leaves the panel waiting for it).
   const refuse = "**/v1/recipes/**";
-  if (task.refuseAfterSteps) {
-    const seen = await p.until(async () => (await p.panel().locator(".steps .step.done, .steps .step.failed").count()) >= task.refuseAfterSteps, TIMEOUT_MS, 250);
-    if (seen) { await ctx.route(refuse, (route) => route.abort("connectionfailed")); r.notes.push(`refused the next request after ${task.refuseAfterSteps} tool step(s)`); }
+  if (task.refuseAfterSteps || task.refuseAfterEdit) {
+    const edit = /^(Place|Lay|Paint|Set|Add|Remove|Move|Scatter|Replace|Name|Resize|Fog|Update|Convert)/;
+    const seen = await p.until(async () => {
+      const labels = await p.panel().locator(".steps .step.done, .steps .step.failed").evaluateAll((els) => els.map((el) => el.querySelector(".step-label")?.textContent ?? ""));
+      return task.refuseAfterEdit ? labels.some((l) => edit.test(l)) : labels.length >= task.refuseAfterSteps;
+    }, TIMEOUT_MS, 250);
+    if (seen) { await ctx.route(refuse, (route) => route.abort("connectionfailed")); r.notes.push(task.refuseAfterEdit ? "refused the next request after the first edit" : `refused the next request after ${task.refuseAfterSteps} tool step(s)`); }
     else r.notes.push("no tool step completed, so no request was refused");
   }
 
   let phase = await p.settle();
   log(`assistant ${/is-(\w+)/.exec(phase)?.[1] ?? "settled"}: ${await p.phaseDetail()}`);
-  if (task.refuseAfterSteps) await ctx.unroute(refuse);
+  if (task.refuseAfterSteps || task.refuseAfterEdit) await ctx.unroute(refuse);
   let continues = 0;
   while (task.continues && continues < task.continues && /is-stopped/.test(phase)) {
     const more = p.panel().locator("button", { hasText: /^Continue$/ });
@@ -361,6 +375,7 @@ async function main() {
       const r = { date: stamp.toISOString().slice(0, 16).replace("T", " "), task: task.id, start: START, change_correct: "", notes: [] };
       if (task.manual) { console.log(`${task.id} ${task.title}: manual — ${task.manual}`); continue; }
       if (task.map && !existsSync(join(MAPS, task.map))) { console.log(`${task.id} ${task.title}: skipped, ${task.map} is not in ${MAPS}`); continue; }
+      if (!task.map && !task.newMap && task.kind === "assistant") { console.log(`${task.id} ${task.title}: skipped, no map`); continue; }
       console.log(`${task.id} ${task.title} (${START})…`);
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1, acceptDownloads: true });
       await ctx.addInitScript(seed(task));
@@ -372,6 +387,7 @@ async function main() {
       try {
         await p.goto();
         if (task.map) await p.drop(task.map);
+        else if (task.newMap) await p.newMap(task.newMap);
         if (task.kind === "assistant") await runAssistant(p, task, ctx, r);
         else if (task.kind === "triggers") await runTriggers(p, task, r);
         else if (task.kind === "scenario") await runScenario(p, task, r);

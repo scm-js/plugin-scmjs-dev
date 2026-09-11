@@ -11,3 +11,13 @@ date,task,start,conversation,done_claimed,change_correct,check_map,rounds,contin
 2026-09-11 19:46,R1,warm,,Built with 1 failed step.,,8 errors,2,,20,1,0,0.2198,0.2198,95,0,4078,8761,"error:Anthropic refused the request: 400 {""typ|end_turn",19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
 2026-09-11 19:48,R2,warm,be934a70-7648-41ce-9f7b-e793815b630c,yes,,pass,7,0,8,0,0,0.2622,0.2622,70,0,213004,5901,end_turn|tool_use,
 2026-09-11 19:49,R3,warm,fdec4c73-bba6-4fe6-bca8-8ff778621da8,yes,,1 warning,2,0,2,0,0,0.0476,0.0476,16,0,57112,1364,end_turn|tool_use,stopped during tools
+2026-09-11 20:07,R1,warm,,Built with 1 failed step.,,8 errors,3,,20,1,0,0.4326,0.4326,194,2664,6742,22125,end_turn,19 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
+2026-09-11 20:11,R1,warm,,Built with 1 failed step.,,8 errors,3,,22,1,0,0.5565,0.5565,210,0,9406,20799,end_turn,21 system(s) waiting: not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run; not run
+2026-09-11 20:14,R2,warm,2f5e7ab3-c7f0-46c8-8747-e265271f318d,yes,,pass,17,2,35,0,0,0.7467,0.7467,146,0,660105,15922,end_turn|tool_use,
+2026-09-11 20:32,R1,warm,,yes,,1 warning,1,,20,0,0,0.1999,0.1999,85,0,4078,8761,end_turn,"2 system(s) waiting: waits for location ""Armory Pad""; waits for location ""Medbay"""
+2026-09-11 20:34,R4,warm,51caedd6-ad20-4390-934b-23aa0ca35e22,yes,,1 warning,11,0,16,0,0,0.3998,0.3998,1207,0,357525,7536,end_turn|tool_use,"no tool step completed, so no request was refused"
+2026-09-11 20:54,R9,warm,,yes,,1 warning,4,,23,0,0,1.7854,1.7854,730,4615,7556,24164,end_turn,
+2026-09-11 21:22,R4,warm,7f38bff0-efa0-4e4e-b6f5-f37d8a1ec0b3,failed,,1 warning,1,0,2,0,0,0.0217,0.0217,11,0,28556,682,tool_use,refused the next request after 1 tool step(s)
+2026-09-11 21:23,R5,warm,af523530-438a-417a-9ba7-5d7fe17cc6a7,yes,,pass,2,0,1,0,0,0.0519,0.0519,15,1085,56364,1672,end_turn|tool_use,
+2026-09-11 21:23,R7,warm,d48607ef-be45-44ab-988e-0e5ebb337662,yes,,1 warning,6,0,7,0,0,0.2046,0.2046,59,142,182893,3472,end_turn|tool_use,
+2026-09-11 21:24,R10,warm,62801588-6323-4a03-b393-c4a7a6bfa125,yes,,pass,10,0,9,0,0,0.2539,0.2539,59,0,298315,8368,end_turn|tool_use,
