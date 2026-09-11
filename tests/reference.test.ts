@@ -12,7 +12,7 @@ const parts: ReferenceParts = {
   height: 128,
   tileset: "Jungle",
   versionLabel: "Brood War 1.04",
-  players: ["1: Human, Terran, force 1, has a start location", "2: Computer, Zerg, force 2"],
+  players: ["1: Human, Terran, force 1", "2: Computer, Zerg, force 2"],
   terrains: [{ id: 1, name: "Dirt", height: 0, buildable: true }, { id: 3, name: "Water", height: 0, buildable: false }, { id: 7, name: "High Dirt", height: 1, buildable: true }],
   ramps: [{ low: "Dirt", high: "High Dirt" }],
   bridges: { ground: "Dirt", water: "Water", channel: 5 },
@@ -29,7 +29,6 @@ const parts: ReferenceParts = {
   choices: [{ kind: "comparison", labels: ["At least", "At most", "Exactly"] }, { kind: "order", labels: [] }],
   aiScripts: ["Terran Custom Level", "Zerg Custom Level"],
   sprites: [{ label: "Doodads", count: 3 }],
-  hasScript: false,
 };
 
 describe("reference layers", () => {
@@ -60,10 +59,10 @@ describe("reference layers", () => {
     // The map layer: identity, players, renamed units, the script.
     expect(map).toContain('# Reference: "Lost Temple" — 128 × 128 tiles, tileset Jungle, Brood War 1.04');
     expect(map).toContain("Description: A temple.");
-    expect(map).toContain("Players (2):\n  1: Human, Terran, force 1, has a start location\n  2: Computer, Zerg, force 2");
+    expect(map).toContain("Players (2):\n  1: Human, Terran, force 1\n  2: Computer, Zerg, force 2");
+    expect(map).not.toContain("start location"); // an edit places one: that fact lives in the state block, not the cached layer
     expect(map).toContain('1: Terran Ghost is called "Sniper"');
-    expect(map).toContain("This map has no trigger script yet.");
-    expect(buildReferenceLayers({ ...parts, hasScript: true })[2]).toContain("has a trigger script");
+    expect(map).toContain("A trigger script, when the map has one (script_state says), is one block that build_script replaces");
     expect(buildReferenceLayers(parts)).toEqual([game, tileset, map]);
     expect(buildReference(parts)).toBe([game, tileset, map].join("\n\n"));
     // A rename changes the map layer only.
@@ -165,6 +164,23 @@ describe("assistant history", () => {
     expect(cut.length).toBeGreaterThan(2);
     const small = long.slice(0, 3);
     expect(fitHistory(small, 500_000)).toBe(small); // under the cap nothing moves
+  });
+
+  it("cuts pictures well under the cap, so the next few fit without another cut", () => {
+    const shot = (i: number, chars: number): AgentMessage[] => [
+      { role: "assistant", content: [{ type: "tool_use", id: `t${i}`, name: "screenshot", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", toolUseId: `t${i}`, content: [{ type: "text", text: "shot" }, { type: "image", source: { mediaType: "image/webp", data: "A".repeat(chars) } }] }] },
+    ];
+    const m: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "the brief" }] }];
+    for (let i = 0; i < 6; i++) m.push(...shot(i, 250_000));
+    const cut = fitHistory(m, 1_100_000, 600_000);
+    expect(cut).toHaveLength(m.length);
+    const pictures = (h: AgentMessage[]) => h.filter((x) => x.content.some((c) => c.type === "tool_result" && Array.isArray(c.content) && c.content.some((p) => p.type === "image"))).length;
+    expect(pictures(cut)).toBe(2); // the two newest: 500k, under the low mark; the four older ones are notes
+    expect(JSON.stringify(cut).length).toBeLessThanOrEqual(600_000);
+    // Two more screenshots ride under the cap on the cut history as it is, so nothing is rewritten.
+    const more = [...cut, ...shot(6, 250_000), ...shot(7, 250_000)];
+    expect(fitHistory(more, 1_100_000, 600_000)).toBe(more);
   });
 
   it("keeps the tool results of a turn that failed after its edits, and drops an unanswered question", () => {

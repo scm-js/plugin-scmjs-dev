@@ -9,9 +9,11 @@
  *   entry serves everyone on the server for an hour.
  * - `tileset`: the terrains, the doodad categories and the sprite groups. One entry per
  *   tileset.
- * - `map`: the map's name, size, description, players, the names it gives units,
- *   upgrades or technologies, and whether it has a script. Small, and the only layer a
- *   change to the map rewrites.
+ * - `map`: the map's name, size, description, players and the names it gives units.
+ *   Small, and the only layer a change to the map rewrites — which rewrites the server's
+ *   cache of every turn after it, so nothing an ordinary edit changes belongs here: which
+ *   player has a start location and whether the map has a script are in the map state
+ *   block at the end of the latest message (units by owner; the script_state tool).
  *
  * The long tables — unit stats and weapons, every doodad, every trigger argument with
  * its values — are not in the layers; the `reference` tool answers them on demand, since
@@ -20,7 +22,6 @@
  */
 import type { PluginApi, Scenario } from "@scm-js/plugin-api";
 import { bridgePairOf, rampPairsOf } from "./ramps";
-import { scriptBridge } from "./script";
 import { BRIDGE_CHANNEL } from "./shapes";
 
 export interface ReferenceParts {
@@ -30,7 +31,7 @@ export interface ReferenceParts {
   height: number;
   tileset: string;
   versionLabel: string;
-  /** The playable slots, one line each. */
+  /** The playable slots, one line each: type, race and force — not what an edit changes (a start location is a unit). */
   players: string[];
   terrains: { id: number; name: string; height: number; buildable: boolean }[];
   /** The terrain pairs the editor fits ramps between, low → high, by name. */
@@ -48,7 +49,6 @@ export interface ReferenceParts {
   choices: { kind: string; labels: string[] }[];
   aiScripts: string[];
   sprites: { label: string; count: number }[];
-  hasScript: boolean;
 }
 
 const ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"] as const;
@@ -197,7 +197,7 @@ function mapLayer(p: ReferenceParts): string {
     out.push("Units this map renames (use either name):");
     for (const u of renamed) out.push(`  ${u.id}: ${u.name} is called "${u.customName}"`);
   }
-  out.push(p.hasScript ? "This map has a trigger script: build_script replaces its block, so send the whole script back with your changes." : "This map has no trigger script yet.");
+  out.push("A trigger script, when the map has one (script_state says), is one block that build_script replaces, so send the whole script back with your changes.");
   return out.join("\n");
 }
 
@@ -280,12 +280,11 @@ export function buildReferenceDetail(p: ReferenceParts, part: ReferencePart, fil
 }
 
 /** The map layer's inputs, gathered fresh each turn: they are what an edit can change. */
-function gatherMap(api: PluginApi): Pick<ReferenceParts, "mapName" | "description" | "width" | "height" | "versionLabel" | "players" | "hasScript"> & { renamed: { id: number; name: string; customName: string }[] } {
+function gatherMap(api: PluginApi): Pick<ReferenceParts, "mapName" | "description" | "width" | "height" | "versionLabel" | "players"> & { renamed: { id: number; name: string; customName: string }[] } {
   const info = api.document.info();
-  const starts = new Set(api.query.startLocations().map((s) => s.owner));
   const players = api.settings.players()
     .filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused")
-    .map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+    .map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}`);
   const renamed: { id: number; name: string; customName: string }[] = [];
   for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
   return {
@@ -295,7 +294,6 @@ function gatherMap(api: PluginApi): Pick<ReferenceParts, "mapName" | "descriptio
     height: info?.height ?? 0,
     versionLabel: api.settings.version()?.label ?? "",
     players,
-    hasScript: !!scriptBridge(api)?.state()?.source,
     renamed,
   };
 }

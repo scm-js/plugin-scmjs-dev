@@ -51,9 +51,11 @@ export function unitLines(api: PluginApi): string[] {
     const key = `${api.names.unit(u.unitId)}|${u.owner}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 80)
+  // Start locations first and never cut: with the reference present they are the only
+  // place the state block says which players have one.
+  const isStart = ([key]: [string, number]) => key.startsWith("Start Location|");
+  const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return [...entries.filter(isStart), ...entries.filter((e) => !isStart(e)).slice(0, 80)]
     .map(([key, n]) => {
       const [name, owner] = key.split("|");
       const o = Number(owner);
@@ -189,11 +191,15 @@ export async function imageInput(blob: Blob): Promise<ImageInput> {
 export const MAX_IMAGE_BYTES = 700_000;
 
 /**
- * A picture no larger than `maxBytes`: re-encoded as WebP and, while still too large,
- * drawn smaller. Left as it is where the page cannot draw (a test, an old browser).
+ * A picture as WebP, and no larger than `maxBytes`: re-encoded (a PNG of map art is
+ * several times the WebP, and every picture in the history rides in every request until
+ * the history is cut for size — which rewrites what the server has cached) and, while
+ * still too large, drawn smaller. Left as it is where the page cannot draw (a test, an
+ * old browser), or when it is already a WebP or JPEG under the cap.
  */
 export async function shrinkImage(blob: Blob, maxBytes = MAX_IMAGE_BYTES): Promise<Blob> {
-  if (blob.size <= maxBytes || typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return blob;
   const bitmap = await createImageBitmap(blob);
   let scale = 1;
   let best = blob;

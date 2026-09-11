@@ -63,21 +63,27 @@ export function trimHistory(messages: AgentMessage[], keep = KEEP_MESSAGES, to =
 
 /** What a request's history may weigh: the server takes 1.5 MB by default, and the facts, the reference and the tools ride in the same body. */
 export const MAX_HISTORY_BYTES = 1_100_000;
+/**
+ * …and what it is brought down to when it is over. Well under the cap, so that the next
+ * several pictures fit without another cut: a cut rewrites the messages it touches, and
+ * the server's cache of every message after them with it — cutting one picture per
+ * round, as the fit once did, cost a whole re-write of the history on every round that
+ * followed a screenshot.
+ */
+export const FIT_TO_BYTES = 600_000;
 
 /**
- * The history cut to fit the request: pictures first (all but the newest, then that one),
- * then whole exchanges from the front with the brief kept, as `trimHistory` does. A
- * screenshot-heavy turn used to fail with a body-too-large error partway through.
+ * The history cut to fit the request: the oldest pictures first, one by one until the
+ * history is down to `to`, then whole exchanges from the front with the brief kept, as
+ * `trimHistory` does. A screenshot-heavy turn used to fail with a body-too-large error
+ * partway through.
  */
-export function fitHistory(messages: AgentMessage[], maxBytes = MAX_HISTORY_BYTES): AgentMessage[] {
+export function fitHistory(messages: AgentMessage[], maxBytes = MAX_HISTORY_BYTES, to = Math.min(maxBytes, FIT_TO_BYTES)): AgentMessage[] {
   const size = (m: AgentMessage[]) => byteLength(JSON.stringify(m));
   let out = messages;
   if (size(out) <= maxBytes) return out;
-  for (const keep of [1, 0]) {
-    out = pruneImages(out, keep);
-    if (size(out) <= maxBytes) return out;
-  }
-  while (out.length > 1 && size(out) > maxBytes) {
+  for (let keep = countImages(out) - 1; keep >= 0 && size(out) > to; keep--) out = pruneImages(out, keep);
+  while (out.length > 1 && size(out) > to) {
     const cut = trimHistory(out, out.length - 1, Math.max(1, out.length - 2));
     if (cut.length >= out.length) break;
     out = cut;
@@ -86,6 +92,15 @@ export function fitHistory(messages: AgentMessage[], maxBytes = MAX_HISTORY_BYTE
 }
 
 const byteLength = (s: string) => (typeof TextEncoder !== "undefined" ? new TextEncoder().encode(s).length : s.length);
+
+function countImages(messages: AgentMessage[]): number {
+  let n = 0;
+  for (const m of messages) for (const c of m.content) {
+    if (c.type === "image") n++;
+    else if (c.type === "tool_result" && Array.isArray(c.content)) for (const p of c.content) if (p.type === "image") n++;
+  }
+  return n;
+}
 
 /**
  * The history after a turn failed: a user message the model never answered goes, unless

@@ -1011,7 +1011,9 @@ function unitLines(api) {
     const key = `${api.names.unit(u.unitId)}|${u.owner}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return [...counts.entries()].sort((a2, b) => b[1] - a2[1]).slice(0, 80).map(([key, n2]) => {
+  const isStart = ([key]) => key.startsWith("Start Location|");
+  const entries = [...counts.entries()].sort((a2, b) => b[1] - a2[1]);
+  return [...entries.filter(isStart), ...entries.filter((e) => !isStart(e)).slice(0, 80)].map(([key, n2]) => {
     const [name, owner] = key.split("|");
     const o = Number(owner);
     return `${name} \xD7 ${n2} (${o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o}`})`;
@@ -1126,7 +1128,8 @@ async function imageInput(blob) {
 }
 var MAX_IMAGE_BYTES = 7e5;
 async function shrinkImage(blob, maxBytes = MAX_IMAGE_BYTES) {
-  if (blob.size <= maxBytes || typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
+  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return blob;
   const bitmap = await createImageBitmap(blob);
   let scale = 1;
   let best = blob;
@@ -1696,54 +1699,6 @@ function fitDoodad(site, candidates, fits, window2 = { dx: 12, dy: 8 }) {
 function fitRamp(site, ramps, fits, window2 = { dx: 12, dy: 8 }) {
   const side = site.direction === "se" ? "se" : "sw";
   return fitDoodad(site, ramps.filter((r) => r.side === side && (site.low === void 0 || site.high === void 0 || r.low === site.low && r.high === site.high)), fits, window2);
-}
-
-// ai/script.ts
-var SCRIPT_PLUGIN = "trigscript";
-var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
-function hasScriptPlugin(api) {
-  return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
-}
-function scriptBridge(api) {
-  if (!hasScriptPlugin(api)) return null;
-  const run = (name, ...args) => api.commands.run(`${SCRIPT_PLUGIN}.${name}`, ...args);
-  const async = async (name, ...args) => {
-    const r = run(name, ...args);
-    if (r === void 0) throw new Error(NO_SCRIPT_PLUGIN);
-    return await r;
-  };
-  return {
-    state: () => run("state") ?? null,
-    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
-    compile: (source) => async("compile", source),
-    build: (source, options) => async("build", source, options ?? {}),
-    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
-    simulate: (triggers, cycles, options) => run("simulate", triggers, cycles, options ?? {}) ?? { cycles: 0, events: [], switches: [] },
-    triggerAt: (file, line) => run("triggerAt", file, line) ?? null,
-    open: (file, line) => {
-      run("open", { file, line });
-    }
-  };
-}
-function describeDiagnostic(d) {
-  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
-}
-function repairDiagnostic(d) {
-  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
-}
-function compactTriggers(text) {
-  const lines = text.split("\n");
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    let j = i;
-    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
-    const n2 = j - i + 1;
-    if (n2 >= 3) {
-      out.push(lines[i], `${/^\s*/.exec(lines[i])[0]}// \u2026 the line above ${n2} times`);
-      i = j;
-    } else out.push(lines[i]);
-  }
-  return out.join("\n");
 }
 
 // ai/grid.ts
@@ -2497,7 +2452,7 @@ function mapLayer(p) {
     out.push("Units this map renames (use either name):");
     for (const u of renamed) out.push(`  ${u.id}: ${u.name} is called "${u.customName}"`);
   }
-  out.push(p.hasScript ? "This map has a trigger script: build_script replaces its block, so send the whole script back with your changes." : "This map has no trigger script yet.");
+  out.push("A trigger script, when the map has one (script_state says), is one block that build_script replaces, so send the whole script back with your changes.");
   return out.join("\n");
 }
 var REFERENCE_PARTS = ["units", "doodads", "triggers"];
@@ -2564,8 +2519,7 @@ function buildReferenceDetail(p, part, filter = {}) {
 }
 function gatherMap(api) {
   const info = api.document.info();
-  const starts = new Set(api.query.startLocations().map((s) => s.owner));
-  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}${starts.has(p.slot) ? ", has a start location" : ""}`);
+  const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}`);
   const renamed = [];
   for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
   return {
@@ -2575,7 +2529,6 @@ function gatherMap(api) {
     height: info?.height ?? 0,
     versionLabel: api.settings.version()?.label ?? "",
     players: players2,
-    hasScript: !!scriptBridge(api)?.state()?.source,
     renamed
   };
 }
@@ -4690,6 +4643,54 @@ function objectTools() {
       }
     }
   ];
+}
+
+// ai/script.ts
+var SCRIPT_PLUGIN = "trigscript";
+var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
+function hasScriptPlugin(api) {
+  return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
+}
+function scriptBridge(api) {
+  if (!hasScriptPlugin(api)) return null;
+  const run = (name, ...args) => api.commands.run(`${SCRIPT_PLUGIN}.${name}`, ...args);
+  const async = async (name, ...args) => {
+    const r = run(name, ...args);
+    if (r === void 0) throw new Error(NO_SCRIPT_PLUGIN);
+    return await r;
+  };
+  return {
+    state: () => run("state") ?? null,
+    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
+    compile: (source) => async("compile", source),
+    build: (source, options) => async("build", source, options ?? {}),
+    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
+    simulate: (triggers, cycles, options) => run("simulate", triggers, cycles, options ?? {}) ?? { cycles: 0, events: [], switches: [] },
+    triggerAt: (file, line) => run("triggerAt", file, line) ?? null,
+    open: (file, line) => {
+      run("open", { file, line });
+    }
+  };
+}
+function describeDiagnostic(d) {
+  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
+}
+function repairDiagnostic(d) {
+  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
+}
+function compactTriggers(text) {
+  const lines = text.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let j = i;
+    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
+    const n2 = j - i + 1;
+    if (n2 >= 3) {
+      out.push(lines[i], `${/^\s*/.exec(lines[i])[0]}// \u2026 the line above ${n2} times`);
+      i = j;
+    } else out.push(lines[i]);
+  }
+  return out.join("\n");
 }
 
 // ai/ui.ts
@@ -7222,15 +7223,13 @@ function trimHistory(messages, keep = KEEP_MESSAGES, to = TRIM_TO) {
   return pruneImages([messages[0], ...messages.slice(at)], KEEP_IMAGES);
 }
 var MAX_HISTORY_BYTES = 11e5;
-function fitHistory(messages, maxBytes = MAX_HISTORY_BYTES) {
+var FIT_TO_BYTES = 6e5;
+function fitHistory(messages, maxBytes = MAX_HISTORY_BYTES, to = Math.min(maxBytes, FIT_TO_BYTES)) {
   const size = (m) => byteLength(JSON.stringify(m));
   let out = messages;
   if (size(out) <= maxBytes) return out;
-  for (const keep of [1, 0]) {
-    out = pruneImages(out, keep);
-    if (size(out) <= maxBytes) return out;
-  }
-  while (out.length > 1 && size(out) > maxBytes) {
+  for (let keep = countImages(out) - 1; keep >= 0 && size(out) > to; keep--) out = pruneImages(out, keep);
+  while (out.length > 1 && size(out) > to) {
     const cut2 = trimHistory(out, out.length - 1, Math.max(1, out.length - 2));
     if (cut2.length >= out.length) break;
     out = cut2;
@@ -7238,6 +7237,16 @@ function fitHistory(messages, maxBytes = MAX_HISTORY_BYTES) {
   return out;
 }
 var byteLength = (s) => typeof TextEncoder !== "undefined" ? new TextEncoder().encode(s).length : s.length;
+function countImages(messages) {
+  let n2 = 0;
+  for (const m of messages) for (const c2 of m.content) {
+    if (c2.type === "image") n2++;
+    else if (c2.type === "tool_result" && Array.isArray(c2.content)) {
+      for (const p of c2.content) if (p.type === "image") n2++;
+    }
+  }
+  return n2;
+}
 function afterFailedTurn(messages) {
   const last = messages[messages.length - 1];
   return last?.role === "user" && !last.content.some((c2) => c2.type === "tool_result") ? messages.slice(0, -1) : messages;
