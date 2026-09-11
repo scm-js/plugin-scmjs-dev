@@ -267,9 +267,11 @@ the triggers; before the fix both used Cave (Unused)). Both run in the simulator
 Map: BGH. Prompt:
 
 > For every start position, put a bunker with four marines inside just outside the
-> mineral line, facing the nearest ramp. Do them one at a time and tell me after each.
+> mineral line, facing the nearest ramp. Do all eight without stopping to ask; after
+> each one, say which is done.
 
-Correct: the assistant reaches the tool-round limit at least once, "Continue" resumes
+Run with the tool-round limit lowered to 6 (the script does this; by hand, AI Options),
+so the chain is actually hit. Correct: the assistant reaches the limit, "Continue" resumes
 without losing the brief (the first message), and by the end all eight bunkers exist.
 Look at `message_count` and the request size per call: the history should be trimmed
 from the tail of tool rounds while the first user message stays.
@@ -284,8 +286,10 @@ works (the tool results block is complete, so the server does not reject the his
 
 ### R4. Failure after successful edits
 
-Map: Spring Thaw. Prompt as task 3, but disconnect the network (or set the account's
-balance to a few cents) after the first tool row succeeds.
+Map: Spring Thaw. Prompt as task 3, but make the next request to the server fail after
+the first tool row succeeds (the script refuses it; by hand, set the account's balance
+to a few cents first). Disconnecting the network does not do it: the stream already
+running is left waiting, not failed.
 
 Correct: the edits already made stay on the map with their undo labels, the panel shows
 the failure, and the report shows the completed calls with `charged: false` on the

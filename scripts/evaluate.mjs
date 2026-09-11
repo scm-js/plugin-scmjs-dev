@@ -69,11 +69,11 @@ const COLUMNS = ["date", "task", "start", "conversation", "done_claimed", "chang
 /* ── the browser ──────────────────────────────────────────────────────────────── */
 
 /** The plugin on, signed in as the session, and no file pickers so Save As downloads. */
-function seed() {
+function seed(task) {
   return `localStorage.setItem("scmjs.plugins", ${JSON.stringify(JSON.stringify([{ spec: "github:scm-js/plugin-scmjs-dev", enabled: true }]))});
   localStorage.setItem("scmjs.plugin.scmjs-dev.settings", ${JSON.stringify(JSON.stringify({
     serverUrl: SERVER, session: SESSION, deviceId: DEVICE, statusItem: true,
-    ai: true, quality: "standard", showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false, followMap: true,
+    ai: true, quality: "standard", showThinking: true, maxRounds: task.maxRounds ?? 24, attachView: false, dockAssistant: false, followMap: true,
   }))});
   delete window.showSaveFilePicker; delete window.showOpenFilePicker;`;
 }
@@ -191,15 +191,18 @@ async function runAssistant(p, task, ctx, r) {
     if (seen) { await p.wait(400); await p.panel().locator("button", { hasText: /^Stop$/ }).click(); r.notes.push("stopped during tools"); }
     else r.notes.push("never reached a tool call, so Stop was not pressed");
   }
-  if (task.offlineAfterSteps) {
-    const seen = await p.until(async () => (await p.steps(p.panel()).locator(".done, .failed").count()) >= task.offlineAfterSteps, TIMEOUT_MS, 250);
-    if (seen) { await ctx.setOffline(true); r.notes.push(`went offline after ${task.offlineAfterSteps} tool step(s)`); }
-    else r.notes.push("no tool step completed, so the network was not cut");
+  // The next request to the server is refused (the one in flight is left alone: cutting
+  // the network under a stream just leaves the panel waiting for it).
+  const refuse = "**/v1/recipes/**";
+  if (task.refuseAfterSteps) {
+    const seen = await p.until(async () => (await p.steps(p.panel()).locator(".done, .failed").count()) >= task.refuseAfterSteps, TIMEOUT_MS, 250);
+    if (seen) { await ctx.route(refuse, (route) => route.abort("connectionfailed")); r.notes.push(`refused the next request after ${task.refuseAfterSteps} tool step(s)`); }
+    else r.notes.push("no tool step completed, so no request was refused");
   }
 
   let phase = await p.settle();
   log(`assistant ${/is-(\w+)/.exec(phase)?.[1] ?? "settled"}: ${await p.phaseDetail()}`);
-  if (task.offlineAfterSteps) await ctx.setOffline(false);
+  if (task.refuseAfterSteps) await ctx.unroute(refuse);
   let continues = 0;
   while (task.continues && continues < task.continues && /is-stopped/.test(phase)) {
     const more = p.panel().locator("button", { hasText: /^Continue$/ });
@@ -359,7 +362,7 @@ async function main() {
       if (task.map && !existsSync(join(MAPS, task.map))) { console.log(`${task.id} ${task.title}: skipped, ${task.map} is not in ${MAPS}`); continue; }
       console.log(`${task.id} ${task.title} (${START})…`);
       const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1, acceptDownloads: true });
-      await ctx.addInitScript(seed());
+      await ctx.addInitScript(seed(task));
       const page = await ctx.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));

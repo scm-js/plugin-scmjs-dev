@@ -6,7 +6,10 @@
  * `scenario` runs Make Scenario… (Design, then Build), `triggers` runs Write Triggers…
  * (Write, then Build). `map` is a file in the maps folder, or absent for a task that
  * starts on a new map. `manual` marks a case the script cannot drive (a tab switch, a
- * hand edit between turns); it is listed and skipped.
+ * hand edit between turns); it is listed and skipped. `maxRounds` lowers the tool-round
+ * limit for one task, `continues` how many times Continue is pressed at that limit,
+ * `stopOn: "tools"` presses Stop inside the first tool batch, `refuseAfterSteps: n`
+ * refuses the next request to the server once n tool steps have completed.
  */
 
 export const MAPS = {
@@ -66,11 +69,11 @@ export const TASKS = [
     prompt: "A one-player survival map. Zerglings spawn every 20 seconds at the top, the player earns 10 minerals every 5 seconds and loses when the Command Center dies.",
   },
   {
-    id: "R2", title: "Long Continue chain", kind: "assistant", map: MAPS.bgh, continues: 4,
-    prompt: "For every start position, put a bunker with four marines inside just outside the mineral line, facing the nearest ramp. Do them one at a time and tell me after each.",
+    id: "R2", title: "Long Continue chain", kind: "assistant", map: MAPS.bgh, continues: 6, maxRounds: 6,
+    prompt: "For every start position, put a bunker with four marines inside just outside the mineral line, facing the nearest ramp. Do all eight without stopping to ask; after each one, say which is done.",
   },
   { id: "R3", title: "Stop between tool calls", kind: "assistant", map: MAPS.thaw, prompt: PLATEAU, stopOn: "tools", followUp: "What did you manage to do before I stopped you?" },
-  { id: "R4", title: "Failure after successful edits", kind: "assistant", map: MAPS.thaw, prompt: BASE, offlineAfterSteps: 1 },
+  { id: "R4", title: "Failure after successful edits", kind: "assistant", map: MAPS.thaw, prompt: BASE, refuseAfterSteps: 1 },
   {
     id: "R5", title: "Paging to the last page", kind: "assistant", map: MAPS.bgh,
     prompt: "How many units are on this map in total, and how many of them belong to Player 8? List Player 8's units.",
