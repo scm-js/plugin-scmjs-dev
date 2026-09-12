@@ -114,6 +114,98 @@ export function repairDiagnostic(d: ScriptDiagnostic): { line: number; column: n
 }
 
 
+/** The hand-made triggers as the model is sent them: the folded text when it is this short, else the index. */
+export const FULL_TRIGGERS_CHARS = 12_000;
+/** What the hand-made triggers block may weigh in either form. */
+export const TRIGGERS_BLOCK_CHARS = 30_000;
+
+/** The map's triggers outside the script's block, with their positions in the map's list. */
+export function handTriggers(api: PluginApi, block: { start: number; count: number } | null | undefined): { index: number; trigger: TriggerRecord }[] {
+  return api.triggers.list().map((trigger, index) => ({ index, trigger })).filter(({ index }) => !(block && index >= block.start && index < block.start + block.count));
+}
+
+/**
+ * The hand-made triggers for the triggers recipe: the folded text when it is short (every
+ * argument as written), else one line per run of triggers of the same shape — a Make
+ * Scenario map has a hundred and more, mostly per-player copies, and the text of them all
+ * ran past the block's budget and was cut mid-trigger. The model needs to know what is
+ * there so as not to write it again; the index says that for every trigger.
+ */
+export function existingTriggersFor(api: PluginApi, hand: { index: number; trigger: TriggerRecord }[]): string | undefined {
+  if (hand.length === 0) return undefined;
+  const full = compactTriggers(api.triggers.text.print(hand.map((h) => h.trigger)));
+  if (full.length <= FULL_TRIGGERS_CHARS) return full;
+  return indexTriggers(hand.map(({ index, trigger }) => ({ index, comment: api.triggers.comment(trigger), ...api.triggers.summarize(trigger) })));
+}
+
+export interface TriggerRow { index: number; players: string; conditions: string; actions: string; comment: string | null }
+
+/**
+ * One line per shape of trigger (the same conditions and actions by name, for the same
+ * players with their numbers blurred), in order of first appearance, giving the first
+ * trigger's text and where the others are; runs of one action folded (\`Wait(0) ×62\`).
+ * The copies need not be neighbours: a system that emits two triggers per stage per
+ * player interleaves its shapes. Cut to the budget from the end, saying how many shapes
+ * are left out.
+ */
+export function indexTriggers(rows: TriggerRow[], budget = TRIGGERS_BLOCK_CHARS): string {
+  const shapes = new Map<string, { first: TriggerRow; at: number[] }>();
+  for (const r of rows) {
+    const key = shapeOf(r);
+    const s = shapes.get(key);
+    if (s) s.at.push(r.index);
+    else shapes.set(key, { first: r, at: [r.index] });
+  }
+  const groups = [...shapes.values()];
+  const line = (g: { first: TriggerRow; at: number[] }, width: number) => {
+    const r = g.first;
+    const where = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", …" : ""} (${g.at.length} of this shape)`;
+    const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
+    return `${where} ${body.length > width ? `${body.slice(0, width - 1)}…` : body}`;
+  };
+  const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape — triggers that differ only by player or number — with the first one's text and the numbers of the rest:`;
+  for (const width of [400, 240, 160]) {
+    const lines = groups.map((g) => line(g, width));
+    const out = [head, ...lines].join("\n");
+    if (out.length <= budget) return out;
+    if (width === 160) {
+      const kept: string[] = [head];
+      let size = head.length;
+      let i = 0;
+      for (; i < lines.length; i++) { if (size + lines[i].length + 60 > budget) break; kept.push(lines[i]); size += lines[i].length + 1; }
+      const left = groups.slice(i).reduce((n, g) => n + g.at.length, 0);
+      kept.push(`… and ${left} more triggers of ${groups.length - i} other shapes not listed.`);
+      return kept.join("\n");
+    }
+  }
+  return head;
+}
+
+/** What a trigger shares with its per-player copies: its owners with numbers blurred, and the names of its conditions and actions. */
+function shapeOf(r: TriggerRow): string {
+  const names = (s: string) => [...s.matchAll(/(?:^|&& |; )([A-Z][A-Za-z ]+)\(/g)].map((m) => m[1]).join(",");
+  return `${r.players.replace(/\d+/g, "N")}|${names(r.conditions)}|${names(r.actions)}`;
+}
+
+/** \`a; a; a; b\` → \`a ×3; b\`, on the items of a summary line (a \`; \` inside a quoted string does not split). */
+function foldItems(actions: string): string {
+  const items: string[] = [];
+  for (const part of actions.split("; ")) {
+    const last = items[items.length - 1];
+    if (last !== undefined && (last.split('"').length - 1) % 2 === 1) items[items.length - 1] = `${last}; ${part}`;
+    else items.push(part);
+  }
+  const out: string[] = [];
+  for (let i = 0; i < items.length; i++) {
+    let j = i;
+    while (j + 1 < items.length && items[j + 1] === items[i]) j++;
+    const n = j - i + 1;
+    if (n >= 3) { out.push(`${items[i]} ×${n}`); i = j; }
+    else out.push(items[i]);
+  }
+  return out.join("; ");
+}
+
 /** Trigger text with runs of identical lines folded — three hyper triggers are 186 lines of Wait(0). */
 export function compactTriggers(text: string): string {
   const lines = text.split("\n");

@@ -6,7 +6,7 @@
  * Build installs it the way TrigScript's own Build does.
  */
 import type { TriggersInput } from "../../protocol";
-import { compactTriggers, describeDiagnostic, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
+import { describeDiagnostic, existingTriggersFor, handTriggers, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
 
 const REPAIR_ROUNDS = 2;
@@ -61,12 +61,13 @@ export function openTriggers(ctx: Ctx) {
       const generate = async () => {
         if (!state.prompt.trim()) { promptField.focus(); runner.idle("Say what the triggers should do first."); return; }
         const declarations = bridge.declarations({ compact: true });
-        const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input: TriggersInput = {
           prompt: state.prompt,
           declarations,
           script: extend.input.checked && existing?.source ? existing.source : undefined,
-          existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 30_000) : undefined,
+          existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)),
+          // The person is at the dialog: the map's blocks are cached for the hour, not five minutes.
+          iterative: true,
         };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) return;

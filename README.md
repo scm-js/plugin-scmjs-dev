@@ -116,7 +116,9 @@ picture, so the edges join.
 **Write Triggers…** turns a description into a
 [TrigScript](https://github.com/scm-js/plugin-trigscript), whose plugin has to be switched
 on (Plugins ▸ Browse Plugins…). The model is given this map's declarations, so it can name
-every unit, location and switch as the map calls them. The script is checked and run here;
+every unit, location and switch as the map calls them, and the map's hand-made triggers
+so it does not write them again (a long list is sent as an index, one line per run of
+triggers of the same shape). The script is checked and run here;
 if that fails, the complaints go back for up to two repair rounds. Build installs it
 exactly as TrigScript's own Build does, and the source stays with the map. It can extend
 the map's current script or replace every trigger with the script.

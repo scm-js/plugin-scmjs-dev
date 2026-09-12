@@ -4678,6 +4678,76 @@ function describeDiagnostic(d) {
 function repairDiagnostic(d) {
   return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
 }
+var FULL_TRIGGERS_CHARS = 12e3;
+var TRIGGERS_BLOCK_CHARS = 3e4;
+function handTriggers(api, block) {
+  return api.triggers.list().map((trigger2, index) => ({ index, trigger: trigger2 })).filter(({ index }) => !(block && index >= block.start && index < block.start + block.count));
+}
+function existingTriggersFor(api, hand) {
+  if (hand.length === 0) return void 0;
+  const full = compactTriggers(api.triggers.text.print(hand.map((h3) => h3.trigger)));
+  if (full.length <= FULL_TRIGGERS_CHARS) return full;
+  return indexTriggers(hand.map(({ index, trigger: trigger2 }) => ({ index, comment: api.triggers.comment(trigger2), ...api.triggers.summarize(trigger2) })));
+}
+function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
+  const shapes = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const key = shapeOf(r);
+    const s = shapes.get(key);
+    if (s) s.at.push(r.index);
+    else shapes.set(key, { first: r, at: [r.index] });
+  }
+  const groups = [...shapes.values()];
+  const line = (g, width) => {
+    const r = g.first;
+    const where = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
+    const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
+    return `${where} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
+  };
+  const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
+  for (const width of [400, 240, 160]) {
+    const lines = groups.map((g) => line(g, width));
+    const out = [head, ...lines].join("\n");
+    if (out.length <= budget) return out;
+    if (width === 160) {
+      const kept = [head];
+      let size = head.length;
+      let i = 0;
+      for (; i < lines.length; i++) {
+        if (size + lines[i].length + 60 > budget) break;
+        kept.push(lines[i]);
+        size += lines[i].length + 1;
+      }
+      const left = groups.slice(i).reduce((n2, g) => n2 + g.at.length, 0);
+      kept.push(`\u2026 and ${left} more triggers of ${groups.length - i} other shapes not listed.`);
+      return kept.join("\n");
+    }
+  }
+  return head;
+}
+function shapeOf(r) {
+  const names = (s) => [...s.matchAll(/(?:^|&& |; )([A-Z][A-Za-z ]+)\(/g)].map((m) => m[1]).join(",");
+  return `${r.players.replace(/\d+/g, "N")}|${names(r.conditions)}|${names(r.actions)}`;
+}
+function foldItems(actions) {
+  const items = [];
+  for (const part of actions.split("; ")) {
+    const last = items[items.length - 1];
+    if (last !== void 0 && (last.split('"').length - 1) % 2 === 1) items[items.length - 1] = `${last}; ${part}`;
+    else items.push(part);
+  }
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    let j = i;
+    while (j + 1 < items.length && items[j + 1] === items[i]) j++;
+    const n2 = j - i + 1;
+    if (n2 >= 3) {
+      out.push(`${items[i]} \xD7${n2}`);
+      i = j;
+    } else out.push(items[i]);
+  }
+  return out.join("; ");
+}
 function compactTriggers(text) {
   const lines = text.split("\n");
   const out = [];
@@ -8756,8 +8826,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
 The scenario's premise: ${d.premise}
 Locations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.
 Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
-        const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
-        const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0 };
+        const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)) };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
@@ -9258,12 +9327,13 @@ function openTriggers(ctx) {
           return;
         }
         const declarations = bridge.declarations({ compact: true });
-        const hand = api.triggers.list().filter((_, i) => !(existing?.block && i >= existing.block.start && i < existing.block.start + existing.block.count));
         const input = {
           prompt: state.prompt,
           declarations,
           script: extend.input.checked && existing?.source ? existing.source : void 0,
-          existingTriggers: hand.length > 0 ? compactTriggers(api.triggers.text.print(hand)).slice(0, 3e4) : void 0
+          existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)),
+          // The person is at the dialog: the map's blocks are cached for the hour, not five minutes.
+          iterative: true
         };
         let r = await runRecipe(ctx, runner, "triggers", input);
         if (!r) return;

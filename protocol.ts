@@ -1004,6 +1004,12 @@ export interface TriggersInput {
     script: string;
     diagnostics: { line: number; column: number; message: string }[];
   };
+  /**
+   * The person is at the Write Triggers dialog and will likely ask again on this map
+   * within the hour: the map's blocks (the declarations, the hand-made triggers) go on
+   * the one-hour cache instead of the five-minute one. Off for a one-shot build.
+   */
+  iterative?: boolean;
 }
 
 export interface TriggersOutput {
