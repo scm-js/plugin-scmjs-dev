@@ -165,7 +165,29 @@ Hold out until a timer runs out, or hunt the survivors before it does. In *cat a
 
 **Pitfalls.** A countdown victory for a force while another system gives Defeat on the same cycle is a race — put the defeat's grace period after the timer. Monsters spawned without an order stand still.`;
 
+export const TERRAIN = `# Terrain work: how the brush, the shapes, ramps, bridges, bases and doodads behave
+
+**The isometric brush** (paint_terrain, every shape). Terrain is painted by type id (list_terrains, or the reference's tileset block); cliffs and shores between two types draw themselves where they join, and a type joins only the types the tileset's tables link it to. The brush bleeds: a shore or a cliff takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and a rect painted right up to water or a cliff redraws that edge — leave a few tiles' gap, or name the terrains to leave alone (\`keep\`). Diamonds the tileset cannot join to their neighbours are refused and counted. Painting the ground under a doodad removes it: doodads inside the painted rect go with the ground and are counted in one line; the re-blend also reaches along a cliff or shore well outside the rect, and a doodad it lifts there is put back where it still fits (a second undo step) or named with its position. Repainting the ground under a unit keeps the unit.
+
+**Shapes** (paint_shapes), in map tiles, later over earlier, each an object with an \`op\`:
+- \`ground\` (the whole map) and \`border\` (width) take a terrain id.
+- \`rect\` (x, y, w, h; optional \`cut\`: isometric corner cut in rows), \`diamond\` / \`ellipse\` (cx, cy, rx, ry), \`polygon\` (points).
+- \`stroke\` (points, width): a band — a river, a road, a wall. A river carries its bridges as \`bridges\`: [[x, y], …]; the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides. Optional \`bank\` terrain id and \`bankWidth\` paint a band either side, bent with the river. A stroke's round ends reach half its width past each point: keep later strokes off a bridge's tiles.
+- \`plateau\` (like rect, plus \`ramps\`: which lower corners get a ramp down, "sw" and/or "se"): the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp.
+- \`lane\` (points, width, \`wall\` terrain id, \`wallWidth\`): a walkable band with walls either side, continuous by construction; the width is the walkable core kept.
+- \`ramp\` (x, y, side): on a cliff already there. \`bridge\` (x, y, along "se" or "sw"): a stamp over whatever is there — a channel of the bridge's water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge's ground either side, then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges.
+Only the tiles the shapes cover change. \`originX\` / \`originY\` shift every coordinate, for shapes written relative to an area's corner. \`clear\` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for ground or border); leave it off unless the area is meant to start empty. Optional \`locations\` ([{name, x0, y0, x1, y1}]) and \`units\` ([{unit, player, x, y}]) go on afterwards.
+
+**Ramps** go down south-west or south-east and nowhere else. A ramp is a doodad that fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for (the reference's tileset block lists the pairs); a tile-aligned cliff takes none. place_ramp tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit; a plateau shape makes an edge that fits.
+
+**Bridges** are doodads too, fitting only a channel of the bridge's water along the 2:1 diagonal (two tiles across for one down, running south-east or south-west) of the width the reference's tileset block gives. Badlands' bridges the editor cannot place; Installation and Ash World have none: there, a crossing is a gap of ground in the water — say so rather than trying. After painting, reachable answers whether units can walk from one place to another; a yes is not proof that a river holds, since a broken barrier answers yes too. To prove a bridge is the only way over, ask again with \`ignoreBridges\` (the tiles under every bridge count as water), which should answer no.
+
+**Bases.** place_base lays the mineral patches on the ring three tiles from a 4 × 3 town hall footprint, where the game mines fastest, spread round a compass \`direction\` (where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines, the geyser on the same ring just past the line's end (\`geyserSide\` left / right / auto). Positions the editor refuses (cliffs, water, the edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does and says so. \`minerals\` (default 8), \`geysers\` (0–2, default 1), \`amount\` (1500) and \`gas\` (5000) are the numbers; \`hall\` names a Command Center, Nexus or Hatchery to place for \`player\`. find_site with purpose building and about 14 × 11 finds room for hall and ring; bases reads what every start already has.
+
+**Doodads.** scatter_doodads keeps to the ground its category names (the editor's own rule: a Water doodad stands only on water, a Snow one only on snow) and clear of other doodads, so scatter a category over its own ground and read the count; a rect that also covers other ground places few and says so. place_doodads takes a name, an id or a category name, with the top-left corner at a tile.`;
+
 export const GUIDES: Guide[] = [
+  { id: "terrain", title: "Terrain work: the brush, shapes, ramps, bridges, bases, doodads", keywords: [], text: TERRAIN },
   { id: "basics", title: "Scenario basics", keywords: ["ums", "scenario", "trigger", "death counter", "hyper", "switch", "location"], text: BASICS },
   { id: "madness", title: "Madness maps", keywords: ["madness", "mass", "spawn war", "auto spawn"], text: MADNESS },
   { id: "defense", title: "Defense and tower defense", keywords: ["defense", "defence", "tower", "td", "waves", "sunken", "cannon"], text: DEFENSE },
@@ -187,7 +209,7 @@ export function guideFor(prompt: string): Guide | null {
   let best: Guide | null = null;
   let score = 0;
   for (const g of GUIDES) {
-    if (g.id === "basics") continue;
+    if (g.id === "basics" || g.id === "terrain") continue;
     let n = 0;
     for (const k of g.keywords) if (text.includes(` ${k} `) || text.includes(`${k} `) || text.includes(` ${k}`)) n += k.length > 3 ? 2 : 1;
     if (n > score) { best = g; score = n; }

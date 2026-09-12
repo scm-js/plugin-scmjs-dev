@@ -57,12 +57,15 @@ export function rectOf(input: Record<string, unknown>, api: PluginApi): TileRect
 
 export const hasRect = (input: Record<string, unknown>) => input.x0 !== undefined || input.x1 !== undefined || input.y0 !== undefined || input.y1 !== undefined;
 
-export const rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
+/** A tile rect; the system prompt says x1/y1 are exclusive, so the fields say nothing (78 tools carry these). */
+export const rectSchema = { x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } };
 
+/** An object schema whose other fields the description lists: the schema is sent with every request, the description is the shorter way to name ten optional fields. */
+export const bag = (properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> => ({ ...obj(properties, required), additionalProperties: true });
 export const obj = (properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> => ({ type: "object", properties, ...(required.length ? { required } : {}) });
 
 /** The paging inputs every long list takes. */
-export const pageSchema = { limit: { type: "integer", description: "at most this many" }, offset: { type: "integer", description: "skip this many matches; `next` in the answer is the offset of the page after" } };
+export const pageSchema = { limit: { type: "integer" }, offset: { type: "integer" } };
 
 /**
  * A page of the rows that matched: `matched` counts every match, `next` is the offset of

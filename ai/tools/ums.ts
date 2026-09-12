@@ -68,7 +68,7 @@ export function addSystem(api: PluginApi, kind: string, params: Params, ctx: Too
 export function umsTools(): Tool[] {
   return [
     {
-      def: { name: "guide", description: "Read a genre guide before designing or judging a scenario: how a madness map, a defense, an RPG, a bound, a diplomacy map, an arena or a survival map is built, its players and forces, the trigger systems it runs on (by toolkit kind), and the pitfalls. `id` is one of the guides, or a free description of the map to pick the nearest; no id lists them. `basics` is death counters, hyper triggers, locations and the game's limits.", inputSchema: obj({ id: { type: "string" } }) },
+      def: { name: "guide", description: "A guide to read once: \"terrain\" (how the brush, shapes, ramps, bridges, bases and doodads behave — before terrain work), \"basics\" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.", inputSchema: obj({ id: { type: "string" } }) },
       describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
       writes: false,
       run: (input) => {
@@ -79,12 +79,12 @@ export function umsTools(): Tool[] {
       },
     },
     {
-      def: { name: "ums_kinds", description: "The toolkit of trigger systems the editor builds by itself — hyper triggers, spawns, kill-to-cash, income, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdowns, last standing, alliances — with each kind's parameters. Use ums_build for these instead of writing the triggers by hand.", inputSchema: obj({}) },
+      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdown, last standing, alliances …) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
       writes: false,
       run: () => kindsText(),
     },
     {
-      def: { name: "ums_build", description: "Build one trigger system from the toolkit (see ums_kinds) and append its triggers to the map. `params` are the kind's parameters as strings — a location or unit by name, a number as digits, a list comma-separated; `{p}` in a location name means the player number. Problems are reported and nothing is added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings — names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
       describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`; },
       report: (result) => { const r = jsonOf(result); return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : ""; },
       writes: true,

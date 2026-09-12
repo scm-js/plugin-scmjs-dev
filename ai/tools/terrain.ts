@@ -19,7 +19,7 @@ export function paintableDiamonds(api: PluginApi, rect: TileRect): Diamond[] {
 export function terrainTools(): Tool[] {
   return [
     {
-      def: { name: "paint_terrain", description: "Paint a tile rect (x1, y1 exclusive) with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. The brush bleeds: a shore or cliff between two terrains takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and painting right up to water or a cliff redraws its edge. `keep` lists terrain ids not to paint over (water, for instance): tiles of those terrains inside the rect are left alone. The result says which terrains the rect painted over. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" }, description: "terrain ids to leave alone inside the rect" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
+      def: { name: "paint_terrain", description: "Paint a tile rect with a terrain id using the isometric brush: cliffs and shores form on their own and the brush bleeds about three tiles (guide \"terrain\"). `keep` lists terrain ids left alone inside the rect. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" } } }, ["x0", "y0", "x1", "y1", "terrain"]) },
       describe: (input, { api }) => `Paint ${api.terrain.types().find((t) => t.id === num(input.terrain))?.name ?? `terrain ${str(input.terrain)}`} over ${rectText(input)}`,
       report: (result) => { const r = jsonOf(result); if (!r) return ""; const parts = [r.changed ? plural(num(r.tiles), "tile") : "nothing changed"]; if (r.paintedOver && typeof r.paintedOver === "object") parts.push(`over ${Object.entries(r.paintedOver as Record<string, number>).map(([k, v]) => `${k} ×${v}`).join(", ")}`); if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0])); return parts.join("; "); },
       writes: true,
@@ -51,7 +51,7 @@ export function terrainTools(): Tool[] {
       },
     },
     {
-      def: { name: "resize_map", description: "Scenario ▸ Resize / Crop Map to width × height tiles. `anchor` says where the current content stays: 0 top-left, 1 top, 2 top-right, 3 left, 4 centre (default), 5 right, 6 bottom-left, 7 bottom, 8 bottom-right. Objects outside the new bounds are dropped and the undo history is cleared, so ask before doing this.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer", description: "terrain id for the new ground" } }, ["width", "height"]) },
+      def: { name: "resize_map", description: "Resize / crop the map to width × height; `anchor` 0–8 says where the content stays (4 centre). Drops objects outside and clears the undo history: ask first.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer" } }, ["width", "height"]) },
       describe: (input) => `Resize the map to ${num(input.width)} × ${num(input.height)}`,
       writes: true,
       settings: true,

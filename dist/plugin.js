@@ -699,9 +699,10 @@ function rectOf(input, api) {
   return { x0, y0, x1, y1 };
 }
 var hasRect = (input) => input.x0 !== void 0 || input.x1 !== void 0 || input.y0 !== void 0 || input.y1 !== void 0;
-var rectSchema = { x0: { type: "integer", description: "left tile" }, y0: { type: "integer", description: "top tile" }, x1: { type: "integer", description: "right tile, exclusive" }, y1: { type: "integer", description: "bottom tile, exclusive" } };
+var rectSchema = { x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } };
+var bag = (properties, required = []) => ({ ...obj(properties, required), additionalProperties: true });
 var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
-var pageSchema = { limit: { type: "integer", description: "at most this many" }, offset: { type: "integer", description: "skip this many matches; `next` in the answer is the offset of the page after" } };
+var pageSchema = { limit: { type: "integer" }, offset: { type: "integer" } };
 function paged(rows, input, defaultLimit, maxLimit) {
   const limit = Math.max(1, Math.min(maxLimit, Math.round(num(input.limit, defaultLimit))));
   const offset = Math.max(0, Math.round(num(input.offset)));
@@ -4075,12 +4076,12 @@ function readShapes(raw) {
 function layoutTools() {
   return [
     {
-      def: { name: "layout_presets", description: "The layouts the editor lays out by itself from a few numbers \u2014 corner camps around an arena, lanes from spawns to a goal, a walled arena, a bound's course of stretches, a town with a chain of regions \u2014 with each one's parameters and the locations it makes ({p} a player number, {n} a lane, stretch or region number). Use layout_preset to lay one out; prefer a preset over painting terrain by hand whenever the map's shape is one of these.", inputSchema: obj({}) },
+      def: { name: "layout_presets", description: "The layouts the editor lays out from a few numbers (corner camps, lanes, arena, bound course, town) with their parameters and the locations they make ({p} a player, {n} a number). Prefer one over painting by hand when the shape fits.", inputSchema: obj({}) },
       writes: false,
       run: () => presetsText()
     },
     {
-      def: { name: "layout_preset", description: "Lay a preset out over the whole map: the terrain (with ramps and bridges that fit, where the tileset has them), the named locations, a start location per human player, a little decoration. Replaces the terrain and clears units, doodads and sprites first; triggers and settings stay. `params` are the preset's parameters as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
+      def: { name: "layout_preset", description: "Lay a preset over the whole map: terrain with fitting ramps and bridges, named locations, a start per human, decoration. Replaces the terrain and clears objects; triggers and settings stay. `params` as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
       describe: (input) => {
         const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
         return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`;
@@ -4119,12 +4120,12 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     {
       def: {
         name: "paint_shapes",
-        description: 'Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band \u2014 a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], \u2026] \u2014 the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, "sw" and/or "se" \u2014 the game\'s ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along "se" or "sw": a stamp over whatever is there \u2014 a channel of the bridge\'s water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge\'s ground either side \u2014 then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Painting the ground under a doodad removes it (the result names it): paint water before placing a bridge, and keep later strokes \u2014 whose round ends reach half their width past each point \u2014 off a bridge\'s tiles. Bridges exist only where the reference\'s tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area\'s corner. `clear` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for `ground` or `border`); leave it off unless the area is meant to start empty \u2014 repainting ground under a unit keeps the unit. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.',
+        description: 'Paint terrain as shapes in tiles, later over earlier; each shape has an `op`: ground, rect (x, y, w, h, cut), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width; a river\'s `bridges` [[x, y], \u2026] get the channel, banks and bridge fitted; optional bank, bankWidth), border (width), plateau (a rect with ramps ["sw" / "se"] cut and fitted), lane (points, width, wall, wallWidth), ramp (x, y, side), bridge (x, y, along). All but ramp and bridge take a terrain id. `originX` / `originY` shift every coordinate; `clear` empties the shapes\' rectangle first (off by default); `locations` and `units` go on afterwards. Read guide "terrain" first for how ramps, bridges, banks and lifted doodads behave. One undo step.',
         inputSchema: obj({
           shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" },
           originY: { type: "integer" },
-          clear: { type: "boolean", description: "remove units, doodads and sprites inside the shapes' rectangle first; default false" },
+          clear: { type: "boolean" },
           locations: { type: "array", items: { type: "object", additionalProperties: true } },
           units: { type: "array", items: { type: "object", additionalProperties: true } }
         }, ["shapes"])
@@ -4169,7 +4170,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already on the map, near a tile, going down south-west or south-east (the only ways the game's ramps go). Tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit. A ramp fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for \u2014 a tile-aligned cliff takes none; to make such an edge, paint a plateau with paint_shapes instead.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
+      def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already there, near a tile, going down sw or se (the only ways ramps go). Needs a straight diagonal cliff run; a plateau shape makes one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
       describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -4194,7 +4195,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over a diagonal water channel already there, near a tile. Where the tileset has no bridge the editor can place (Badlands, Installation, Ash World) leave a gap of ground instead. A stroke with `bridges` in paint_shapes does channel and bridge in one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
       describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -4217,18 +4218,18 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     {
       def: {
         name: "place_base",
-        description: "Lay a base's resources round a town hall footprint (4 \xD7 3 tiles, top-left at x,y \u2014 a start location's box) the way the Melee Wizard does: the mineral patches on the ring three tiles from the hall, where the game mines fastest, spread round `direction` (a compass point, where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines; the geyser on the same ring just past the line's end. Positions the editor refuses (cliffs, water, the map's edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does, and the result says so. Give `player` to place that player's start location at the hall (or omit x,y to lay round the start location the player already has), `hall` to place a town hall by name for the player too. Use this for every mineral line rather than placing patches one by one.",
+        description: "Lay a mineral line and geyser round a 4 \xD7 3 town hall footprint (top-left x, y) on the ring the game mines fastest from, along `direction` (a compass point seen from the hall; default away from the centre), turning to the nearest side that fits and saying so. `player` places that player's start at the hall (omit x, y to use the start it has); `hall` places a town hall by name. Use this for every mineral line.",
         inputSchema: obj({
-          x: { type: "integer", description: "the hall footprint's left tile" },
-          y: { type: "integer", description: "the hall footprint's top tile" },
-          player: { type: "integer", description: "1-based; gets a start location at the hall" },
+          x: { type: "integer" },
+          y: { type: "integer" },
+          player: { type: "integer" },
           direction: { type: "string", enum: [...DIRECTIONS] },
-          minerals: { type: "integer", description: "patches, default 8" },
-          geysers: { type: "integer", description: "0\u20132, default 1" },
-          amount: { type: "integer", description: "minerals per patch, default 1500" },
-          gas: { type: "integer", description: "gas per geyser, default 5000" },
-          geyserSide: { type: "string", enum: ["auto", "left", "right"], description: "which end of the line the geyser takes, seen from the hall" },
-          hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" }
+          minerals: { type: "integer" },
+          geysers: { type: "integer" },
+          amount: { type: "integer" },
+          gas: { type: "integer" },
+          geyserSide: { type: "string", enum: ["auto", "left", "right"] },
+          hall: { type: "string" }
         })
       },
       describe: (input) => `Lay a base${input.player !== void 0 ? ` for Player ${num(input.player)}` : ""}${input.x !== void 0 ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
@@ -4322,7 +4323,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "bases", description: "Every base on the map in one call: for each start location its player, the town hall footprint (4 \xD7 3 tiles, what place_base and the start's box use), the mineral patches and geysers round it with their positions and amounts, which side of the hall the mineral line lies on and which side is open (the approach \u2014 where a bunker or a wall goes), and the nearest other start; then the expansions (resource clusters with no start). Read this before working on bases instead of listing units and screenshotting each one.", inputSchema: obj({}) },
+      def: { name: "bases", description: "Every base in one call: per start location the player, hall footprint, mineral line (positions, amounts), geysers, the line's side and the open side, the nearest other start; then the expansions with no start. Read this before working on bases.", inputSchema: obj({}) },
       describe: () => "Read the map's bases",
       report: (result) => {
         const r = jsonOf(result);
@@ -4369,7 +4370,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "find_site", description: 'Where a block of `w` \xD7 `h` tiles of flat ground fits, nearest a point first. `purpose` "building" (default) wants buildable, walkable ground on one height \u2014 for a new base ask for about 14 \xD7 11 (a hall with its mineral ring; the answer gives the hall\'s top-left for place_base), for a building its footprint; "terrain" wants ground on one height to paint over \u2014 a plateau, a lane, a pit \u2014 and does not mind doodads, since painting lifts them. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map\'s centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground\'s terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.', inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      def: { name: "find_site", description: "The nearest blocks of `w` \xD7 `h` flat ground to a point (default the centre; `radius` 40). `purpose` building (buildable, walkable, one height; about 14 \xD7 11 for a base \u2014 the answer gives the hall for place_base) or terrain (one height to paint over; doodads do not count). Reachable from every start unless anyStart is false. Up to five, a block apart.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean" } }, ["w", "h"]) },
       describe: (input) => `Find ${num(input.w)} \xD7 ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== void 0 ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -4431,7 +4432,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground. A yes does not prove a barrier holds: a broken river answers yes too. To prove a river or wall is crossed only at its bridge, ask twice \u2014 plainly (yes) and with ignoreBridges true, which counts the tiles under every bridge as water (no).", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
+      def: { name: "reachable", description: "Whether a ground unit can walk between two ends (a location by name or a tile), by flood fill; says how many tiles the start reaches and the nearest walkable tile when an end is not walkable. To prove a bridge is the only crossing, ask again with ignoreBridges true and expect no.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
       describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}${input.ignoreBridges === true ? " without the bridges" : ""}?`,
       report: (result) => {
         const r = jsonOf(result);
@@ -4468,7 +4469,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "scenario_rules", description: "The game's own rules a scenario breaks silently, checked on the open map: a human or computer slot that owns nothing (defeated at once, and its triggers never run); a human without a start location; a trigger list that counts time without hyper triggers. With fix: true, a computer that owns nothing gets an Overlord in the top-right corner to keep it in the game.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers. fix: true gives an ownerless computer an Overlord.", inputSchema: obj({ fix: { type: "boolean" } }) },
       describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
       report: (result) => {
         const r = jsonOf(result);
@@ -4553,7 +4554,7 @@ function scatterInRect(api, cat, rect, want, fits, random = Math.random) {
 function objectTools() {
   return [
     {
-      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a mineral field's or geyser's resources. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
+      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a resource. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
       describe: (input) => {
         const u = list(input.units);
         return u.length ? `Place ${tally(u.map((x) => str(x.unit)))} for ${ownerName(ownerOf(u[0].player, 0))} near ${num(u[0].x)},${num(u[0].y)}` : "Place units";
@@ -4614,7 +4615,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
+      def: { name: "update_units", description: "Change fields of units by index: owner, hitPoints / shields / energy (%), resources, hangar, and the flags cloaked, burrowed, inTransit, hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: bag({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints(input.indices).length, "unit")}`,
       writes: true,
       run: (input, { api }) => {
@@ -4666,7 +4667,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "place_doodads", description: "Place doodads by name (or id, or a category name for any of its doodads) with their top-left corner at a tile. A doodad that does not fit its footprint is refused, not forced. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
+      def: { name: "place_doodads", description: "Place doodads by name, id or category name with the top-left at a tile; one that does not fit is refused. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
       describe: (input) => {
         const d = list(input.doodads);
         return d.length ? `Place ${tally(d.map((x) => str(x.doodad)))} near ${num(d[0].x)},${num(d[0].y)}` : "Place doodads";
@@ -4692,7 +4693,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      def: { name: "remove_doodads", description: "Remove doodads by index; the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Remove ${plural(ints(input.indices).length, "doodad")} ${indexList(ints(input.indices))}`,
       writes: true,
       run: (input, { api }) => {
@@ -4703,7 +4704,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "convert_doodads", description: "Convert doodads (by index, from list_doodads) to plain terrain: the tiles stay as ground, the doodad record goes, an overlay stays as an ordinary sprite. Use it when a ramp or cliff piece is to be touched up tile by tile afterwards. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      def: { name: "convert_doodads", description: "Turn doodads (by index) into plain terrain tiles, an overlay into a sprite \u2014 for touching a ramp or cliff piece up tile by tile. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Convert ${plural(ints(input.indices).length, "doodad")} to terrain`,
       writes: true,
       run: (input, { api }) => {
@@ -4714,7 +4715,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0\u20131, only where the editor's own placement rule says the doodad fits: on the ground its category names (a Water doodad on water, a Snow one on snow), clear of other doodads. Spots on other ground are refused and the result says how many, so scatter a category over its own ground. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
+      def: { name: "scatter_doodads", description: "Scatter a category's doodads over a rect at density 0\u20131 where the editor's rule lets them stand (a category on its own ground: Water on water); refusals are counted. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
       describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
@@ -4729,7 +4730,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "place_sprites", description: 'Place sprites at tile centres: kind "pure" (a sprites.dat image by the palette\'s name or id \u2014 lookup sprite) or "unit" (a unit drawn as a sprite, by unit name). `player` is 1-based. One undo step.', inputSchema: obj({ sprites: { type: "array", items: obj({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, flipped: { type: "boolean" }, disabled: { type: "boolean" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
+      def: { name: "place_sprites", description: "Place sprites at tile centres: kind pure (a sprites.dat image by name or id) or unit (a unit drawn as a sprite); each may add player (1-based), flipped, disabled. One undo step.", inputSchema: obj({ sprites: { type: "array", items: bag({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
       describe: (input) => {
         const sp = list(input.sprites);
         return sp.length ? `Place sprites: ${tally(sp.map((x) => str(x.sprite)))} near ${num(sp[0].x)},${num(sp[0].y)}` : "Place sprites";
@@ -4779,7 +4780,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "edit_location", description: "Rename, move or resize a location by slot index (a tile rect), or set which heights it excludes (`excludeLowGround` \u2026 `excludeHighAir`). One undo step.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" }, ...rectSchema, excludeLowGround: { type: "boolean" }, excludeMediumGround: { type: "boolean" }, excludeHighGround: { type: "boolean" }, excludeLowAir: { type: "boolean" }, excludeMediumAir: { type: "boolean" }, excludeHighAir: { type: "boolean" } }, ["index"]) },
+      def: { name: "edit_location", description: "Edit a location by slot `index`: name, x0 / y0 / x1 / y1 (a tile rect), excludeLowGround / excludeMediumGround / excludeHighGround / excludeLowAir / excludeMediumAir / excludeHighAir. Only the fields given change. One undo step.", inputSchema: bag({ index: { type: "integer" } }, ["index"]) },
       describe: (input) => `Edit location #${num(input.index)}: ${[input.name !== void 0 && "name", input.x0 !== void 0 && "area", Object.keys(input).some((k) => k.startsWith("exclude")) && "heights"].filter(Boolean).join(", ") || "nothing"}`,
       writes: true,
       run: (input, { api }) => {
@@ -4820,7 +4821,7 @@ function objectTools() {
       }
     },
     {
-      def: { name: "set_fog", description: 'Fog of war over a tile rect for 1-based players: mode "fog" (starts unexplored) or "clear". One undo step.', inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
+      def: { name: "set_fog", description: "Fog of war over a rect for 1-based players: mode fog (starts unexplored) or clear. One undo step.", inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
       describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints(input.players).length === 1 ? "" : "s"} ${ints(input.players).join(", ")}`,
       writes: true,
       run: (input, { api }) => {
@@ -5398,7 +5399,7 @@ async function openRegion(ctx, preset) {
 function readTools() {
   return [
     {
-      def: { name: "reference", description: 'The long tables the reference block leaves out. part "units": every unit type with hit points, shields, armour, costs, build time and weapons. "doodads": every doodad of this tileset by category, with ids and sizes. "triggers": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, \u2026) and the AI scripts. Read "triggers" once before writing triggers. `query` keeps only the rows whose name contains it (a unit, a doodad or category, a condition or action); `section` narrows the triggers part to conditions, actions, briefing, values or scripts.', inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] }, query: { type: "string" }, section: { type: "string", enum: [...REFERENCE_SECTIONS] } }, ["part"]) },
+      def: { name: "reference", description: 'The long tables: part "units" (stats, costs, weapons), "doodads" (every doodad by category with ids and sizes), "triggers" (every condition, action and briefing action with arguments, the spellings of enumerated values, the AI scripts; read once before writing triggers). `query` keeps rows whose name contains it; `section` narrows the triggers part.', inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] }, query: { type: "string" }, section: { type: "string", enum: [...REFERENCE_SECTIONS] } }, ["part"]) },
       writes: false,
       run: (input, { api }) => {
         const part = str(input.part);
@@ -5410,7 +5411,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, the players (type, race, colour, force, start location) and the forces, whether it has a trigger script.", inputSchema: obj({}) },
+      def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, players (type, race, colour, force, start) and forces, whether it has a script.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const info = api.document.info();
@@ -5433,17 +5434,12 @@ function readTools() {
       }
     },
     {
-      def: { name: "statistics", description: "Tools \u25B8 Statistics: counts of units, resources, doodads, sprites, locations, triggers, strings, terrain by type.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => capResult(api.query.statistics() ?? "no map")
-    },
-    {
-      def: { name: "list_terrains", description: "The tileset's terrain types: id, name, height (0 low, 1 mid, 2 high), buildable. Use the ids with paint_terrain. (Also in the reference.)", inputSchema: obj({}) },
+      def: { name: "list_terrains", description: "The tileset's terrain types: id, name, height (0 low \u2013 2 high), buildable.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => capResult(api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })))
     },
     {
-      def: { name: "list_doodad_categories", description: "Doodad categories the tileset offers, with how many doodads each has, for scatter_doodads. `category` lists that category's doodads with sizes.", inputSchema: obj({ category: { type: "string" } }) },
+      def: { name: "list_doodad_categories", description: "The tileset's doodad categories with counts; `category` lists that category's doodads with sizes.", inputSchema: obj({ category: { type: "string" } }) },
       writes: false,
       run: (input, { api }) => {
         const cats = api.palette.doodadCategories();
@@ -5456,7 +5452,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_units", description: "Units on the map: index, name, owner, tile x/y, resource amount for minerals and geysers. Filter by owner (1-based player, 12 neutral), by name (substring), or by a tile rect. `details` adds every record field (hit points %, shields %, energy %, hangar, state flags, serial). Pages of 200: `next` in the answer is the `offset` of the page after.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" }, description: "only these unit indices" } }) },
+      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. Pages of 200.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } } }) },
       describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}`,
       report: pageReport,
       writes: false,
@@ -5486,7 +5482,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_doodads", description: "Doodads placed on the map: index, name, category, top-left tile, size. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      def: { name: "list_doodads", description: "Doodads on the map: index, name, category, top-left tile, size; optionally within a rect. Pages of 300.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -5505,7 +5501,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_sprites", description: "Sprites (THG2) on the map: index, kind (pure sprite or unit sprite), name, owner, tile. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      def: { name: "list_sprites", description: "Sprites on the map: index, kind (pure / unit), name, owner, tile; optionally within a rect. Pages of 300.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -5524,7 +5520,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_locations", description: "The map's locations: slot index, name, tile rect, elevation flags (which heights it excludes).", inputSchema: obj({}) },
+      def: { name: "list_locations", description: "Locations: slot, name, tile rect, excluded heights.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const scn = api.document.scenario();
@@ -5538,7 +5534,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_strings", description: "The string table: index and text, with what uses each (map name, location, trigger \u2026). `query` filters by substring; `unused` lists only strings nothing references. Pages of 200: `next` is the `offset` of the page after.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, ...pageSchema }) },
+      def: { name: "list_strings", description: "The string table: index, text, what uses each. `query` filters by substring; `unused` keeps only strings nothing references. Pages of 200.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -5560,7 +5556,7 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_switches", description: 'The 256 switches that have a name or are used by triggers: index (0-based; the text format says "Switch N" 1-based), name, how many conditions and actions use it.', inputSchema: obj({}) },
+      def: { name: "list_switches", description: 'Switches that have a name or are used: index (0-based; the text format says "Switch N" 1-based), name, uses.', inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const names = api.triggers.switchNames();
@@ -5570,12 +5566,12 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_sounds", description: "The WAV table: slot, path, whether the file is in the archive, its size, what plays it.", inputSchema: obj({}) },
+      def: { name: "list_sounds", description: "The WAV table: slot, path, in the archive or not, size, what plays it.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => capResult(api.settings.sounds().map((s) => ({ slot: s.slot, path: s.path, present: s.present, size: s.size, usedBy: s.usedBy })))
     },
     {
-      def: { name: "list_triggers_text", description: "The map's triggers in the editor's text format, from index `from` to `to` (1-based, inclusive; default the first 20). Also the mission briefing with briefing=true.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
+      def: { name: "list_triggers_text", description: "Triggers in the text format from `from` to `to` (1-based, inclusive; default the first 20); briefing=true for the mission briefing.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
       describe: (input) => `Read ${input.briefing === true ? "the briefing" : "the triggers"}${input.from !== void 0 ? ` from #${num(input.from)}` : ""}${input.to !== void 0 ? ` to #${num(input.to)}` : ""} as text`,
       writes: false,
       run: (input, { api }) => {
@@ -5593,13 +5589,13 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "find", description: "Edit \u25B8 Find: search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
+      def: { name: "find", description: "Search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
       describe: (input) => `Find "${str(input.text)}" in the ${str(input.kind)}`,
       writes: false,
       run: (input, { api }) => capResult(api.query.find({ kind: str(input.kind, "strings"), query: str(input.text), limit: 100 }))
     },
     {
-      def: { name: "validate", description: "Tools \u25B8 Check Map: problems the editor finds with the map.", inputSchema: obj({}) },
+      def: { name: "validate", description: "Check Map: the problems the editor finds.", inputSchema: obj({}) },
       describe: () => "Check the map",
       report: (result) => {
         const r = jsonOf(result);
@@ -5612,7 +5608,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "terrain_at", description: "What is under a tile: the terrain type, height, buildable, walkable, and the doodad there if any. Or a coarse grid of an area (cells of `cellSize` tiles) when a rect is given.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
+      def: { name: "terrain_at", description: "What is under a tile (terrain, height, buildable, walkable, doodad), or a coarse grid of a rect in cells of `cellSize` tiles.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Read the terrain over ${rectText(input)}` : `Read the terrain at ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, ctx) => {
@@ -5633,7 +5629,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "fog_at", description: "Fog of war over a tile rect for a 1-based player, as a coarse grid of cells (`#` = starts unexplored, `.` = explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
+      def: { name: "fog_at", description: "Fog of war over a rect for a 1-based player, as a coarse grid (`#` starts unexplored, `.` explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
       describe: (input) => `Read Player ${num(input.player)}'s fog${hasRect(input) ? ` over ${rectText(input)}` : ""}`,
       writes: false,
       run: (input, { api }) => {
@@ -5660,7 +5656,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "placement_ok", description: "Whether a unit could be placed with its centre at a tile: the editor's own placement check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
+      def: { name: "placement_ok", description: "Whether a unit could be placed centred at a tile: the editor's own check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
       describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
       writes: false,
       run: (input, { api }) => {
@@ -5672,7 +5668,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "screenshot", description: "A picture of an area of the map (or the whole map when no rect is given) at `pixelsPerTile` (default 8; 32 is the game's art, 2 is a minimap). Look before and after changing things.", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
+      def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
       report: (result) => {
         const m = /at (\d+) px per tile/.exec(typeof result === "string" ? result : result.text ?? "");
@@ -5692,27 +5688,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "selection", description: "What the person has selected or marked right now: the marked area, selected units / sprites / doodads / locations, the active layer, the visible area and the cursor tile.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => {
-        const scn = api.document.scenario();
-        if (!scn) return fail("No map is open.");
-        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE), y: Math.floor((scn.units[i]?.y ?? 0) / TILE) }));
-        return capResult({
-          layer: api.selection.layer(),
-          markedArea: api.selection.markedArea(),
-          units,
-          sprites: api.selection.sprites(),
-          doodads: api.selection.doodads().map((i) => ({ index: i, name: api.palette.doodadInfo(scn.doodads[i]?.doodadId ?? -1)?.name })),
-          locations: api.selection.locations().map((i) => ({ index: i, name: api.names.location(i) })),
-          visible: api.view.visible(),
-          zoom: api.view.zoom(),
-          cursor: api.view.cursorTile()
-        });
-      }
-    },
-    {
-      def: { name: "lookup", description: 'Look a name up in the game data: kind "unit" (id, size, cost, hp, weapons, the map\'s own settings), "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition" or "action" (the argument list). `query` is a name or part of one; several matches are listed.', inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
+      def: { name: "lookup", description: "A name in the game data: kind unit (id, size, cost, hp, weapons, the map's settings), doodad, sprite, upgrade, tech, weapon, ai_script, condition or action; `query` is a name or part of one.", inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
       describe: (input) => `Look up the ${str(input.kind)} "${str(input.query)}"`,
       writes: false,
       run: (input, { api }) => {
@@ -5767,15 +5743,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "history", description: "The undo and redo stacks: the labels on top and how deep each is.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => {
-        const h3 = api.document.history();
-        return `${plural(h3.undoDepth, "undo step")}${h3.undo ? ` (top: ${h3.undo})` : ""}, ${plural(h3.redoDepth, "redo step")}${h3.redo ? ` (top: ${h3.redo})` : ""}.`;
-      }
-    },
-    {
-      def: { name: "unit_type", description: `This map's settings for a unit type (Unit Settings dialog): whether it uses the game's defaults, hit points, shields, armor, build time, cost, weapon damage, custom name, and who may build it. Names are matched loosely; "marine" works.`, inputSchema: obj({ unit: { type: "string" } }, ["unit"]) },
+      def: { name: "unit_type", description: "This map's Unit Settings for a type: defaults used or not, hit points, shields, armor, build time, cost, weapon damage, custom name, who may build it. Loose name match.", inputSchema: obj({ unit: { type: "string" } }, ["unit"]) },
       writes: false,
       run: (input, { api }) => {
         const id = unitIdByName(api, str(input.unit));
@@ -5785,7 +5753,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "upgrade", description: "This map's settings for an upgrade (Upgrade Settings dialog): costs, factors, time and each player's start and maximum level.", inputSchema: obj({ upgrade: { type: "string" } }, ["upgrade"]) },
+      def: { name: "upgrade", description: "This map's Upgrade Settings: costs, factors, time, each player's start and maximum level.", inputSchema: obj({ upgrade: { type: "string" } }, ["upgrade"]) },
       writes: false,
       run: (input, { api }) => {
         const hit = byName(api.names.upgrades(), str(input.upgrade));
@@ -5795,7 +5763,7 @@ ${text}`, 3e4);
       }
     },
     {
-      def: { name: "tech", description: "This map's settings for a technology (Technology Settings dialog): costs, research time, energy, and each player's available / researched state.", inputSchema: obj({ tech: { type: "string" } }, ["tech"]) },
+      def: { name: "tech", description: "This map's Technology Settings: costs, research time, energy, each player's available / researched state.", inputSchema: obj({ tech: { type: "string" } }, ["tech"]) },
       writes: false,
       run: (input, { api }) => {
         const hit = byName(api.names.techs(), str(input.tech));
@@ -5830,7 +5798,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script. Comes in windows of 60,000 characters: the first line says where to ask again with `offset` for the rest.", inputSchema: obj({ offset: { type: "integer", description: "the character to start at; the previous window's answer says which" } }) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library and every name. Read once before writing a script. Windows of 60,000 characters; the first line says the next `offset`.", inputSchema: obj({ offset: { type: "integer" } }) },
       writes: false,
       run: (input, { api }) => {
         const script = scriptBridge(api);
@@ -5839,7 +5807,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "compile_script", description: "Check a TrigScript (ordinary TypeScript that runs to record triggers; read script_declarations first) without building it: type-check it, run it, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts; the map's other script files stay as they are.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      def: { name: "compile_script", description: "Check a TrigScript without building it: type-check, run, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
       describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
@@ -5850,7 +5818,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "build_script", description: "Run a TrigScript and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger \u2014 ask first). Stores the source with the map as main.ts. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
@@ -5878,7 +5846,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "go_to", description: "Scroll the user's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
+      def: { name: "go_to", description: "Scroll the person's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
       describe: (input) => input.unit !== void 0 ? `Go to unit #${num(input.unit)}` : input.location !== void 0 ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, { api }) => {
@@ -5889,7 +5857,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "select", description: "Show the user something: select units, sprites, doodads or locations by index (switching to that layer), or mark a tile rect. Pass an empty list to clear.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
+      def: { name: "select", description: "Select units, sprites, doodads or locations by index for the person (switching layer), or mark a tile rect; an empty list clears.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
       describe: (input) => {
         const parts = ["units", "sprites", "doodads", "locations"].filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`);
         if (input.x0 !== void 0 && input.x1 !== void 0) parts.push(`the area ${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`);
@@ -5934,7 +5902,7 @@ function scriptTools() {
 function settingsTools() {
   return [
     {
-      def: { name: "set_players", description: "Player Settings and Player Colors: for each 1-based player, the type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race (Zerg, Terran, Protoss, User Selectable, Random \u2026), colour (a name like Red / Blue / Teal / Purple / Orange / Brown / White / Yellow / Green, or a COLR index, or an RGB triple for a Remastered custom colour) and force (1\u20134). Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: obj({ player: { type: "integer" }, type: { type: "string" }, race: { type: "string" }, color: { type: "string" }, rgb: { type: "array", items: { type: "integer" } }, force: { type: "integer" } }, ["player"]) } }, ["players"]) },
+      def: { name: "set_players", description: "Player Settings and Colors: entries of { player (1-based), type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race, color (a name or a COLR index), rgb ([r, g, b], Remastered), force 1\u20134 }. Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: bag({ player: { type: "integer" } }, ["player"]) } }, ["players"]) },
       describe: (input) => {
         const ps = list(input.players);
         return `Set player${ps.length === 1 ? "" : "s"} ${ps.map((p) => str(p.player)).join(", ")}: ${fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || "nothing"}`;
@@ -5984,7 +5952,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_forces", description: "Force Settings: for each force 1\u20134, its name, the flags allied / alliedVictory / sharedVision / randomStart, and the 1-based players to put in it. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: obj({ force: { type: "integer" }, name: { type: "string" }, allied: { type: "boolean" }, alliedVictory: { type: "boolean" }, sharedVision: { type: "boolean" }, randomStart: { type: "boolean" }, players: { type: "array", items: { type: "integer" } } }, ["force"]) } }, ["forces"]) },
+      def: { name: "set_forces", description: "Force Settings: entries of { force 1\u20134, name, allied, alliedVictory, sharedVision, randomStart (booleans), players ([1-based]) }. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: bag({ force: { type: "integer" } }, ["force"]) } }, ["forces"]) },
       describe: (input) => {
         const fs = list(input.forces);
         return `Set force${fs.length === 1 ? "" : "s"} ${fs.map((f) => str(f.force)).join(", ")}: ${fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || "nothing"}`;
@@ -6014,7 +5982,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_unit_type", description: 'Unit Settings for one unit type: hitPoints (whole points), shields, armor, buildTime (frames), mineralCost, gasCost, weapon damage / bonus by weapon id, a custom name ("" restores the default), and availability \u2014 who may build it: `available` entries of { player: 1\u201312 or "default", value: true / false / "default" }. Setting any number turns "use default" off for the type; useDefault: true puts it back on the game\'s values. Not undoable.', inputSchema: obj({ unit: { type: "string" }, useDefault: { type: "boolean" }, name: { type: "string" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, armor: { type: "integer" }, buildTime: { type: "integer" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, weapons: { type: "array", items: obj({ id: { type: "integer" }, damage: { type: "integer" }, bonus: { type: "integer" } }, ["id"]) }, available: { type: "array", items: obj({ player: { type: "string" }, value: { type: "string" } }, ["player", "value"]) } }, ["unit"]) },
+      def: { name: "set_unit_type", description: 'Unit Settings for `unit`: hitPoints, shields, armor, buildTime (frames), mineralCost, gasCost, weapons [{id, damage, bonus}], name ("" restores), available [{player 1\u201312 or "default", value true / false / "default"}]. A number set turns use-default off; useDefault: true restores it. Not undoable.', inputSchema: bag({ unit: { type: "string" } }, ["unit"]) },
       describe: (input) => `Unit settings for ${str(input.unit)}: ${fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || "nothing"}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -6046,7 +6014,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_upgrade", description: `Upgrade Settings for one upgrade: mineralCost / gasCost / timeCost (frames) and their per-level factors, and levels \u2014 entries of { player: 1\u201312 or "default", start, max, useDefault } for each player's starting and maximum level. Setting a cost turns "use default" off; useDefault: true restores the game's. Not undoable.`, inputSchema: obj({ upgrade: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, mineralFactor: { type: "integer" }, gasCost: { type: "integer" }, gasFactor: { type: "integer" }, timeCost: { type: "integer" }, timeFactor: { type: "integer" }, levels: { type: "array", items: obj({ player: { type: "string" }, start: { type: "integer" }, max: { type: "integer" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["upgrade"]) },
+      def: { name: "set_upgrade", description: 'Upgrade Settings for `upgrade`: mineralCost, mineralFactor, gasCost, gasFactor, timeCost, timeFactor (frames), levels [{player 1\u201312 or "default", start, max, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ upgrade: { type: "string" } }, ["upgrade"]) },
       describe: (input) => `Upgrade settings for ${str(input.upgrade)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || "nothing"}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -6072,7 +6040,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_tech", description: `Technology Settings for one technology: mineralCost / gasCost / researchTime (frames) / energyCost, and state \u2014 entries of { player: 1\u201312 or "default", available, researched, useDefault }. Setting a cost turns "use default" off; useDefault: true restores the game's. Not undoable.`, inputSchema: obj({ tech: { type: "string" }, useDefault: { type: "boolean" }, mineralCost: { type: "integer" }, gasCost: { type: "integer" }, researchTime: { type: "integer" }, energyCost: { type: "integer" }, state: { type: "array", items: obj({ player: { type: "string" }, available: { type: "boolean" }, researched: { type: "boolean" }, useDefault: { type: "boolean" } }, ["player"]) } }, ["tech"]) },
+      def: { name: "set_tech", description: 'Technology Settings for `tech`: mineralCost, gasCost, researchTime (frames), energyCost, state [{player 1\u201312 or "default", available, researched, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ tech: { type: "string" } }, ["tech"]) },
       describe: (input) => `Technology settings for ${str(input.tech)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || "nothing"}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -6098,7 +6066,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_map_version", description: 'Scenario \u25B8 Map Revision: "original" (StarCraft 1.00, .scm), "hybrid" (1.04, .scm), "broodwar" (.scx) or "remastered" (.scx, wide string table). Ask before changing it. Not undoable.', inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
+      def: { name: "set_map_version", description: "Map Revision: original (.scm 1.00), hybrid (.scm 1.04), broodwar (.scx) or remastered. Ask first. Not undoable.", inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
       describe: (input) => `Set the map revision to ${str(input.version)}`,
       writes: true,
       settings: true,
@@ -6112,7 +6080,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "add_sound", description: "Add a WAV path to the sound table (the file itself must already be in the archive or be added through the Sound Editor). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
+      def: { name: "add_sound", description: "Add a WAV path to the sound table (the file must already be in the archive). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
       describe: (input) => `Add the sound ${str(input.path)}`,
       writes: true,
       settings: true,
@@ -6136,7 +6104,7 @@ function paintableDiamonds(api, rect) {
 function terrainTools() {
   return [
     {
-      def: { name: "paint_terrain", description: "Paint a tile rect (x1, y1 exclusive) with a terrain type id (see the reference or list_terrains) using the isometric brush, so cliffs and shores form on their own. The brush bleeds: a shore or cliff between two terrains takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and painting right up to water or a cliff redraws its edge. `keep` lists terrain ids not to paint over (water, for instance): tiles of those terrains inside the rect are left alone. The result says which terrains the rect painted over. Diamonds the tileset cannot join to their neighbours are refused and counted. One undo step.", inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" }, description: "terrain ids to leave alone inside the rect" } }, ["x0", "y0", "x1", "y1", "terrain"]) },
+      def: { name: "paint_terrain", description: 'Paint a tile rect with a terrain id using the isometric brush: cliffs and shores form on their own and the brush bleeds about three tiles (guide "terrain"). `keep` lists terrain ids left alone inside the rect. One undo step.', inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" } } }, ["x0", "y0", "x1", "y1", "terrain"]) },
       describe: (input, { api }) => `Paint ${api.terrain.types().find((t) => t.id === num(input.terrain))?.name ?? `terrain ${str(input.terrain)}`} over ${rectText(input)}`,
       report: (result) => {
         const r = jsonOf(result);
@@ -6178,7 +6146,7 @@ function terrainTools() {
       }
     },
     {
-      def: { name: "resize_map", description: "Scenario \u25B8 Resize / Crop Map to width \xD7 height tiles. `anchor` says where the current content stays: 0 top-left, 1 top, 2 top-right, 3 left, 4 centre (default), 5 right, 6 bottom-left, 7 bottom, 8 bottom-right. Objects outside the new bounds are dropped and the undo history is cleared, so ask before doing this.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer", description: "terrain id for the new ground" } }, ["width", "height"]) },
+      def: { name: "resize_map", description: "Resize / crop the map to width \xD7 height; `anchor` 0\u20138 says where the content stays (4 centre). Drops objects outside and clears the undo history: ask first.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer" } }, ["width", "height"]) },
       describe: (input) => `Resize the map to ${num(input.width)} \xD7 ${num(input.height)}`,
       writes: true,
       settings: true,
@@ -6196,7 +6164,7 @@ function terrainTools() {
 function triggerTools() {
   return [
     {
-      def: { name: "add_triggers_text", description: "Append triggers written in the editor's text format (the format list_triggers_text shows; grammar in the reference). Parse errors are reported and nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
+      def: { name: "add_triggers_text", description: "Append triggers in the text format (grammar in the reference); on a parse error nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
       describe: (input) => {
         const n2 = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length;
         return `Add ${n2 ? plural(n2, input.briefing === true ? "briefing trigger" : "trigger") : "triggers"} from text`;
@@ -6218,7 +6186,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "replace_trigger", description: "Replace one trigger (1-based index, as list_triggers_text numbers them) with one written in the text format. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
+      def: { name: "replace_trigger", description: "Replace one trigger (1-based, as list_triggers_text numbers them) with text-format text. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
       describe: (input) => `Replace trigger #${num(input.index)}`,
       writes: true,
       settings: true,
@@ -6268,7 +6236,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "set_trigger_flags", description: "Turn Preserve Trigger on or off for triggers by 1-based index (to disable a condition or action, replace the trigger with a `;` before that line). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
+      def: { name: "set_trigger_flags", description: "Preserve Trigger on or off for triggers by 1-based index (to disable one line, replace the trigger with a `;` before it). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
       describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints(input.indices).length, "trigger")}`,
       writes: true,
       settings: true,
@@ -6289,7 +6257,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "set_string", description: "Overwrite one string in the table by index (everything that points at it shows the new text), or add a new string with index 0 and get its index back. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
+      def: { name: "set_string", description: "Overwrite a string by index (everything pointing at it changes), or index 0 to add one and get its index. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
       describe: (input) => `${num(input.index) > 0 ? `Set string ${num(input.index)}` : "Add a string"}: "${str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}\u2026` : str(input.text)}"`,
       writes: true,
       settings: true,
@@ -6332,7 +6300,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "simulate_triggers", description: "Run the map's triggers through the TrigScript plugin's trigger-cycle interpreter for some cycles (Deaths, Switches, Always and Never are modelled; other conditions count as false) and report the actions that fired and the switches set at the end. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
+      def: { name: "simulate_triggers", description: "Run the triggers in TrigScript's cycle interpreter for `cycles` (Deaths, Switches, Always and Never modelled) and report the actions fired and switches set. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
       describe: (input) => `Simulate the triggers for ${plural(num(input.cycles, 30), "cycle")}`,
       writes: false,
       run: (input, { api }) => {
@@ -6487,7 +6455,28 @@ Hold out until a timer runs out, or hunt the survivors before it does. In *cat a
 - \`leaderboard\` control of the hero unit shows who is still alive; \`objectives\`.
 
 **Pitfalls.** A countdown victory for a force while another system gives Defeat on the same cycle is a race \u2014 put the defeat's grace period after the timer. Monsters spawned without an order stand still.`;
+var TERRAIN = `# Terrain work: how the brush, the shapes, ramps, bridges, bases and doodads behave
+
+**The isometric brush** (paint_terrain, every shape). Terrain is painted by type id (list_terrains, or the reference's tileset block); cliffs and shores between two types draw themselves where they join, and a type joins only the types the tileset's tables link it to. The brush bleeds: a shore or a cliff takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and a rect painted right up to water or a cliff redraws that edge \u2014 leave a few tiles' gap, or name the terrains to leave alone (\`keep\`). Diamonds the tileset cannot join to their neighbours are refused and counted. Painting the ground under a doodad removes it: doodads inside the painted rect go with the ground and are counted in one line; the re-blend also reaches along a cliff or shore well outside the rect, and a doodad it lifts there is put back where it still fits (a second undo step) or named with its position. Repainting the ground under a unit keeps the unit.
+
+**Shapes** (paint_shapes), in map tiles, later over earlier, each an object with an \`op\`:
+- \`ground\` (the whole map) and \`border\` (width) take a terrain id.
+- \`rect\` (x, y, w, h; optional \`cut\`: isometric corner cut in rows), \`diamond\` / \`ellipse\` (cx, cy, rx, ry), \`polygon\` (points).
+- \`stroke\` (points, width): a band \u2014 a river, a road, a wall. A river carries its bridges as \`bridges\`: [[x, y], \u2026]; the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides. Optional \`bank\` terrain id and \`bankWidth\` paint a band either side, bent with the river. A stroke's round ends reach half its width past each point: keep later strokes off a bridge's tiles.
+- \`plateau\` (like rect, plus \`ramps\`: which lower corners get a ramp down, "sw" and/or "se"): the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp.
+- \`lane\` (points, width, \`wall\` terrain id, \`wallWidth\`): a walkable band with walls either side, continuous by construction; the width is the walkable core kept.
+- \`ramp\` (x, y, side): on a cliff already there. \`bridge\` (x, y, along "se" or "sw"): a stamp over whatever is there \u2014 a channel of the bridge's water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge's ground either side, then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges.
+Only the tiles the shapes cover change. \`originX\` / \`originY\` shift every coordinate, for shapes written relative to an area's corner. \`clear\` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for ground or border); leave it off unless the area is meant to start empty. Optional \`locations\` ([{name, x0, y0, x1, y1}]) and \`units\` ([{unit, player, x, y}]) go on afterwards.
+
+**Ramps** go down south-west or south-east and nowhere else. A ramp is a doodad that fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for (the reference's tileset block lists the pairs); a tile-aligned cliff takes none. place_ramp tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit; a plateau shape makes an edge that fits.
+
+**Bridges** are doodads too, fitting only a channel of the bridge's water along the 2:1 diagonal (two tiles across for one down, running south-east or south-west) of the width the reference's tileset block gives. Badlands' bridges the editor cannot place; Installation and Ash World have none: there, a crossing is a gap of ground in the water \u2014 say so rather than trying. After painting, reachable answers whether units can walk from one place to another; a yes is not proof that a river holds, since a broken barrier answers yes too. To prove a bridge is the only way over, ask again with \`ignoreBridges\` (the tiles under every bridge count as water), which should answer no.
+
+**Bases.** place_base lays the mineral patches on the ring three tiles from a 4 \xD7 3 town hall footprint, where the game mines fastest, spread round a compass \`direction\` (where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines, the geyser on the same ring just past the line's end (\`geyserSide\` left / right / auto). Positions the editor refuses (cliffs, water, the edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does and says so. \`minerals\` (default 8), \`geysers\` (0\u20132, default 1), \`amount\` (1500) and \`gas\` (5000) are the numbers; \`hall\` names a Command Center, Nexus or Hatchery to place for \`player\`. find_site with purpose building and about 14 \xD7 11 finds room for hall and ring; bases reads what every start already has.
+
+**Doodads.** scatter_doodads keeps to the ground its category names (the editor's own rule: a Water doodad stands only on water, a Snow one only on snow) and clear of other doodads, so scatter a category over its own ground and read the count; a rect that also covers other ground places few and says so. place_doodads takes a name, an id or a category name, with the top-left corner at a tile.`;
 var GUIDES = [
+  { id: "terrain", title: "Terrain work: the brush, shapes, ramps, bridges, bases, doodads", keywords: [], text: TERRAIN },
   { id: "basics", title: "Scenario basics", keywords: ["ums", "scenario", "trigger", "death counter", "hyper", "switch", "location"], text: BASICS },
   { id: "madness", title: "Madness maps", keywords: ["madness", "mass", "spawn war", "auto spawn"], text: MADNESS },
   { id: "defense", title: "Defense and tower defense", keywords: ["defense", "defence", "tower", "td", "waves", "sunken", "cannon"], text: DEFENSE },
@@ -6506,7 +6495,7 @@ function guideFor(prompt) {
   let best = null;
   let score = 0;
   for (const g of GUIDES) {
-    if (g.id === "basics") continue;
+    if (g.id === "basics" || g.id === "terrain") continue;
     let n2 = 0;
     for (const k of g.keywords) if (text.includes(` ${k} `) || text.includes(`${k} `) || text.includes(` ${k}`)) n2 += k.length > 3 ? 2 : 1;
     if (n2 > score) {
@@ -7416,7 +7405,7 @@ function addSystem(api, kind, params, ctx, label = `AI: ${kind}`) {
 function umsTools() {
   return [
     {
-      def: { name: "guide", description: "Read a genre guide before designing or judging a scenario: how a madness map, a defense, an RPG, a bound, a diplomacy map, an arena or a survival map is built, its players and forces, the trigger systems it runs on (by toolkit kind), and the pitfalls. `id` is one of the guides, or a free description of the map to pick the nearest; no id lists them. `basics` is death counters, hyper triggers, locations and the game's limits.", inputSchema: obj({ id: { type: "string" } }) },
+      def: { name: "guide", description: `A guide to read once: "terrain" (how the brush, shapes, ramps, bridges, bases and doodads behave \u2014 before terrain work), "basics" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.`, inputSchema: obj({ id: { type: "string" } }) },
       describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
       writes: false,
       run: (input) => {
@@ -7431,12 +7420,12 @@ ${guideIndex()}`;
       }
     },
     {
-      def: { name: "ums_kinds", description: "The toolkit of trigger systems the editor builds by itself \u2014 hyper triggers, spawns, kill-to-cash, income, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdowns, last standing, alliances \u2014 with each kind's parameters. Use ums_build for these instead of writing the triggers by hand.", inputSchema: obj({}) },
+      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdown, last standing, alliances \u2026) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
       writes: false,
       run: () => kindsText()
     },
     {
-      def: { name: "ums_build", description: "Build one trigger system from the toolkit (see ums_kinds) and append its triggers to the map. `params` are the kind's parameters as strings \u2014 a location or unit by name, a number as digits, a list comma-separated; `{p}` in a location name means the player number. Problems are reported and nothing is added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
       describe: (input) => {
         const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
         return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`;

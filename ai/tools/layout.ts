@@ -65,12 +65,12 @@ export function readShapes(raw: unknown): Shape[] | string {
 export function layoutTools(): Tool[] {
   return [
     {
-      def: { name: "layout_presets", description: "The layouts the editor lays out by itself from a few numbers — corner camps around an arena, lanes from spawns to a goal, a walled arena, a bound's course of stretches, a town with a chain of regions — with each one's parameters and the locations it makes ({p} a player number, {n} a lane, stretch or region number). Use layout_preset to lay one out; prefer a preset over painting terrain by hand whenever the map's shape is one of these.", inputSchema: obj({}) },
+      def: { name: "layout_presets", description: "The layouts the editor lays out from a few numbers (corner camps, lanes, arena, bound course, town) with their parameters and the locations they make ({p} a player, {n} a number). Prefer one over painting by hand when the shape fits.", inputSchema: obj({}) },
       writes: false,
       run: () => presetsText(),
     },
     {
-      def: { name: "layout_preset", description: "Lay a preset out over the whole map: the terrain (with ramps and bridges that fit, where the tileset has them), the named locations, a start location per human player, a little decoration. Replaces the terrain and clears units, doodads and sprites first; triggers and settings stay. `params` are the preset's parameters as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
+      def: { name: "layout_preset", description: "Lay a preset over the whole map: terrain with fitting ramps and bridges, named locations, a start per human, decoration. Replaces the terrain and clears objects; triggers and settings stay. `params` as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
       describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`; },
       report: (result) => { const r = jsonOf(result); return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${plural(r.locations.length, "location")}` : ""}` : ""; },
       writes: true,
@@ -99,12 +99,11 @@ export function layoutTools(): Tool[] {
     },
     {
       def: {
-        name: "paint_shapes",
-        description: "Paint terrain as shapes, in map tiles, in order (later over earlier). Each shape is an object whose `op` names it: ground (the whole map), rect (x, y, w, h, optional cut: isometric corner cut in rows), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width: a band — a river, a road, a wall; a river carries its bridges as `bridges`: [[x, y], …] — the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides; optional `bank` terrain id and `bankWidth` paint a band either side, bent with the river), border (width), plateau (like rect, plus ramps: which lower corners get a ramp down, \"sw\" and/or \"se\" — the game's ramps go down south-west or south-east and nowhere else; the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp), lane (points, width, wall terrain id, wallWidth: a walkable band with walls either side, continuous by construction; the width is the walkable core kept), ramp (x, y, side: on a cliff already there), bridge (x, y, along \"se\" or \"sw\": a stamp over whatever is there — a channel of the bridge's water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge's ground either side — then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges). Every shape but ramp and bridge names a terrain id (see list_terrains). Painting the ground under a doodad removes it (the result names it): paint water before placing a bridge, and keep later strokes — whose round ends reach half their width past each point — off a bridge's tiles. Bridges exist only where the reference's tileset block says the editor can place one (every tileset but Badlands, Installation and Ash World); elsewhere leave a gap of ground for a crossing. Only the tiles the shapes cover change; `originX`/`originY` shift every coordinate, for shapes written relative to an area's corner. `clear` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for `ground` or `border`); leave it off unless the area is meant to start empty — repainting ground under a unit keeps the unit. Optional `locations` ([{name, x0, y0, x1, y1}] in tiles) and `units` ([{unit, player, x, y}]) go on afterwards. One undo step.",
+        name: "paint_shapes", description: "Paint terrain as shapes in tiles, later over earlier; each shape has an `op`: ground, rect (x, y, w, h, cut), diamond / ellipse (cx, cy, rx, ry), polygon (points), stroke (points, width; a river's `bridges` [[x, y], …] get the channel, banks and bridge fitted; optional bank, bankWidth), border (width), plateau (a rect with ramps [\"sw\" / \"se\"] cut and fitted), lane (points, width, wall, wallWidth), ramp (x, y, side), bridge (x, y, along). All but ramp and bridge take a terrain id. `originX` / `originY` shift every coordinate; `clear` empties the shapes' rectangle first (off by default); `locations` and `units` go on afterwards. Read guide \"terrain\" first for how ramps, bridges, banks and lifted doodads behave. One undo step.",
         inputSchema: obj({
           shapes: { type: "array", items: { type: "object", properties: { op: { type: "string", enum: SHAPE_OPS }, terrain: { type: "integer" } }, required: ["op"], additionalProperties: true } },
           originX: { type: "integer" }, originY: { type: "integer" },
-          clear: { type: "boolean", description: "remove units, doodads and sprites inside the shapes' rectangle first; default false" },
+          clear: { type: "boolean" },
           locations: { type: "array", items: { type: "object", additionalProperties: true } },
           units: { type: "array", items: { type: "object", additionalProperties: true } },
         }, ["shapes"]),
@@ -130,7 +129,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already on the map, near a tile, going down south-west or south-east (the only ways the game's ramps go). Tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit. A ramp fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for — a tile-aligned cliff takes none; to make such an edge, paint a plateau with paint_shapes instead.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
+      def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already there, near a tile, going down sw or se (the only ways ramps go). Needs a straight diagonal cliff run; a plateau shape makes one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
       describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
       report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
@@ -150,7 +149,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over water already on the map, near a tile. The reference's tileset block says whether this tileset has a bridge the editor can place (Badlands' bridges it cannot; Installation and Ash World have none); where it cannot, leave a gap of ground in the water for a crossing. A bridge spans only a diagonal channel of the width the bridges were drawn for; to make such a channel, use a bridge shape in paint_shapes, which paints it and fits the bridge in one go.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
+      def: { name: "place_bridge", description: "Fit one of the tileset's bridges over a diagonal water channel already there, near a tile. Where the tileset has no bridge the editor can place (Badlands, Installation, Ash World) leave a gap of ground instead. A stroke with `bridges` in paint_shapes does channel and bridge in one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
       describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
       report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
@@ -167,19 +166,18 @@ export function layoutTools(): Tool[] {
     },
     {
       def: {
-        name: "place_base",
-        description: "Lay a base's resources round a town hall footprint (4 × 3 tiles, top-left at x,y — a start location's box) the way the Melee Wizard does: the mineral patches on the ring three tiles from the hall, where the game mines fastest, spread round `direction` (a compass point, where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines; the geyser on the same ring just past the line's end. Positions the editor refuses (cliffs, water, the map's edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does, and the result says so. Give `player` to place that player's start location at the hall (or omit x,y to lay round the start location the player already has), `hall` to place a town hall by name for the player too. Use this for every mineral line rather than placing patches one by one.",
+        name: "place_base", description: "Lay a mineral line and geyser round a 4 × 3 town hall footprint (top-left x, y) on the ring the game mines fastest from, along `direction` (a compass point seen from the hall; default away from the centre), turning to the nearest side that fits and saying so. `player` places that player's start at the hall (omit x, y to use the start it has); `hall` places a town hall by name. Use this for every mineral line.",
         inputSchema: obj({
-          x: { type: "integer", description: "the hall footprint's left tile" },
-          y: { type: "integer", description: "the hall footprint's top tile" },
-          player: { type: "integer", description: "1-based; gets a start location at the hall" },
+          x: { type: "integer" },
+          y: { type: "integer" },
+          player: { type: "integer" },
           direction: { type: "string", enum: [...DIRECTIONS] },
-          minerals: { type: "integer", description: "patches, default 8" },
-          geysers: { type: "integer", description: "0–2, default 1" },
-          amount: { type: "integer", description: "minerals per patch, default 1500" },
-          gas: { type: "integer", description: "gas per geyser, default 5000" },
-          geyserSide: { type: "string", enum: ["auto", "left", "right"], description: "which end of the line the geyser takes, seen from the hall" },
-          hall: { type: "string", description: "a town hall unit to place for the player: Command Center, Nexus or Hatchery" },
+          minerals: { type: "integer" },
+          geysers: { type: "integer" },
+          amount: { type: "integer" },
+          gas: { type: "integer" },
+          geyserSide: { type: "string", enum: ["auto", "left", "right"] },
+          hall: { type: "string" },
         }),
       },
       describe: (input) => `Lay a base${input.player !== undefined ? ` for Player ${num(input.player)}` : ""}${input.x !== undefined ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
@@ -261,7 +259,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "bases", description: "Every base on the map in one call: for each start location its player, the town hall footprint (4 × 3 tiles, what place_base and the start's box use), the mineral patches and geysers round it with their positions and amounts, which side of the hall the mineral line lies on and which side is open (the approach — where a bunker or a wall goes), and the nearest other start; then the expansions (resource clusters with no start). Read this before working on bases instead of listing units and screenshotting each one.", inputSchema: obj({}) },
+      def: { name: "bases", description: "Every base in one call: per start location the player, hall footprint, mineral line (positions, amounts), geysers, the line's side and the open side, the nearest other start; then the expansions with no start. Read this before working on bases.", inputSchema: obj({}) },
       describe: () => "Read the map's bases",
       report: (result) => { const r = jsonOf(result); return r ? `${plural(list(r.bases).length, "base")}, ${plural(list(r.expansions).length, "expansion")}` : ""; },
       writes: false,
@@ -304,7 +302,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "find_site", description: "Where a block of `w` × `h` tiles of flat ground fits, nearest a point first. `purpose` \"building\" (default) wants buildable, walkable ground on one height — for a new base ask for about 14 × 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base), for a building its footprint; \"terrain\" wants ground on one height to paint over — a plateau, a lane, a pit — and does not mind doodads, since painting lifts them. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      def: { name: "find_site", description: "The nearest blocks of `w` × `h` flat ground to a point (default the centre; `radius` 40). `purpose` building (buildable, walkable, one height; about 14 × 11 for a base — the answer gives the hall for place_base) or terrain (one height to paint over; doodads do not count). Reachable from every start unless anyStart is false. Up to five, a block apart.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean" } }, ["w", "h"]) },
       describe: (input) => `Find ${num(input.w)} × ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== undefined ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
       report: (result) => { const r = jsonOf(result); return r ? plural(list(r.sites).length, "site") : ""; },
       writes: false,
@@ -354,7 +352,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "reachable", description: "Whether a ground unit can walk from one place to another, by flood-filling the map's walkable tiles: a lane from its spawn to its goal, a base from its ramp to the middle, a bound from start to finish. Each end is a location by name (fromLocation / toLocation) or a tile (fromX, fromY / toX, toY). Answers yes or no, how many tiles the start reaches, and where the nearest walkable tile is when an end stands on unwalkable ground. A yes does not prove a barrier holds: a broken river answers yes too. To prove a river or wall is crossed only at its bridge, ask twice — plainly (yes) and with ignoreBridges true, which counts the tiles under every bridge as water (no).", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
+      def: { name: "reachable", description: "Whether a ground unit can walk between two ends (a location by name or a tile), by flood fill; says how many tiles the start reaches and the nearest walkable tile when an end is not walkable. To prove a bridge is the only crossing, ask again with ignoreBridges true and expect no.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
       describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}${input.ignoreBridges === true ? " without the bridges" : ""}?`,
       report: (result) => { const r = jsonOf(result); return r ? (r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}`) : ""; },
       writes: false,
@@ -388,7 +386,7 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "scenario_rules", description: "The game's own rules a scenario breaks silently, checked on the open map: a human or computer slot that owns nothing (defeated at once, and its triggers never run); a human without a start location; a trigger list that counts time without hyper triggers. With fix: true, a computer that owns nothing gets an Overlord in the top-right corner to keep it in the game.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers. fix: true gives an ownerless computer an Overlord.", inputSchema: obj({ fix: { type: "boolean" } }) },
       describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
       report: (result) => { const r = jsonOf(result); if (!r) return ""; const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : []; const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0; return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems"; },
       writes: true,

@@ -20,12 +20,12 @@ export function scriptTools(): Tool[] {
       run: (_i, { api }) => { const script = scriptBridge(api); if (!script) return fail(NO_SCRIPT_PLUGIN); const s = script.state(); return s ? capResult({ hasScript: !!s.files, stale: s.stale, unbuilt: s.unbuilt, block: s.block, files: s.files }, 60_000) : "No map is open."; },
     },
     {
-      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library, every unit, location, switch and player by name, every condition and action as a function. Long; read once before writing a script. Comes in windows of 60,000 characters: the first line says where to ask again with `offset` for the rest.", inputSchema: obj({ offset: { type: "integer", description: "the character to start at; the previous window's answer says which" } }) },
+      def: { name: "script_declarations", description: "TrigScript's declarations for this map (a .d.ts): the library and every name. Read once before writing a script. Windows of 60,000 characters; the first line says the next `offset`.", inputSchema: obj({ offset: { type: "integer" } }) },
       writes: false,
       run: (input, { api }) => { const script = scriptBridge(api); if (!script) return fail(NO_SCRIPT_PLUGIN); return windowOf(script.declarations({ compact: true }), Math.max(0, Math.round(num(input.offset))), DECLARATIONS_WINDOW); },
     },
     {
-      def: { name: "compile_script", description: "Check a TrigScript (ordinary TypeScript that runs to record triggers; read script_declarations first) without building it: type-check it, run it, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts; the map's other script files stay as they are.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
+      def: { name: "compile_script", description: "Check a TrigScript without building it: type-check, run, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
       describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
       writes: false,
       run: async (input, { api }) => {
@@ -36,7 +36,7 @@ export function scriptTools(): Tool[] {
       },
     },
     {
-      def: { name: "build_script", description: "Run a TrigScript and, when it is clean, build it into the map (replacing the script's previous block; `takeOver` replaces every trigger — ask first). Stores the source with the map as main.ts. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
       writes: true,
       settings: true,
@@ -58,7 +58,7 @@ export function scriptTools(): Tool[] {
       run: (_i, { api }) => { const label = api.document.redo(); return label ? `Redid: ${label}.` : "Nothing to redo."; },
     },
     {
-      def: { name: "go_to", description: "Scroll the user's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
+      def: { name: "go_to", description: "Scroll the person's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
       describe: (input) => input.unit !== undefined ? `Go to unit #${num(input.unit)}` : input.location !== undefined ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, { api }) => {
@@ -69,7 +69,7 @@ export function scriptTools(): Tool[] {
       },
     },
     {
-      def: { name: "select", description: "Show the user something: select units, sprites, doodads or locations by index (switching to that layer), or mark a tile rect. Pass an empty list to clear.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
+      def: { name: "select", description: "Select units, sprites, doodads or locations by index for the person (switching layer), or mark a tile rect; an empty list clears.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
       describe: (input) => { const parts = (["units", "sprites", "doodads", "locations"] as const).filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`); if (input.x0 !== undefined && input.x1 !== undefined) parts.push(`the area ${num(input.x0)},${num(input.y0)}–${num(input.x1)},${num(input.y1)}`); return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection"; },
       writes: false,
       run: (input, { api }) => {

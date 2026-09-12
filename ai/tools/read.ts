@@ -9,7 +9,7 @@ import { byName, capResult, fail, hasRect, indexList, ints, jsonOf, noSuchTech, 
 export function readTools(): Tool[] {
   return [
     {
-      def: { name: "reference", description: "The long tables the reference block leaves out. part \"units\": every unit type with hit points, shields, armour, costs, build time and weapons. \"doodads\": every doodad of this tileset by category, with ids and sizes. \"triggers\": every trigger condition, action and briefing action with its arguments, the spellings of every enumerated value (comparisons, modifiers, orders, players, …) and the AI scripts. Read \"triggers\" once before writing triggers. `query` keeps only the rows whose name contains it (a unit, a doodad or category, a condition or action); `section` narrows the triggers part to conditions, actions, briefing, values or scripts.", inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] }, query: { type: "string" }, section: { type: "string", enum: [...REFERENCE_SECTIONS] } }, ["part"]) },
+      def: { name: "reference", description: "The long tables: part \"units\" (stats, costs, weapons), \"doodads\" (every doodad by category with ids and sizes), \"triggers\" (every condition, action and briefing action with arguments, the spellings of enumerated values, the AI scripts; read once before writing triggers). `query` keeps rows whose name contains it; `section` narrows the triggers part.", inputSchema: obj({ part: { type: "string", enum: [...REFERENCE_PARTS] }, query: { type: "string" }, section: { type: "string", enum: [...REFERENCE_SECTIONS] } }, ["part"]) },
       writes: false,
       run: (input, { api }) => {
         const part = str(input.part) as (typeof REFERENCE_PARTS)[number];
@@ -21,7 +21,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, the players (type, race, colour, force, start location) and the forces, whether it has a trigger script.", inputSchema: obj({}) },
+      def: { name: "map_info", description: "The open map: name, description, size, tileset, revision, players (type, race, colour, force, start) and forces, whether it has a script.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const info = api.document.info();
@@ -38,17 +38,12 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "statistics", description: "Tools ▸ Statistics: counts of units, resources, doodads, sprites, locations, triggers, strings, terrain by type.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => capResult(api.query.statistics() ?? "no map"),
-    },
-    {
-      def: { name: "list_terrains", description: "The tileset's terrain types: id, name, height (0 low, 1 mid, 2 high), buildable. Use the ids with paint_terrain. (Also in the reference.)", inputSchema: obj({}) },
+      def: { name: "list_terrains", description: "The tileset's terrain types: id, name, height (0 low – 2 high), buildable.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => capResult(api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable }))),
     },
     {
-      def: { name: "list_doodad_categories", description: "Doodad categories the tileset offers, with how many doodads each has, for scatter_doodads. `category` lists that category's doodads with sizes.", inputSchema: obj({ category: { type: "string" } }) },
+      def: { name: "list_doodad_categories", description: "The tileset's doodad categories with counts; `category` lists that category's doodads with sizes.", inputSchema: obj({ category: { type: "string" } }) },
       writes: false,
       run: (input, { api }) => {
         const cats = api.palette.doodadCategories();
@@ -61,7 +56,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_units", description: "Units on the map: index, name, owner, tile x/y, resource amount for minerals and geysers. Filter by owner (1-based player, 12 neutral), by name (substring), or by a tile rect. `details` adds every record field (hit points %, shields %, energy %, hangar, state flags, serial). Pages of 200: `next` in the answer is the `offset` of the page after.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" }, description: "only these unit indices" } }) },
+      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. Pages of 200.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } } }) },
       describe: (input) => `List ${input.owner !== undefined ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}`,
       report: pageReport,
       writes: false,
@@ -91,7 +86,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_doodads", description: "Doodads placed on the map: index, name, category, top-left tile, size. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      def: { name: "list_doodads", description: "Doodads on the map: index, name, category, top-left tile, size; optionally within a rect. Pages of 300.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -110,7 +105,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_sprites", description: "Sprites (THG2) on the map: index, kind (pure sprite or unit sprite), name, owner, tile. Optionally within a tile rect. Pages of 300: `next` is the `offset` of the page after.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
+      def: { name: "list_sprites", description: "Sprites on the map: index, kind (pure / unit), name, owner, tile; optionally within a rect. Pages of 300.", inputSchema: obj({ ...rectSchema, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -129,7 +124,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_locations", description: "The map's locations: slot index, name, tile rect, elevation flags (which heights it excludes).", inputSchema: obj({}) },
+      def: { name: "list_locations", description: "Locations: slot, name, tile rect, excluded heights.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const scn = api.document.scenario();
@@ -143,7 +138,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_strings", description: "The string table: index and text, with what uses each (map name, location, trigger …). `query` filters by substring; `unused` lists only strings nothing references. Pages of 200: `next` is the `offset` of the page after.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, ...pageSchema }) },
+      def: { name: "list_strings", description: "The string table: index, text, what uses each. `query` filters by substring; `unused` keeps only strings nothing references. Pages of 200.", inputSchema: obj({ query: { type: "string" }, unused: { type: "boolean" }, ...pageSchema }) },
       report: pageReport,
       writes: false,
       run: (input, { api }) => {
@@ -165,7 +160,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_switches", description: "The 256 switches that have a name or are used by triggers: index (0-based; the text format says \"Switch N\" 1-based), name, how many conditions and actions use it.", inputSchema: obj({}) },
+      def: { name: "list_switches", description: "Switches that have a name or are used: index (0-based; the text format says \"Switch N\" 1-based), name, uses.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => {
         const names = api.triggers.switchNames();
@@ -175,12 +170,12 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_sounds", description: "The WAV table: slot, path, whether the file is in the archive, its size, what plays it.", inputSchema: obj({}) },
+      def: { name: "list_sounds", description: "The WAV table: slot, path, in the archive or not, size, what plays it.", inputSchema: obj({}) },
       writes: false,
       run: (_i, { api }) => capResult(api.settings.sounds().map((s) => ({ slot: s.slot, path: s.path, present: s.present, size: s.size, usedBy: s.usedBy }))),
     },
     {
-      def: { name: "list_triggers_text", description: "The map's triggers in the editor's text format, from index `from` to `to` (1-based, inclusive; default the first 20). Also the mission briefing with briefing=true.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
+      def: { name: "list_triggers_text", description: "Triggers in the text format from `from` to `to` (1-based, inclusive; default the first 20); briefing=true for the mission briefing.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
       describe: (input) => `Read ${input.briefing === true ? "the briefing" : "the triggers"}${input.from !== undefined ? ` from #${num(input.from)}` : ""}${input.to !== undefined ? ` to #${num(input.to)}` : ""} as text`,
       writes: false,
       run: (input, { api }) => {
@@ -195,20 +190,20 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "find", description: "Edit ▸ Find: search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
+      def: { name: "find", description: "Search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
       describe: (input) => `Find "${str(input.text)}" in the ${str(input.kind)}`,
       writes: false,
       run: (input, { api }) => capResult(api.query.find({ kind: str(input.kind, "strings") as "strings", query: str(input.text), limit: 100 })),
     },
     {
-      def: { name: "validate", description: "Tools ▸ Check Map: problems the editor finds with the map.", inputSchema: obj({}) },
+      def: { name: "validate", description: "Check Map: the problems the editor finds.", inputSchema: obj({}) },
       describe: () => "Check the map",
       report: (result) => { const r = jsonOf(result); return Array.isArray(r) ? (r.length ? plural(r.length, "finding") : "clean") : ""; },
       writes: false,
       run: (_i, { api }) => { const issues = api.query.validate(); return issues.length ? capResult(issues.map((i) => ({ level: i.level, text: i.text, where: i.where, target: i.target }))) : "Check Map finds nothing wrong."; },
     },
     {
-      def: { name: "terrain_at", description: "What is under a tile: the terrain type, height, buildable, walkable, and the doodad there if any. Or a coarse grid of an area (cells of `cellSize` tiles) when a rect is given.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
+      def: { name: "terrain_at", description: "What is under a tile (terrain, height, buildable, walkable, doodad), or a coarse grid of a rect in cells of `cellSize` tiles.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Read the terrain over ${rectText(input)}` : `Read the terrain at ${num(input.x)},${num(input.y)}`,
       writes: false,
       run: (input, ctx) => {
@@ -229,7 +224,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "fog_at", description: "Fog of war over a tile rect for a 1-based player, as a coarse grid of cells (`#` = starts unexplored, `.` = explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
+      def: { name: "fog_at", description: "Fog of war over a rect for a 1-based player, as a coarse grid (`#` starts unexplored, `.` explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
       describe: (input) => `Read Player ${num(input.player)}'s fog${hasRect(input) ? ` over ${rectText(input)}` : ""}`,
       writes: false,
       run: (input, { api }) => {
@@ -253,7 +248,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "placement_ok", description: "Whether a unit could be placed with its centre at a tile: the editor's own placement check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
+      def: { name: "placement_ok", description: "Whether a unit could be placed centred at a tile: the editor's own check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
       describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
       writes: false,
       run: (input, { api }) => {
@@ -265,7 +260,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "screenshot", description: "A picture of an area of the map (or the whole map when no rect is given) at `pixelsPerTile` (default 8; 32 is the game's art, 2 is a minimap). Look before and after changing things.", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
+      def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
       report: (result) => { const m = /at (\d+) px per tile/.exec(typeof result === "string" ? result : result.text ?? ""); return m ? `${m[1]} px per tile` : "picture"; },
       writes: false,
@@ -282,27 +277,7 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "selection", description: "What the person has selected or marked right now: the marked area, selected units / sprites / doodads / locations, the active layer, the visible area and the cursor tile.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => {
-        const scn = api.document.scenario();
-        if (!scn) return fail("No map is open.");
-        const units = api.selection.units().map((i) => ({ index: i, name: api.names.unit(scn.units[i]?.unitId ?? 0), owner: ownerName(scn.units[i]?.owner ?? 11), x: Math.floor((scn.units[i]?.x ?? 0) / TILE), y: Math.floor((scn.units[i]?.y ?? 0) / TILE) }));
-        return capResult({
-          layer: api.selection.layer(),
-          markedArea: api.selection.markedArea(),
-          units,
-          sprites: api.selection.sprites(),
-          doodads: api.selection.doodads().map((i) => ({ index: i, name: api.palette.doodadInfo(scn.doodads[i]?.doodadId ?? -1)?.name })),
-          locations: api.selection.locations().map((i) => ({ index: i, name: api.names.location(i) })),
-          visible: api.view.visible(),
-          zoom: api.view.zoom(),
-          cursor: api.view.cursorTile(),
-        });
-      },
-    },
-    {
-      def: { name: "lookup", description: "Look a name up in the game data: kind \"unit\" (id, size, cost, hp, weapons, the map's own settings), \"doodad\", \"sprite\", \"upgrade\", \"tech\", \"weapon\", \"ai_script\", \"condition\" or \"action\" (the argument list). `query` is a name or part of one; several matches are listed.", inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
+      def: { name: "lookup", description: "A name in the game data: kind unit (id, size, cost, hp, weapons, the map's settings), doodad, sprite, upgrade, tech, weapon, ai_script, condition or action; `query` is a name or part of one.", inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
       describe: (input) => `Look up the ${str(input.kind)} "${str(input.query)}"`,
       writes: false,
       run: (input, { api }) => {
@@ -326,22 +301,17 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "history", description: "The undo and redo stacks: the labels on top and how deep each is.", inputSchema: obj({}) },
-      writes: false,
-      run: (_i, { api }) => { const h = api.document.history(); return `${plural(h.undoDepth, "undo step")}${h.undo ? ` (top: ${h.undo})` : ""}, ${plural(h.redoDepth, "redo step")}${h.redo ? ` (top: ${h.redo})` : ""}.`; },
-    },
-    {
-      def: { name: "unit_type", description: "This map's settings for a unit type (Unit Settings dialog): whether it uses the game's defaults, hit points, shields, armor, build time, cost, weapon damage, custom name, and who may build it. Names are matched loosely; \"marine\" works.", inputSchema: obj({ unit: { type: "string" } }, ["unit"]) },
+      def: { name: "unit_type", description: "This map's Unit Settings for a type: defaults used or not, hit points, shields, armor, build time, cost, weapon damage, custom name, who may build it. Loose name match.", inputSchema: obj({ unit: { type: "string" } }, ["unit"]) },
       writes: false,
       run: (input, { api }) => { const id = unitIdByName(api, str(input.unit)); if (id === null) return noSuchUnit(api, str(input.unit)); const t = api.settings.unitType(id); return t ? capResult({ ...t, availability: { defaultAvailable: t.availability.defaultAvailable, players: Object.fromEntries(t.availability.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open."; },
     },
     {
-      def: { name: "upgrade", description: "This map's settings for an upgrade (Upgrade Settings dialog): costs, factors, time and each player's start and maximum level.", inputSchema: obj({ upgrade: { type: "string" } }, ["upgrade"]) },
+      def: { name: "upgrade", description: "This map's Upgrade Settings: costs, factors, time, each player's start and maximum level.", inputSchema: obj({ upgrade: { type: "string" } }, ["upgrade"]) },
       writes: false,
       run: (input, { api }) => { const hit = byName(api.names.upgrades(), str(input.upgrade)); if (!hit) return noSuchUpgrade(api, str(input.upgrade)); const u = api.settings.upgrade(hit.value); return u ? capResult({ ...u, levels: { defaultStart: u.levels.defaultStart, defaultMax: u.levels.defaultMax, players: Object.fromEntries(u.levels.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open."; },
     },
     {
-      def: { name: "tech", description: "This map's settings for a technology (Technology Settings dialog): costs, research time, energy, and each player's available / researched state.", inputSchema: obj({ tech: { type: "string" } }, ["tech"]) },
+      def: { name: "tech", description: "This map's Technology Settings: costs, research time, energy, each player's available / researched state.", inputSchema: obj({ tech: { type: "string" } }, ["tech"]) },
       writes: false,
       run: (input, { api }) => { const hit = byName(api.names.techs(), str(input.tech)); if (!hit) return noSuchTech(api, str(input.tech)); const t = api.settings.tech(hit.value); return t ? capResult({ ...t, state: { defaultAvailable: t.state.defaultAvailable, defaultResearched: t.state.defaultResearched, players: Object.fromEntries(t.state.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open."; },
     },

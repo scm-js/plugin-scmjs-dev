@@ -61,7 +61,7 @@ describe("tool-call footprints", () => {
 
 describe("genre guides", () => {
   it("cover the genres and pick one from a prompt", () => {
-    expect(GUIDES.map((g) => g.id)).toEqual(["basics", "madness", "defense", "rpg", "bound", "diplomacy", "arena", "survival"]);
+    expect(GUIDES.map((g) => g.id)).toEqual(["terrain", "basics", "madness", "defense", "rpg", "bound", "diplomacy", "arena", "survival"]);
     for (const g of GUIDES) { expect(g.text.length).toBeGreaterThan(800); expect(g.text).toMatch(/^# /); }
     expect(guideFor("make me a madness map with zerglings")?.id).toBe("madness");
     expect(guideFor("An RPG about a marine")?.id).toBe("rpg");
@@ -75,7 +75,7 @@ describe("genre guides", () => {
 
   it("name only toolkit kinds in their system lists", () => {
     const kinds = new Set(["hyper", "spawn", "kill-to-cash", "income", "last-standing", "defeat-when-lost", "victory-on-kills", "countdown", "objectives", "message", "lives", "waves", "shop", "heal", "respawn", "leaderboard", "teleport", "kill-zone", "alliance", "auto-attack", "give", "stages", "obstacles", "checkpoints", "bound"]);
-    for (const g of GUIDES) for (const m of g.text.matchAll(/`([a-z-]+)`/g)) if (!/[A-Z]/.test(m[1]) && !["owner", "each", "computer", "limit", "attack", "unit", "location", "players", "perUnit", "scorePerKill", "deliver", "lives", "onEnd", "count", "with", "status", "kind", "groups", "every", "spots"].includes(m[1])) expect(kinds.has(m[1]), `${g.id}: ${m[1]}`).toBe(true);
+    for (const g of GUIDES) if (g.id !== "terrain") for (const m of g.text.matchAll(/`([a-z-]+)`/g)) if (!/[A-Z]/.test(m[1]) && !["owner", "each", "computer", "limit", "attack", "unit", "location", "players", "perUnit", "scorePerKill", "deliver", "lives", "onEnd", "count", "with", "status", "kind", "groups", "every", "spots"].includes(m[1])) expect(kinds.has(m[1]), `${g.id}: ${m[1]}`).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 /** Writes on objects: units, doodads, sprites, locations, fog. Each is one undo step. */
 import type { PluginApi } from "@scm-js/plugin-api";
-import { bool, capResult, doodadByName, fail, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
+import { bag, bool, capResult, doodadByName, fail, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
 import { mineralTypeAt } from "../layout";
 import type { TileRect } from "../grid";
 
@@ -61,7 +61,7 @@ export function scatterInRect(api: PluginApi, cat: { name: string; doodads: read
 export function objectTools(): Tool[] {
   return [
     {
-      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a mineral field's or geyser's resources. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
+      def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a resource. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
       describe: (input) => { const u = list(input.units); return u.length ? `Place ${tally(u.map((x) => str(x.unit)))} for ${ownerName(ownerOf(u[0].player, 0))} near ${num(u[0].x)},${num(u[0].y)}` : "Place units"; },
       report: placedReport,
       writes: true,
@@ -109,7 +109,7 @@ export function objectTools(): Tool[] {
       },
     },
     {
-      def: { name: "update_units", description: "Change fields of existing units by index (Unit Properties): owner (1-based player), hitPoints / shields / energy as percent, resources (minerals or gas in a field), hangar (interceptors / scarabs), and the flags cloaked, burrowed, inTransit (lifted off), hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, owner: { type: "integer" }, hitPoints: { type: "integer" }, shields: { type: "integer" }, energy: { type: "integer" }, resources: { type: "integer" }, hangar: { type: "integer" }, cloaked: { type: "boolean" }, burrowed: { type: "boolean" }, inTransit: { type: "boolean" }, hallucinated: { type: "boolean" }, invincible: { type: "boolean" } }, ["indices"]) },
+      def: { name: "update_units", description: "Change fields of units by index: owner, hitPoints / shields / energy (%), resources, hangar, and the flags cloaked, burrowed, inTransit, hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: bag({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints(input.indices).length, "unit")}`,
       writes: true,
       run: (input, { api }) => {
@@ -143,7 +143,7 @@ export function objectTools(): Tool[] {
       },
     },
     {
-      def: { name: "place_doodads", description: "Place doodads by name (or id, or a category name for any of its doodads) with their top-left corner at a tile. A doodad that does not fit its footprint is refused, not forced. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
+      def: { name: "place_doodads", description: "Place doodads by name, id or category name with the top-left at a tile; one that does not fit is refused. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
       describe: (input) => { const d = list(input.doodads); return d.length ? `Place ${tally(d.map((x) => str(x.doodad)))} near ${num(d[0].x)},${num(d[0].y)}` : "Place doodads"; },
       report: placedReport,
       writes: true,
@@ -163,19 +163,19 @@ export function objectTools(): Tool[] {
       },
     },
     {
-      def: { name: "remove_doodads", description: "Remove doodads by index (from list_doodads); the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      def: { name: "remove_doodads", description: "Remove doodads by index; the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Remove ${plural(ints(input.indices).length, "doodad")} ${indexList(ints(input.indices))}`,
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: remove doodads", (tx) => { tx.removeDoodads(ints(input.indices)); }); return `Removed ${plural(r.doodads, "doodad")}.`; },
     },
     {
-      def: { name: "convert_doodads", description: "Convert doodads (by index, from list_doodads) to plain terrain: the tiles stay as ground, the doodad record goes, an overlay stays as an ordinary sprite. Use it when a ramp or cliff piece is to be touched up tile by tile afterwards. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
+      def: { name: "convert_doodads", description: "Turn doodads (by index) into plain terrain tiles, an overlay into a sprite — for touching a ramp or cliff piece up tile by tile. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
       describe: (input) => `Convert ${plural(ints(input.indices).length, "doodad")} to terrain`,
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: convert doodads to terrain", (tx) => { tx.convertDoodads(ints(input.indices)); }); return `Converted ${plural(r.doodads, "doodad")} to terrain.`; },
     },
     {
-      def: { name: "scatter_doodads", description: "Scatter doodads of a category over a tile rect at a density 0–1, only where the editor's own placement rule says the doodad fits: on the ground its category names (a Water doodad on water, a Snow one on snow), clear of other doodads. Spots on other ground are refused and the result says how many, so scatter a category over its own ground. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
+      def: { name: "scatter_doodads", description: "Scatter a category's doodads over a rect at density 0–1 where the editor's rule lets them stand (a category on its own ground: Water on water); refusals are counted. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
       describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
       writes: true,
       run: (input, { api }) => {
@@ -190,7 +190,7 @@ export function objectTools(): Tool[] {
       },
     },
     {
-      def: { name: "place_sprites", description: "Place sprites at tile centres: kind \"pure\" (a sprites.dat image by the palette's name or id — lookup sprite) or \"unit\" (a unit drawn as a sprite, by unit name). `player` is 1-based. One undo step.", inputSchema: obj({ sprites: { type: "array", items: obj({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, flipped: { type: "boolean" }, disabled: { type: "boolean" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
+      def: { name: "place_sprites", description: "Place sprites at tile centres: kind pure (a sprites.dat image by name or id) or unit (a unit drawn as a sprite); each may add player (1-based), flipped, disabled. One undo step.", inputSchema: obj({ sprites: { type: "array", items: bag({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
       describe: (input) => { const sp = list(input.sprites); return sp.length ? `Place sprites: ${tally(sp.map((x) => str(x.sprite)))} near ${num(sp[0].x)},${num(sp[0].y)}` : "Place sprites"; },
       report: placedReport,
       writes: true,
@@ -227,7 +227,7 @@ export function objectTools(): Tool[] {
       },
     },
     {
-      def: { name: "edit_location", description: "Rename, move or resize a location by slot index (a tile rect), or set which heights it excludes (`excludeLowGround` … `excludeHighAir`). One undo step.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" }, ...rectSchema, excludeLowGround: { type: "boolean" }, excludeMediumGround: { type: "boolean" }, excludeHighGround: { type: "boolean" }, excludeLowAir: { type: "boolean" }, excludeMediumAir: { type: "boolean" }, excludeHighAir: { type: "boolean" } }, ["index"]) },
+      def: { name: "edit_location", description: "Edit a location by slot `index`: name, x0 / y0 / x1 / y1 (a tile rect), excludeLowGround / excludeMediumGround / excludeHighGround / excludeLowAir / excludeMediumAir / excludeHighAir. Only the fields given change. One undo step.", inputSchema: bag({ index: { type: "integer" } }, ["index"]) },
       describe: (input) => `Edit location #${num(input.index)}: ${[input.name !== undefined && "name", input.x0 !== undefined && "area", Object.keys(input).some((k) => k.startsWith("exclude")) && "heights"].filter(Boolean).join(", ") || "nothing"}`,
       writes: true,
       run: (input, { api }) => {
@@ -255,7 +255,7 @@ export function objectTools(): Tool[] {
       run: (input, { api }) => { const r = api.document.edit("AI: remove locations", (tx) => { tx.removeLocations(ints(input.indices).filter((i) => i !== api.consts.location.anywhere)); }); return `Removed ${plural(r.locations, "location")}.`; },
     },
     {
-      def: { name: "set_fog", description: "Fog of war over a tile rect for 1-based players: mode \"fog\" (starts unexplored) or \"clear\". One undo step.", inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
+      def: { name: "set_fog", description: "Fog of war over a rect for 1-based players: mode fog (starts unexplored) or clear. One undo step.", inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
       describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints(input.players).length === 1 ? "" : "s"} ${ints(input.players).join(", ")}`,
       writes: true,
       run: (input, { api }) => {
