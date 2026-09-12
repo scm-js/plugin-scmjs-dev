@@ -3817,7 +3817,7 @@ function renderPlan(api, input, options) {
   });
   const stranded = result.notes.some((n2) => /stranded doodad/.test(n2)) ? removedDoodads(before, doodadSnapshot(api), options.clearArea ? area : null) : [];
   findings.push(...result.notes.filter((n2) => n2.trim() && !findings.includes(n2) && !(stranded.length && /stranded doodad/.test(n2))));
-  for (const d of stranded) findings.push(`${d.name} at ${d.tx},${d.ty} was removed: the ground under it was repainted${/bridge/i.test(d.name) ? " \u2014 paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : "; place it again after the terrain is done"}`);
+  findings.push(...liftedFindings(api, stranded, options.clearRect ?? area));
   if (bridgePair2 && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair2, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
   return { result, findings, placed };
@@ -3847,6 +3847,28 @@ function removedDoodads(before, after, cleared) {
     }
     if (cleared && d.tx < cleared.x1 && d.tx + d.width > cleared.x0 && d.ty < cleared.y1 && d.ty + d.height > cleared.y0) continue;
     out.push(d);
+  }
+  return out;
+}
+function touchesRect(d, r) {
+  return d.tx < r.x1 && d.tx + d.width > r.x0 && d.ty < r.y1 && d.ty + d.height > r.y0;
+}
+function liftedFindings(api, stranded, painted) {
+  const out = [];
+  const inside = stranded.filter((d) => touchesRect(d, painted));
+  const outside = stranded.filter((d) => !touchesRect(d, painted));
+  const fits = outside.filter((d) => api.query.doodadPlacement(d.doodadId, d.tx, d.ty)?.ok);
+  if (fits.length) {
+    api.document.edit(`AI: put back ${fits.length === 1 ? "a doodad" : `${fits.length} doodads`} the paint lifted`, (tx) => {
+      for (const d of fits) tx.placeDoodad(d.doodadId, d.tx, d.ty);
+    });
+    out.push(`put back ${fits.length === 1 ? "a doodad" : `${fits.length} doodads`} outside the painted area that the brush's re-blend had lifted (${fits.slice(0, 5).map((d) => `${d.name} at ${d.tx},${d.ty}`).join(", ")}${fits.length > 5 ? ", \u2026" : ""}); a second undo step`);
+  }
+  for (const d of outside) if (!fits.includes(d)) out.push(`${d.name} at ${d.tx},${d.ty}, outside the painted area, was removed: the re-blend repainted the ground under it and it no longer fits there${/bridge/i.test(d.name) ? " \u2014 paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : ""}`);
+  if (inside.length) {
+    const names = /* @__PURE__ */ new Map();
+    for (const d of inside) names.set(d.name, (names.get(d.name) ?? 0) + 1);
+    out.push(`${inside.length === 1 ? "one doodad" : `${inside.length} doodads`} inside the painted area went with the ground (${[...names.entries()].slice(0, 4).map(([n2, k]) => k > 1 ? `${n2} \xD7${k}` : n2).join(", ")}${names.size > 4 ? ", \u2026" : ""})`);
   }
   return out;
 }
@@ -3956,6 +3978,66 @@ function fitBase(hall, spec) {
     }
   }
   return best;
+}
+
+// ai/sites.ts
+function clusterResources(units, gap = 5) {
+  const parent = units.map((_, i) => i);
+  const find = (i) => parent[i] === i ? i : parent[i] = find(parent[i]);
+  for (let i = 0; i < units.length; i++) for (let j = i + 1; j < units.length; j++) {
+    if (Math.abs(units[i].tx - units[j].tx) <= gap && Math.abs(units[i].ty - units[j].ty) <= gap) parent[find(i)] = find(j);
+  }
+  const groups = /* @__PURE__ */ new Map();
+  units.forEach((u, i) => {
+    const r = find(i);
+    const g = groups.get(r);
+    if (g) g.push(u);
+    else groups.set(r, [u]);
+  });
+  return [...groups.values()].map((g) => {
+    const xs = g.map((u) => u.tx), ys = g.map((u) => u.ty);
+    return {
+      minerals: g.filter((u) => u.kind === "mineral"),
+      geysers: g.filter((u) => u.kind === "geyser"),
+      cx: xs.reduce((a2, b) => a2 + b, 0) / g.length,
+      cy: ys.reduce((a2, b) => a2 + b, 0) / g.length,
+      x0: Math.min(...xs),
+      y0: Math.min(...ys),
+      x1: Math.max(...xs) + 1,
+      y1: Math.max(...ys) + 1
+    };
+  }).sort((a2, b) => a2.cy - b.cy || a2.cx - b.cx);
+}
+function compassOf(dx, dy) {
+  return angleDirection(Math.atan2(dy, dx));
+}
+function oppositeOf(d) {
+  return DIRECTIONS[(DIRECTIONS.indexOf(d) + 4) % 8];
+}
+function scanSites(mask, w, h3, near, radius, limit = 5) {
+  const { width, height, ok } = mask;
+  if (w < 1 || h3 < 1 || w > width || h3 > height) return [];
+  const W = width + 1;
+  const sum = new Int32Array(W * (height + 1));
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) sum[(y + 1) * W + x + 1] = ok[y * width + x] + sum[y * W + x + 1] + sum[(y + 1) * W + x] - sum[y * W + x];
+  const block = (x, y) => sum[(y + h3) * W + x + w] - sum[y * W + x + w] - sum[(y + h3) * W + x] + sum[y * W + x];
+  const out = [];
+  const x0 = Math.max(0, Math.floor(near.x - radius - w / 2)), x1 = Math.min(width - w, Math.ceil(near.x + radius - w / 2));
+  const y0 = Math.max(0, Math.floor(near.y - radius - h3 / 2)), y1 = Math.min(height - h3, Math.ceil(near.y + radius - h3 / 2));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (block(x, y) !== w * h3) continue;
+    const dx = x + w / 2 - near.x, dy = y + h3 / 2 - near.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= radius) out.push({ x, y, distance });
+  }
+  out.sort((a2, b) => a2.distance - b.distance || a2.y - b.y || a2.x - b.x);
+  const kept = [];
+  for (const s of out) {
+    if (kept.some((k) => Math.abs(k.x - s.x) < w && Math.abs(k.y - s.y) < h3)) continue;
+    kept.push(s);
+    if (kept.length >= limit) break;
+  }
+  return kept;
 }
 
 // ai/tools/layout.ts
@@ -4237,6 +4319,114 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           geysers: layout.geysers.map((r) => `${r.x},${r.y}`),
           ...notes.length ? { notes } : {}
         });
+      }
+    },
+    {
+      def: { name: "bases", description: "Every base on the map in one call: for each start location its player, the town hall footprint (4 \xD7 3 tiles, what place_base and the start's box use), the mineral patches and geysers round it with their positions and amounts, which side of the hall the mineral line lies on and which side is open (the approach \u2014 where a bunker or a wall goes), and the nearest other start; then the expansions (resource clusters with no start). Read this before working on bases instead of listing units and screenshotting each one.", inputSchema: obj({}) },
+      describe: () => "Read the map's bases",
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? `${plural(list(r.bases).length, "base")}, ${plural(list(r.expansions).length, "expansion")}` : "";
+      },
+      writes: false,
+      run: (_input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return fail("No map is open.");
+        const resources = [];
+        scn.units.forEach((u, index) => {
+          const kind = MINERAL_FIELDS.includes(u.unitId) ? "mineral" : u.unitId === VESPENE_GEYSER ? "geyser" : null;
+          if (kind) resources.push({ index, kind, tx: Math.floor(u.x / TILE), ty: Math.floor(u.y / TILE), amount: u.resourceAmount });
+        });
+        const clusters = clusterResources(resources);
+        const starts = api.query.startLocations();
+        const claimed = /* @__PURE__ */ new Set();
+        const dist2 = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+        const bases = starts.map((s) => {
+          const hall = rectAt(s.x, s.y, HALL);
+          const hc = { x: hall.x + hall.w / 2, y: hall.y + hall.h / 2 };
+          let best = null;
+          for (const c2 of clusters) if (!claimed.has(c2) && dist2(hc.x, hc.y, c2.cx, c2.cy) <= 12 && (!best || dist2(hc.x, hc.y, c2.cx, c2.cy) < dist2(hc.x, hc.y, best.cx, best.cy))) best = c2;
+          if (best) claimed.add(best);
+          const others = starts.filter((o) => o !== s).map((o) => ({ player: o.owner + 1, distance: Math.round(dist2(s.tx, s.ty, o.tx, o.ty)) })).sort((a2, b) => a2.distance - b.distance);
+          const lineSide = best ? compassOf(best.cx - hc.x, best.cy - hc.y) : null;
+          const amounts = best ? best.minerals.map((m) => m.amount) : [];
+          return {
+            player: s.owner + 1,
+            start: { x: s.tx, y: s.ty },
+            hall: { x: hall.x, y: hall.y, w: hall.w, h: hall.h },
+            ...best ? {
+              minerals: { count: best.minerals.length, amount: amounts.length ? Math.min(...amounts) === Math.max(...amounts) ? Math.min(...amounts) : `${Math.min(...amounts)}\u2013${Math.max(...amounts)}` : 0, tiles: `${best.x0},${best.y0}\u2013${best.x1},${best.y1}` },
+              geysers: best.geysers.map((g) => ({ x: g.tx, y: g.ty, amount: g.amount })),
+              lineSide,
+              openSide: lineSide ? oppositeOf(lineSide) : null
+            } : { minerals: { count: 0 }, geysers: [], lineSide: null, openSide: null, note: "no resources within 12 tiles" },
+            ...others.length ? { nearestStart: others[0] } : {}
+          };
+        });
+        const expansions = clusters.filter((c2) => !claimed.has(c2) && c2.minerals.length + c2.geysers.length >= 2).map((c2) => ({ centre: { x: Math.round(c2.cx), y: Math.round(c2.cy) }, minerals: c2.minerals.length, geysers: c2.geysers.length, tiles: `${c2.x0},${c2.y0}\u2013${c2.x1},${c2.y1}` }));
+        return capResult({ map: `${info.width} \xD7 ${info.height}`, bases, expansions, note: "the open side is across the hall from the mineral line; ramps are not read here \u2014 reachable and terrain_at say where the ground drops" });
+      }
+    },
+    {
+      def: { name: "find_site", description: "Where a block of `w` \xD7 `h` tiles of flat, buildable, walkable ground fits, nearest a point first \u2014 for a new base, ask for about 14 \xD7 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base) and for a building its footprint. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      describe: (input) => `Find ${num(input.w)} \xD7 ${num(input.h)} of open ground${input.x !== void 0 ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? plural(list(r.sites).length, "site") : "";
+      },
+      writes: false,
+      run: (input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return fail("No map is open.");
+        if (!api.tileset.isLoaded()) return fail("The tileset graphics are not loaded.");
+        const w = Math.max(1, Math.round(num(input.w))), h3 = Math.max(1, Math.round(num(input.h)));
+        const near = { x: input.x === void 0 ? info.width / 2 : num(input.x), y: input.y === void 0 ? info.height / 2 : num(input.y) };
+        const radius = Math.max(1, Math.round(num(input.radius, 40)));
+        const requireStarts = input.anyStart !== false;
+        const mask = walkMask(api);
+        if (!mask) return fail("The map's walkability cannot be read.");
+        const starts = api.query.startLocations();
+        let reach = null;
+        if (requireStarts && starts.length) {
+          for (const s of starts) {
+            const from = mask.walk[s.ty * mask.width + s.tx] ? { x: s.tx, y: s.ty } : nearestWalkable(mask, s.tx, s.ty);
+            const r = from ? floodFrom(mask, from.x, from.y) : new Uint8Array(mask.width * mask.height);
+            if (!reach) reach = r;
+            else for (let i = 0; i < reach.length; i++) reach[i] &= r[i];
+          }
+        }
+        const tileCache = /* @__PURE__ */ new Map();
+        const at = (i) => {
+          let t = tileCache.get(scn.tiles[i]);
+          if (!t) {
+            const ti = api.terrain.tileInfo(scn.tiles[i]);
+            t = { ok: !!ti && ti.buildable && ti.walkable >= 8, height: ti?.height ?? 0 };
+            tileCache.set(scn.tiles[i], t);
+          }
+          return t;
+        };
+        const found = [];
+        for (const height of [0, 1, 2]) {
+          const ok = new Uint8Array(info.width * info.height);
+          for (let i = 0; i < ok.length; i++) {
+            const t = at(i);
+            ok[i] = t.ok && t.height === height && (!reach || reach[i]) ? 1 : 0;
+          }
+          for (const s of scanSites({ width: info.width, height: info.height, ok }, w, h3, near, radius, 8)) found.push({ ...s, height });
+        }
+        found.sort((a2, b) => a2.distance - b.distance);
+        const sites = [];
+        for (const s of found) {
+          if (sites.length >= 5) break;
+          if (sites.some((k) => Math.abs(k.x - s.x) < w && Math.abs(k.y - s.y) < h3)) continue;
+          const hall = { x: s.x + Math.floor((w - HALL.w) / 2), y: s.y + Math.floor((h3 - HALL.h) / 2) };
+          const terrainId = api.terrain.terrainAt(s.x + Math.floor(w / 2), s.y + Math.floor(h3 / 2));
+          sites.push({ x: s.x, y: s.y, w, h: h3, ...w >= HALL.w && h3 >= HALL.h ? { hall } : {}, distance: Math.round(s.distance), height: s.height, terrain: api.terrain.types().find((t) => t.id === terrainId)?.name ?? terrainId });
+        }
+        if (!sites.length) return capResult({ sites: [], note: `no ${w} \xD7 ${h3} block of flat, buildable, walkable ground${reach ? " reachable from every start" : ""} within ${radius} tiles of ${Math.round(near.x)},${Math.round(near.y)}; try a smaller block, a larger radius or another point` });
+        return capResult({ near: { x: Math.round(near.x), y: Math.round(near.y) }, radius, reachableFromEveryStart: !!reach, sites });
       }
     },
     {
@@ -5965,6 +6155,7 @@ function terrainTools() {
         const nameOf2 = (id) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
         const replaced = {};
         let kept = 0;
+        const before = doodadSnapshot(api);
         const r = api.document.edit(`AI: paint ${type.name}`, (tx) => {
           if (api.terrain.hasIsom() && api.tileset.isLoaded()) {
             let refused = 0;
@@ -5980,7 +6171,9 @@ function terrainTools() {
             if (refused) tx.note(`${refused} diamonds refused`);
           } else tx.stampTerrain(rect, type.id);
         });
-        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, ...Object.keys(replaced).length ? { paintedOver: replaced } : {}, ...kept ? { kept } : {}, notes: r.notes });
+        const stranded = r.notes.some((n2) => /stranded doodad/.test(n2)) ? removedDoodads(before, doodadSnapshot(api), null) : [];
+        const notes = [...r.notes.filter((n2) => !(stranded.length && /stranded doodad/.test(n2))), ...liftedFindings(api, stranded, rect)];
+        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, ...Object.keys(replaced).length ? { paintedOver: replaced } : {}, ...kept ? { kept } : {}, notes });
       }
     },
     {

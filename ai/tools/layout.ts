@@ -15,6 +15,7 @@ import { floodFrom, nearestWalkable, reachTouches, walkMask } from "../reach";
 import { renderPlan, summarizeRender } from "../render";
 import { shapesRect, shiftShapes } from "../shapes";
 import { fitBase } from "../bases";
+import { clusterResources, compassOf, oppositeOf, scanSites, type ResourceCluster, type ResourceUnit } from "../sites";
 import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, mineralLooks, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
 import { capResult, fail, jsonOf, list, noSuchUnit, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
@@ -257,6 +258,97 @@ export function layoutTools(): Tool[] {
           geysers: layout.geysers.map((r) => `${r.x},${r.y}`),
           ...(notes.length ? { notes } : {}),
         });
+      },
+    },
+    {
+      def: { name: "bases", description: "Every base on the map in one call: for each start location its player, the town hall footprint (4 × 3 tiles, what place_base and the start's box use), the mineral patches and geysers round it with their positions and amounts, which side of the hall the mineral line lies on and which side is open (the approach — where a bunker or a wall goes), and the nearest other start; then the expansions (resource clusters with no start). Read this before working on bases instead of listing units and screenshotting each one.", inputSchema: obj({}) },
+      describe: () => "Read the map's bases",
+      report: (result) => { const r = jsonOf(result); return r ? `${plural(list(r.bases).length, "base")}, ${plural(list(r.expansions).length, "expansion")}` : ""; },
+      writes: false,
+      run: (_input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return fail("No map is open.");
+        const resources: ResourceUnit[] = [];
+        scn.units.forEach((u, index) => {
+          const kind = (MINERAL_FIELDS as readonly number[]).includes(u.unitId) ? "mineral" : u.unitId === VESPENE_GEYSER ? "geyser" : null;
+          if (kind) resources.push({ index, kind, tx: Math.floor(u.x / TILE), ty: Math.floor(u.y / TILE), amount: u.resourceAmount });
+        });
+        const clusters = clusterResources(resources);
+        const starts = api.query.startLocations();
+        const claimed = new Set<ResourceCluster>();
+        const dist = (ax: number, ay: number, bx: number, by: number) => Math.hypot(ax - bx, ay - by);
+        const bases = starts.map((s) => {
+          const hall = rectAt(s.x, s.y, HALL);
+          const hc = { x: hall.x + hall.w / 2, y: hall.y + hall.h / 2 };
+          let best: ResourceCluster | null = null;
+          for (const c of clusters) if (!claimed.has(c) && dist(hc.x, hc.y, c.cx, c.cy) <= 12 && (!best || dist(hc.x, hc.y, c.cx, c.cy) < dist(hc.x, hc.y, best.cx, best.cy))) best = c;
+          if (best) claimed.add(best);
+          const others = starts.filter((o) => o !== s).map((o) => ({ player: o.owner + 1, distance: Math.round(dist(s.tx, s.ty, o.tx, o.ty)) })).sort((a, b) => a.distance - b.distance);
+          const lineSide = best ? compassOf(best.cx - hc.x, best.cy - hc.y) : null;
+          const amounts = best ? best.minerals.map((m) => m.amount) : [];
+          return {
+            player: s.owner + 1,
+            start: { x: s.tx, y: s.ty },
+            hall: { x: hall.x, y: hall.y, w: hall.w, h: hall.h },
+            ...(best ? {
+              minerals: { count: best.minerals.length, amount: amounts.length ? (Math.min(...amounts) === Math.max(...amounts) ? Math.min(...amounts) : `${Math.min(...amounts)}–${Math.max(...amounts)}`) : 0, tiles: `${best.x0},${best.y0}–${best.x1},${best.y1}` },
+              geysers: best.geysers.map((g) => ({ x: g.tx, y: g.ty, amount: g.amount })),
+              lineSide, openSide: lineSide ? oppositeOf(lineSide) : null,
+            } : { minerals: { count: 0 }, geysers: [], lineSide: null, openSide: null, note: "no resources within 12 tiles" }),
+            ...(others.length ? { nearestStart: others[0] } : {}),
+          };
+        });
+        const expansions = clusters.filter((c) => !claimed.has(c) && c.minerals.length + c.geysers.length >= 2).map((c) => ({ centre: { x: Math.round(c.cx), y: Math.round(c.cy) }, minerals: c.minerals.length, geysers: c.geysers.length, tiles: `${c.x0},${c.y0}–${c.x1},${c.y1}` }));
+        return capResult({ map: `${info.width} × ${info.height}`, bases, expansions, note: "the open side is across the hall from the mineral line; ramps are not read here — reachable and terrain_at say where the ground drops" });
+      },
+    },
+    {
+      def: { name: "find_site", description: "Where a block of `w` × `h` tiles of flat, buildable, walkable ground fits, nearest a point first — for a new base, ask for about 14 × 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base) and for a building its footprint. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      describe: (input) => `Find ${num(input.w)} × ${num(input.h)} of open ground${input.x !== undefined ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
+      report: (result) => { const r = jsonOf(result); return r ? plural(list(r.sites).length, "site") : ""; },
+      writes: false,
+      run: (input, { api }) => {
+        const info = api.document.info();
+        const scn = api.document.scenario();
+        if (!info || !scn) return fail("No map is open.");
+        if (!api.tileset.isLoaded()) return fail("The tileset graphics are not loaded.");
+        const w = Math.max(1, Math.round(num(input.w))), h = Math.max(1, Math.round(num(input.h)));
+        const near = { x: input.x === undefined ? info.width / 2 : num(input.x), y: input.y === undefined ? info.height / 2 : num(input.y) };
+        const radius = Math.max(1, Math.round(num(input.radius, 40)));
+        const requireStarts = input.anyStart !== false;
+        // Reachable from every start: the intersection of the floods, on the walk mask.
+        const mask = walkMask(api);
+        if (!mask) return fail("The map's walkability cannot be read.");
+        const starts = api.query.startLocations();
+        let reach: Uint8Array | null = null;
+        if (requireStarts && starts.length) {
+          for (const s of starts) {
+            const from = mask.walk[s.ty * mask.width + s.tx] ? { x: s.tx, y: s.ty } : nearestWalkable(mask, s.tx, s.ty);
+            const r = from ? floodFrom(mask, from.x, from.y) : new Uint8Array(mask.width * mask.height);
+            if (!reach) reach = r; else for (let i = 0; i < reach.length; i++) reach[i] &= r[i];
+          }
+        }
+        // One mask per height, so a block is flat as well as buildable and walkable.
+        const tileCache = new Map<number, { ok: boolean; height: number }>();
+        const at = (i: number) => { let t = tileCache.get(scn.tiles[i]); if (!t) { const ti = api.terrain.tileInfo(scn.tiles[i]); t = { ok: !!ti && ti.buildable && ti.walkable >= 8, height: ti?.height ?? 0 }; tileCache.set(scn.tiles[i], t); } return t; };
+        const found: { x: number; y: number; distance: number; height: number }[] = [];
+        for (const height of [0, 1, 2]) {
+          const ok = new Uint8Array(info.width * info.height);
+          for (let i = 0; i < ok.length; i++) { const t = at(i); ok[i] = t.ok && t.height === height && (!reach || reach[i]) ? 1 : 0; }
+          for (const s of scanSites({ width: info.width, height: info.height, ok }, w, h, near, radius, 8)) found.push({ ...s, height });
+        }
+        found.sort((a, b) => a.distance - b.distance);
+        const sites: unknown[] = [];
+        for (const s of found) {
+          if (sites.length >= 5) break;
+          if ((sites as { x: number; y: number }[]).some((k) => Math.abs(k.x - s.x) < w && Math.abs(k.y - s.y) < h)) continue;
+          const hall = { x: s.x + Math.floor((w - HALL.w) / 2), y: s.y + Math.floor((h - HALL.h) / 2) };
+          const terrainId = api.terrain.terrainAt(s.x + Math.floor(w / 2), s.y + Math.floor(h / 2));
+          sites.push({ x: s.x, y: s.y, w, h, ...(w >= HALL.w && h >= HALL.h ? { hall } : {}), distance: Math.round(s.distance), height: s.height, terrain: api.terrain.types().find((t) => t.id === terrainId)?.name ?? terrainId });
+        }
+        if (!sites.length) return capResult({ sites: [], note: `no ${w} × ${h} block of flat, buildable, walkable ground${reach ? " reachable from every start" : ""} within ${radius} tiles of ${Math.round(near.x)},${Math.round(near.y)}; try a smaller block, a larger radius or another point` });
+        return capResult({ near: { x: Math.round(near.x), y: Math.round(near.y) }, radius, reachableFromEveryStart: !!reach, sites });
       },
     },
     {

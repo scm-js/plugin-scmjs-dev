@@ -1,5 +1,6 @@
 /** Terrain writes and the map-level transactions. */
 import type { Diamond, PluginApi } from "@scm-js/plugin-api";
+import { doodadSnapshot, liftedFindings, removedDoodads } from "../render";
 import { capResult, fail, jsonOf, list, num, obj, plural, rectOf, rectSchema, rectText, str, type TileRect, type Tool } from "./common";
 
 /**
@@ -31,6 +32,7 @@ export function terrainTools(): Tool[] {
         const nameOf = (id: number) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
         const replaced: Record<string, number> = {};
         let kept = 0;
+        const before = doodadSnapshot(api);
         const r = api.document.edit(`AI: paint ${type.name}`, (tx) => {
           if (api.terrain.hasIsom() && api.tileset.isLoaded()) {
             let refused = 0;
@@ -43,7 +45,9 @@ export function terrainTools(): Tool[] {
             if (refused) tx.note(`${refused} diamonds refused`);
           } else tx.stampTerrain(rect, type.id);
         });
-        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, ...(Object.keys(replaced).length ? { paintedOver: replaced } : {}), ...(kept ? { kept } : {}), notes: r.notes });
+        const stranded = r.notes.some((n) => /stranded doodad/.test(n)) ? removedDoodads(before, doodadSnapshot(api), null) : [];
+        const notes = [...r.notes.filter((n) => !(stranded.length && /stranded doodad/.test(n))), ...liftedFindings(api, stranded, rect)];
+        return capResult({ changed: r.changed, tiles: r.tiles, isom: r.isom, ...(Object.keys(replaced).length ? { paintedOver: replaced } : {}), ...(kept ? { kept } : {}), notes });
       },
     },
     {

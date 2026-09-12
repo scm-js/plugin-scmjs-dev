@@ -163,7 +163,8 @@ scrolled to the bottom. The chips above the input follow the layer and the selec
 facts and statistics, units (with every record field), doodads, sprites, locations,
 strings, switches, sounds, the triggers as text, the trigger script and its declarations,
 the settings of any unit type, upgrade or technology, the fog, a coarse terrain grid or
-one tile, Check Map, a screenshot of any area, and what you have selected. It can change
+one tile, Check Map, a screenshot of any area, every base with its mineral line and open
+side, where a block of flat ground fits, and what you have selected. It can change
 nearly everything the editor can: paint terrain, place / move / remove / edit units,
 doodads and sprites, add / edit / remove locations, fog, the map's name and description,
 triggers (append, replace, remove, reorder, preserve), strings, switch names, the script

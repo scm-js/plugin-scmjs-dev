@@ -225,10 +225,11 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
     }
   });
 
-  // The editor removes a doodad whose ground an edit repainted and says only how many; name them, and what to do instead.
+  // The editor removes a doodad whose ground an edit repainted and says only how many: those outside the painted
+  // rect go back where they still fit, the rest are named, with what to do instead.
   const stranded = result.notes.some((n) => /stranded doodad/.test(n)) ? removedDoodads(before, doodadSnapshot(api), options.clearArea ? area : null) : [];
   findings.push(...result.notes.filter((n) => n.trim() && !findings.includes(n) && !(stranded.length && /stranded doodad/.test(n))));
-  for (const d of stranded) findings.push(`${d.name} at ${d.tx},${d.ty} was removed: the ground under it was repainted${/bridge/i.test(d.name) ? " — paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : "; place it again after the terrain is done"}`);
+  findings.push(...liftedFindings(api, stranded, options.clearRect ?? area));
   // A bridge's channel is a stamp: whether the river actually arrives at it is read off the map as painted.
   if (bridgePair && hasTileset) for (const b of plan.bridges ?? []) findings.push(...channelEndFindings(api, b, bridgePair, terrains));
   for (const issue of api.query.validate()) if (issue.level !== "info") findings.push(`Check Map: ${issue.text}${issue.where ? ` (${issue.where})` : ""}`);
@@ -239,7 +240,7 @@ export function renderPlan(api: PluginApi, input: LayoutPlan | MapPlan, options:
 export interface DoodadSnap { doodadId: number; x: number; y: number; tx: number; ty: number; width: number; height: number; name: string }
 
 /** Every doodad on the open map. */
-function doodadSnapshot(api: PluginApi): DoodadSnap[] {
+export function doodadSnapshot(api: PluginApi): DoodadSnap[] {
   const scn = api.document.scenario();
   if (!scn) return [];
   return scn.doodads.map((d) => {
@@ -260,6 +261,37 @@ export function removedDoodads(before: readonly DoodadSnap[], after: readonly Do
     if (n > 0) { left.set(k, n - 1); continue; }
     if (cleared && d.tx < cleared.x1 && d.tx + d.width > cleared.x0 && d.ty < cleared.y1 && d.ty + d.height > cleared.y0) continue;
     out.push(d);
+  }
+  return out;
+}
+
+/** Whether a doodad's footprint touches a tile rect. */
+export function touchesRect(d: Pick<DoodadSnap, "tx" | "ty" | "width" | "height">, r: TileRect): boolean {
+  return d.tx < r.x1 && d.tx + d.width > r.x0 && d.ty < r.y1 && d.ty + d.height > r.y0;
+}
+
+/**
+ * The doodads a paint lifted, sorted: those inside the painted rect went with the ground
+ * on purpose; those outside it were caught by the isometric brush's re-blend, which
+ * reaches along a cliff or shore well past the rect (a bridge 27 tiles from a plateau),
+ * and are put back where they still fit — a second edit and undo step, since the editor
+ * removes them as the first one commits. A model that read "removed" spent eight steps
+ * and an undo to find out whether it was true.
+ */
+export function liftedFindings(api: PluginApi, stranded: readonly DoodadSnap[], painted: TileRect): string[] {
+  const out: string[] = [];
+  const inside = stranded.filter((d) => touchesRect(d, painted));
+  const outside = stranded.filter((d) => !touchesRect(d, painted));
+  const fits = outside.filter((d) => api.query.doodadPlacement(d.doodadId, d.tx, d.ty)?.ok);
+  if (fits.length) {
+    api.document.edit(`AI: put back ${fits.length === 1 ? "a doodad" : `${fits.length} doodads`} the paint lifted`, (tx) => { for (const d of fits) tx.placeDoodad(d.doodadId, d.tx, d.ty); });
+    out.push(`put back ${fits.length === 1 ? "a doodad" : `${fits.length} doodads`} outside the painted area that the brush's re-blend had lifted (${fits.slice(0, 5).map((d) => `${d.name} at ${d.tx},${d.ty}`).join(", ")}${fits.length > 5 ? ", …" : ""}); a second undo step`);
+  }
+  for (const d of outside) if (!fits.includes(d)) out.push(`${d.name} at ${d.tx},${d.ty}, outside the painted area, was removed: the re-blend repainted the ground under it and it no longer fits there${/bridge/i.test(d.name) ? " — paint the water first and the bridge last, and keep later strokes (whose round ends reach half their width past each point) off its tiles, or paint the river as one stroke with bridges" : ""}`);
+  if (inside.length) {
+    const names = new Map<string, number>();
+    for (const d of inside) names.set(d.name, (names.get(d.name) ?? 0) + 1);
+    out.push(`${inside.length === 1 ? "one doodad" : `${inside.length} doodads`} inside the painted area went with the ground (${[...names.entries()].slice(0, 4).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ")}${names.size > 4 ? ", …" : ""})`);
   }
   return out;
 }
