@@ -79,7 +79,7 @@ export function umsTools(): Tool[] {
       },
     },
     {
-      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdown, last standing, alliances …) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
+      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, capture the flag, leaderboards, countdown, last standing, alliances …) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
       writes: false,
       run: () => kindsText(),
     },

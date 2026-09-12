@@ -17,6 +17,25 @@ describe("the UMS toolkit", () => {
     expect(kindsText()).toContain("spawn:");
   });
 
+  it("builds capture the flag: take, score, refuse, return, win", () => {
+    const ctf = { ...ctx, humans: [1, 2, 3, 4], locations: ["Flag Room A", "Pad A", "Flag Room B", "Pad B"] };
+    const b = buildSystem("capture", { flag: "Terran Civilian", home: "Flag Room A", pad: "Pad B", players: "3, 4", requireHome: "Flag Room B", name: "the Crimson banner" }, ctf);
+    expect(b.count).toBe(7);
+    expect(b.text).toContain('Create Unit("Player 5", "Terran Civilian", 1, "Flag Room A")');
+    expect(b.text).toContain('Trigger("Player 3", "Player 4"){');
+    expect(b.text).toContain('Give Units to Player("Player 5", "Current Player", "Terran Civilian", All, "Flag Room A")');
+    expect(b.text).toContain('Bring("Player 5", "Terran Civilian", "Flag Room B", At least, 1)');
+    expect(b.text).toContain('Set Score("Current Player", Add, 1, Custom)');
+    expect(b.text).toContain('Your own flag is missing');
+    expect(b.text).toContain('Command("Player 3", "Terran Civilian", Exactly, 0)');
+    expect(b.text).toContain('Deaths("Player 5", "Cave (Unused)", At least, 3)');
+    expect(b.text).toContain('Trigger("Player 1", "Player 2"){\nConditions:\n\tDeaths("Player 5", "Cave (Unused)", At least, 3);\nActions:\n\tDefeat();');
+    expect(b.dcUsed).toEqual(["Cave (Unused)"]);
+    // Without a home requirement or a win count: no refusal, no victory.
+    expect(buildSystem("capture", { flag: "Terran Civilian", home: "Flag Room A", pad: "Pad B", players: "3, 4", win: "0" }, ctf).count).toBe(4);
+    expect(() => buildSystem("capture", { flag: "Terran Civilian", home: "Nowhere", pad: "Pad B", players: "3" }, ctf)).toThrow(/"home" names location "Nowhere"/);
+  });
+
   it("builds a kind that takes a player list once per player when a parameter holds {p}", () => {
     const shopCtx = { ...ctx, locations: ["Armory 1", "Armory 2", "Spawn 1", "Spawn 2"] };
     const b = buildSystem("shop", { location: "Armory {p}", unit: "Terran Siege Tank (Tank Mode)", price: "250", deliver: "Spawn {p}" }, shopCtx);

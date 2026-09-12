@@ -7283,6 +7283,39 @@ var KINDS = [
   },
   {
     spec: {
+      kind: "capture",
+      description: "Capture the flag, one flag: `flag` (a unit) stands at `home` owned by `keeper`, created there at the start. A player in `players` who brings `touch` into `home` is given the flag; bringing it to `pad` scores a capture \u2014 the flag goes home, the team's counter and the player's custom score rise \u2014 unless `requireHome` names where the takers' own flag must be standing and it is missing. A flag that is neither at home nor held by a taker returns home. At `win` captures the takers get Victory and every other human Defeat. Two of these, one per flag with the other team as takers, are a two-team map; add a `leaderboard` of kind points for the score.",
+      params: [P2("flag", "the flag unit (a Civilian, a Beacon, \u2026)", true), P2("home", "the flag's own room", true), P2("pad", "where the takers score", true), P2("players", "the takers: the other team's player numbers", true), P2("keeper", "who owns the flag at home (default computer)"), P2("touch", "what must enter the room to take the flag (default Any unit)"), P2("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P2("win", "captures to win (default 3; 0 for none)"), P2("name", "the flag's name in messages (default the unit's)")]
+    },
+    build(r, ctx, dc) {
+      const flag = r.str("flag");
+      const home = r.location("home");
+      const pad = r.location("pad");
+      const players2 = r.players("players");
+      const keeper = r.onePlayer("keeper", "computer");
+      const touch = r.str("touch", "Any unit");
+      const requireHome = r.str("requireHome", "");
+      if (requireHome) r.locationIn("requireHome", requireHome);
+      const win = r.int("win", 3, 0, 1e3);
+      const name = r.str("name", flag);
+      const counter = dc.take("the capture score");
+      const others = ctx.humans.filter((h3) => !players2.includes(h3));
+      const scored = [c.bring(CUR, flag, pad, "At least", 1)];
+      return {
+        triggers: [
+          trigger([keeper], [], [a.setDeaths(keeper, counter, "Set To", 0), a.create(keeper, flag, 1, home)]),
+          trigger(players2, [c.bring(CUR, touch, home, "At least", 1), c.bring(keeper, flag, home, "At least", 1)], [a.give(keeper, CUR, flag, "All", home), a.text(`${name} taken!`), a.preserve()]),
+          trigger(players2, [...scored, ...requireHome ? [c.bring(keeper, flag, requireHome, "At least", 1)] : []], [a.removeAt(CUR, flag, "All", pad), a.setDeaths(keeper, counter, "Add", 1), a.setScore(CUR, "Add", 1, "Custom"), a.create(keeper, flag, 1, home), a.text(`${name} captured!`), a.preserve()]),
+          ...requireHome ? [trigger(players2, [...scored, c.bring(keeper, flag, requireHome, "Exactly", 0)], [a.text("Your own flag is missing \u2014 recover it first."), a.preserve()])] : [],
+          trigger([keeper], [c.bring(keeper, flag, home, "Exactly", 0), ...players2.map((p) => c.command(p, flag, "Exactly", 0))], [a.create(keeper, flag, 1, home), a.text(`${name} returned home.`), a.preserve()]),
+          ...win > 0 ? [trigger(players2, [c.deaths(keeper, counter, "At least", win)], [a.victory()]), ...others.length ? [trigger(others, [c.deaths(keeper, counter, "At least", win)], [a.defeat()])] : []] : []
+        ],
+        notes: [`the flag is created for Player ${keeper} at ${home} when the game starts: place none in the layout`, "the takers' messages show to the taker; a carrier that dies drops nothing \u2014 the flag returns home on the next cycle"]
+      };
+    }
+  },
+  {
+    spec: {
       kind: "give",
       description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
       params: [P2("location", "where", true), P2("from", "the owner giving them (default computer)"), P2("unit", "what is given (default Any unit)"), P2("players", "who can take them (default humans)"), P2("touch", "the unit that must be brought to take them (default Any unit)")]
@@ -7420,7 +7453,7 @@ ${guideIndex()}`;
       }
     },
     {
-      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, leaderboards, countdown, last standing, alliances \u2026) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
+      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, capture the flag, leaderboards, countdown, last standing, alliances \u2026) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
       writes: false,
       run: () => kindsText()
     },

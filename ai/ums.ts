@@ -826,6 +826,39 @@ const KINDS: Kind[] = [
   },
   {
     spec: {
+      kind: "capture",
+      description: "Capture the flag, one flag: `flag` (a unit) stands at `home` owned by `keeper`, created there at the start. A player in `players` who brings `touch` into `home` is given the flag; bringing it to `pad` scores a capture — the flag goes home, the team's counter and the player's custom score rise — unless `requireHome` names where the takers' own flag must be standing and it is missing. A flag that is neither at home nor held by a taker returns home. At `win` captures the takers get Victory and every other human Defeat. Two of these, one per flag with the other team as takers, are a two-team map; add a `leaderboard` of kind points for the score.",
+      params: [P("flag", "the flag unit (a Civilian, a Beacon, …)", true), P("home", "the flag's own room", true), P("pad", "where the takers score", true), P("players", "the takers: the other team's player numbers", true), P("keeper", "who owns the flag at home (default computer)"), P("touch", "what must enter the room to take the flag (default Any unit)"), P("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P("win", "captures to win (default 3; 0 for none)"), P("name", "the flag's name in messages (default the unit's)")],
+    },
+    build(r, ctx, dc) {
+      const flag = r.str("flag");
+      const home = r.location("home");
+      const pad = r.location("pad");
+      const players = r.players("players");
+      const keeper = r.onePlayer("keeper", "computer");
+      const touch = r.str("touch", "Any unit");
+      const requireHome = r.str("requireHome", "");
+      if (requireHome) r.locationIn("requireHome", requireHome);
+      const win = r.int("win", 3, 0, 1000);
+      const name = r.str("name", flag);
+      const counter = dc.take("the capture score");
+      const others = ctx.humans.filter((h) => !players.includes(h));
+      const scored = [c.bring(CUR, flag, pad, "At least", 1)];
+      return {
+        triggers: [
+          trigger([keeper], [], [a.setDeaths(keeper, counter, "Set To", 0), a.create(keeper, flag, 1, home)]),
+          trigger(players, [c.bring(CUR, touch, home, "At least", 1), c.bring(keeper, flag, home, "At least", 1)], [a.give(keeper, CUR, flag, "All", home), a.text(`${name} taken!`), a.preserve()]),
+          trigger(players, [...scored, ...(requireHome ? [c.bring(keeper, flag, requireHome, "At least", 1)] : [])], [a.removeAt(CUR, flag, "All", pad), a.setDeaths(keeper, counter, "Add", 1), a.setScore(CUR, "Add", 1, "Custom"), a.create(keeper, flag, 1, home), a.text(`${name} captured!`), a.preserve()]),
+          ...(requireHome ? [trigger(players, [...scored, c.bring(keeper, flag, requireHome, "Exactly", 0)], [a.text("Your own flag is missing — recover it first."), a.preserve()])] : []),
+          trigger([keeper], [c.bring(keeper, flag, home, "Exactly", 0), ...players.map((p) => c.command(p, flag, "Exactly", 0))], [a.create(keeper, flag, 1, home), a.text(`${name} returned home.`), a.preserve()]),
+          ...(win > 0 ? [trigger(players, [c.deaths(keeper, counter, "At least", win)], [a.victory()]), ...(others.length ? [trigger(others, [c.deaths(keeper, counter, "At least", win)], [a.defeat()])] : [])] : []),
+        ],
+        notes: [`the flag is created for Player ${keeper} at ${home} when the game starts: place none in the layout`, "the takers' messages show to the taker; a carrier that dies drops nothing — the flag returns home on the next cycle"],
+      };
+    },
+  },
+  {
+    spec: {
       kind: "give",
       description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
       params: [P("location", "where", true), P("from", "the owner giving them (default computer)"), P("unit", "what is given (default Any unit)"), P("players", "who can take them (default humans)"), P("touch", "the unit that must be brought to take them (default Any unit)")],
