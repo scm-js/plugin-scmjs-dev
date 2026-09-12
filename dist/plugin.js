@@ -4369,8 +4369,8 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "find_site", description: "Where a block of `w` \xD7 `h` tiles of flat, buildable, walkable ground fits, nearest a point first \u2014 for a new base, ask for about 14 \xD7 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base) and for a building its footprint. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
-      describe: (input) => `Find ${num(input.w)} \xD7 ${num(input.h)} of open ground${input.x !== void 0 ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
+      def: { name: "find_site", description: 'Where a block of `w` \xD7 `h` tiles of flat ground fits, nearest a point first. `purpose` "building" (default) wants buildable, walkable ground on one height \u2014 for a new base ask for about 14 \xD7 11 (a hall with its mineral ring; the answer gives the hall\'s top-left for place_base), for a building its footprint; "terrain" wants ground on one height to paint over \u2014 a plateau, a lane, a pit \u2014 and does not mind doodads, since painting lifts them. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map\'s centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground\'s terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.', inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      describe: (input) => `Find ${num(input.w)} \xD7 ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== void 0 ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
       report: (result) => {
         const r = jsonOf(result);
         return r ? plural(list(r.sites).length, "site") : "";
@@ -4385,6 +4385,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
         const near = { x: input.x === void 0 ? info.width / 2 : num(input.x), y: input.y === void 0 ? info.height / 2 : num(input.y) };
         const radius = Math.max(1, Math.round(num(input.radius, 40)));
         const requireStarts = input.anyStart !== false;
+        const forTerrain = str(input.purpose) === "terrain";
         const mask = walkMask(api);
         if (!mask) return fail("The map's walkability cannot be read.");
         const starts = api.query.startLocations();
@@ -4402,7 +4403,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           let t = tileCache.get(scn.tiles[i]);
           if (!t) {
             const ti = api.terrain.tileInfo(scn.tiles[i]);
-            t = { ok: !!ti && ti.buildable && ti.walkable >= 8, height: ti?.height ?? 0 };
+            t = { ok: !!ti && (forTerrain ? (ti.kind === "terrain" || ti.kind === "doodad") && ti.walkable >= 8 : ti.buildable && ti.walkable >= 8), height: ti?.height ?? 0 };
             tileCache.set(scn.tiles[i], t);
           }
           return t;

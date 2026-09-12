@@ -304,8 +304,8 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "find_site", description: "Where a block of `w` × `h` tiles of flat, buildable, walkable ground fits, nearest a point first — for a new base, ask for about 14 × 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base) and for a building its footprint. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
-      describe: (input) => `Find ${num(input.w)} × ${num(input.h)} of open ground${input.x !== undefined ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
+      def: { name: "find_site", description: "Where a block of `w` × `h` tiles of flat ground fits, nearest a point first. `purpose` \"building\" (default) wants buildable, walkable ground on one height — for a new base ask for about 14 × 11 (a hall with its mineral ring; the answer gives the hall's top-left for place_base), for a building its footprint; \"terrain\" wants ground on one height to paint over — a plateau, a lane, a pit — and does not mind doodads, since painting lifts them. Every site is reachable on foot from every start location unless `anyStart` is false; `near` defaults to the map's centre, `radius` to 40 tiles. Up to five sites at least a block apart, with the ground's terrain and height. Use this instead of probing tiles one at a time with terrain_at and placement_ok.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer", description: "near this tile" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean", description: "false: no reachability requirement" } }, ["w", "h"]) },
+      describe: (input) => `Find ${num(input.w)} × ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== undefined ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
       report: (result) => { const r = jsonOf(result); return r ? plural(list(r.sites).length, "site") : ""; },
       writes: false,
       run: (input, { api }) => {
@@ -317,6 +317,7 @@ export function layoutTools(): Tool[] {
         const near = { x: input.x === undefined ? info.width / 2 : num(input.x), y: input.y === undefined ? info.height / 2 : num(input.y) };
         const radius = Math.max(1, Math.round(num(input.radius, 40)));
         const requireStarts = input.anyStart !== false;
+        const forTerrain = str(input.purpose) === "terrain";
         // Reachable from every start: the intersection of the floods, on the walk mask.
         const mask = walkMask(api);
         if (!mask) return fail("The map's walkability cannot be read.");
@@ -331,7 +332,8 @@ export function layoutTools(): Tool[] {
         }
         // One mask per height, so a block is flat as well as buildable and walkable.
         const tileCache = new Map<number, { ok: boolean; height: number }>();
-        const at = (i: number) => { let t = tileCache.get(scn.tiles[i]); if (!t) { const ti = api.terrain.tileInfo(scn.tiles[i]); t = { ok: !!ti && ti.buildable && ti.walkable >= 8, height: ti?.height ?? 0 }; tileCache.set(scn.tiles[i], t); } return t; };
+        // To build on: buildable and walkable. To paint over: level ground or a doodad on it (not water, not a cliff's edge tiles).
+        const at = (i: number) => { let t = tileCache.get(scn.tiles[i]); if (!t) { const ti = api.terrain.tileInfo(scn.tiles[i]); t = { ok: !!ti && (forTerrain ? (ti.kind === "terrain" || ti.kind === "doodad") && ti.walkable >= 8 : ti.buildable && ti.walkable >= 8), height: ti?.height ?? 0 }; tileCache.set(scn.tiles[i], t); } return t; };
         const found: { x: number; y: number; distance: number; height: number }[] = [];
         for (const height of [0, 1, 2]) {
           const ok = new Uint8Array(info.width * info.height);
