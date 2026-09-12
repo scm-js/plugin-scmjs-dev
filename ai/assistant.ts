@@ -29,7 +29,7 @@ import { followBox, footprintEmpty, footprintOf, type Footprint } from "./intent
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
 import { describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
-import { append, h, recipeOptions, styled, type Ctx } from "./ui";
+import { append, h, recipeOptions, styled, taskFor, type Ctx } from "./ui";
 
 /** Past this many messages the history is trimmed… */
 export const KEEP_MESSAGES = 60;
@@ -560,7 +560,10 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         const edits: string[] = [];
         const settingsWrites: string[] = [];
         const maxRounds = Math.max(1, ctx.settings().maxRounds || 24);
+        // The message and its rounds are one task under the ceiling; Continue starts a new one, granting as much again.
+        const task = taskFor("msg", ctx.settings().ceilingUsd);
         let stoppedAtLimit = false;
+        let stoppedAtCeiling = false;
         let turnCost = 0;
         const act = activity();
         const finishActivity = (stopped: boolean) => {
@@ -583,7 +586,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
         try {
           for (let round = 0; round < maxRounds; round++) {
             setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
-            if (round > 0) act.live(`${plural(act.count(), "step")} so far · waiting for the model`);
+            if (round > 0) act.live(`${plural(act.count(), "step")} so far · ${task ? `${formatUsd(turnCost)} of ${formatUsd(task.ceilingUsd)}` : formatUsd(turnCost)} · waiting for the model`);
             // What streams in: the words into a message that grows, the reasoning into the
             // turn's fold, tool starts into pending steps. The words are the answer until the
             // round turns out to call tools, when they become a note in the block instead.
@@ -614,7 +617,7 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
               },
               onToolUse: (id, name) => { setPhase("tools", `${prettyName(name)}…`); pendingRows.set(id, act.step(byName.get(name), name, null)); },
               onProgress: () => { if (phase === "waiting" || phase === "thinking") tickClock(); },
-            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
+            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn, ...(task ? { task } : {}) });
             const charged = r.usage.chargedUsd ?? r.usage.costUsd;
             state.spent = (state.spent ?? 0) + charged;
             turnCost += charged;
@@ -649,10 +652,13 @@ export function openAssistant(ctx: Ctx, state: AssistantState): AssistantHandle 
           finishActivity(stoppedAtLimit);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
-          setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
+          // The ceiling is a stop like the round limit, not a failure: the edits stand and Continue grants as much again.
+          stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
+          if (stoppedAtCeiling) { setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); AI Options sets it`); more.hidden = false; }
+          else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           state.messages = afterFailedTurn(state.messages);
           finishActivity(true);
-          if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
+          if (!aborted && !stoppedAtCeiling) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
           following = false;

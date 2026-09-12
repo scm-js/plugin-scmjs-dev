@@ -311,12 +311,24 @@ export function recipeOptions(settings: Settings): RecipeOptions {
   return o;
 }
 
+/** A fresh task id for a spending ceiling: the caller's own, unique enough within the hour the server keeps it. */
+export function newTaskId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** The task option for runs under a ceiling, or undefined when the ceiling is off. */
+export function taskFor(prefix: string, ceilingUsd: number): RecipeOptions["task"] | undefined {
+  return ceilingUsd > 0 ? { id: newTaskId(prefix), ceilingUsd } : undefined;
+}
+
 /** What a workflow may say about one run: what it is for, and an effort that overrides the quality's. */
 export interface RunExtras {
   /** Shown in the runner while it runs ("Designing the scenario"). */
   label?: string;
   /** An effort for this run only; the quality setting's (or the server's default) otherwise. */
   effort?: RecipeOptions["effort"];
+  /** The task this run belongs to, with its ceiling (`taskFor`). */
+  task?: RecipeOptions["task"];
 }
 
 /**
@@ -326,10 +338,11 @@ export interface RunExtras {
  */
 export async function runRecipe<N extends RecipeName>(ctx: Ctx, runner: Runner, name: N, input: RecipeInputs[N], hooks: Omit<RunHooks, "signal"> & RunExtras = {}): Promise<RunResult<N> | null> {
   const settings = ctx.settings();
-  const { label, effort, ...rest } = hooks;
+  const { label, effort, task, ...rest } = hooks;
   runner.start(label);
   const options = recipeOptions(settings);
   if (effort) options.effort = effort;
+  if (task) options.task = task;
   try {
     const r = await ctx.client.run(name, input, {
       ...rest,

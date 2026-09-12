@@ -1,7 +1,7 @@
 {
   "name": "scmjs.dev",
   "id": "scmjs-dev",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "Your scmjs.dev account in the editor, and the AI that comes with it: sign in from the Account menu or the status bar, keep maps on your account with revisions and notes, and under Tools ▸ AI make a whole scenario from a sentence, lay out a map, redo an area, write and explain triggers, name and brief the map, review it, rewrite strings, or work with an assistant that reads and edits the map with you. The first AI request starts a free trial; the AI features can be turned off, leaving the account and the maps.",
   "author": "Jeany",
   "homepage": "https://github.com/scm-js/plugin-scmjs-dev",

@@ -43,6 +43,7 @@ export function describeError(err: unknown): string {
       case "rate_limited": return `Too many requests for now.${retry}`;
       case "too_busy": return `The server is busy.${retry || " Try again in a moment."}`;
       case "budget_exceeded": return `The balance is used up: ${err.message}`;
+      case "task_ceiling": return err.message;
       case "storage_full": return err.message;
       case "not_found": return err.message;
       case "recipe_disabled": return "This feature is turned off on the server for now.";

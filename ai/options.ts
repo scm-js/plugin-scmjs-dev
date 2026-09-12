@@ -41,6 +41,9 @@ export function openOptions(ctx: Ctx, store: SettingsStore) {
       const thinkingBox = w.checkbox("Show the model's reasoning summary while it works", { value: s.showThinking, onChange: (v) => { store.set({ showThinking: v }); } });
       const dockBox = w.checkbox("Dock the assistant at the right, under the Properties panel, instead of floating over the map", { value: s.dockAssistant, onChange: (v) => { store.set({ dockAssistant: v }); } });
       const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => { store.set({ maxRounds: Math.max(1, Math.min(100, Math.round(v || 24))) }); } });
+      const usd = (v: number) => Math.max(0, Math.min(100, Math.round((Number.isFinite(v) ? v : 0) * 100) / 100));
+      const ceilingField = w.number({ value: s.ceilingUsd, min: 0, max: 100, step: 0.05, onChange: (v) => { store.set({ ceilingUsd: usd(v) }); } });
+      const scenarioCeilingField = w.number({ value: s.scenarioCeilingUsd, min: 0, max: 100, step: 0.25, onChange: (v) => { store.set({ scenarioCeilingUsd: usd(v) }); } });
       const attachBox = w.checkbox("Send a picture of the visible area with every message", { value: s.attachView, onChange: (v) => { store.set({ attachView: v }); } });
       const followBox = w.checkbox("Follow the assistant's work around the map", { value: s.followMap, onChange: (v) => { store.set({ followMap: v }); } });
 
@@ -56,6 +59,10 @@ export function openOptions(ctx: Ctx, store: SettingsStore) {
         w.group("Quality",
           w.form([{ label: "Quality", field: qualitySelect }]),
           h("div", { className: "ai-hint" }, "How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for — laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer."),
+        ),
+        w.group("Spending",
+          w.form([{ label: "Per assistant message ($)", field: ceilingField }, { label: "Per Make Scenario run ($)", field: scenarioCeilingField }]),
+          h("div", { className: "ai-hint" }, "A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10–0.30 and a build $0.50–1.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one."),
         ),
         h("details", null,
           h("summary", null, "Assistant"),

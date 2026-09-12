@@ -105,6 +105,15 @@ export interface RecipeOptions {
    */
   conversation?: string;
   turn?: number;
+  /**
+   * A task the caller groups requests under — an assistant message with its tool rounds,
+   * a Make Scenario build — and its dollar ceiling. The server keeps the task's spend for
+   * an hour, refuses a request that arrives with the ceiling reached and stops a request
+   * at the call that would cross it (the calls made stand), both with `task_ceiling`. The
+   * ceiling is a ceiling on starting calls: the last one may run a little over. An id is
+   * up to 64 characters and is the caller's own; the ceiling is in dollars, at most 1000.
+   */
+  task?: { id: string; ceilingUsd: number };
 }
 
 export interface RecipeRequest<N extends RecipeName = RecipeName> {
@@ -123,6 +132,8 @@ export interface Usage {
   cacheWrite1hTokens?: number;
   /** The server's estimate from its price table. */
   costUsd: number;
+  /** What the request's task has spent so far, this request included, when it named one. */
+  taskUsd?: number;
   /** What the caller was actually charged, when the server absorbed part of the cost (`cache.absorbWrites`). */
   chargedUsd?: number;
   /** Wall-clock milliseconds the upstream call took. */
@@ -164,6 +175,8 @@ export type ErrorCode =
   | "forbidden"
   | "rate_limited"
   | "budget_exceeded"
+  /** The request's task (`options.task`) has reached its ceiling; `message` says what was spent. */
+  | "task_ceiling"
   | "too_busy"
   | "recipe_disabled"
   | "model_not_allowed"

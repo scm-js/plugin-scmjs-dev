@@ -40,6 +40,10 @@ export interface Settings {
   showThinking: boolean;
   /** Rounds of tool calls the assistant may make for one message before it stops and asks. */
   maxRounds: number;
+  /** Dollars one assistant message (with its tool rounds) may spend before it stops and offers to continue; 0 for no ceiling. */
+  ceilingUsd: number;
+  /** Dollars one Make Scenario design or build may spend; 0 for no ceiling. */
+  scenarioCeilingUsd: number;
   /** Send a picture of the visible area with every assistant message. */
   attachView: boolean;
   /** The assistant floats over the map (the default) or lives in the right dock under the built-in panels. */
@@ -50,7 +54,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
-  ai: true, quality: "standard", showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false, followMap: true,
+  ai: true, quality: "standard", showThinking: true, maxRounds: 24, ceilingUsd: 0.5, scenarioCeilingUsd: 1.5, attachView: false, dockAssistant: false, followMap: true,
 };
 
 const KEY = "settings";
@@ -97,6 +101,8 @@ export function settingsStore(api: PluginApi, search = typeof location !== "unde
   current.serverUrl = serverOverride(search, current.serverUrl);
   if (!current.deviceId) current.deviceId = newDeviceId();
   if (!(current.maxRounds >= 1)) current.maxRounds = DEFAULT_SETTINGS.maxRounds;
+  if (!(current.ceilingUsd >= 0)) current.ceilingUsd = DEFAULT_SETTINGS.ceilingUsd;
+  if (!(current.scenarioCeilingUsd >= 0)) current.scenarioCeilingUsd = DEFAULT_SETTINGS.scenarioCeilingUsd;
   if (!["quick", "standard", "thorough"].includes(current.quality)) current.quality = "standard";
   api.storage.set(KEY, current);
   return {

@@ -32,6 +32,8 @@ function describeError(err) {
         return `The server is busy.${retry || " Try again in a moment."}`;
       case "budget_exceeded":
         return `The balance is used up: ${err.message}`;
+      case "task_ceiling":
+        return err.message;
       case "storage_full":
         return err.message;
       case "not_found":
@@ -365,6 +367,8 @@ var DEFAULT_SETTINGS = {
   quality: "standard",
   showThinking: true,
   maxRounds: 24,
+  ceilingUsd: 0.5,
+  scenarioCeilingUsd: 1.5,
   attachView: false,
   dockAssistant: false,
   followMap: true
@@ -397,6 +401,8 @@ function settingsStore(api, search = typeof location !== "undefined" ? location.
   current.serverUrl = serverOverride(search, current.serverUrl);
   if (!current.deviceId) current.deviceId = newDeviceId();
   if (!(current.maxRounds >= 1)) current.maxRounds = DEFAULT_SETTINGS.maxRounds;
+  if (!(current.ceilingUsd >= 0)) current.ceilingUsd = DEFAULT_SETTINGS.ceilingUsd;
+  if (!(current.scenarioCeilingUsd >= 0)) current.scenarioCeilingUsd = DEFAULT_SETTINGS.scenarioCeilingUsd;
   if (!["quick", "standard", "thorough"].includes(current.quality)) current.quality = "standard";
   api.storage.set(KEY, current);
   return {
@@ -5221,12 +5227,19 @@ function recipeOptions(settings) {
   if (effort) o.effort = effort;
   return o;
 }
+function newTaskId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function taskFor(prefix, ceilingUsd) {
+  return ceilingUsd > 0 ? { id: newTaskId(prefix), ceilingUsd } : void 0;
+}
 async function runRecipe(ctx, runner, name, input, hooks = {}) {
   const settings = ctx.settings();
-  const { label, effort, ...rest } = hooks;
+  const { label, effort, task, ...rest } = hooks;
   runner.start(label);
   const options = recipeOptions(settings);
   if (effort) options.effort = effort;
+  if (task) options.task = task;
   try {
     const r = await ctx.client.run(name, input, {
       ...rest,
@@ -8058,7 +8071,9 @@ function openAssistant(ctx, state) {
         const edits = [];
         const settingsWrites = [];
         const maxRounds = Math.max(1, ctx.settings().maxRounds || 24);
+        const task = taskFor("msg", ctx.settings().ceilingUsd);
         let stoppedAtLimit = false;
+        let stoppedAtCeiling = false;
         let turnCost = 0;
         const act = activity();
         const finishActivity = (stopped) => {
@@ -8091,7 +8106,7 @@ function openAssistant(ctx, state) {
         try {
           for (let round = 0; round < maxRounds; round++) {
             setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
-            if (round > 0) act.live(`${plural(act.count(), "step")} so far \xB7 waiting for the model`);
+            if (round > 0) act.live(`${plural(act.count(), "step")} so far \xB7 ${task ? `${formatUsd(turnCost)} of ${formatUsd(task.ceilingUsd)}` : formatUsd(turnCost)} \xB7 waiting for the model`);
             let streamed = "";
             const stream = { el: null };
             let renderQueued = false;
@@ -8139,7 +8154,7 @@ function openAssistant(ctx, state) {
               onProgress: () => {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
-            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn });
+            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn, ...task ? { task } : {} });
             const charged = r.usage.chargedUsd ?? r.usage.costUsd;
             state.spent = (state.spent ?? 0) + charged;
             turnCost += charged;
@@ -8179,10 +8194,14 @@ function openAssistant(ctx, state) {
           finishActivity(stoppedAtLimit);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
-          setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
+          stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
+          if (stoppedAtCeiling) {
+            setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); AI Options sets it`);
+            more.hidden = false;
+          } else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           state.messages = afterFailedTurn(state.messages);
           finishActivity(true);
-          if (!aborted) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
+          if (!aborted && !stoppedAtCeiling) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
           running = null;
           following = false;
@@ -9019,7 +9038,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
         };
         designBox.before(runner.el);
         try {
-          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
+          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario", task: taskFor("design", ctx.settings().scenarioCeilingUsd) });
           if (!r) return;
           state.design = r.output;
           state.built = false;
@@ -9033,6 +9052,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
           redesignButton.setBusy(false);
         }
       };
+      let buildTask;
       const writeCustom = async (system, d) => {
         const bridge = scriptBridge(api);
         if (!bridge) throw new Error("the TrigScript plugin is off");
@@ -9043,12 +9063,12 @@ The scenario's premise: ${d.premise}
 Locations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.
 Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)) };
-        let r = await runRecipe(ctx, runner, "triggers", input);
+        let r = await runRecipe(ctx, runner, "triggers", input, { task: buildTask });
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task: buildTask });
           if (!r) throw new Error("the model did not answer the repair");
           script = r.output.script;
           compiled = await bridge.compile(script);
@@ -9062,6 +9082,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const d = state.design;
         if (!d || !await ensureMap()) return;
         await api.tileset.load();
+        buildTask = taskFor("build", ctx.settings().scenarioCeilingUsd);
         buildButton.setBusy(true);
         redesignButton.setBusy(true);
         stepsBox.replaceChildren();
@@ -9119,7 +9140,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             rampPairs: rampPairsOf(api),
             bridgePair: bridgePairOf(api) ?? void 0
           };
-          const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
+          const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality), task: buildTask });
           if (!r) throw new Error(runner.lastError ?? "no plan came back");
           return r.output;
         };
@@ -9641,6 +9662,13 @@ function openOptions(ctx, store) {
       const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => {
         store.set({ maxRounds: Math.max(1, Math.min(100, Math.round(v || 24))) });
       } });
+      const usd = (v) => Math.max(0, Math.min(100, Math.round((Number.isFinite(v) ? v : 0) * 100) / 100));
+      const ceilingField = w.number({ value: s.ceilingUsd, min: 0, max: 100, step: 0.05, onChange: (v) => {
+        store.set({ ceilingUsd: usd(v) });
+      } });
+      const scenarioCeilingField = w.number({ value: s.scenarioCeilingUsd, min: 0, max: 100, step: 0.25, onChange: (v) => {
+        store.set({ scenarioCeilingUsd: usd(v) });
+      } });
       const attachBox = w.checkbox("Send a picture of the visible area with every message", { value: s.attachView, onChange: (v) => {
         store.set({ attachView: v });
       } });
@@ -9662,6 +9690,11 @@ function openOptions(ctx, store) {
           "Quality",
           w.form([{ label: "Quality", field: qualitySelect }]),
           h("div", { className: "ai-hint" }, "How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer.")
+        ),
+        w.group(
+          "Spending",
+          w.form([{ label: "Per assistant message ($)", field: ceilingField }, { label: "Per Make Scenario run ($)", field: scenarioCeilingField }]),
+          h("div", { className: "ai-hint" }, "A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one.")
         ),
         h(
           "details",

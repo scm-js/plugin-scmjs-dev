@@ -18,7 +18,7 @@
  * calls rather than a long conversation — and what it did is a list, not a transcript.
  */
 import type { TilesetId } from "@scm-js/plugin-api";
-import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlan, type MapPlanInput, type UmsDesign, type UmsDesignInput } from "../../protocol";
+import { MAP_PLAN_PROMPT_MAX, type DesignSystem, type MapPlan, type MapPlanInput, type RecipeOptions, type UmsDesign, type UmsDesignInput } from "../../protocol";
 import { doodadCategoryNames, terrainVocab, unitIdByName, unitNames } from "../facts";
 import { guideFor } from "../guides";
 import { START_LOCATION, TILE, centreOf } from "../layout";
@@ -28,7 +28,7 @@ import { renderPlan, summarizeRender } from "../render";
 import { existingTriggersFor, handTriggers, hasScriptPlugin, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
 import { toolkitContext, addSystem } from "../tools/ums";
 import { paramsOf, systemKinds, ToolkitError, waitingOn } from "../ums";
-import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
+import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx, taskFor } from "../ui";
 import { openReview } from "./review";
 
 const SIZES = [64, 96, 128, 160, 192, 256];
@@ -265,7 +265,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         };
         designBox.before(runner.el);
         try {
-          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario" });
+          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario", task: taskFor("design", ctx.settings().scenarioCeilingUsd) });
           if (!r) return;
           state.design = r.output;
           state.built = false;
@@ -281,6 +281,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
       };
 
       /** Write one custom system as a trigger script: the recipe, the compile loop, the build (extending the map's script). */
+      let buildTask: RecipeOptions["task"] | undefined;
       const writeCustom = async (system: DesignSystem, d: UmsDesign): Promise<string> => {
         const bridge = scriptBridge(api);
         if (!bridge) throw new Error("the TrigScript plugin is off");
@@ -288,12 +289,12 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const prompt = `System "${system.name}" of the scenario "${d.name}" (${d.genre}). ${system.description}\n\nThe scenario's premise: ${d.premise}\nLocations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.\nHyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
         // The declarations and the hand triggers as the model needs them — a third of what the compiler sees.
         const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? undefined, existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)) };
-        let r = await runRecipe(ctx, runner, "triggers", input);
+        let r = await runRecipe(ctx, runner, "triggers", input, { task: buildTask });
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled: CompileResult = await bridge.compile(script);
         for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task: buildTask });
           if (!r) throw new Error("the model did not answer the repair");
           script = r.output.script;
           compiled = await bridge.compile(script);
@@ -308,6 +309,8 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
         const d = state.design;
         if (!d || !(await ensureMap())) return;
         await api.tileset.load();
+        // One build is one task under the ceiling: the terrain plan, its repair and every custom system's script share it.
+        buildTask = taskFor("build", ctx.settings().scenarioCeilingUsd);
         buildButton.setBusy(true);
         redesignButton.setBusy(true);
         stepsBox.replaceChildren();
@@ -360,7 +363,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
               // The shape language: statements the plugin compiles, with the ramps the tileset really has.
               language: "shapes", rampPairs: rampPairsOf(api), bridgePair: bridgePairOf(api) ?? undefined,
             };
-            const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality) });
+            const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality), task: buildTask });
             if (!r) throw new Error(runner.lastError ?? "no plan came back");
             return r.output;
         };

@@ -113,6 +113,12 @@ give them no direction of their own; check them against the cliffs.
 a drag on the map. The model sees the area and a margin round it as it is now, plus a
 picture, so the edges join.
 
+AI Options also holds two spending ceilings, one for an assistant message with its tool
+rounds and one for a Make Scenario design or build. At the ceiling the work stops with
+the map as edited so far; the assistant offers to continue for as much again, and a
+build says which step it stopped at. The server holds the ceiling, so the last call
+can run a little over it but never a whole extra one. 0 turns a ceiling off.
+
 **Write Triggers…** turns a description into a
 [TrigScript](https://github.com/scm-js/plugin-trigscript), whose plugin has to be switched
 on (Plugins ▸ Browse Plugins…). The model is given this map's declarations, so it can name
