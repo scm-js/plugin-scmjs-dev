@@ -7,7 +7,7 @@
  */
 import type { TriggersInput } from "../../protocol";
 import { describeDiagnostic, existingTriggersFor, handTriggers, NO_SCRIPT_PLUGIN, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
-import { h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx } from "../ui";
+import { h, ledgerLine, noteList, Runner, runRecipe, styled, taskFor, textarea, type Ctx } from "../ui";
 
 const REPAIR_ROUNDS = 2;
 
@@ -69,7 +69,9 @@ export function openTriggers(ctx: Ctx) {
           // The person is at the dialog: the map's blocks are cached for the hour, not five minutes.
           iterative: true,
         };
-        let r = await runRecipe(ctx, runner, "triggers", input);
+        // The script and its repair rounds are one task under the scenario ceiling, as a build's are: a repair that went round in circles used to be three full-price calls with no ceiling over them.
+        const task = taskFor("triggers", ctx.settings().scenarioCeilingUsd);
+        let r = await runRecipe(ctx, runner, "triggers", input, { task });
         if (!r) return;
         let script = r.output.script;
         state.summary = r.output.summary;
@@ -79,7 +81,7 @@ export function openTriggers(ctx: Ctx) {
         let compiled = await check();
         for (let round = 0; compiled && !compiled.ok && round < REPAIR_ROUNDS; round++) {
           runner.idle(`The script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"}; asking for a repair (${round + 1} of ${REPAIR_ROUNDS})…`);
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task });
           if (!r) return;
           script = r.output.script;
           state.script = script;

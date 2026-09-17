@@ -303,9 +303,14 @@ export class Runner {
 /** The effort a quality asks the server for; `standard` leaves each feature on the setting the server tunes for it. */
 export const QUALITY_EFFORT: Record<Quality, RecipeOptions["effort"] | undefined> = { quick: "low", standard: undefined, thorough: "high" };
 
-/** The per-request knobs from the settings. */
+/**
+ * The per-request knobs from the settings: the effort the quality asks for, and nothing
+ * else. Whether the model thinks is the server's decision per feature and effort, so the
+ * same quality is the same request for everyone; *Show reasoning* only shows or hides
+ * the summary that comes back.
+ */
 export function recipeOptions(settings: Settings): RecipeOptions {
-  const o: RecipeOptions = { thinking: settings.showThinking };
+  const o: RecipeOptions = {};
   const effort = QUALITY_EFFORT[settings.quality];
   if (effort) o.effort = effort;
   return o;

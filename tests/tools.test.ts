@@ -173,5 +173,58 @@ describe("the transcript's step lines", () => {
     expect(r("scenario_rules", JSON.stringify({ problems: ["none"], fixed: [] }))).toBe("no problems");
     expect(r("validate", JSON.stringify([]))).toBe("clean");
     expect(r("screenshot", "Tiles 0,0 to 40,30 at 8 px per tile: x = px / 8.")).toBe("8 px per tile");
+    expect(r("screenshot", "Tiles 0,0 to 40,30 at 5.6 px per tile (drawn at 8, shrunk to 224×168 px to fit): x = px / 5.6.")).toBe("5.6 px per tile");
+    expect(r("list_units", JSON.stringify({ count: 2, matched: 240, groups: [] }))).toBe("2 groups of 240 units");
+    expect(d("list_units", { owner: 1, group: "both" })).toBe("List Player 1's units by owner and name");
+  });
+});
+
+describe("list_units", () => {
+  const units = [
+    ...Array.from({ length: 238 }, (_, i) => ({ unitId: 0, owner: i % 2, x: (i % 60) * 32 + 16, y: Math.floor(i / 60) * 32 + 16, resourceAmount: 0, stateFlags: 0 })),
+    { unitId: 176, owner: 11, x: 100 * 32, y: 100 * 32, resourceAmount: 1500, stateFlags: 0 },
+    { unitId: 176, owner: 11, x: 101 * 32, y: 100 * 32, resourceAmount: 1200, stateFlags: 0 },
+  ];
+  const api = { document: { scenario: () => ({ units }) }, names: { unit: (id: number) => (id === 176 ? "Mineral Field" : "Terran Marine") } } as unknown as import("@scm-js/plugin-api").PluginApi;
+  const run = async (input: Record<string, unknown>) => {
+    const { tools } = await import("../ai/tools");
+    const t = tools().find((x) => x.def.name === "list_units")!;
+    const out = await t.run(input, { api } as never);
+    return typeof out === "string" ? JSON.parse(out) : out;
+  };
+  it("gives whole pages that fit the cap, with `next` right after the last row", async () => {
+    const first = await run({});
+    expect(first.matched).toBe(240);
+    expect(first.count).toBeLessThan(200); // 200 rows would not fit the 8,000-character cap
+    expect(first.units).toHaveLength(first.count);
+    expect(first.next).toBe(first.count);
+    const second = await run({ offset: first.next });
+    expect(second.offset).toBe(first.next);
+    expect(second.units[0].index).toBe(first.next);
+    // Every unit is seen exactly once across the pages.
+    const seen: number[] = [];
+    for (let page: { units: { index: number }[]; next?: number } | null = first; page; page = page.next === undefined ? null : await run({ offset: page.next })) seen.push(...page.units.map((u) => u.index));
+    expect(seen).toEqual(units.map((_, i) => i));
+  });
+  it("counts by owner or name in one read", async () => {
+    const byOwner = await run({ group: "owner" });
+    expect(byOwner.groups).toEqual([{ owner: "Player 1", count: 119 }, { owner: "Player 2", count: 119 }, { owner: "Neutral", count: 2, amount: 2700 }]);
+    expect(byOwner.matched).toBe(240);
+    const minerals = await run({ group: "both", name: "mineral" });
+    expect(minerals.groups).toEqual([{ owner: "Neutral", name: "Mineral Field", count: 2, amount: 2700 }]);
+    expect(minerals.matched).toBe(2);
+    expect(await run({ group: "size" })).toMatchObject({ error: expect.stringContaining("owner, name or both") });
+  });
+});
+
+describe("screenshot", () => {
+  it("states the scale the picture has, not the one it was drawn at", async () => {
+    const { screenshotText } = await import("../ai/tools/read");
+    const rect = { x0: 4, y0: 8, x1: 44, y1: 38 };
+    expect(screenshotText(rect, 8, { blob: new Blob(), scale: 1 })).toBe("Tiles 4,8 to 44,38 at 8 px per tile: tile x = 4 + px / 8, y = 8 + py / 8.");
+    expect(screenshotText(rect, 8, { blob: new Blob(), scale: 0.7, width: 224, height: 168 })).toBe("Tiles 4,8 to 44,38 at 5.6 px per tile (drawn at 8, shrunk to 224×168 px to fit): tile x = 4 + px / 5.6, y = 8 + py / 5.6.");
+    const { shrinkImageScaled } = await import("../ai/facts");
+    // Where the page cannot draw (here), the picture is passed through at scale 1.
+    expect((await shrinkImageScaled(new Blob([new Uint8Array(10)], { type: "image/png" }))).scale).toBe(1);
   });
 });

@@ -709,11 +709,19 @@ var rectSchema = { x0: { type: "integer" }, y0: { type: "integer" }, x1: { type:
 var bag = (properties, required = []) => ({ ...obj(properties, required), additionalProperties: true });
 var obj = (properties, required = []) => ({ type: "object", properties, ...required.length ? { required } : {} });
 var pageSchema = { limit: { type: "integer" }, offset: { type: "integer" } };
-function paged(rows, input, defaultLimit, maxLimit) {
+var PAGE_BUDGET = RESULT_CAP - 600;
+function paged(rows, input, defaultLimit, maxLimit, budget = PAGE_BUDGET) {
   const limit = Math.max(1, Math.min(maxLimit, Math.round(num(input.limit, defaultLimit))));
   const offset = Math.max(0, Math.round(num(input.offset)));
-  const items = rows.slice(offset, offset + limit);
-  return { count: items.length, matched: rows.length, ...offset ? { offset } : {}, ...offset + items.length < rows.length ? { next: offset + items.length } : {}, items };
+  const end = Math.min(rows.length, offset + limit);
+  let n2 = offset, size = 0;
+  while (n2 < end) {
+    size += JSON.stringify(rows[n2]).length + 1;
+    if (size > budget && n2 > offset) break;
+    n2++;
+  }
+  const items = rows.slice(offset, n2);
+  return { count: items.length, matched: rows.length, ...offset ? { offset } : {}, ...n2 < rows.length ? { next: n2 } : {}, items };
 }
 function pageReport(result) {
   const r = jsonOf(result);
@@ -960,6 +968,18 @@ async function executeCalls(calls, deps, hooks = {}) {
     }
     try {
       await hooks.before?.(call, tool);
+      if (deps.signal.aborted) {
+        out.stopped = true;
+        out.results.push(toContent(call.id, STOPPED, true));
+        hooks.after?.(call, tool, { kind: "skipped", reason: STOPPED });
+        continue;
+      }
+      if (deps.api.document.id() !== deps.turnDoc) {
+        out.mapChanged = true;
+        out.results.push(toContent(call.id, `Error: ${MAP_CHANGED}`, true));
+        hooks.after?.(call, tool, { kind: "failed", message: MAP_CHANGED });
+        continue;
+      }
       if (!tool) throw new Error(`no tool called ${call.name}`);
       const result = await tool.run(input, deps.ctx);
       out.results.push(toContent(call.id, result));
@@ -1135,11 +1155,14 @@ async function imageInput(blob) {
 }
 var MAX_IMAGE_BYTES = 7e5;
 async function shrinkImage(blob, maxBytes = MAX_IMAGE_BYTES) {
-  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
-  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return blob;
+  return (await shrinkImageScaled(blob, maxBytes)).blob;
+}
+async function shrinkImageScaled(blob, maxBytes = MAX_IMAGE_BYTES) {
+  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return { blob, scale: 1 };
+  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return { blob, scale: 1 };
   const bitmap = await createImageBitmap(blob);
   let scale = 1;
-  let best = blob;
+  let best = { blob, scale: 1, width: bitmap.width, height: bitmap.height };
   for (let i = 0; i < 4; i++) {
     const w = Math.max(1, Math.round(bitmap.width * scale)), h3 = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(w, h3);
@@ -1147,7 +1170,7 @@ async function shrinkImage(blob, maxBytes = MAX_IMAGE_BYTES) {
     if (!g) break;
     g.drawImage(bitmap, 0, 0, w, h3);
     const out = await canvas.convertToBlob({ type: "image/webp", quality: 0.82 });
-    if (out.size < best.size) best = out;
+    if (out.size < best.blob.size) best = { blob: out, scale, width: w, height: h3 };
     if (out.size <= maxBytes) break;
     scale *= Math.sqrt(maxBytes / out.size) * 0.95;
   }
@@ -5222,7 +5245,7 @@ var Runner = class {
 };
 var QUALITY_EFFORT = { quick: "low", standard: void 0, thorough: "high" };
 function recipeOptions(settings) {
-  const o = { thinking: settings.showThinking };
+  const o = {};
   const effort = QUALITY_EFFORT[settings.quality];
   if (effort) o.effort = effort;
   return o;
@@ -5409,6 +5432,11 @@ async function openRegion(ctx, preset) {
 }
 
 // ai/tools/read.ts
+function screenshotText(rect, drawnPpt, shrunk) {
+  const ppt = shrunk.scale === 1 ? String(drawnPpt) : String(+(drawnPpt * shrunk.scale).toFixed(2));
+  const note = shrunk.scale === 1 ? "" : ` (drawn at ${drawnPpt}, shrunk to ${shrunk.width}\xD7${shrunk.height} px to fit)`;
+  return `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile${note}: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`;
+}
 function readTools() {
   return [
     {
@@ -5465,13 +5493,18 @@ function readTools() {
       }
     },
     {
-      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. Pages of 200.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } } }) },
-      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}`,
-      report: pageReport,
+      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. `group` (owner, name or both) answers with a count and resource total per group instead of rows \u2014 for counting or totals, ask that way. Pages of up to 200 (fewer when rows are long); `next` is where the next page starts.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } }, group: { type: "string", enum: ["owner", "name", "both"] } }) },
+      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}${str(input.group) ? ` by ${str(input.group) === "both" ? "owner and name" : str(input.group)}` : ""}`,
+      report: (result) => {
+        const r = jsonOf(result);
+        return r?.groups !== void 0 ? `${plural(num(r.count), "group")} of ${plural(num(r.matched), "unit")}` : pageReport(result);
+      },
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return fail("No map is open.");
+        const group = str(input.group);
+        if (group && group !== "owner" && group !== "name" && group !== "both") return fail(`\`group\` is owner, name or both, not "${group}".`);
         const owner = input.owner === void 0 ? null : ownerOf(input.owner);
         const name = str(input.name).toLowerCase();
         const rect = hasRect(input) ? rectOf(input, api) : null;
@@ -5490,6 +5523,22 @@ function readTools() {
           if (details) Object.assign(row, { px: u.x, py: u.y, hitPointsPercent: u.hitPointsPercent, shieldPercent: u.shieldPercent, energyPercent: u.energyPercent, hangar: u.hangarUnits, cloaked: !!(u.stateFlags & 1), burrowed: !!(u.stateFlags & 2), inTransit: !!(u.stateFlags & 4), hallucinated: !!(u.stateFlags & 8), invincible: !!(u.stateFlags & 16), serial: u.serial });
           out.push(row);
         });
+        if (group) {
+          const by = /* @__PURE__ */ new Map();
+          for (const r of out) {
+            const key = group === "owner" ? r.owner : group === "name" ? r.name : `${r.owner}\0${r.name}`;
+            let g = by.get(key);
+            if (!g) {
+              g = { ...group !== "name" ? { owner: r.owner } : {}, ...group !== "owner" ? { name: r.name } : {}, count: 0, amount: 0 };
+              by.set(key, g);
+            }
+            g.count++;
+            g.amount += r.amount ?? 0;
+          }
+          const groups = [...by.values()].sort((a2, b) => b.count - a2.count).map(({ amount, ...g }) => amount ? { ...g, amount } : g);
+          const p2 = paged(groups, input, 200, 1e3);
+          return capResult({ count: p2.count, matched: out.length, total: scn.units.length, groupsMatched: p2.matched, offset: p2.offset, next: p2.next, groups: p2.items });
+        }
         const p = paged(out, input, 200, 1e3);
         return capResult({ count: p.count, matched: p.matched, total: scn.units.length, offset: p.offset, next: p.next, units: p.items });
       }
@@ -5684,7 +5733,7 @@ ${text}`, 3e4);
       def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
       report: (result) => {
-        const m = /at (\d+) px per tile/.exec(typeof result === "string" ? result : result.text ?? "");
+        const m = /at ([\d.]+) px per tile/.exec(typeof result === "string" ? result : result.text ?? "");
         return m ? `${m[1]} px per tile` : "picture";
       },
       writes: false,
@@ -5697,7 +5746,8 @@ ${text}`, 3e4);
         await api.tileset.load();
         const blob = await api.graphics.renderRect(rect, { pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, grid: 0 });
         if (!blob) return "The map cannot be rendered (tileset graphics missing).";
-        return { text: `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`, image: await imageInput(await shrinkImage(blob)) };
+        const shrunk = await shrinkImageScaled(blob);
+        return { text: screenshotText(rect, ppt, shrunk), image: await imageInput(shrunk.blob) };
       }
     },
     {
@@ -7512,14 +7562,15 @@ var KEEP_IMAGES = 2;
 function trimHistory(messages, keep = KEEP_MESSAGES, to = TRIM_TO) {
   if (messages.length <= keep) return messages;
   const clean = (m) => m.role === "user" && !m.content.some((c2) => c2.type === "tool_result");
-  const from = Math.max(0, messages.length - Math.min(to, keep));
+  const brief = clean(messages[0]) ? [messages[0]] : [];
+  const from = Math.max(1, messages.length - Math.min(to, keep) + brief.length);
   let start2 = from;
   while (start2 < messages.length && !clean(messages[start2])) start2++;
-  if (start2 < messages.length) return pruneImages(messages.slice(start2), KEEP_IMAGES);
-  if (!clean(messages[0])) return messages;
+  if (start2 < messages.length) return pruneImages([...brief, ...messages.slice(start2)], KEEP_IMAGES);
+  if (!brief.length) return messages;
   let at = from;
   while (at < messages.length && messages[at].role !== "assistant") at++;
-  return pruneImages([messages[0], ...messages.slice(at)], KEEP_IMAGES);
+  return pruneImages([...brief, ...messages.slice(at)], KEEP_IMAGES);
 }
 var MAX_HISTORY_BYTES = 11e5;
 var FIT_TO_BYTES = 6e5;
@@ -7618,6 +7669,33 @@ function chipsFor(layer, selected, triggers) {
   return chips2;
 }
 var QUICK_PROMPTS = chipsFor("terrain", 0, 0);
+var Conversations = class {
+  byDoc = /* @__PURE__ */ new Map();
+  none = { messages: [] };
+  api;
+  constructor(api) {
+    this.api = api;
+  }
+  /** The conversation of the map in front, started if it has none. */
+  current() {
+    const id = this.api.id();
+    if (id === null) return this.none;
+    let s = this.byDoc.get(id);
+    if (!s) {
+      s = { messages: [] };
+      this.byDoc.set(id, s);
+    }
+    return s;
+  }
+  /** Forget the conversations of maps that are no longer open. */
+  prune() {
+    const open = new Set(this.api.list().map((d) => d.id));
+    for (const id of [...this.byDoc.keys()]) if (!open.has(id)) this.byDoc.delete(id);
+  }
+  get size() {
+    return this.byDoc.size;
+  }
+};
 function newConversationId() {
   const c2 = globalThis.crypto;
   if (c2?.randomUUID) return c2.randomUUID();
@@ -7706,16 +7784,24 @@ function intentOverlay(api) {
     handle.redraw();
   } };
 }
-function openAssistant(ctx, state) {
+function panelTitle(info) {
+  if (!info) return "AI Assistant";
+  const name = info.name.trim() || info.fileName || "untitled map";
+  return `AI Assistant \xB7 ${name}`;
+}
+function openAssistant(ctx, store) {
   const { api } = ctx;
   const w = api.ui.widgets;
   const toolList = tools();
   const byName2 = new Map(toolList.map((t) => [t.def.name, t]));
   let running = null;
+  let turnUnderWay = null;
   let askLater = null;
   const dock = ctx.settings().dockAssistant;
+  let state = store.current();
+  let boundDoc = api.document.id();
   const handle = api.ui.panel({
-    title: "AI Assistant",
+    title: panelTitle(api.document.info()),
     width: 440,
     dock: dock ? "right" : "float",
     grow: true,
@@ -7910,12 +7996,35 @@ function openAssistant(ctx, state) {
           u.button.title = STALE_UNDO;
         }
       };
+      const changeOver = () => {
+        store.prune();
+        if (api.document.id() === boundDoc) return;
+        running?.abort();
+        void (turnUnderWay ?? Promise.resolve()).then(() => {
+          if (api.document.id() === boundDoc || running) return;
+          if (input.value.trim()) state.prefill = input.value;
+          input.value = "";
+          state = store.current();
+          boundDoc = api.document.id();
+          undoButtons.length = 0;
+          more.hidden = !state.continueOffered;
+          replay();
+          setPhase("idle");
+          handle.setTitle(panelTitle(api.document.info()));
+          if (state.prefill) {
+            const t = state.prefill;
+            state.prefill = void 0;
+            askLater?.(t);
+          }
+        });
+      };
       const offs = [
         api.events.on("selection", refreshContext),
         api.events.on("clipboard", refreshContext),
         api.events.on("document", () => {
           refreshContext();
           refreshUndo();
+          changeOver();
         }),
         api.events.on("layer", refreshContext),
         api.events.on("triggers", refreshContext),
@@ -7932,6 +8041,7 @@ function openAssistant(ctx, state) {
         state.messages = [];
         state.conversation = void 0;
         state.turn = 0;
+        state.continueOffered = false;
         chat.replaceChildren();
         more.hidden = true;
         setPhase("idle");
@@ -7959,29 +8069,35 @@ function openAssistant(ctx, state) {
         }
       });
       const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c2) => `${m.role === "user" ? "You" : "Assistant"}: ${c2.text}`).join("\n")).filter(Boolean).join("\n\n");
-      for (const t of groupTurns(state.messages)) {
-        for (const u of t.user) addUser(u);
-        const act = activity();
-        let edits = 0, settingsWrites = 0;
-        for (const s of t.steps) {
-          if (s.kind === "thinking") act.think(s.text);
-          else if (s.kind === "narration") act.note(s.text);
-          else {
-            const tool = byName2.get(s.name);
-            const row = act.step(tool, s.name, s.input);
-            if (s.failed) row.fail(s.result ?? "failed");
+      const replay = () => {
+        chat.replaceChildren();
+        pinned = true;
+        for (const t of groupTurns(state.messages)) {
+          for (const u of t.user) addUser(u);
+          const act = activity();
+          let edits = 0, settingsWrites = 0;
+          for (const s of t.steps) {
+            if (s.kind === "thinking") act.think(s.text);
+            else if (s.kind === "narration") act.note(s.text);
             else {
-              row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done.");
-              if (tool?.writes) {
-                if (tool.settings) settingsWrites++;
-                else edits++;
+              const tool = byName2.get(s.name);
+              const row = act.step(tool, s.name, s.input);
+              if (s.failed) row.fail(s.result ?? "failed");
+              else {
+                row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done.");
+                if (tool?.writes) {
+                  if (tool.settings) settingsWrites++;
+                  else edits++;
+                }
               }
             }
           }
+          act.finish({ edits, settings: settingsWrites });
+          if (t.answer) addAssistant(t.answer);
         }
-        act.finish({ edits, settings: settingsWrites });
-        if (t.answer) addAssistant(t.answer);
-      }
+        setCost();
+      };
+      replay();
       const viewPicture = async () => {
         const v = api.view.visible();
         const info = api.document.info();
@@ -8038,15 +8154,23 @@ function openAssistant(ctx, state) {
           }
         };
       };
-      const submit = async (preset) => {
+      const submit = (preset) => {
+        turnUnderWay = runTurn(preset).finally(() => {
+          turnUnderWay = null;
+        });
+        return turnUnderWay;
+      };
+      const runTurn = async (preset) => {
         const text = (preset ?? input.value).trim();
         if (!text || running) return;
         if (!api.document.isOpen()) {
           setPhase("failed", "Open a map first.");
           return;
         }
+        const conv = state;
         if (!preset) input.value = "";
         more.hidden = true;
+        conv.continueOffered = false;
         pinned = true;
         addUser(text);
         const content = [{ type: "text", text }];
@@ -8060,7 +8184,7 @@ function openAssistant(ctx, state) {
 (The picture is the visible area, tiles ${Math.floor(v.x0)},${Math.floor(v.y0)} to ${Math.ceil(v.x1)},${Math.ceil(v.y1)}.)` };
           }
         }
-        state.messages.push({ role: "user", content });
+        conv.messages.push({ role: "user", content });
         running = new AbortController();
         const turnDoc = api.document.id();
         following = ctx.settings().followMap && api.document.isOpen();
@@ -8074,12 +8198,13 @@ function openAssistant(ctx, state) {
         const task = taskFor("msg", ctx.settings().ceilingUsd);
         let stoppedAtLimit = false;
         let stoppedAtCeiling = false;
+        let cutOff = false;
         let turnCost = 0;
         const act = activity();
         const finishActivity = (stopped) => {
           const secs = Math.round((Date.now() - startedAt) / 1e3);
           const after = api.document.history();
-          const undoSteps = Math.max(0, after.undoDepth - historyBefore);
+          const undoSteps = api.document.id() === turnDoc ? Math.max(0, after.undoDepth - historyBefore) : 0;
           const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
             const button = e.currentTarget;
             if (!undoStillApplies(after, api.document.history())) {
@@ -8120,12 +8245,12 @@ function openAssistant(ctx, state) {
                 scroll();
               }
             };
-            state.messages = fitHistory(trimHistory(state.messages));
-            state.conversation ??= newConversationId();
-            const turn = state.turn ?? 0;
-            state.turn = turn + 1;
+            conv.messages = fitHistory(trimHistory(conv.messages));
+            conv.conversation ??= newConversationId();
+            const turn = conv.turn ?? 0;
+            conv.turn = turn + 1;
             const r = await ctx.client.run("agent", {
-              messages: state.messages,
+              messages: conv.messages,
               tools: toolList.map((t) => t.def),
               facts: mapFacts(api, { triggers: false, assistant: true }),
               reference: referenceFor(api)
@@ -8154,13 +8279,13 @@ function openAssistant(ctx, state) {
               onProgress: () => {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
-            }, { ...recipeOptions(ctx.settings()), conversation: state.conversation, turn, ...task ? { task } : {} });
+            }, { ...recipeOptions(ctx.settings()), conversation: conv.conversation, turn, ...task ? { task } : {} });
             const charged = r.usage.chargedUsd ?? r.usage.costUsd;
-            state.spent = (state.spent ?? 0) + charged;
+            conv.spent = (conv.spent ?? 0) + charged;
             turnCost += charged;
             setCost();
             const answer = r.output.content;
-            state.messages.push({ role: "assistant", content: answer });
+            conv.messages.push({ role: "assistant", content: answer });
             const finalText = answer.filter(isText).map((c2) => c2.text).join("\n\n").trim();
             const calls = answer.filter((c2) => c2.type === "tool_use");
             const continues = calls.length > 0 && r.output.stopReason === "tool_use";
@@ -8175,13 +8300,17 @@ function openAssistant(ctx, state) {
               setPhase("failed", "The model declined.");
               break;
             }
+            if (r.output.stopReason === "max_tokens" && !continues) {
+              cutOff = true;
+              break;
+            }
             if (!continues) break;
             const batch = await executeCalls(calls, { api, tools: byName2, ctx, signal: running.signal, turnDoc }, hooksFor(pendingRows, act));
             const called = new Set(calls.map((c2) => c2.id));
             for (const [id, row] of pendingRows) if (!called.has(id)) row.skip();
             edits.push(...batch.edits);
             settingsWrites.push(...batch.settingsWrites);
-            state.messages.push({ role: "user", content: batch.results });
+            conv.messages.push({ role: "user", content: batch.results });
             if (batch.stopped) throw new ScmjsError("aborted", "Stopped.");
             if (batch.mapChanged) throw new Error(MAP_CHANGED);
             if (round === maxRounds - 1) stoppedAtLimit = true;
@@ -8190,16 +8319,23 @@ function openAssistant(ctx, state) {
           if (stoppedAtLimit) {
             setPhase("stopped", `after ${maxRounds} rounds of tool calls; AI Options sets the limit`);
             more.hidden = false;
+            conv.continueOffered = true;
+          } else if (cutOff) {
+            setPhase("stopped", "the answer was cut off at the output limit; Continue picks it up");
+            more.hidden = false;
+            conv.continueOffered = true;
           } else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
-          finishActivity(stoppedAtLimit);
+          finishActivity(stoppedAtLimit || cutOff);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
           if (stoppedAtCeiling) {
             setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); AI Options sets it`);
             more.hidden = false;
+            conv.continueOffered = true;
           } else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
-          state.messages = afterFailedTurn(state.messages);
+          if (aborted && api.document.id() !== turnDoc && afterFailedTurn(conv.messages).length < conv.messages.length) conv.prefill = text;
+          conv.messages = afterFailedTurn(conv.messages);
           finishActivity(true);
           if (!aborted && !stoppedAtCeiling) chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, describeError(err)));
         } finally {
@@ -8220,6 +8356,7 @@ function openAssistant(ctx, state) {
         input,
         h("div", { className: "ai-btns" }, send, stop, more, attach, h("span", { style: "flex: 1" }), copyButton, clearButton)
       ]);
+      more.hidden = !state.continueOffered;
       askLater = (text, sendNow) => {
         input.value = text;
         input.focus();
@@ -8245,7 +8382,7 @@ function openAssistant(ctx, state) {
     isOpen: () => handle.isOpen(),
     ask: (text, sendNow) => {
       if (askLater) askLater(text, sendNow);
-      else state.prefill = text;
+      else store.current().prefill = text;
     }
   };
 }
@@ -9572,7 +9709,8 @@ function openTriggers(ctx) {
           // The person is at the dialog: the map's blocks are cached for the hour, not five minutes.
           iterative: true
         };
-        let r = await runRecipe(ctx, runner, "triggers", input);
+        const task = taskFor("triggers", ctx.settings().scenarioCeilingUsd);
+        let r = await runRecipe(ctx, runner, "triggers", input, { task });
         if (!r) return;
         let script = r.output.script;
         state.summary = r.output.summary;
@@ -9582,7 +9720,7 @@ function openTriggers(ctx) {
         let compiled = await check();
         for (let round = 0; compiled && !compiled.ok && round < REPAIR_ROUNDS2; round++) {
           runner.idle(`The script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"}; asking for a repair (${round + 1} of ${REPAIR_ROUNDS2})\u2026`);
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } });
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task });
           if (!r) return;
           script = r.output.script;
           state.script = script;
@@ -9793,11 +9931,11 @@ function installAi(deps) {
   const { api, store, client, account } = deps;
   const out = [];
   const ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(ctx, store), openAccount: deps.openAccount, presence: null };
-  const assistant = { messages: [] };
+  const conversations = new Conversations(api.document);
   let assistantPanel = null;
   const open = () => api.document.isOpen();
   const showAssistant = () => {
-    if (!assistantPanel?.isOpen()) assistantPanel = openAssistant(ctx, assistant);
+    if (!assistantPanel?.isOpen()) assistantPanel = openAssistant(ctx, conversations);
     return assistantPanel;
   };
   const toggleAssistant = () => {
@@ -9806,7 +9944,7 @@ function installAi(deps) {
       assistantPanel = null;
       return;
     }
-    assistantPanel = openAssistant(ctx, assistant);
+    assistantPanel = openAssistant(ctx, conversations);
   };
   ctx.presence = api.ui.statusItem({ text: "AI", title: "AI Assistant (Ctrl+Shift+A)", onClick: toggleAssistant });
   out.push(api.commands.register({ id: "generate", title: "AI: Generate Map", run: () => openGenerate(ctx) }));

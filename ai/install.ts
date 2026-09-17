@@ -16,7 +16,7 @@
 import type { Disposable, PluginApi } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
-import { openAssistant, type AssistantHandle, type AssistantState } from "./assistant";
+import { Conversations, openAssistant, type AssistantHandle } from "./assistant";
 import { openBriefing, openDescribe } from "./dialogs/describe";
 import { openExplain } from "./dialogs/explain";
 import { openGenerate } from "./dialogs/generate";
@@ -41,13 +41,14 @@ export function installAi(deps: AiDeps): () => void {
   const { api, store, client, account } = deps;
   const out: Disposable[] = [];
   const ctx: Ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(ctx, store), openAccount: deps.openAccount, presence: null };
-  const assistant: AssistantState = { messages: [] };
+  // One conversation per open map, for the life of the session; the panel shows the map in front's.
+  const conversations = new Conversations(api.document);
   let assistantPanel: AssistantHandle | null = null;
   const open = () => api.document.isOpen();
-  const showAssistant = () => { if (!assistantPanel?.isOpen()) assistantPanel = openAssistant(ctx, assistant); return assistantPanel; };
+  const showAssistant = () => { if (!assistantPanel?.isOpen()) assistantPanel = openAssistant(ctx, conversations); return assistantPanel; };
   const toggleAssistant = () => {
     if (assistantPanel?.isOpen()) { assistantPanel.close(); assistantPanel = null; return; }
-    assistantPanel = openAssistant(ctx, assistant);
+    assistantPanel = openAssistant(ctx, conversations);
   };
   // The AI cell in the status bar: "AI" when idle, the assistant's phase while it works, a click opens the panel.
   ctx.presence = api.ui.statusItem({ text: "AI", title: "AI Assistant (Ctrl+Shift+A)", onClick: toggleAssistant });

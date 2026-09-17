@@ -33,3 +33,17 @@ date,task,start,conversation,done_claimed,change_correct,check_map,rounds,contin
 2026-09-11 21:52,8,warm,5a950c58-e5bf-456a-80e5-c14f523372b6,yes,"yes: start location placed, dead trigger removed; STR overflow reported as unfixable (no string tool)",1 error,11,0,16,0,0,0.3907,0.3907,88,306,343913,8850,end_turn|tool_use,
 2026-09-11 23:17,4,warm,d7683357-72aa-4a21-8821-b9a6d6751466,yes,"yes: 12x10 High Snow plateau at 115,63 with one SW ramp; bases untouched",1 warning,13,0,16,0,0,0.6904,0.6904,93,28642,384583,8970,end_turn|tool_use,
 2026-09-11 23:18,R7,warm,05a0d072-b754-4bbe-9ed2-728a11e8955f,yes,yes: river edge to edge with one land gap; said Badlands has no bridge,4 errors,5,0,5,0,0,0.1394,0.1394,35,919,145003,2447,end_turn|tool_use,
+2026-09-11 23:58,4,warm,fbe780b2-7225-40e3-be88-35b992f13c5f,yes,,1 warning,10,0,11,0,0,0.3012,0.3012,66,252,311665,6912,end_turn|tool_use,
+2026-09-12 00:00,8,warm,a8ed512d-8646-450b-a9c2-84867fc88186,yes,,1 error,13,0,19,0,0,0.4169,0.4169,80,1082,430344,10592,end_turn|tool_use,
+2026-09-12 00:01,R4,warm,1db9f18a-382a-4f6b-85ec-47d053dd1a9a,failed,,1 warning,13,0,28,0,0,0.5064,0.5064,105,0,468111,8897,tool_use,refused the next request after the first edit
+2026-09-12 00:21,7,warm,,yes,,1 warning,1,,,,,0.2162,0.2162,20,19754,0,2,end_turn,
+2026-09-12 00:22,7,warm,,yes,,1 warning,1,,,,,0.0255,0.0255,20,0,20125,2,end_turn,
+2026-09-12 00:34,3,warm,a6dcde2e-fdfb-42eb-8ec8-cd4015ca916d,yes,,1 warning,7,0,9,0,0,0.5002,0.5002,45,29484,193262,4800,end_turn|tool_use,
+2026-09-12 00:35,4,warm,0a6dd7ec-ba3f-416f-accf-266c46218586,yes,,1 warning,14,0,19,0,0,0.4880,0.4880,115,0,484377,9712,end_turn|tool_use,
+2026-09-12 00:37,5,warm,3cd309a2-1269-492e-89fa-2be039169e13,yes,,1 warning,5,0,8,0,0,0.1847,0.1847,50,0,156222,3454,end_turn|tool_use,
+2026-09-12 00:37,R2,warm,75d28f11-981c-4e76-90c3-4d3c92fe97be,yes,,pass,5,0,19,0,0,0.3083,0.3083,71,1082,166862,4791,end_turn|tool_use,
+2026-09-12 00:39,R4,warm,c36036ce-2549-4c70-b96b-27458fe43e5b,failed,,1 warning,6,0,10,0,0,0.2141,0.2141,52,0,189060,4109,tool_use,refused the next request after the first edit
+2026-09-12 00:53,1,warm,49b4cbeb-dc75-412b-b196-c4c110074573,yes,,pass,2,0,1,0,0,0.2778,0.2778,12,25055,24411,1672,end_turn|tool_use,
+2026-09-12 00:53,4,warm,6bef12d9-3c00-442b-a21e-d68382d5be85,yes,,1 warning,6,0,7,1,0,0.2073,0.2073,52,981,163677,4156,end_turn|tool_use,
+2026-09-12 00:54,6,warm,2281cafb-5174-4ea4-b64c-bea982378902,yes,,1 warning,5,0,5,0,0,0.2134,0.2134,48,349,144123,3743,end_turn|tool_use,
+2026-09-12 01:04,R9,warm,,yes,,1 warning,3,,18,0,0,0.6913,0.6913,223,9767,0,22569,end_turn,

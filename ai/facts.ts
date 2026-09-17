@@ -198,11 +198,26 @@ export const MAX_IMAGE_BYTES = 700_000;
  * old browser), or when it is already a WebP or JPEG under the cap.
  */
 export async function shrinkImage(blob: Blob, maxBytes = MAX_IMAGE_BYTES): Promise<Blob> {
-  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return blob;
-  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return blob;
+  return (await shrinkImageScaled(blob, maxBytes)).blob;
+}
+
+/** A shrunk picture with how much smaller it was drawn: what a caller that told the model the picture's scale has to correct by. */
+export interface ShrunkImage {
+  blob: Blob;
+  /** The picture's size against the one given: 1 when only re-encoded, less when drawn smaller to fit. */
+  scale: number;
+  /** The picture's pixel size, when it was drawn. */
+  width?: number;
+  height?: number;
+}
+
+/** `shrinkImage`, and the scale it ended at — a screenshot's "x px per tile" is wrong by that once the picture was drawn smaller. */
+export async function shrinkImageScaled(blob: Blob, maxBytes = MAX_IMAGE_BYTES): Promise<ShrunkImage> {
+  if (typeof OffscreenCanvas === "undefined" || typeof createImageBitmap === "undefined") return { blob, scale: 1 };
+  if (blob.size <= maxBytes && (blob.type === "image/webp" || blob.type === "image/jpeg")) return { blob, scale: 1 };
   const bitmap = await createImageBitmap(blob);
   let scale = 1;
-  let best = blob;
+  let best: ShrunkImage = { blob, scale: 1, width: bitmap.width, height: bitmap.height };
   for (let i = 0; i < 4; i++) {
     const w = Math.max(1, Math.round(bitmap.width * scale)), h = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(w, h);
@@ -210,7 +225,7 @@ export async function shrinkImage(blob: Blob, maxBytes = MAX_IMAGE_BYTES): Promi
     if (!g) break;
     g.drawImage(bitmap, 0, 0, w, h);
     const out = await canvas.convertToBlob({ type: "image/webp", quality: 0.82 });
-    if (out.size < best.size) best = out;
+    if (out.size < best.blob.size) best = { blob: out, scale, width: w, height: h };
     if (out.size <= maxBytes) break;
     scale *= Math.sqrt(maxBytes / out.size) * 0.95;
   }

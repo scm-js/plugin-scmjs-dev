@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AccountManager, DEFAULT_SERVER_URL, memoryStore, serverOverride } from "../account";
+import { Conversations, panelTitle } from "../ai/assistant";
 import { QUALITY_EFFORT, recipeOptions } from "../ai/ui";
 import { describeError, formatUsage, formatUsd, Ledger, ScmjsClient, ScmjsError, SseParser } from "../client";
 import type { RecipeEvent, Usage } from "../protocol";
@@ -52,9 +53,11 @@ describe("formatting", () => {
 describe("the options", () => {
   it("map the quality to an effort, leaving standard to the server's per-feature tuning", () => {
     const base = { serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "d", statusItem: true, ai: true, showThinking: true, maxRounds: 24, attachView: false, dockAssistant: false } as const;
-    expect(recipeOptions({ ...base, quality: "standard" })).toEqual({ thinking: true });
-    expect(recipeOptions({ ...base, quality: "quick", showThinking: false })).toEqual({ thinking: false, effort: "low" });
-    expect(recipeOptions({ ...base, quality: "thorough" })).toEqual({ thinking: true, effort: "high" });
+    expect(recipeOptions({ ...base, quality: "standard" })).toEqual({});
+    expect(recipeOptions({ ...base, quality: "quick", showThinking: false })).toEqual({ effort: "low" });
+    expect(recipeOptions({ ...base, quality: "thorough" })).toEqual({ effort: "high" });
+    // Showing the reasoning is the panel's affair; the request is the same either way.
+    expect(recipeOptions({ ...base, quality: "thorough", showThinking: false })).toEqual({ effort: "high" });
     expect(QUALITY_EFFORT.standard).toBeUndefined();
     // Never a model: the service picks it.
     expect(Object.keys(recipeOptions({ ...base, quality: "thorough" }))).not.toContain("model");
@@ -193,5 +196,42 @@ describe("recipes over the client", () => {
     await expect(client.run("explain-triggers", { text: "t" })).rejects.toMatchObject({ code: "budget_exceeded", message: /Sign in to scmjs.dev/ });
     expect(recipes).toBe(0);
     expect(st.get().session).toBe("");
+  });
+});
+
+describe("the assistant's conversations", () => {
+  it("keep one per open map, keyed by the document id, and forget a map's when it closes", () => {
+    let front: number | null = 1;
+    let open = [1, 2];
+    const store = new Conversations({ id: () => front, list: () => open.map((id) => ({ id })) as never });
+    const one = store.current();
+    one.messages.push({ role: "user", content: [{ type: "text", text: "about map one" }] });
+    one.spent = 0.5;
+    front = 2;
+    const two = store.current();
+    expect(two).not.toBe(one);
+    expect(two.messages).toEqual([]);
+    front = 1;
+    expect(store.current()).toBe(one);
+    expect(store.current().spent).toBe(0.5);
+    // Map one closes: its conversation goes, map two's stays.
+    open = [2];
+    front = 2;
+    store.prune();
+    expect(store.size).toBe(1);
+    expect(store.current()).toBe(two);
+    // No map at all: a stand-in, the same each time, never pruned.
+    front = null;
+    const none = store.current();
+    none.prefill = "About here: ";
+    store.prune();
+    expect(store.current()).toBe(none);
+  });
+
+  it("names the map in the panel's title", () => {
+    expect(panelTitle(null)).toBe("AI Assistant");
+    expect(panelTitle({ name: "Big Game Hunters", fileName: "bgh.scx" })).toBe("AI Assistant · Big Game Hunters");
+    expect(panelTitle({ name: "  ", fileName: "bgh.scx" })).toBe("AI Assistant · bgh.scx");
+    expect(panelTitle({ name: "", fileName: null })).toBe("AI Assistant · untitled map");
   });
 });

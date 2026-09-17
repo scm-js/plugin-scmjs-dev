@@ -95,7 +95,12 @@ export interface RecipeOptions {
   /** One of the models the server lists in `/v1/info`. */
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
-  /** Ask for the model's reasoning summary in `thinking` events. */
+  /**
+   * Once the switch for the model's reasoning; ignored since server 0.9.0, which decides
+   * per recipe and effort (on, except at low effort) so the same quality is the same
+   * request for everyone. `thinking` events come whenever the call thinks; a client that
+   * does not want to show them leaves them unread.
+   */
   thinking?: boolean;
   /**
    * An id the caller makes for a conversation and keeps for its life (the assistant's

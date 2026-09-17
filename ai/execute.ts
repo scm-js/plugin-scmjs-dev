@@ -69,6 +69,20 @@ export async function executeCalls(calls: ToolCall[], deps: ExecuteDeps, hooks: 
     }
     try {
       await hooks.before?.(call, tool);
+      // The hook waited (the view gliding to the spot): Stop or a tab switch during that
+      // wait must be seen before the tool runs, or the write lands on the wrong map.
+      if (deps.signal.aborted) {
+        out.stopped = true;
+        out.results.push(toContent(call.id, STOPPED, true));
+        hooks.after?.(call, tool, { kind: "skipped", reason: STOPPED });
+        continue;
+      }
+      if (deps.api.document.id() !== deps.turnDoc) {
+        out.mapChanged = true;
+        out.results.push(toContent(call.id, `Error: ${MAP_CHANGED}`, true));
+        hooks.after?.(call, tool, { kind: "failed", message: MAP_CHANGED });
+        continue;
+      }
       if (!tool) throw new Error(`no tool called ${call.name}`);
       const result = await tool.run(input, deps.ctx);
       // As the tool returned it: each tool caps its own output to what it is for.

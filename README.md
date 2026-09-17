@@ -114,7 +114,8 @@ a drag on the map. The model sees the area and a margin round it as it is now, p
 picture, so the edges join.
 
 AI Options also holds two spending ceilings, one for an assistant message with its tool
-rounds and one for a Make Scenario design or build. At the ceiling the work stops with
+rounds and one for a Make Scenario design or build, which Write Triggers with its repair
+rounds also runs under. At the ceiling the work stops with
 the map as edited so far; the assistant offers to continue for as much again, and a
 build says which step it stopped at. The server holds the ceiling, so the last call
 can run a little over it but never a whole extra one. 0 turns a ceiling off.
@@ -166,7 +167,7 @@ than the view (never in) — scroll or zoom yourself and it leaves the view to y
 rest of the turn; the status bar's AI cell shows the same state, so the panel can be
 closed while it works; Escape stops. The transcript follows the work only while it is
 scrolled to the bottom. The chips above the input follow the layer and the selection. It can read everything: the map's
-facts and statistics, units (with every record field), doodads, sprites, locations,
+facts and statistics, units (with every record field, or counted by owner or type), doodads, sprites, locations,
 strings, switches, sounds, the triggers as text, the trigger script and its declarations,
 the settings of any unit type, upgrade or technology, the fog, a coarse terrain grid or
 one tile, Check Map, a screenshot of any area, every base with its mineral line and open
@@ -205,7 +206,12 @@ tool the model reads when a task needs them. Right-click on the map and choose
 The picture tick sends a screenshot of the visible area with the message. Each message also
 carries an id for the chat and its turn number, so the server's log can tell one chat's
 requests from another's; Clear starts a new id. It stops after the rounds of tool calls
-the Options allow (24 by default) and offers to continue.
+the Options allow (24 by default) and offers to continue, and the same when an answer
+runs past the model's output limit. Each open map has a conversation of its own: the
+panel's title names the map, switching tabs switches the conversation, and a turn that
+was running when you switched stops, as pressing Stop does, rather than carrying on
+against the other map — what it had changed stands, and a question the model had not
+yet answered is back in the input when you return.
 
 **Inside the editor's own dialogs.** Map Properties gets *Suggest a name*, which fills the
 name and description fields from what is on the map (OK writes them, as always). The
@@ -218,7 +224,8 @@ works on a request, and so what it costs: *Standard* gives each feature the sett
 tuned for, *Quick* the cheapest one, *Thorough* the highest. Under *Assistant*: the rounds
 of tool calls per message, the picture tick, whether the view follows the work (on to
 begin with), the dock, and whether the model's reasoning summary is shown while it
-works. Which model answers is the service's business and is never asked.
+works — shown or not, the model works the same; *Quick* is where it thinks less. Which
+model answers is the service's business and is never asked.
 
 ## Costs
 

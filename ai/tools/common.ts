@@ -67,16 +67,29 @@ export const obj = (properties: Record<string, unknown>, required: string[] = []
 /** The paging inputs every long list takes. */
 export const pageSchema = { limit: { type: "integer" }, offset: { type: "integer" } };
 
+/** What a page's rows may weigh serialized: under the result cap with the envelope beside them. */
+export const PAGE_BUDGET = RESULT_CAP - 600;
+
 /**
  * A page of the rows that matched: `matched` counts every match, `next` is the offset of
  * the page after when there is one, so the model can read on rather than ask again for
- * the first page.
+ * the first page. The page stops early when its rows would not fit the result cap, and
+ * `next` then points right after the last row given — a page of 200 marines used to be
+ * serialized whole and cut at the cap mid-record, with `next: 200` still promised, so the
+ * rows between the cut and 200 were never seen by anyone who read on.
  */
-export function paged<T>(rows: T[], input: Record<string, unknown>, defaultLimit: number, maxLimit: number): { count: number; matched: number; offset?: number; next?: number; items: T[] } {
+export function paged<T>(rows: T[], input: Record<string, unknown>, defaultLimit: number, maxLimit: number, budget = PAGE_BUDGET): { count: number; matched: number; offset?: number; next?: number; items: T[] } {
   const limit = Math.max(1, Math.min(maxLimit, Math.round(num(input.limit, defaultLimit))));
   const offset = Math.max(0, Math.round(num(input.offset)));
-  const items = rows.slice(offset, offset + limit);
-  return { count: items.length, matched: rows.length, ...(offset ? { offset } : {}), ...(offset + items.length < rows.length ? { next: offset + items.length } : {}), items };
+  const end = Math.min(rows.length, offset + limit);
+  let n = offset, size = 0;
+  while (n < end) {
+    size += JSON.stringify(rows[n]).length + 1;
+    if (size > budget && n > offset) break;
+    n++;
+  }
+  const items = rows.slice(offset, n);
+  return { count: items.length, matched: rows.length, ...(offset ? { offset } : {}), ...(n < rows.length ? { next: n } : {}), items };
 }
 
 /** `12 of 340, more follow` for a paged list's step line. */

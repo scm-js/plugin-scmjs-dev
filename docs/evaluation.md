@@ -310,8 +310,12 @@ Count the `list_units` calls and check the second one's `offset`.
 
 Map: BGH. Prompt as task 1. While it is running, switch to another open map tab.
 
-Correct: the response finishes against BGH (the turn is bound to the document id), the
-other map is untouched, and the panel says which map the answer belongs to.
+Correct: the turn stops as Stop does — no tool call runs after the switch, the panel
+shows it stopped, the other map is untouched — and the panel changes over to the other
+map's own conversation (its title names the map). Switching back to BGH shows its
+conversation as the history holds it: a turn stopped while the model was answering
+leaves the question in the input, one stopped between tool calls keeps the calls that
+ran. A turn is bound to the map it started on and never finishes against another.
 
 ### R7. A tileset with no bridges
 

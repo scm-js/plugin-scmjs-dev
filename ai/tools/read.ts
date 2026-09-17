@@ -1,10 +1,21 @@
 /** Reads: the map's facts, lists, lookups, the picture, and what the person is doing. */
 import { sampleGrid } from "../grid";
 import { scriptBridge } from "../script";
-import { imageInput, shrinkImage } from "../facts";
+import { imageInput, shrinkImageScaled, type ShrunkImage } from "../facts";
 import { REFERENCE_PARTS, REFERENCE_SECTIONS, referenceDetailFor, type ReferenceSection } from "../reference";
 import { terrainAtTile } from "../dialogs/region";
 import { byName, capResult, fail, hasRect, indexList, ints, jsonOf, noSuchTech, noSuchUnit, noSuchUpgrade, num, obj, ownerName, ownerOf, paged, pageReport, pageSchema, plural, rectOf, rectSchema, rectText, str, TILE, unitIdByName, type Tool } from "./common";
+
+/**
+ * What a screenshot says about its own scale: the pixels per tile the picture *has*, which
+ * is fewer than it was drawn at when it had to be drawn smaller to fit the request — the
+ * conversion the model reads off this line was wrong by that factor before.
+ */
+export function screenshotText(rect: { x0: number; y0: number; x1: number; y1: number }, drawnPpt: number, shrunk: ShrunkImage): string {
+  const ppt = shrunk.scale === 1 ? String(drawnPpt) : String(+(drawnPpt * shrunk.scale).toFixed(2));
+  const note = shrunk.scale === 1 ? "" : ` (drawn at ${drawnPpt}, shrunk to ${shrunk.width}×${shrunk.height} px to fit)`;
+  return `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile${note}: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`;
+}
 
 export function readTools(): Tool[] {
   return [
@@ -56,13 +67,15 @@ export function readTools(): Tool[] {
       },
     },
     {
-      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. Pages of 200.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } } }) },
-      describe: (input) => `List ${input.owner !== undefined ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}`,
-      report: pageReport,
+      def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. `group` (owner, name or both) answers with a count and resource total per group instead of rows — for counting or totals, ask that way. Pages of up to 200 (fewer when rows are long); `next` is where the next page starts.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } }, group: { type: "string", enum: ["owner", "name", "both"] } }) },
+      describe: (input) => `List ${input.owner !== undefined ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}${str(input.group) ? ` by ${str(input.group) === "both" ? "owner and name" : str(input.group)}` : ""}`,
+      report: (result) => { const r = jsonOf(result); return r?.groups !== undefined ? `${plural(num(r.count), "group")} of ${plural(num(r.matched), "unit")}` : pageReport(result); },
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return fail("No map is open.");
+        const group = str(input.group);
+        if (group && group !== "owner" && group !== "name" && group !== "both") return fail(`\`group\` is owner, name or both, not "${group}".`);
         const owner = input.owner === undefined ? null : ownerOf(input.owner);
         const name = str(input.name).toLowerCase();
         const rect = hasRect(input) ? rectOf(input, api) : null;
@@ -81,6 +94,20 @@ export function readTools(): Tool[] {
           if (details) Object.assign(row, { px: u.x, py: u.y, hitPointsPercent: u.hitPointsPercent, shieldPercent: u.shieldPercent, energyPercent: u.energyPercent, hangar: u.hangarUnits, cloaked: !!(u.stateFlags & 1), burrowed: !!(u.stateFlags & 2), inTransit: !!(u.stateFlags & 4), hallucinated: !!(u.stateFlags & 8), invincible: !!(u.stateFlags & 16), serial: u.serial });
           out.push(row);
         });
+        if (group) {
+          // Counts and resource totals per owner and/or name: a counting question answered in one read, not a walk through every page.
+          const by = new Map<string, { owner?: string; name?: string; count: number; amount: number }>();
+          for (const r of out as { owner: string; name: string; amount?: number }[]) {
+            const key = group === "owner" ? r.owner : group === "name" ? r.name : `${r.owner}\u0000${r.name}`;
+            let g = by.get(key);
+            if (!g) { g = { ...(group !== "name" ? { owner: r.owner } : {}), ...(group !== "owner" ? { name: r.name } : {}), count: 0, amount: 0 }; by.set(key, g); }
+            g.count++;
+            g.amount += r.amount ?? 0;
+          }
+          const groups = [...by.values()].sort((a, b) => b.count - a.count).map(({ amount, ...g }) => (amount ? { ...g, amount } : g));
+          const p = paged(groups, input, 200, 1000);
+          return capResult({ count: p.count, matched: out.length, total: scn.units.length, groupsMatched: p.matched, offset: p.offset, next: p.next, groups: p.items });
+        }
         const p = paged(out, input, 200, 1000);
         return capResult({ count: p.count, matched: p.matched, total: scn.units.length, offset: p.offset, next: p.next, units: p.items });
       },
@@ -262,7 +289,7 @@ export function readTools(): Tool[] {
     {
       def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
       describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
-      report: (result) => { const m = /at (\d+) px per tile/.exec(typeof result === "string" ? result : result.text ?? ""); return m ? `${m[1]} px per tile` : "picture"; },
+      report: (result) => { const m = /at ([\d.]+) px per tile/.exec(typeof result === "string" ? result : result.text ?? ""); return m ? `${m[1]} px per tile` : "picture"; },
       writes: false,
       run: async (input, { api }) => {
         const info = api.document.info();
@@ -273,7 +300,8 @@ export function readTools(): Tool[] {
         await api.tileset.load();
         const blob = await api.graphics.renderRect(rect, { pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, grid: 0 });
         if (!blob) return "The map cannot be rendered (tileset graphics missing).";
-        return { text: `Tiles ${rect.x0},${rect.y0} to ${rect.x1},${rect.y1} at ${ppt} px per tile: tile x = ${rect.x0} + px / ${ppt}, y = ${rect.y0} + py / ${ppt}.`, image: await imageInput(await shrinkImage(blob)) };
+        const shrunk = await shrinkImageScaled(blob);
+        return { text: screenshotText(rect, ppt, shrunk), image: await imageInput(shrunk.blob) };
       },
     },
     {

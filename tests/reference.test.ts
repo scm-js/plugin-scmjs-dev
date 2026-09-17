@@ -115,8 +115,11 @@ describe("assistant history", () => {
     }
     const t = trimHistory(m, 10, 8);
     expect(t.length).toBeLessThanOrEqual(8);
-    expect(t[0].role).toBe("user");
-    expect(t[0].content[0].type).toBe("text");
+    // The brief stays in front — the first request carries the constraints the rest works under — then the tail from a clean user message.
+    expect(t[0]).toBe(m[0]);
+    expect(t[1].role).toBe("user");
+    expect(t[1].content[0].type).toBe("text");
+    expect((t[1].content[0] as { text: string }).text).not.toBe("q0");
     expect(trimHistory(m.slice(0, 4), 10)).toHaveLength(4);
     // Under the limit nothing moves, so the server's cache of the conversation survives; over it a whole chunk goes at once.
     const ten = m.slice(0, 10);
@@ -203,6 +206,18 @@ describe("assistant history", () => {
     expect(paged(rows, { offset: 3, limit: 3 }, 3, 10)).toEqual({ count: 3, matched: 7, offset: 3, next: 6, items: [3, 4, 5] });
     expect(paged(rows, { offset: 6 }, 3, 10)).toEqual({ count: 1, matched: 7, offset: 6, items: [6] });
     expect(paged(rows, { limit: 99 }, 3, 5)).toMatchObject({ count: 5, next: 5 });
+    // A page stops where its rows would no longer fit the result cap, and `next` is right after the last row given — never a cut through a record.
+    const long = Array.from({ length: 50 }, (_, i) => ({ index: i, name: "Terran Marine", owner: "Player 1", x: 10 + i, y: 20 }));
+    const rowLength = JSON.stringify(long[0]).length + 1;
+    const page = paged(long, {}, 200, 1000, rowLength * 10 + 5);
+    expect(page.count).toBe(10);
+    expect(page.next).toBe(10);
+    expect(page.items[9]).toEqual(long[9]);
+    const rest = paged(long, { offset: page.next }, 200, 1000, rowLength * 100);
+    expect(rest).toMatchObject({ count: 40, offset: 10, matched: 50 });
+    expect(rest.next).toBeUndefined();
+    // One row is always given, however long it is.
+    expect(paged(long, {}, 200, 1000, 5)).toMatchObject({ count: 1, next: 1 });
     expect(windowOf("short", 0, 100)).toBe("short");
     expect(windowOf("abcdefghij", 0, 4)).toBe("10 characters in all; showing 0–4; ask again with offset=4 for the rest.\n\nabcd");
     expect(windowOf("abcdefghij", 8, 4)).toBe("10 characters in all; showing 8–10.\n\nij");

@@ -60,6 +60,26 @@ describe("executeCalls", () => {
     expect(s.outcomes[2]).toEqual(["c", "failed"]);
   });
 
+  it("sees a map switch or a Stop that happened while the hook before a call waited", async () => {
+    let doc = 1;
+    const s = setup(() => doc);
+    const glide = () => new Promise<void>((r) => setTimeout(r, 5));
+    const r = await executeCalls([call("a", "place"), call("b", "place")], { ...s, signal: new AbortController().signal, turnDoc: 1 }, { ...s.hooks, before: async (c) => { await glide(); if (c.id === "b") doc = 2; } });
+    expect(s.written).toEqual(["place"]);
+    expect(r.mapChanged).toBe(true);
+    expect(r.edits).toEqual(["place"]);
+    expect(r.results[1]).toMatchObject({ isError: true, content: `Error: ${MAP_CHANGED}` });
+    expect(s.outcomes).toEqual([["a", "done"], ["b", "failed"]]);
+
+    const t = setup();
+    const ac = new AbortController();
+    const stopped = await executeCalls([call("a", "place"), call("b", "read")], { ...t, signal: ac.signal, turnDoc: 1 }, { ...t.hooks, before: async () => { await glide(); ac.abort(); } });
+    expect(t.written).toEqual([]);
+    expect(stopped.stopped).toBe(true);
+    expect(stopped.results.map((x) => x.type === "tool_result" && x.content)).toEqual([STOPPED, STOPPED]);
+    expect(t.outcomes).toEqual([["a", "skipped"], ["b", "skipped"]]);
+  });
+
   it("treats a failure in the hook before a call as that call failing, and goes on", async () => {
     const s = setup();
     const r = await executeCalls([call("a", "place"), call("b", "read")], { ...s, signal: new AbortController().signal, turnDoc: 1 }, { before: (c) => { if (c.id === "a") throw new Error("could not glide"); } });
