@@ -35,6 +35,17 @@ export interface ToolkitContext {
   usedDcUnits?: string[];
   /** Switches the map's own triggers already set or test (by name, "Switch 12"); the allocator passes over them. */
   usedSwitches?: string[];
+  /** Whether a unit name is a building's — asked of the editor's unit tables. Without it nothing is taken for one. */
+  isBuilding?: (unit: string) => boolean;
+}
+
+/** A unit to put on the map itself rather than make by trigger: whoever adds the system places it, inside the location. */
+export interface Placement {
+  /** 1-based. */
+  player: number;
+  unit: string;
+  count: number;
+  location: string;
 }
 
 export interface BuiltSystem {
@@ -46,6 +57,8 @@ export interface BuiltSystem {
   notes: string[];
   /** Death-counter units this system took. */
   dcUsed: string[];
+  /** Units to place on the map, inside a location — buildings, which a trigger can only make at a location's very centre. */
+  place: Placement[];
 }
 
 export class ToolkitError extends Error {
@@ -347,7 +360,7 @@ interface Kind {
   spec: SystemKindSpec;
   /** The builder fills `{p}` itself (one trigger per player inside one system); the others are built once per player by `buildSystem`. */
   perPlayer?: boolean;
-  build(r: Reader, ctx: ToolkitContext, dc: Counters): { triggers: string[]; notes?: string[] };
+  build(r: Reader, ctx: ToolkitContext, dc: Counters): { triggers: string[]; notes?: string[]; place?: Placement[] };
 }
 
 const P = (name: string, description: string, required = false): SystemParamSpec => ({ name, description, required });
@@ -388,23 +401,34 @@ const KINDS: Kind[] = [
     perPlayer: true,
     spec: {
       kind: "start-units",
-      description: "What each player starts the game with: the `units` are created once at `location` (usually `{p}`-numbered, one per player) when the game begins. A layout preset places start locations and nothing else, so without this a player owns nothing — nothing to build with, to fight with, or to stand on a shop's beacon.",
+      description: "What each player starts the game with, at `location` (usually `{p}`-numbered, one per player): buildings are placed on the map inside the location, side by side, and the other `units` are created there by a trigger when the game begins. A layout preset places start locations and nothing else, so without this a player owns nothing — nothing to build with, to fight with, or to stand on a shop's beacon. Give the players' slots a real race (not userSelect): the game drops a User Selectable player's placed buildings and hands out a melee start instead.",
       params: [P("units", "unit names, comma-separated, each with an optional count in front: \"1 Terran SCV, 4 Terran Marine\"", true), L("location", "where they appear; may contain {p} for the player number", true), P("players", "humans (default), computers, all, or player numbers")],
       creates: ["units"],
     },
-    build(r) {
+    build(r, ctx) {
       const units = r.list("units").map(countedUnit);
       if (units.length === 0) r.problems.push('"units" needs at least one unit name');
       const location = r.str("location");
       const players = r.players("players");
+      // A trigger makes a building only at the very centre of a location, and refuses ("Unit unplaceable") when
+      // anything is there — the unit made a line above, or the building before it. So buildings are not made by
+      // trigger at all: they are placed on the map, where the editor's own placement check finds each a free spot.
+      const buildings = units.filter((u) => ctx.isBuilding?.(u.unit));
+      const made = units.filter((u) => !buildings.includes(u));
       const triggers: string[] = [];
+      const place: Placement[] = [];
       for (const p of players) {
         const loc = fillTemplate(location, p);
         r.locationIn("location", loc);
+        for (const b of buildings) place.push({ player: p, unit: b.unit, count: b.count, location: loc });
         // Once, in the first trigger cycle: no Preserve Trigger.
-        triggers.push(...chunks([p], [], units.map((u) => a.create(p, u.unit, u.count, loc))));
+        if (made.length) triggers.push(...chunks([p], [], made.map((u) => a.create(p, u.unit, u.count, loc))));
       }
-      return { triggers, notes: [`${units.map((u) => `${u.count} ${u.unit}`).join(", ")} for each of players ${players.join(", ")}, once, when the game starts`] };
+      const list = (xs: typeof units) => xs.map((u) => `${u.count} ${u.unit}`).join(", ");
+      const notes: string[] = [];
+      if (made.length) notes.push(`${list(made)} for each of players ${players.join(", ")}, once, when the game starts`);
+      if (buildings.length) notes.push(`${list(buildings)} placed on the map in each player's location — buildings cannot be made side by side by a trigger; their owners need a real race in Player Settings, since the game drops a User Selectable player's placed units`);
+      return { triggers, notes, place };
     },
   },
   {
@@ -1073,6 +1097,7 @@ function buildPerPlayer(k: Kind, params: Params, ctx: ToolkitContext, dc: Counte
     count: parts.reduce((n, x) => n + x.count, 0),
     notes: [`built once per player (${players.join(", ")}) from the {p} template`, ...notes],
     dcUsed: parts.flatMap((x) => x.dcUsed),
+    place: parts.flatMap((x) => x.place),
   };
 }
 
@@ -1082,7 +1107,7 @@ function buildOne(k: Kind, params: Params, ctx: ToolkitContext, dc: Counters): B
   const out = k.build(reader, ctx, dc);
   reader.finish();
   const text = out.triggers.join("\n");
-  return { text, count: out.triggers.length, notes: [...reader.notes, ...(out.notes ?? [])], dcUsed: dc.used.slice(before) };
+  return { text, count: out.triggers.length, notes: [...reader.notes, ...(out.notes ?? [])], dcUsed: dc.used.slice(before), place: out.place ?? [] };
 }
 
 /** Build several systems in one go, sharing the death-counter allocation. */

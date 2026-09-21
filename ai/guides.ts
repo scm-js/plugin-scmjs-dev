@@ -74,7 +74,7 @@ Waves of enemy units walk from a spawn to a goal; the players kill them on the w
 - \`income\` per wave or per tower (\`perUnit\`) if the map wants a steady economy.
 - \`leaderboard\` kills, \`objectives\`, \`message\` for the first wave.
 
-**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak — give lives. A shop whose \`buyer\` is a unit nobody was given sells nothing.`;
+**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak — give lives. A shop whose \`buyer\` is a unit nobody was given sells nothing; two shops on one pad need different buyers, or the cheaper one always sells first. Air units ignore the lanes: they fly straight from the spawn to the goal over walls and water, out of sight of everything beside the lane — keep the waves on the ground unless the goal itself is defended against air and the players are told.`;
 
 const RPG = `# RPG maps
 

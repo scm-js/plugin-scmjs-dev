@@ -4424,22 +4424,30 @@ var KINDS = [
     perPlayer: true,
     spec: {
       kind: "start-units",
-      description: "What each player starts the game with: the `units` are created once at `location` (usually `{p}`-numbered, one per player) when the game begins. A layout preset places start locations and nothing else, so without this a player owns nothing \u2014 nothing to build with, to fight with, or to stand on a shop's beacon.",
+      description: "What each player starts the game with, at `location` (usually `{p}`-numbered, one per player): buildings are placed on the map inside the location, side by side, and the other `units` are created there by a trigger when the game begins. A layout preset places start locations and nothing else, so without this a player owns nothing \u2014 nothing to build with, to fight with, or to stand on a shop's beacon. Give the players' slots a real race (not userSelect): the game drops a User Selectable player's placed buildings and hands out a melee start instead.",
       params: [P2("units", 'unit names, comma-separated, each with an optional count in front: "1 Terran SCV, 4 Terran Marine"', true), L("location", "where they appear; may contain {p} for the player number", true), P2("players", "humans (default), computers, all, or player numbers")],
       creates: ["units"]
     },
-    build(r) {
+    build(r, ctx) {
       const units = r.list("units").map(countedUnit);
       if (units.length === 0) r.problems.push('"units" needs at least one unit name');
       const location2 = r.str("location");
       const players2 = r.players("players");
+      const buildings = units.filter((u) => ctx.isBuilding?.(u.unit));
+      const made = units.filter((u) => !buildings.includes(u));
       const triggers = [];
+      const place = [];
       for (const p of players2) {
         const loc2 = fillTemplate(location2, p);
         r.locationIn("location", loc2);
-        triggers.push(...chunks([p], [], units.map((u) => a.create(p, u.unit, u.count, loc2))));
+        for (const b of buildings) place.push({ player: p, unit: b.unit, count: b.count, location: loc2 });
+        if (made.length) triggers.push(...chunks([p], [], made.map((u) => a.create(p, u.unit, u.count, loc2))));
       }
-      return { triggers, notes: [`${units.map((u) => `${u.count} ${u.unit}`).join(", ")} for each of players ${players2.join(", ")}, once, when the game starts`] };
+      const list2 = (xs) => xs.map((u) => `${u.count} ${u.unit}`).join(", ");
+      const notes = [];
+      if (made.length) notes.push(`${list2(made)} for each of players ${players2.join(", ")}, once, when the game starts`);
+      if (buildings.length) notes.push(`${list2(buildings)} placed on the map in each player's location \u2014 buildings cannot be made side by side by a trigger; their owners need a real race in Player Settings, since the game drops a User Selectable player's placed units`);
+      return { triggers, notes, place };
     }
   },
   {
@@ -5090,7 +5098,8 @@ function buildPerPlayer(k, params, ctx, dc) {
     text: parts.map((x) => x.text).join("\n"),
     count: parts.reduce((n2, x) => n2 + x.count, 0),
     notes: [`built once per player (${players2.join(", ")}) from the {p} template`, ...notes],
-    dcUsed: parts.flatMap((x) => x.dcUsed)
+    dcUsed: parts.flatMap((x) => x.dcUsed),
+    place: parts.flatMap((x) => x.place)
   };
 }
 function buildOne(k, params, ctx, dc) {
@@ -5099,7 +5108,7 @@ function buildOne(k, params, ctx, dc) {
   const out = k.build(reader, ctx, dc);
   reader.finish();
   const text = out.triggers.join("\n");
-  return { text, count: out.triggers.length, notes: [...reader.notes, ...out.notes ?? []], dcUsed: dc.used.slice(before) };
+  return { text, count: out.triggers.length, notes: [...reader.notes, ...out.notes ?? []], dcUsed: dc.used.slice(before), place: out.place ?? [] };
 }
 function paramsOf(list2) {
   const out = {};
@@ -5137,6 +5146,17 @@ function keeperFor(d) {
     }
   }
   return KEEPERS.find((k) => !named.has(k.toLowerCase())) ?? null;
+}
+function placedBuildingsRace(systems, isBuilding) {
+  for (const s of systems) {
+    if (s.kind !== "start-units") continue;
+    for (const v of (s.params.find((p) => p.key === "units")?.value ?? "").split(/\s*[,;]\s*/)) {
+      const unit = countedUnit(v).unit;
+      const race = /^(terran|zerg|protoss)\b/i.exec(unit)?.[1].toLowerCase();
+      if (race && isBuilding?.(unit)) return race;
+    }
+  }
+  return null;
 }
 function counterBudget(d, ctx) {
   const taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
@@ -5246,7 +5266,7 @@ Waves of enemy units walk from a spawn to a goal; the players kill them on the w
 - \`income\` per wave or per tower (\`perUnit\`) if the map wants a steady economy.
 - \`leaderboard\` kills, \`objectives\`, \`message\` for the first wave.
 
-**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak \u2014 give lives. A shop whose \`buyer\` is a unit nobody was given sells nothing.`;
+**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak \u2014 give lives. A shop whose \`buyer\` is a unit nobody was given sells nothing; two shops on one pad need different buyers, or the cheaper one always sells first. Air units ignore the lanes: they fly straight from the spawn to the goal over walls and water, out of sight of everything beside the lane \u2014 keep the waves on the ground unless the goal itself is defended against air and the players are told.`;
 var RPG = `# RPG maps
 
 Each player controls a hero (a named unit, or an ordinary unit with Unit Settings) through a world of quests, shops and bosses. Progression is minerals from kills spent at shops, upgrades bought at beacons, and story told by text.
@@ -5522,7 +5542,11 @@ function toolkitContext(api, options = {}) {
   const tempo = options.tempo ?? mapTempo(api, triggers);
   const locations = [...usedLocationNames(api), ...options.extraLocations ?? []];
   const used = usedTriggerState(api, triggers);
-  return { humans: humans.length ? humans : [1], computers, tempo, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
+  const isBuilding = (unit) => {
+    const id = unitIdByName2(api, unit);
+    return id !== null && api.palette.unitSize(id).building;
+  };
+  return { isBuilding, humans: humans.length ? humans : [1], computers, tempo, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
 }
 function usedTriggerState(api, triggers = api.triggers.list()) {
   const { condition, action } = api.consts.triggers;
@@ -5551,12 +5575,52 @@ function usedLocationNames(api) {
 }
 function addSystem(api, kind, params, ctx, label = `AI: ${kind}`) {
   const built = buildSystem(kind, params, ctx);
-  const parsed = api.triggers.text.parse(built.text, { briefing: false });
-  api.document.update(label, (tx) => {
+  const parsed = built.text.trim() ? api.triggers.text.parse(built.text, { briefing: false }) : [];
+  if (parsed.length) api.document.update(label, (tx) => {
     for (const t of parsed) tx.triggers.add(t.trigger);
   });
-  return { count: parsed.length, notes: built.notes };
+  const placed = built.place.length ? placeInLocations(api, built.place, label) : { placed: 0, notes: [] };
+  return { count: parsed.length, placed: placed.placed, notes: [...built.notes, ...placed.notes] };
 }
+function placeInLocations(api, list2, label) {
+  const scn = api.document.scenario();
+  if (!scn) return { placed: 0, notes: [] };
+  const notes = [];
+  let placed = 0;
+  const boxes = [];
+  api.document.edit(label, (tx) => {
+    for (const want of list2) {
+      const id = unitIdByName2(api, want.unit);
+      const at = scn.locations.findIndex((_, i) => api.names.location(i).toLowerCase() === want.location.toLowerCase());
+      if (id === null || at < 0) {
+        notes.push(`${want.unit} for player ${want.player} was not placed: ${id === null ? "no such unit" : `no location "${want.location}"`}`);
+        continue;
+      }
+      const l = scn.locations[at];
+      const x0 = Math.min(l.left, l.right), x1 = Math.max(l.left, l.right), y0 = Math.min(l.top, l.bottom), y1 = Math.max(l.top, l.bottom);
+      const size = api.palette.unitSize(id);
+      const halfW = size.width / 2, halfH = size.height / 2;
+      let left = want.count;
+      for (let y = y0 + halfH; left > 0 && y + halfH <= y1; y += TILE_PX) {
+        for (let x = x0 + halfW; left > 0 && x + halfW <= x1; x += TILE_PX) {
+          const box = { x0: x - halfW - TILE_PX, y0: y - halfH - TILE_PX, x1: x + halfW + TILE_PX, y1: y + halfH + TILE_PX };
+          if (boxes.some((b) => box.x0 < b.x1 - TILE_PX && box.x1 - TILE_PX > b.x0 && box.y0 < b.y1 - TILE_PX && box.y1 - TILE_PX > b.y0)) continue;
+          if (!tx.canPlaceUnit(id, x, y)) continue;
+          boxes.push(box);
+          tx.placeUnit(id, want.player - 1, x, y);
+          placed++;
+          left--;
+        }
+      }
+      if (left > 0) {
+        const why = api.query.placement(id, (x0 + x1) / 2, (y0 + y1) / 2)?.reason;
+        notes.push(`${left} ${want.unit} for player ${want.player} found no room in "${want.location}"${why ? ` (at its middle: ${why})` : ""}: place ${left === 1 ? "it" : "them"} by hand, or the player starts without`);
+      }
+    }
+  });
+  return { placed, notes };
+}
+var TILE_PX = 32;
 function umsTools() {
   return [
     {
@@ -5598,7 +5662,7 @@ ${guideIndex()}`;
         for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
         try {
           const r = addSystem(api, kind, params, toolkitContext(api));
-          return capResult({ added: r.count, triggers: api.triggers.list().length, notes: r.notes });
+          return capResult({ added: r.count, ...r.placed ? { placed: r.placed } : {}, triggers: api.triggers.list().length, notes: r.notes });
         } catch (err) {
           if (err instanceof ToolkitError) return fail(`Not built:
 ${err.problems.map((p) => `- ${p}`).join("\n")}`);
@@ -9620,6 +9684,8 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
             const raceOf = (label) => api.names.races().find((r) => r.label.toLowerCase() === label)?.value;
             const races = { terran: "terran", zerg: "zerg", protoss: "protoss", random: "random", userSelect: "user selectable" };
             let changed = 0;
+            const raced = [];
+            const placedRace = placedBuildingsRace(toBuild, toolkitContext(api, { tempo }).isBuilding);
             api.document.update("AI: players and forces", (tx) => {
               for (let slot = 0; slot < 8; slot++) {
                 const p = d.players.find((x) => x.slot === slot + 1);
@@ -9627,12 +9693,15 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
                   if (tx.players.set(slot, { type: typeOf("inactive") ?? 0 })) changed++;
                   continue;
                 }
-                if (tx.players.set(slot, { type: typeOf(p.type) ?? 6, race: raceOf(races[p.race] ?? p.race) ?? 5, force: Math.max(0, Math.min(3, p.force - 1)) })) changed++;
+                const race = p.race === "userSelect" && p.type === "human" && placedRace ? placedRace : p.race;
+                if (race !== p.race) raced.push(p.slot);
+                if (tx.players.set(slot, { type: typeOf(p.type) ?? 6, race: raceOf(races[race] ?? race) ?? 5, force: Math.max(0, Math.min(3, p.force - 1)) })) changed++;
               }
               for (const f of d.forces) {
                 if (tx.forces.set(f.index - 1, { name: f.name, allied: f.allied, alliedVictory: f.alliedVictory, sharedVision: f.sharedVision })) changed++;
               }
             });
+            if (raced.length) findings.push(`player${raced.length === 1 ? "" : "s"} ${raced.join(", ")}: race set to ${placedRace} instead of User Selectable \u2014 the game drops a User Selectable player's placed buildings and gives a melee start instead`);
             const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
             const missing = humans.filter((p) => !starts.has(p));
             if (missing.length) {
@@ -9675,7 +9744,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
               try {
                 const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { tempo, extraLocations: locationNames2 }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n2) => `${s.name}: ${n2}`));
-                return `${r.count} trigger${r.count === 1 ? "" : "s"}`;
+                return [r.count ? `${r.count} trigger${r.count === 1 ? "" : "s"}` : "", r.placed ? `${r.placed} placed on the map` : ""].filter(Boolean).join(", ") || "nothing to add";
               } catch (err) {
                 if (err instanceof ToolkitError) throw new Error(err.problems.join("; "));
                 throw err;

@@ -26,7 +26,7 @@ import { buildPreset, presetSpecs, PresetError } from "../presets";
 import { bridgePairOf, rampPairsOf } from "../ramps";
 import { renderPlan, summarizeRender } from "../render";
 import { existingTriggersFor, handTriggers, hasScriptPlugin, repairDiagnostic, scriptBridge, type CompileResult } from "../script";
-import { budgetText, buildOutcome, counterBudget, designTempo, keeperFor, outcomeText, systemsToBuild, type BuildOutcome } from "../scenarioBuild";
+import { budgetText, buildOutcome, counterBudget, designTempo, keeperFor, outcomeText, placedBuildingsRace, systemsToBuild, type BuildOutcome } from "../scenarioBuild";
 import { toolkitContext, addSystem, hasPrograms } from "../tools/ums";
 import { paramsOf, systemKinds, ToolkitError, waitingOn } from "../ums";
 import { chips, h, ledgerLine, noteList, Runner, runRecipe, styled, textarea, type Ctx, taskFor } from "../ui";
@@ -446,16 +446,23 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
             const raceOf = (label: string) => api.names.races().find((r) => r.label.toLowerCase() === label)?.value;
             const races: Record<string, string> = { terran: "terran", zerg: "zerg", protoss: "protoss", random: "random", userSelect: "user selectable" };
             let changed = 0;
+            const raced: number[] = [];
+            const placedRace = placedBuildingsRace(toBuild, toolkitContext(api, { tempo }).isBuilding);
             api.document.update("AI: players and forces", (tx) => {
               for (let slot = 0; slot < 8; slot++) {
                 const p = d.players.find((x) => x.slot === slot + 1);
                 if (!p) { if (tx.players.set(slot, { type: typeOf("inactive") ?? 0 })) changed++; continue; }
-                if (tx.players.set(slot, { type: typeOf(p.type) ?? 6, race: raceOf(races[p.race] ?? p.race) ?? 5, force: Math.max(0, Math.min(3, p.force - 1)) })) changed++;
+                // A User Selectable player's placed units are dropped by the game, which hands out a melee start instead:
+                // whoever is given buildings on the map gets the race those buildings are of.
+                const race = p.race === "userSelect" && p.type === "human" && placedRace ? placedRace : p.race;
+                if (race !== p.race) raced.push(p.slot);
+                if (tx.players.set(slot, { type: typeOf(p.type) ?? 6, race: raceOf(races[race] ?? race) ?? 5, force: Math.max(0, Math.min(3, p.force - 1)) })) changed++;
               }
               for (const f of d.forces) {
                 if (tx.forces.set(f.index - 1, { name: f.name, allied: f.allied, alliedVictory: f.alliedVictory, sharedVision: f.sharedVision })) changed++;
               }
             });
+            if (raced.length) findings.push(`player${raced.length === 1 ? "" : "s"} ${raced.join(", ")}: race set to ${placedRace} instead of User Selectable — the game drops a User Selectable player's placed buildings and gives a melee start instead`);
             // Every human needs a start location; one the plan did not place goes at a location named for the player, else spread near the centre.
             const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
             const missing = humans.filter((p) => !starts.has(p));
@@ -502,7 +509,7 @@ export function openScenario(ctx: Ctx, presetPrompt?: string) {
               try {
                 const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { tempo, extraLocations: locationNames }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n) => `${s.name}: ${n}`));
-                return `${r.count} trigger${r.count === 1 ? "" : "s"}`;
+                return [r.count ? `${r.count} trigger${r.count === 1 ? "" : "s"}` : "", r.placed ? `${r.placed} placed on the map` : ""].filter(Boolean).join(", ") || "nothing to add";
               } catch (err) {
                 if (err instanceof ToolkitError) throw new Error(err.problems.join("; "));
                 throw err;

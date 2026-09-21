@@ -106,6 +106,21 @@ describe("starting units", () => {
     expect(countedUnit("Terran SCV")).toEqual({ unit: "Terran SCV", count: 1 });
   });
 
+  it("buildings are not made by trigger — a trigger makes one only at a location's centre — but handed over to be placed", () => {
+    const yards = { ...ctx, locations: [...LOCATIONS, "Yard 1", "Yard 2"], isBuilding: (u: string) => /Barracks|Engineering Bay/.test(u) };
+    const b = buildSystem("start-units", { units: "1 Terran SCV, Terran Engineering Bay, Terran Barracks, 2 Terran Marine", location: "Yard {p}" }, yards);
+    expect(b.text).not.toMatch(/Barracks|Engineering Bay/);
+    expect(b.count).toBe(2);
+    expect(b.place).toEqual([
+      { player: 1, unit: "Terran Engineering Bay", count: 1, location: "Yard 1" }, { player: 1, unit: "Terran Barracks", count: 1, location: "Yard 1" },
+      { player: 2, unit: "Terran Engineering Bay", count: 1, location: "Yard 2" }, { player: 2, unit: "Terran Barracks", count: 1, location: "Yard 2" },
+    ]);
+    expect(b.notes[1]).toMatch(/placed on the map in each player's location.*real race/);
+    const only = buildSystem("start-units", { units: "Terran Barracks", location: "Yard {p}", players: "1" }, yards);
+    expect([only.count, only.text.trim(), only.place.length]).toEqual([0, "", 1]);
+    expect(buildSystem("spawn", { location: "Start", unit: "Zerg Zergling" }, ctx).place).toEqual([]);
+  });
+
   it("the catalogue says which kinds give the players units, and which need one owned", () => {
     const kinds = systemKinds();
     expect(kinds.filter((k) => k.creates).map((k) => `${k.kind}: ${k.creates!.join(",")}`)).toEqual(["start-units: units", "spawn: unit", "stages: units", "checkpoints: unit", "respawn: unit"]);

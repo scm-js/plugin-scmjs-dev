@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { budgetText, buildOutcome, counterBudget, designTempo, keeperFor, outcomeText, systemsToBuild } from "../ai/scenarioBuild";
+import { budgetText, buildOutcome, counterBudget, designTempo, keeperFor, outcomeText, placedBuildingsRace, systemsToBuild } from "../ai/scenarioBuild";
+import { placeInLocations } from "../ai/tools/ums";
+import type { PluginApi } from "@scm-js/plugin-api";
 import { DEFAULT_DC_UNITS, type ToolkitContext } from "../ai/ums";
 import type { DesignSystem } from "../protocol";
 
@@ -63,5 +65,40 @@ describe("what a build came to", () => {
     expect(outcomeText("Bound", { ...none, failed: 2, waiting: 1 })).toBe("Built Bound with 2 failed, 1 waiting.");
     expect(buildOutcome({ ...none, notRun: 9, failed: 1 })).toBe("failed");
     expect(outcomeText("Bound", { failed: 0, waiting: 0, notRun: 4, stopped: true })).toBe("Stopped building Bound: 4 not run. What was built stays.");
+  });
+});
+
+describe("buildings a design gives the players", () => {
+  const isBuilding = (u: string) => /Barracks|Hatchery/.test(u);
+
+  it("say which race a User Selectable player has to become", () => {
+    expect(placedBuildingsRace([sys("start-units", { units: "1 Terran SCV, Terran Barracks" })], isBuilding)).toBe("terran");
+    expect(placedBuildingsRace([sys("start-units", { units: "4 Zerg Drone, 1 Zerg Hatchery" })], isBuilding)).toBe("zerg");
+    expect(placedBuildingsRace([sys("start-units", { units: "1 Terran SCV" })], isBuilding)).toBeNull();
+    expect(placedBuildingsRace([sys("spawn", { unit: "Terran Barracks" })], isBuilding)).toBeNull();
+  });
+
+  it("are placed side by side inside the location, wherever the editor's check lets them stand", () => {
+    // A 14 × 12 tile yard at tile 10,10; a 4 × 3 building; the start location's tiles in the middle are taken.
+    const placed: { id: number; owner: number; x: number; y: number }[] = [];
+    const overlaps = (x: number, y: number, o: { x: number; y: number }) => Math.abs(x - o.x) < 128 && Math.abs(y - o.y) < 96;
+    const tx = {
+      canPlaceUnit: (_id: number, x: number, y: number) => !overlaps(x, y, { x: 17 * 32, y: 16 * 32 }) && !placed.some((o) => overlaps(x, y, o)),
+      placeUnit: (id: number, owner: number, x: number, y: number) => placed.push({ id, owner, x, y }),
+    };
+    const api = {
+      document: { scenario: () => ({ locations: [{ left: 320, top: 320, right: 320 + 14 * 32, bottom: 320 + 12 * 32 }] }), edit: (_l: string, fn: (t: typeof tx) => void) => fn(tx) },
+      names: { location: () => "Yard 1", units: () => [{ label: "Terran Barracks", value: 111 }] },
+      query: { placement: () => ({ problem: "collision", blocker: 0, reason: "it overlaps Terran Barracks" }) },
+      palette: { unitSize: () => ({ width: 128, height: 96, building: true, flyer: false }) },
+    } as unknown as PluginApi;
+    const r = placeInLocations(api, [{ player: 1, unit: "Terran Barracks", count: 3, location: "yard 1" }], "AI: start");
+    expect(r).toEqual({ placed: 3, notes: [] });
+    expect(placed.map((u) => u.owner)).toEqual([0, 0, 0]);
+    for (const u of placed) { expect(u.x - 64).toBeGreaterThanOrEqual(320); expect(u.x + 64).toBeLessThanOrEqual(320 + 448); expect(u.y + 48).toBeLessThanOrEqual(320 + 384); }
+    for (const [i, u] of placed.entries()) for (const o of placed.slice(i + 1)) expect(overlaps(u.x, u.y, o)).toBe(false);
+    const crowded = placeInLocations(api, [{ player: 1, unit: "Terran Barracks", count: 40, location: "Yard 1" }], "AI: start");
+    expect(crowded.notes[0]).toMatch(/Terran Barracks for player 1 found no room in "Yard 1" \(at its middle: it overlaps Terran Barracks\)/);
+    expect(placeInLocations(api, [{ player: 1, unit: "Terran Barracks", count: 1, location: "Nowhere" }], "x").notes[0]).toMatch(/no location "Nowhere"/);
   });
 });

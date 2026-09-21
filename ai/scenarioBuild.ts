@@ -5,7 +5,7 @@
  * switches the design's systems need, and what a finished build may call itself.
  */
 import type { DesignSystem, UmsDesign } from "../protocol";
-import { buildSystem, Counters, paramsOf, ToolkitError, type Tempo, type ToolkitContext } from "./ums";
+import { buildSystem, countedUnit, Counters, paramsOf, ToolkitError, type Tempo, type ToolkitContext } from "./ums";
 
 /**
  * The trigger rate a design's toolkit systems are built for. It follows from the design
@@ -42,6 +42,24 @@ export function keeperFor(d: Pick<UmsDesign, "systems">): string | null {
     if (s.kind === "custom") for (const k of KEEPERS) if (s.description.toLowerCase().includes(k.toLowerCase())) named.add(k.toLowerCase());
   }
   return KEEPERS.find((k) => !named.has(k.toLowerCase())) ?? null;
+}
+
+/**
+ * The race of the buildings a design's `start-units` systems place on the map, from their
+ * names ("Terran Barracks"), or null when it places none. The game drops the placed units
+ * of a User Selectable player and hands out a melee start, so such a player is given this
+ * race instead.
+ */
+export function placedBuildingsRace(systems: DesignSystem[], isBuilding?: (unit: string) => boolean): "terran" | "zerg" | "protoss" | null {
+  for (const s of systems) {
+    if (s.kind !== "start-units") continue;
+    for (const v of (s.params.find((p) => p.key === "units")?.value ?? "").split(/\s*[,;]\s*/)) {
+      const unit = countedUnit(v).unit;
+      const race = /^(terran|zerg|protoss)\b/i.exec(unit)?.[1].toLowerCase();
+      if (race && isBuilding?.(unit)) return race as "terran" | "zerg" | "protoss";
+    }
+  }
+  return null;
 }
 
 export interface CounterBudget {
