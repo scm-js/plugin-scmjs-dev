@@ -12,6 +12,14 @@ export function windowOf(text: string, offset: number, size: number): string {
   return `${text.length} characters in all; showing ${offset}–${next}${next < text.length ? `; ask again with offset=${next} for the rest` : ""}.\n\n${slice}`;
 }
 
+/** What the assistant is told when a build gives the map its first program while other triggers are on it. */
+export const FIRST_PROGRAM = "Warning: this is the map's first program. The saved map now needs StarCraft: Remastered, and every trigger on it runs each frame (about 24 times a second) instead of every two seconds, or twelve times a second with hyper triggers. The map has other triggers: any of them that counts trigger cycles on a death counter — every timer ums_build made — now runs 2 to 48 times fast. Tell the person, remove any hyper triggers, and rebuild those systems with ums_build (it reads the map's tempo).";
+
+/** Whether a build is the one that changes the map's tempo under triggers that were counted for another. */
+export function firstProgramWarning(hadPrograms: boolean, programs: number, otherTriggers: number): boolean {
+  return !hadPrograms && programs > 0 && otherTriggers > 0;
+}
+
 export function scriptTools(): Tool[] {
   return [
     {
@@ -43,8 +51,11 @@ export function scriptTools(): Tool[] {
       run: async (input, { api }) => {
         const script = scriptBridge(api);
         if (!script) return fail(NO_SCRIPT_PLUGIN);
+        const hadPrograms = (script.state()?.programs ?? 0) > 0;
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
+        if (!r.block) return fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
+        const built = `Built ${r.block.count} triggers at #${r.block.start + 1}.`;
+        return firstProgramWarning(hadPrograms, r.compiled.programs.length, api.triggers.list().length - r.block.count) ? `${built}\n\n${FIRST_PROGRAM}` : built;
       },
     },
     {

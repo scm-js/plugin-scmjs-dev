@@ -28,7 +28,7 @@ import { imageInput, mapFacts, selectionLines, shrinkImage } from "./facts";
 import { followBox, footprintEmpty, footprintOf, type Footprint } from "./intent";
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
-import { describeCall, describeStep, plural, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
+import { describeCall, describeStep, didWrite, mayWrite, plural, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
 import { append, h, recipeOptions, styled, taskFor, type Ctx } from "./ui";
 
 /** Past this many messages the history is trimmed… */
@@ -391,8 +391,8 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
         let think: FoldElement | null = null;
         const live = (text: string) => block.set(text);
         const step = (tool: Tool | undefined, name: string, input: Record<string, unknown> | null) => {
-          const row = steps.add(input ? describeStep(tool, name, input, ctx) : `${prettyName(name)}…`, { icon: tool?.writes ? "✎" : "▸", title: input ? describeCall(name, input) : undefined, running: true });
-          if (tool?.writes) row.element.classList.add("ai-write");
+          const row = steps.add(input ? describeStep(tool, name, input, ctx) : `${prettyName(name)}…`, { icon: mayWrite(tool, input) ? "✎" : "▸", title: input ? describeCall(name, input) : undefined, running: true });
+          if (mayWrite(tool, input)) row.element.classList.add("ai-write");
           const n = steps.count();
           const start = (input: Record<string, unknown>) => {
             const text = describeStep(tool, name, input, ctx);
@@ -543,7 +543,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
               const tool = byName.get(s.name);
               const row = act.step(tool, s.name, s.input);
               if (s.failed) row.fail(s.result ?? "failed");
-              else { row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done."); if (tool?.writes) { if (tool.settings) settingsWrites++; else edits++; } }
+              else { row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done."); if (didWrite(tool, s.input, s.result ?? "")) { if (tool?.settings) settingsWrites++; else edits++; } }
             }
           }
           act.finish({ edits, settings: settingsWrites });
@@ -621,9 +621,26 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
         conv.continueOffered = false;
         pinned = true;
         addUser(text);
+        // Taken before the first wait, not after it: the picture below takes a moment, and a second Send in that
+        // moment would start a second turn, a tab switch in it would hand this turn the wrong map.
+        running = new AbortController();
+        const turn = running;
+        // The map this turn is about: a tool never runs against a map that came in front later.
+        const turnDoc = api.document.id();
+        send.setBusy(true);
+        stop.hidden = false;
         const content: AgentContent[] = [{ type: "text", text }];
         if (attach.input.checked) {
-          const picture = await viewPicture();
+          const picture = await viewPicture().catch(() => null);
+          if (turn.signal.aborted || api.document.id() !== turnDoc) {
+            // Nothing was asked and nothing is kept; the words go back in the box of the conversation they were typed in.
+            running = null;
+            send.setBusy(false);
+            stop.hidden = true;
+            if (api.document.id() === turnDoc) input.value = text; else conv.prefill = text;
+            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? "Stopped before anything was sent." : MAP_CHANGED));
+            return;
+          }
           if (picture) {
             content.unshift({ type: "image", source: picture });
             const v = api.view.visible();
@@ -631,12 +648,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           }
         }
         conv.messages.push({ role: "user", content });
-        running = new AbortController();
-        // The map this turn is about: a tool never runs against a map that came in front later.
-        const turnDoc = api.document.id();
         following = ctx.settings().followMap && api.document.isOpen();
-        send.setBusy(true);
-        stop.hidden = false;
         startedAt = Date.now();
         const historyBefore = api.document.history().undoDepth;
         const edits: string[] = [];

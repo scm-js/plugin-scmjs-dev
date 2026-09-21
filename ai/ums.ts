@@ -11,19 +11,22 @@
  * answers text plus notes.
  *
  * Timing: without hyper triggers the game runs the trigger list about every two seconds;
- * with them, about twelve times a second. A death-counter timer counts trigger cycles, so
- * `cyclesFor(seconds)` depends on `ctx.hyper` — which is why a design that spawns every
- * few seconds must list a `hyper` system, and why the server's prompt says so.
+ * with them, about twelve times a second; on a map with a TrigScript program (built by
+ * eudplib, Remastered only) every trigger runs each frame, about twenty-four times a
+ * second, hypers or not. A death-counter timer counts trigger cycles, so
+ * `cyclesFor(seconds, tempo)` depends on `ctx.tempo` — which is why a design that spawns
+ * every few seconds must list a `hyper` system, why the server's prompt says so, and why
+ * a design says up front whether it is a classic or a Remastered map.
  */
-import type { SystemKindSpec } from "../protocol";
+import type { SystemKindSpec, SystemParamSpec } from "../protocol";
 
 export interface ToolkitContext {
   /** Human players, 1-based. */
   humans: number[];
   /** Computer players, 1-based. */
   computers: number[];
-  /** Whether hyper triggers are (or will be) on the map. */
-  hyper: boolean;
+  /** How often the map's trigger list runs (or will run). */
+  tempo: Tempo;
   /** Unit names the toolkit may use as death counters, in the order to hand them out. */
   dcUnits: string[];
   /** Location names on the map (or that the layout will make), for a check before use; empty = do not check. */
@@ -63,9 +66,32 @@ export const DEFAULT_DC_UNITS = [
   "Zerg Marker", "Terran Marker", "Protoss Marker", "Map Revealer", "Scanner Sweep", "Data Disk", "Khaydarin Crystal", "Uraj Crystal", "Khalis Crystal",
 ];
 
+/**
+ * How often the trigger list runs: `plain` about every two seconds, `hyper` about twelve
+ * times a second (hyper triggers), `turbo` every frame — a map with a program.
+ */
+export type Tempo = "plain" | "hyper" | "turbo";
+
+/** Trigger cycles per second at each tempo, at the Fastest game speed. */
+export const CYCLES_PER_SECOND: Record<Tempo, number> = { plain: 0.5, hyper: 12, turbo: 24 };
+
 /** Trigger cycles for a number of seconds, at the map's trigger rate. */
-export function cyclesFor(seconds: number, hyper: boolean): number {
-  return Math.max(1, Math.round(hyper ? seconds * 12 : seconds / 2));
+export function cyclesFor(seconds: number, tempo: Tempo): number {
+  return Math.max(1, Math.round(seconds * CYCLES_PER_SECOND[tempo]));
+}
+
+const TEMPO_TEXT: Record<Tempo, string> = {
+  plain: "without hyper triggers, a cycle about every 2 s",
+  hyper: "with hyper triggers, about 12 cycles a second",
+  turbo: "the map has a program, so triggers run every frame, about 24 cycles a second",
+};
+
+/** A timer for the notes: the cycles it counts, and the seconds they really come to once rounded. */
+export function timerText(seconds: number, tempo: Tempo): string {
+  const cycles = cyclesFor(seconds, tempo);
+  const real = cycles / CYCLES_PER_SECOND[tempo];
+  const shown = Number(real.toFixed(2));
+  return `${cycles} trigger ${cycles === 1 ? "cycle" : "cycles"} = ${shown} s${Math.abs(real - seconds) > 0.005 ? ` (asked for ${seconds} s)` : ""}; ${TEMPO_TEXT[tempo]}`;
 }
 
 /* ── Text helpers ───────────────────────────────────────── */
@@ -81,6 +107,24 @@ export function trigger(owners: (number | string)[], conditions: string[], actio
   for (const a of actions) lines.push(`\t${a};`);
   lines.push("}", "");
   return lines.join("\n");
+}
+
+/** Actions a toolkit trigger holds before its Preserve Trigger; the game reads 64 in all. */
+export const ACTION_ROOM = 62;
+
+/**
+ * One preserved trigger, or several in a row when `body` is more than a trigger holds.
+ * They share owners and conditions, so they fire in the same cycle, in order. `last` is
+ * what changes the state the conditions test (a beat reset, a step forward): it goes in
+ * the final trigger only, since in an earlier one it would switch the later ones off.
+ */
+export function preservedChunks(owners: (number | string)[], conditions: string[], body: string[], last: string[] = []): string[] {
+  if (last.length > ACTION_ROOM) throw new ToolkitError([`${last.length} actions that cannot be split do not fit one trigger`]);
+  const chunks: string[][] = [];
+  for (let i = 0; i < body.length; i += ACTION_ROOM) chunks.push(body.slice(i, i + ACTION_ROOM));
+  if (chunks.length === 0 || chunks[chunks.length - 1].length + last.length > ACTION_ROOM) chunks.push([]);
+  chunks[chunks.length - 1].push(...last);
+  return chunks.map((actions) => trigger(owners, conditions, [...actions, "Preserve Trigger()"]));
 }
 
 const CUR = "Current Player";
@@ -147,7 +191,9 @@ export function hasLocation(locations: string[], name: string): boolean {
 /** The missing locations a designed system names in its parameters — what it waits for before it can build. */
 export function waitingOn(system: { params: { key: string; value: string }[] }, missing: string[]): string[] {
   // "Anywhere" is every map's; `hasLocation` says yes to it whatever the list holds.
-  return missing.filter((m) => system.params.some((p) => p.value.trim().toLowerCase() !== "anywhere" && hasLocation([m], p.value)));
+  // A parameter may hold one name or a list of them ("Spot 1, Spot 2").
+  const names = system.params.flatMap((p) => p.value.split(/\s*[,;]\s*/)).map((v) => v.trim()).filter((v) => v && v.toLowerCase() !== "anywhere");
+  return missing.filter((m) => names.some((v) => hasLocation([m], v)));
 }
 
 /* ── Parameter reading ─────────────────────────────────── */
@@ -192,6 +238,14 @@ class Reader {
     if (/^(false|no|off|0)$/i.test(v)) return false;
     this.problems.push(`"${name}" should be yes or no, not "${v}"`);
     return fallback;
+  }
+  /** One of a few words. */
+  choice<T extends string>(name: string, options: readonly T[], fallback: T): T {
+    const v = this.raw(name);
+    if (v === undefined) return fallback;
+    const found = options.find((o) => o.toLowerCase() === v.toLowerCase());
+    if (found === undefined) this.problems.push(`"${name}" should be ${options.join(" or ")}, not "${v}"`);
+    return found ?? fallback;
   }
   /** A location name, checked against the context when it lists any; a `{p}` template passes when a numbered location backs it. */
   location(name: string, fallback?: string): string {
@@ -289,7 +343,17 @@ interface Kind {
   build(r: Reader, ctx: ToolkitContext, dc: Counters): { triggers: string[]; notes?: string[] };
 }
 
-const P = (name: string, description: string, required = false) => ({ name, description, required });
+const P = (name: string, description: string, required = false): SystemParamSpec => ({ name, description, required });
+/** A parameter that names a location, and one that names several: the server checks them against the design's. */
+const L = (name: string, description: string, required = false): SystemParamSpec => ({ name, description, required, type: "location" });
+const LL = (name: string, description: string, required = false): SystemParamSpec => ({ name, description, required, type: "locations" });
+
+/** What a player's finish-result counter holds: nothing yet, has seen the finish taken, has reached it. */
+const SEEN = 1;
+const FINISHED = 2;
+
+/** A trigger holds 16 conditions; the waves' victory spends three on other things. */
+const MAX_WAVE_TYPES = 13;
 
 const KINDS: Kind[] = [
   {
@@ -310,7 +374,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "spawn",
       description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
-      params: [P("location", "the spawn location; may contain {p} for the player number", true), P("unit", "the unit to create", true), P("count", "units per spawn (default 1)"), P("every", "seconds between spawns (default 10)"), P("players", "humans (default), computers, all, or player numbers"), P("owner", "each (default), computer, or a player number"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location to order the spawned units to attack-move to (default none)")],
+      params: [L("location", "the spawn location; may contain {p} for the player number", true), P("unit", "the unit to create", true), P("count", "units per spawn (default 1)"), P("every", "seconds between spawns (default 10)"), P("players", "humans (default), computers, all, or player numbers"), P("owner", "each (default), computer, or a player number"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), L("attack", "a location to order the spawned units to attack-move to (default none)")],
     },
     build(r, ctx, dc) {
       const location = r.str("location");
@@ -321,11 +385,12 @@ const KINDS: Kind[] = [
       const ownerRaw = r.str("owner", "each");
       const limit = r.int("limit", 0, 0, 1700);
       const attack = r.str("attack", "");
-      const cycles = cyclesFor(every, ctx.hyper);
+      const cycles = cyclesFor(every, ctx.tempo);
       const counter = dc.take("the spawn timer");
       const triggers: string[] = [];
       for (const p of players) {
         const loc = fillTemplate(location, p);
+        r.locationIn("location", loc);
         const attackLoc = fillTemplate(attack, p);
         if (attack) r.location("attack", attackLoc);
         const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? (ctx.computers[0] ?? p) : Number(ownerRaw) || p;
@@ -337,7 +402,7 @@ const KINDS: Kind[] = [
         triggers.push(trigger([p], conditions, actions));
         triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
       }
-      return { triggers, notes: [`spawn timer: ${cycles} trigger cycles ≈ ${every} s ${ctx.hyper ? "with" : "without"} hyper triggers`] };
+      return { triggers, notes: [`spawn timer: ${timerText(every, ctx.tempo)}`] };
     },
   },
   {
@@ -372,7 +437,7 @@ const KINDS: Kind[] = [
       const every = r.int("every", 30, 1, 3600);
       const players = r.players("players");
       const perUnit = r.str("perUnit", "");
-      const cycles = cyclesFor(every, ctx.hyper);
+      const cycles = cyclesFor(every, ctx.tempo);
       const counter = dc.take("the income timer");
       const conditions = [c.deaths(CUR, counter, "At least", cycles)];
       if (perUnit) conditions.push(c.command(CUR, perUnit, "At least", 1));
@@ -380,7 +445,7 @@ const KINDS: Kind[] = [
       if (minerals > 0) actions.push(a.setResources(CUR, "Add", minerals, "ore"));
       if (gas > 0) actions.push(a.setResources(CUR, "Add", gas, "gas"));
       actions.push(a.preserve());
-      return { triggers: [trigger(players, conditions, actions), trigger(players, [], [a.setDeaths(CUR, counter, "Add", 1), a.preserve()])] };
+      return { triggers: [trigger(players, conditions, actions), trigger(players, [], [a.setDeaths(CUR, counter, "Add", 1), a.preserve()])], notes: [`income timer: ${timerText(every, ctx.tempo)}`] };
     },
   },
   {
@@ -388,8 +453,9 @@ const KINDS: Kind[] = [
       kind: "last-standing",
       description: "The melee ending for a scenario: a player who commands none of `unit` is defeated; a player with no opponents left wins. Use `unit: Buildings` for a base game, a hero's name for a hero game, `Any unit` otherwise.",
       params: [P("unit", "what a player must keep to stay in (default Any unit)"), P("players", "humans (default) or player numbers"), P("grace", "seconds before elimination can happen, so a slow start is not a loss (default 10)")],
+      ends: [{ result: "both" }],
     },
-    build(r) {
+    build(r, ctx) {
       const unit = r.str("unit", "Any unit");
       const players = r.players("players");
       const grace = r.int("grace", 10, 0, 3600);
@@ -398,7 +464,10 @@ const KINDS: Kind[] = [
           trigger(players, [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", grace)], [a.defeat()]),
           trigger(players, [c.opponents(CUR, "Exactly", 0), c.elapsed("At least", grace)], [a.victory()]),
         ],
-        notes: ["Opponents counts players who are neither allied for victory nor gone; allies in a force with Allied Victory win together"],
+        notes: [
+          "Opponents counts players who are neither allied for victory nor gone; allies in a force with Allied Victory win together",
+          ...(ctx.computers.length ? [`a computer player counts as an opponent for as long as it owns anything, the unit that keeps its slot in the game included: with computers on the map (${ctx.computers.join(", ")}) nobody wins by this until they are gone or allied — for humans against the computer use \`waves\`, \`victory-on-kills\` or \`countdown\` for the win`] : []),
+        ],
       };
     },
   },
@@ -407,6 +476,7 @@ const KINDS: Kind[] = [
       kind: "defeat-when-lost",
       description: "A player is defeated when they command none of `unit` (a hero, a base building).",
       params: [P("unit", "the unit that must survive", true), P("players", "humans (default) or player numbers"), P("grace", "seconds before it can happen (default 5)"), P("message", "text shown to everyone when it happens (default none)")],
+      ends: [{ result: "loss" }],
     },
     build(r) {
       const unit = r.str("unit");
@@ -422,6 +492,7 @@ const KINDS: Kind[] = [
       kind: "victory-on-kills",
       description: "Victory for a player who has killed `count` of `unit`; everyone else is defeated.",
       params: [P("count", "kills needed", true), P("unit", "what counts (default Any unit)"), P("players", "humans (default) or player numbers")],
+      ends: [{ result: "both" }],
     },
     build(r) {
       const count = r.int("count", 0, 1);
@@ -443,6 +514,7 @@ const KINDS: Kind[] = [
       kind: "countdown",
       description: "A countdown timer from the start; when it ends, victory or defeat, or a draw. `onEnd` is `victory:humans`, `victory:Force 2`, `victory:1,3`, `defeat:humans` or `draw`.",
       params: [P("seconds", "how long", true), P("onEnd", "what happens at zero (default draw)"), P("message", "text shown when it ends (default none)")],
+      ends: [{ result: "win", when: "onEnd", is: "victory" }, { result: "loss", when: "onEnd", is: "defeat" }],
     },
     build(r, ctx) {
       const seconds = r.int("seconds", 0, 1, 86400);
@@ -480,7 +552,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "message",
       description: "Show a text message to players at a moment: at the start, after `after` seconds, or when a player brings a unit to `location`.",
-      params: [P("text", "what to show", true), P("after", "seconds from the start (default 0)"), P("location", "show it when the player brings a unit here instead (default none)"), P("players", "humans (default), all, or player numbers"), P("once", "yes (default) or no: show it every time")],
+      params: [P("text", "what to show", true), P("after", "seconds from the start (default 0)"), L("location", "show it when the player brings a unit here instead (default none)"), P("players", "humans (default), all, or player numbers"), P("once", "yes (default) or no: show it every time")],
     },
     build(r) {
       const text = r.str("text");
@@ -495,10 +567,11 @@ const KINDS: Kind[] = [
   {
     spec: {
       kind: "lives",
-      description: "Shared lives for a defense map: an enemy unit reaching `goal` is removed and costs a life; at zero lives the players are defeated. The count is a death counter on the enemy slot.",
-      params: [P("lives", "how many (default 20)", true), P("goal", "the location the enemies try to reach", true), P("enemy", "the player whose units leak (default computer)"), P("unit", "what counts as a leak (default Any unit)"), P("players", "who is defeated at zero (default humans)")],
+      description: "Shared lives for a defense map: an enemy unit reaching `goal` is removed and costs a life, one unit each trigger cycle; at zero lives the players are defeated. The count is a death counter on the enemy slot. Wants a `hyper` system on a map of triggers alone, or a crowd at the goal drains one life every two seconds.",
+      params: [P("lives", "how many (default 20)", true), L("goal", "the location the enemies try to reach", true), P("enemy", "the player whose units leak (default computer)"), P("unit", "what counts as a leak (default Any unit)"), P("players", "who is defeated at zero (default humans)")],
+      ends: [{ result: "loss" }],
     },
-    build(r, _ctx, dc) {
+    build(r, ctx, dc) {
       const lives = r.int("lives", 20, 1, 1000);
       const goal = r.location("goal");
       const enemy = r.onePlayer("enemy", "computer");
@@ -508,18 +581,24 @@ const KINDS: Kind[] = [
       return {
         triggers: [
           trigger([enemy], [], [a.setDeaths(enemy, counter, "Set To", lives)]),
-          trigger([enemy], [c.bring(enemy, unit, goal, "At least", 1)], [a.removeAt(enemy, unit, "All", goal), a.setDeaths(enemy, counter, "Subtract", 1), a.preserve()]),
+          trigger([enemy], [c.bring(enemy, unit, goal, "At least", 1)], [a.removeAt(enemy, unit, 1, goal), a.setDeaths(enemy, counter, "Subtract", 1), a.preserve()]),
           trigger(players, [c.deaths(enemy, counter, "Exactly", 0), c.elapsed("At least", 5)], [a.text("No lives left."), a.defeat()]),
         ],
-        notes: ["several leaks in one cycle cost one life; the lives counter is not shown — add a `leaderboard` of kind points or a `message` if the players should see it"],
+        notes: [
+          ctx.tempo === "plain"
+            ? "one leaked unit is taken, and one life with it, each trigger cycle — about every 2 s without hyper triggers, so a crowd at the goal stands there while it drains; add a `hyper` system"
+            : `one leaked unit is taken, and one life with it, each trigger cycle (${CYCLES_PER_SECOND[ctx.tempo]} a second)`,
+          "the lives counter is not shown — add a `leaderboard` of kind points or a `message` if the players should see it",
+        ],
       };
     },
   },
   {
     spec: {
       kind: "waves",
-      description: "Defense waves: every `interval` seconds the enemy spawns a wave at `spawn` and attack-moves it to `goal`; each wave is bigger than the last and cycles through `units`. Victory for the players when the last wave is dead.",
-      params: [P("spawn", "where waves appear", true), P("goal", "where they attack toward", true), P("units", "unit names, comma-separated, one per wave in turn", true), P("waves", "how many (default 10)"), P("interval", "seconds between waves (default 45)"), P("count", "units in the first wave (default 6)"), P("growth", "more units per wave (default 2)"), P("enemy", "the spawning player (default computer)"), P("players", "who wins at the end (default humans)"), P("announce", "yes (default) or no: show \"Wave N\"")],
+      description: "Defense waves: every `interval` seconds the enemy spawns a wave at `spawn` and attack-moves it to `goal`; each wave is bigger than the last and cycles through `units`. Victory for the players when the last wave has come and the enemy commands none of the wave's unit types — whatever else it owns (a unit that keeps its slot in the game) does not count.",
+      params: [L("spawn", "where waves appear", true), L("goal", "where they attack toward", true), P("units", "unit names, comma-separated, one per wave in turn", true), P("waves", "how many (default 10)"), P("interval", "seconds between waves (default 45)"), P("count", "units in the first wave (default 6)"), P("growth", "more units per wave (default 2)"), P("enemy", "the spawning player (default computer)"), P("players", "who wins at the end (default humans)"), P("announce", "yes (default) or no: show \"Wave N\"")],
+      ends: [{ result: "win" }],
     },
     build(r, _ctx, dc) {
       const spawn = r.location("spawn");
@@ -542,8 +621,13 @@ const KINDS: Kind[] = [
         if (announce) actions.unshift(a.text(`Wave ${k}: ${n} ${unit}`));
         triggers.push(trigger([enemy], [c.elapsed("At least", interval * k), c.deaths(enemy, counter, "Exactly", k - 1)], actions));
       }
-      triggers.push(trigger(players, [c.deaths(enemy, counter, "At least", waves), c.command(enemy, "Any unit", "Exactly", 0), c.elapsed("At least", interval * waves + 10)], [a.text("The last wave is dead."), a.victory()]));
-      return { triggers, notes: [`${waves} waves, the last at ${interval * waves} s; the enemy player must own nothing else, or the victory never comes`] };
+      // The wave's own types are counted, not "Any unit": the enemy slot keeps a unit of its own so that it stays in the game.
+      const types = [...new Set(units.slice(0, waves).map((u) => u.toLowerCase()))].map((u) => units.find((x) => x.toLowerCase() === u)!);
+      const counted = types.length <= MAX_WAVE_TYPES ? types : ["Men"];
+      const notes = [`${waves} waves, the last at ${interval * waves} s; won when the enemy commands no ${counted.join(", no ")}`];
+      if (counted !== types) notes.push(`more than ${MAX_WAVE_TYPES} unit types is more than a trigger's conditions hold, so victory counts Men: the enemy must own no other men (a flying building or a structure is fine)`);
+      triggers.push(trigger(players, [c.deaths(enemy, counter, "At least", waves), ...counted.map((u) => c.command(enemy, u, "Exactly", 0)), c.elapsed("At least", interval * waves + 10)], [a.text("The last wave is dead."), a.victory()]));
+      return { triggers, notes };
     },
   },
   {
@@ -551,7 +635,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "stages",
       description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds — the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
-      params: [P("every", "seconds per stage (default 240)"), P("stages", "how many stages (default 6)"), P("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P("location", "the spawn location; may contain {p}", true), P("from", "the first stage that spawns (default 1)"), P("interval", "seconds between the extra spawns (default 15)"), P("count", "units per extra spawn at the first spawning stage (default 2)"), P("growth", "more units per stage (default 1)"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P("attack", "a location the spawned units attack-move to (default none)"), P("minerals", "minerals paid to each player at each new stage (default 0)"), P("message", "text shown at each new stage; {stage} is the number (default none)"), P("players", "humans (default), all, or player numbers"), P("owner", "each (default), computer, or a player number")],
+      params: [P("every", "seconds per stage (default 240)"), P("stages", "how many stages (default 6)"), P("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), L("location", "the spawn location; may contain {p}", true), P("from", "the first stage that spawns (default 1)"), P("interval", "seconds between the extra spawns (default 15)"), P("count", "units per extra spawn at the first spawning stage (default 2)"), P("growth", "more units per stage (default 1)"), P("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), L("attack", "a location the spawned units attack-move to (default none)"), P("minerals", "minerals paid to each player at each new stage (default 0)"), P("message", "text shown at each new stage; {stage} is the number (default none)"), P("players", "humans (default), all, or player numbers"), P("owner", "each (default), computer, or a player number")],
     },
     build(r, ctx, dc) {
       const every = r.int("every", 240, 10, 7200);
@@ -571,10 +655,11 @@ const KINDS: Kind[] = [
       const ownerRaw = r.str("owner", "each");
       const stage = dc.take("the stage counter");
       const timer = dc.take("the stage spawn timer");
-      const cycles = cyclesFor(interval, ctx.hyper);
+      const cycles = cyclesFor(interval, ctx.tempo);
       const triggers: string[] = [];
       for (const p of players) {
         const loc = fillTemplate(location, p);
+        r.locationIn("location", loc);
         const attackLoc = fillTemplate(attack, p);
         if (attack) r.location("attack", attackLoc);
         const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? (ctx.computers[0] ?? p) : Number(ownerRaw) || p;
@@ -596,7 +681,7 @@ const KINDS: Kind[] = [
         }
         triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
       }
-      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from} every ${interval} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers)`] };
+      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from}: ${timerText(interval, ctx.tempo)}`] };
     },
   },
   {
@@ -604,7 +689,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "obstacles",
       description: "A bound's explosions: the `spots` fire in turn (or in `groups` at once) every `every` seconds, on a death-counter beat. Each firing creates the explosion unit at the spot for the computer and kills it there in the same instant — the death animation is the blast — and kills every unit the players have standing on the spot. No Wait actions, so it runs at hyper-trigger tempo without stalling anything.",
-      params: [P("spots", "the spot locations in firing order, comma-separated", true), P("every", "seconds between firings (default 0.8; decimals allowed)"), P("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P("unit", "the explosion unit (default Zerg Scourge)"), P("owner", "who owns the explosion (default computer)"), P("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P("victim", "which of their units (default Any unit)")],
+      params: [LL("spots", "the spot locations in firing order, comma-separated", true), P("every", "seconds between firings (default 0.8; decimals allowed)"), P("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P("unit", "the explosion unit (default Zerg Scourge)"), P("owner", "who owns the explosion (default computer)"), P("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P("victim", "which of their units (default Any unit)")],
     },
     build(r, ctx, dc) {
       const spots = r.list("spots");
@@ -618,31 +703,38 @@ const KINDS: Kind[] = [
       const victim = r.str("victim", "Any unit");
       const step = dc.take("the obstacle step");
       const timer = dc.take("the obstacle beat");
-      const cycles = Math.max(1, Math.round(every * (ctx.hyper ? 12 : 0.5)));
+      const cycles = cyclesFor(every, ctx.tempo);
       const n = Math.max(1, spots.length);
       const steps = Math.ceil(n / groups);
       const triggers: string[] = [];
+      let split = 0;
       for (let k = 0; k < steps; k++) {
-        const actions: string[] = [a.setDeaths(owner, timer, "Set To", 0), a.setDeaths(owner, step, "Set To", (k + 1) % steps)];
+        const blasts: string[] = [];
         for (let g = 0; g < groups; g++) {
-          const spot = spots[(k + g * steps) % n];
+          // The list need not divide evenly: the last steps' groups are then short, not wrapped round to the first spots.
+          const spot = spots[k + g * steps];
           if (spot === undefined) continue;
-          actions.push(a.create(owner, unit, 1, spot), a.killAt(owner, unit, "All", spot));
-          for (const p of players) actions.push(a.killAt(p, victim, "All", spot));
+          blasts.push(a.create(owner, unit, 1, spot), a.killAt(owner, unit, "All", spot));
+          for (const p of players) blasts.push(a.killAt(p, victim, "All", spot));
         }
-        actions.push(a.preserve());
-        triggers.push(trigger([owner], [c.deaths(owner, step, "Exactly", k), c.deaths(owner, timer, "At least", cycles)], actions));
+        const fired = preservedChunks([owner], [c.deaths(owner, step, "Exactly", k), c.deaths(owner, timer, "At least", cycles)], blasts, [a.setDeaths(owner, timer, "Set To", 0), a.setDeaths(owner, step, "Set To", (k + 1) % steps)]);
+        if (fired.length > 1) split++;
+        triggers.push(...fired);
       }
       triggers.push(trigger([owner], [], [a.setDeaths(owner, timer, "Add", 1), a.preserve()]));
-      return { triggers, notes: [`${n} spots in ${steps} steps of ${groups}, one every ${every} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers); a firing kills the players' units on the spot`] };
+      const notes = [`${n} spots in ${steps} steps of ${groups}; a step: ${timerText(every, ctx.tempo)}; a firing kills the players' units on the spot`];
+      if (n % steps !== 0 && groups > 1) notes.push(`${n} spots do not divide into ${steps} even steps: the last ${steps - (n % steps)} fire ${groups - 1} at once`);
+      if (split > 0) notes.push(`${split} of the steps hold more actions than a trigger reads and are split over triggers that fire together, in a row`);
+      return { triggers, notes };
     },
   },
   {
     perPlayer: true,
     spec: {
       kind: "checkpoints",
-      description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it (in order, never backwards) with a message; a player with no unit left gets one at their last checkpoint (or `start`) — unlimited, or `lives` times; the first to bring the unit to `finish` wins and the others lose.",
-      params: [P("unit", "the unit that runs the course", true), P("start", "where a player begins and respawns before any checkpoint", true), P("checkpoints", "the checkpoint locations in order, comma-separated", true), P("finish", "the finish location (default none: no victory here)"), P("lives", "respawns per player (default unlimited)"), P("players", "humans (default) or player numbers"), P("announce", "yes (default) or no: \"Checkpoint N\" messages")],
+      description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it with a message — in order, so a checkpoint counts only after the one before it (`order: any` lets a runner skip ahead, never back); a player with no unit left gets one at their last checkpoint (or `start`) — unlimited, or `lives` times, the first unit not counted; reaching `finish` ends the game with a result for every player: everyone who arrives together wins (`tie: first` gives it to one), the rest lose. The system makes each player's first unit at `start`; a placed one works too.",
+      params: [P("unit", "the unit that runs the course", true), L("start", "where a player begins and respawns before any checkpoint", true), LL("checkpoints", "the checkpoint locations in order, comma-separated", true), L("finish", "the finish location (default none: no victory here)"), P("lives", "respawns per player (default unlimited)"), P("order", "strict (default): a checkpoint counts only after the one before it; any: a later one counts at once"), P("tie", "shared (default): runners who reach the finish in the same moment all win; first: only one of them"), P("players", "humans (default) or player numbers"), P("announce", "yes (default) or no: \"Checkpoint N\" messages")],
+      ends: [{ result: "both", when: "finish" }, { result: "loss", when: "lives" }],
     },
     build(r, _ctx, dc) {
       const unit = r.str("unit");
@@ -652,19 +744,26 @@ const KINDS: Kind[] = [
       const finish = r.str("finish", "");
       if (finish) r.location("finish", finish);
       const lives = r.int("lives", 0, 0, 1000);
+      const strict = r.choice("order", ["strict", "any"], "strict") === "strict";
+      const shared = r.choice("tie", ["shared", "first"], "shared") === "shared";
       const players = r.players("players");
       const announce = r.bool("announce", true);
       const progress = dc.take("the checkpoint reached");
       const used = lives > 0 ? dc.take("the lives used") : null;
       const triggers: string[] = [];
+      // The finish is resolved over two cycles, by triggers no one player has to be there for — see below.
+      const ending = finish ? { result: dc.take("the finish result"), finished: dc.takeSwitch("the finish reached"), closed: dc.takeSwitch("the finish closed") } : null;
+      if (ending) for (const p of players) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "At least", SEEN)], [a.setSwitch(ending.closed, "set")]));
       for (const p of players) {
         cps.forEach((cp, i) => {
           const n = i + 1;
           const actions = [a.setDeaths(p, progress, "Set To", n)];
           if (announce) actions.push(a.text(`Checkpoint ${n}`));
           actions.push(a.preserve());
-          triggers.push(trigger([p], [c.bring(p, unit, cp, "At least", 1), c.deaths(p, progress, "At most", n - 1)], actions));
+          triggers.push(trigger([p], [c.bring(p, unit, cp, "At least", 1), c.deaths(p, progress, strict ? "Exactly" : "At most", n - 1)], actions));
         });
+        // The first unit is made, not respawned: this runs once, ahead of the respawns, and costs no life.
+        triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", 0), ...(used ? [c.deaths(p, used, "Exactly", 0)] : [])], [a.create(p, unit, 1, startLoc), a.center(startLoc)]));
         [startLoc, ...cps].forEach((loc, i) => {
           const conditions = [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", i)];
           if (used) conditions.push(c.deaths(p, used, "At most", lives - 1));
@@ -675,19 +774,26 @@ const KINDS: Kind[] = [
         });
         if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
       }
-      if (finish) {
-        const sw = dc.takeSwitch("the finish");
-        for (const p of players) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(sw, "not set")], [a.setSwitch(sw, "set"), a.text(`Player ${p} has finished!`), a.victory()]));
-        triggers.push(trigger(players, [c.switch(sw, "set"), c.bring(CUR, unit, finish, "Exactly", 0)], [a.defeat()]));
+      if (ending && finish) {
+        // Cycle one: whoever stands on the finish marks themselves and raises *finished*; every
+        // player, on their turn, notes that they have seen it raised. Cycle two: the first
+        // player whose turn comes — any of them, so an empty slot stops nothing — has seen it
+        // and *closes* the finish; from then on the marked win and the unmarked lose. The game
+        // runs each player's triggers in turn, so without the second cycle a runner whose turn
+        // came after the first finisher's would find the finish already taken.
+        for (const p of players) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(shared ? ending.closed : ending.finished, "not set"), c.deaths(p, ending.result, "At most", SEEN)], [a.setDeaths(p, ending.result, "Set To", FINISHED), a.setSwitch(ending.finished, "set"), a.text(`Player ${p} has finished!`)]));
+        for (const p of players) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "Exactly", 0)], [a.setDeaths(p, ending.result, "Set To", SEEN)]));
+        for (const p of players) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At least", FINISHED)], [a.victory()]));
+        for (const p of players) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At most", SEEN)], [a.defeat()]));
       }
-      return { triggers, notes: [`${cps.length} checkpoints, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? "; first to the finish wins, the rest lose" : ""}`] };
+      return { triggers, notes: [`${cps.length} checkpoints${strict ? " in order" : ", in any order"}, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? `; ${shared ? "everyone at the finish in the same moment wins" : "the first to the finish wins"}, the rest lose, a cycle or two later` : ""}; each player's first ${unit} is made at ${startLoc} and costs no life`] };
     },
   },
   {
     spec: {
       kind: "shop",
       description: "Buy a unit: a player who brings `buyer` to `location` with `price` minerals pays and gets `unit` at `deliver`.",
-      params: [P("location", "the shop's beacon location", true), P("unit", "what is sold", true), P("price", "minerals (default 100)"), P("gas", "gas (default 0)"), P("buyer", "which unit must stand on the beacon (default Any unit)"), P("deliver", "where the bought unit appears (default the shop location)"), P("players", "humans (default) or player numbers")],
+      params: [L("location", "the shop's beacon location", true), P("unit", "what is sold", true), P("price", "minerals (default 100)"), P("gas", "gas (default 0)"), P("buyer", "which unit must stand on the beacon (default Any unit)"), L("deliver", "where the bought unit appears (default the shop location)"), P("players", "humans (default) or player numbers")],
     },
     build(r) {
       const location = r.location("location");
@@ -711,7 +817,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "heal",
       description: "A heal spot: a player's units standing on `location` are restored to full hit points (and shields).",
-      params: [P("location", "where", true), P("unit", "what is healed (default Any unit)"), P("players", "humans (default) or player numbers")],
+      params: [L("location", "where", true), P("unit", "what is healed (default Any unit)"), P("players", "humans (default) or player numbers")],
     },
     build(r) {
       const location = r.location("location");
@@ -724,7 +830,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "respawn",
       description: "When a player has none of `unit` left, a new one appears at `location` (optionally a limited number of times).",
-      params: [P("unit", "the hero", true), P("location", "where it comes back", true), P("lives", "how many respawns before it stops (default unlimited)"), P("players", "humans (default) or player numbers"), P("message", "text on respawn (default none)")],
+      params: [P("unit", "the hero", true), L("location", "where it comes back", true), P("lives", "how many respawns before it stops (default unlimited)"), P("players", "humans (default) or player numbers"), P("message", "text on respawn (default none)")],
     },
     build(r, _ctx, dc) {
       const unit = r.str("unit");
@@ -769,7 +875,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "teleport",
       description: "A unit brought to `from` is moved to `to`.",
-      params: [P("from", "the entry location", true), P("to", "the exit location", true), P("unit", "what moves (default Any unit)"), P("players", "humans (default), all, or player numbers")],
+      params: [L("from", "the entry location", true), L("to", "the exit location", true), P("unit", "what moves (default Any unit)"), P("players", "humans (default), all, or player numbers")],
     },
     build(r) {
       const from = r.location("from");
@@ -783,7 +889,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "kill-zone",
       description: "Units entering `location` die (a pit, lava, the edge of a bound).",
-      params: [P("location", "where", true), P("unit", "what dies (default Any unit)"), P("players", "whose units (default all)")],
+      params: [L("location", "where", true), P("unit", "what dies (default Any unit)"), P("players", "whose units (default all)")],
     },
     build(r) {
       const location = r.location("location");
@@ -812,7 +918,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "auto-attack",
       description: "Keep a player's units moving: every cycle, order all of `unit` at `from` to attack-move to `to`. What makes a madness map's spawns fight by themselves.",
-      params: [P("owner", "whose units (a player number or computer)", true), P("from", "where they are (Anywhere for all of them)", true), P("to", "where they go", true), P("unit", "which units (default Any unit)"), P("order", "attack (default), move or patrol")],
+      params: [P("owner", "whose units (a player number or computer)", true), L("from", "where they are (Anywhere for all of them)", true), L("to", "where they go", true), P("unit", "which units (default Any unit)"), P("order", "attack (default), move or patrol")],
     },
     build(r) {
       const owner = r.onePlayer("owner");
@@ -828,7 +934,8 @@ const KINDS: Kind[] = [
     spec: {
       kind: "capture",
       description: "Capture the flag, one flag: `flag` (a unit) stands at `home` owned by `keeper`, created there at the start. A player in `players` who brings `touch` into `home` is given the flag; bringing it to `pad` scores a capture — the flag goes home, the team's counter and the player's custom score rise — unless `requireHome` names where the takers' own flag must be standing and it is missing. A flag that is neither at home nor held by a taker returns home. At `win` captures the takers get Victory and every other human Defeat. Two of these, one per flag with the other team as takers, are a two-team map; add a `leaderboard` of kind points for the score.",
-      params: [P("flag", "the flag unit (a Civilian, a Beacon, …)", true), P("home", "the flag's own room", true), P("pad", "where the takers score", true), P("players", "the takers: the other team's player numbers", true), P("keeper", "who owns the flag at home (default computer)"), P("touch", "what must enter the room to take the flag (default Any unit)"), P("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P("win", "captures to win (default 3; 0 for none)"), P("name", "the flag's name in messages (default the unit's)")],
+      params: [P("flag", "the flag unit (a Civilian, a Beacon, …)", true), L("home", "the flag's own room", true), L("pad", "where the takers score", true), P("players", "the takers: the other team's player numbers", true), P("keeper", "who owns the flag at home (default computer)"), P("touch", "what must enter the room to take the flag (default Any unit)"), L("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P("win", "captures to win (default 3; 0 for none)"), P("name", "the flag's name in messages (default the unit's)")],
+      ends: [{ result: "both" }],
     },
     build(r, ctx, dc) {
       const flag = r.str("flag");
@@ -861,7 +968,7 @@ const KINDS: Kind[] = [
     spec: {
       kind: "give",
       description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
-      params: [P("location", "where", true), P("from", "the owner giving them (default computer)"), P("unit", "what is given (default Any unit)"), P("players", "who can take them (default humans)"), P("touch", "the unit that must be brought to take them (default Any unit)")],
+      params: [L("location", "where", true), P("from", "the owner giving them (default computer)"), P("unit", "what is given (default Any unit)"), P("players", "who can take them (default humans)"), P("touch", "the unit that must be brought to take them (default Any unit)")],
     },
     build(r) {
       const location = r.location("location");

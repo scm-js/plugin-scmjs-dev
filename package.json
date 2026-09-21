@@ -1,6 +1,6 @@
 {
   "name": "@scm-js/plugin-scmjs-dev",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "private": true,
   "description": "scmjs.dev — a plugin for the scmJS StarCraft map editor: your account, map storage with revisions, and the AI features (scenarios, maps, triggers, an assistant) on one free trial and one sign-in.",
   "author": "Jeany",
@@ -28,8 +28,8 @@
   "devDependencies": {
     "@scm-js/plugin-api": "^1.18.0",
     "esbuild": "^0.28.2",
-    "scmjs-plugin-trigscript": "https://github.com/scm-js/plugin-trigscript/archive/refs/tags/v3.10.3.tar.gz",
-    "typescript": "~5.9.2",
+    "scmjs-plugin-trigscript": "https://github.com/scm-js/plugin-trigscript/archive/refs/tags/v3.10.4.tar.gz",
+    "typescript": "~6.0.3",
     "vitest": "^3.2.4"
   }
 }

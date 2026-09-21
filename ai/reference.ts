@@ -104,18 +104,33 @@ Actions:
   Preserve Trigger();
 }`;
 
-const SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations["Beacon Alpha"], ">=", 1);
+/**
+ * The TrigScript a model sees before it reads the map's declarations: both levels, in the
+ * words the language has now. `tests/reference.test.ts` compiles it with TrigScript's own
+ * compiler, so a release of the language that this no longer matches fails a test here.
+ */
+export const SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations.Beacon, ">=", 1);
 trigger([P1, players.Force2], [beacon], [displayText("You found it!"), preserve()]);
 for (const p of [P1, P2, P3]) trigger(p, [deaths(p, units.TerranMarine, ">=", 10)], [setDeaths(p, units.TerranMarine, "set", 0), displayText("Ten lost.")]);
 
-program(() => {                      // runs in the game: a death-counter state machine
-  let wave = 0;                      // a death counter
-  while (true) {                     // one iteration per trigger cycle
-    if (bring(P1, units.AnyUnit, locations.Beacon, ">=", 1)) { createUnit(P2, units.ZergZergling, 4, locations.Spawn); wave += 1; }
-    if (wave >= 10) defeat();
-    wait(2000);
+program(() => {                      // runs in the game; the saved map then needs Remastered
+  let wave = 0;                      // an ordinary number
+  while (true) {                     // a loop that never ends must sleep
+    if (countUnits(P2, units.ZergZergling) === 0) {
+      wave += 1;
+      createUnit(P2, units.ZergZergling, 4 + wave * 2, locations.Spawn);
+      print(\`Wave \${wave}\`, { to: AllPlayers });
+    }
+    if (wave > 10) victory();
+    sleep(seconds(2));               // never wait() in a program
   }
-}, { owner: P1 });`;
+}, { owner: P1, name: "waves" });`;
+
+/** The locations `SCRIPT_SHORT` names, for whoever compiles it. */
+export const SCRIPT_SHORT_LOCATIONS = ["Beacon", "Spawn"];
+
+/** What the reference says of the language, above the example. */
+export const SCRIPT_TEXT = "Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 … P8, every condition and action as a lower-case function; enumerated words are the short ones: \">=\", \"add\", \"set\"). That is level 1, and it plays in every version of StarCraft. Level 2 is program(() => { … }, { owner, name? }): code that runs in the game, built into the saved map by eudplib — **a map with a program needs StarCraft: Remastered, and every trigger on it then runs each frame**, about 24 times a second, so timers other triggers count in trigger cycles run fast and hyper triggers have no place on it; say so before adding a map's first program, and use one only for what triggers make painful (a sequence, arithmetic, per-player state, reading units, keys and chat). Inside a program: let numbers are signed 32-bit numbers, booleans, texts, records, arrays, Map and Set, classes; if / while / for / switch / ?: and functions (recursion too), game((…) => …) functions outside called from any program; a condition goes in an if or while, an action stands as a statement; the program runs each frame from where it left off until a sleep(frames(n) | seconds(n)) or its end, so a loop that never ends must sleep, and wait() is never used in one. What the game holds is read directly — minerals(p), countUnits(p, unit, location?), deaths(p, unit), kills(p, unit), elapsed() — and units are objects: for (const u of unitsAt(locations.Pen, { owner: P2 })) u.hp = u.maxHp / 2. A player, unit type or location handed to a condition or action is fixed when the script is built; an amount or a count may be a variable. print(`text ${n}`, { to }) shows a text with the program's numbers in it. script_declarations has the rest.";
 
 export type ReferenceLayers = [game: string, tileset: string, map: string];
 
@@ -163,7 +178,7 @@ function gameLayer(p: ReferenceParts): string {
   out.push("```");
   out.push("");
   out.push("## TrigScript (compile_script, build_script)");
-  out.push("Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 … P8, every condition and action as a lower-case function; enumerated words are the short ones: \">=\", \"add\", \"set\"). program(() => { … }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches, let objects records; if / while / for / switch / ?: / functions inside (returning numbers or booleans) and game((…) => …) functions outside, called from any program; conditions in an if, actions as statements; a while runs one iteration per trigger cycle, a for with fixed bounds is unrolled; everything read from outside is computed at build time, so a condition argument, a text, a location, a unit or a player cannot be a program variable — an amount (setResources, setDeaths, setScore, setCountdownTimer) or a unit count (createUnit, killUnitAt, removeUnitAt, giveUnits) can. Arithmetic: + −, × by a constant, / and % by a constant, Math.min / max / abs, clamp().");
+  out.push(SCRIPT_TEXT);
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");

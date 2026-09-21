@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSystem, buildSystems, Counters, cyclesFor, waitingOn, dcUnitsFrom, hasLocation, kindByName, kindsText, paramsOf, systemKinds, ToolkitError, trigger, type ToolkitContext } from "../ai/ums";
 
-const ctx: ToolkitContext = { humans: [1, 2], computers: [5], hyper: true, dcUnits: ["Cave (Unused)", "Cantina (Unused)"], locations: ["Spawn 1", "Spawn 2", "Arena", "Goal", "Shop"] };
+const ctx: ToolkitContext = { humans: [1, 2], computers: [5], tempo: "hyper", dcUnits: ["Cave (Unused)", "Cantina (Unused)"], locations: ["Spawn 1", "Spawn 2", "Arena", "Goal", "Shop"] };
 
 describe("the UMS toolkit", () => {
   it("lists a catalogue the server can design against", () => {
@@ -78,21 +78,25 @@ describe("the UMS toolkit", () => {
   });
 
   it("builds checkpoints: progress recorded in order, a respawn at the last one, the first to the finish wins and the rest lose", () => {
-    const b = buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena, Goal", finish: "Shop", lives: "3" }, ctx);
-    // Per player: 2 captures, 3 respawns, 1 out-of-lives; plus 2 finishers and 1 loser trigger.
-    expect(b.count).toBe(2 * 6 + 3);
+    const b = buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena, Goal", finish: "Shop", lives: "3" }, { ...ctx, dcUnits: [...ctx.dcUnits, "Ruins (Unused)"] });
+    // Per player: 2 captures, the first unit, 3 respawns, 1 out-of-lives; and for the finish a closer, a finisher, a witness, a win and a loss.
+    expect(b.count).toBe(2 * 7 + 2 * 5);
+    expect(b.text).toContain('Deaths("Player 1", "Cave (Unused)", Exactly, 1)');
+    expect(b.dcUsed).toHaveLength(3);
     expect(b.text).toContain('Bring("Player 1", "Zerg Zergling", "Arena", At least, 1)');
     expect(b.text).toContain('Create Unit("Player 2", "Zerg Zergling", 1, "Goal")');
     expect(b.text).toContain("Victory()");
     expect(b.text).toContain("Defeat()");
     expect(b.text).toContain('Set Switch("Switch 255", set)');
+    expect(b.text).toContain('Set Switch("Switch 254", set)');
     expect(buildSystem("checkpoints", { unit: "Zerg Zergling", start: "Spawn 1", checkpoints: "Arena" }, ctx).text).not.toContain("Victory()");
   });
 
   it("counts trigger cycles at the map's rate", () => {
-    expect(cyclesFor(10, true)).toBe(120);
-    expect(cyclesFor(10, false)).toBe(5);
-    expect(cyclesFor(1, false)).toBe(1);
+    expect(cyclesFor(10, "hyper")).toBe(120);
+    expect(cyclesFor(10, "turbo")).toBe(240);
+    expect(cyclesFor(10, "plain")).toBe(5);
+    expect(cyclesFor(1, "plain")).toBe(1);
   });
 
   it("prints a trigger in the editor's text format", () => {
@@ -117,8 +121,8 @@ describe("the UMS toolkit", () => {
     expect(b.text).toContain('Order("Player 1", "Zerg Zergling", "Spawn 1", "Arena", attack)');
     expect(b.text).toContain('Set Deaths("Player 1", "Cave (Unused)", Add, 1)');
     expect(b.dcUsed).toEqual(["Cave (Unused)"]);
-    expect(b.notes[0]).toContain("60 trigger cycles ≈ 5 s with hyper triggers");
-    const slow = buildSystem("spawn", { location: "Spawn {p}", unit: "Zerg Zergling", every: "10", owner: "computer" }, { ...ctx, hyper: false });
+    expect(b.notes[0]).toContain("60 trigger cycles = 5 s; with hyper triggers");
+    const slow = buildSystem("spawn", { location: "Spawn {p}", unit: "Zerg Zergling", every: "10", owner: "computer" }, { ...ctx, tempo: "plain" });
     expect(slow.text).toContain("At least, 5)");
     expect(slow.text).toContain('Create Unit("Player 5", "Zerg Zergling", 1, "Spawn 1")');
   });
@@ -173,12 +177,13 @@ describe("the UMS toolkit", () => {
     expect(lives.dcUsed).toEqual(["Cave (Unused)"]);
     expect(waves.dcUsed).toEqual(["Cantina (Unused)"]);
     expect(lives.text).toContain('Set Deaths("Player 5", "Cave (Unused)", Set To, 10)');
-    expect(lives.text).toContain('Remove Unit At Location("Player 5", "Any unit", All, "Goal")');
+    expect(lives.text).toContain('Remove Unit At Location("Player 5", "Any unit", 1, "Goal")');
     expect(waves.count).toBe(4);
     expect(waves.text).toContain('Elapsed Time(At least, 60);\n\tDeaths("Player 5", "Cantina (Unused)", Exactly, 1);');
     expect(waves.text).toContain('Create Unit("Player 5", "Zerg Hydralisk", 10, "Spawn 1")');
     expect(waves.text).toContain('Order("Player 5", "Any unit", "Spawn 1", "Goal", attack)');
-    expect(waves.text).toContain('Deaths("Player 5", "Cantina (Unused)", At least, 3);\n\tCommand("Player 5", "Any unit", Exactly, 0);\n\tElapsed Time(At least, 100);');
+    expect(waves.text).toContain('Deaths("Player 5", "Cantina (Unused)", At least, 3);\n\tCommand("Player 5", "Zerg Zergling", Exactly, 0);\n\tCommand("Player 5", "Zerg Hydralisk", Exactly, 0);\n\tElapsed Time(At least, 100);');
+    expect(waves.notes[0]).toBe("3 waves, the last at 90 s; won when the enemy commands no Zerg Zergling, no Zerg Hydralisk");
     expect(() => buildSystems([{ kind: "lives", params: { lives: "1", goal: "Goal" } }, { kind: "waves", params: { spawn: "Spawn 1", goal: "Goal", units: "Zerg Zergling" } }, { kind: "income", params: {} }], ctx)).toThrow(/no death-counter unit left/);
   });
 

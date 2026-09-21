@@ -94,13 +94,20 @@ with these columns:
 ```
 date, task, start, conversation, done_claimed, change_correct, check_map, rounds, continues,
 tool_calls, tool_failures, retries, cost_usd, charged_usd, seconds, cache_write_1h_tokens,
-cache_read_tokens, uncached_input_tokens, stop_reason, notes
+cache_read_tokens, uncached_input_tokens, stop_reason, notes, build_failed, build_waiting,
+build_not_run
 ```
 
 `rounds` is the number of model calls; `tool_failures` is the count of tool results that
 came back as failures (the `error` envelope), `retries` how many of those the model called
 again with different arguments. Cost columns come from the report; `charged_usd` differs
 from `cost_usd` when a failed request's completed calls were charged to the limiter only.
+
+The last three are a Make Scenario build's rows that failed, that wait for a location the
+plan did not place, and that were never reached (the build was stopped, or a step the
+rest depends on failed). A scenario task's `done_claimed` is `yes` only when all three are
+zero; otherwise it holds the status line the dialog ended on. Rows written before
+2026-09-21 have no such columns, and their `yes` may include waiting systems.
 
 ## The maps
 

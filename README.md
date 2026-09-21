@@ -75,10 +75,29 @@ and the toolkit's catalogue in front of it; the dialog shows the document and le
 it (rename, drop a system, change a parameter, rewrite the brief), or say what should be
 different under "Change the design first". A location parameter may carry `{p}` for the
 player number ("Spawn {p}", "Armory {p}"): the system is then built once per player, so
-one spawn or shop entry serves everyone. Build folds the design away and goes step by
-step, each step a row that passes or fails on its own: the map, the terrain and the named
+one spawn or shop entry serves everyone; the numbered location has to exist for every
+player it serves. The design also says what the map **plays on**: every version of
+StarCraft (triggers only), or StarCraft: Remastered, where a scripted system may be a
+TrigScript program. It is settled here, before a trigger exists, because every timer the
+toolkit builds counts trigger cycles: about one every two seconds on a map of triggers,
+twelve a second with hyper triggers, twenty-four on a map with a program, where every
+trigger runs each frame and hyper triggers are left out. The box under the choice says
+which rate the build will count at, and a build's notes give each timer in cycles and in
+the seconds they really come to. A design must let the players both win and lose; one
+that does not is sent back to be repaired before you see it. Build folds the design away
+and goes step by step, each step a row that passes or fails on its own: a count of the
+death counters and switches the systems need against what the map has free (a map has
+eighteen unused unit types to count on, and a design that needs more is refused here
+rather than half built), the map, the terrain and the named
 locations (the long step, with its clock and the model's reasoning under the rows),
-players and forces, every system, the objectives and briefing, the name, Check Map. A
+players and forces, every system, the objectives and briefing, the name, Check Map.
+"Stop the build" ends the whole build: the rows left read "not run" and what was built
+stays. A build belongs to the map it started on, and stops the same way if another map is
+brought to the front. When it ends the status says what it came to — "Built", "Built, 3
+waiting for locations", "Built with 2 failed", "Stopped building" — and only the first is
+a finished scenario. A computer player that owns nothing gets a flier in the corner to
+keep its slot in the game, one that no system of the design names, so a wave's victory,
+which counts the wave's own unit types, never waits on it. A
 system whose location the plan did not draw waits rather than building against a box in
 the middle of the map: its row says which location it needs, and once you have drawn
 it, "Build the waiting systems" builds the rest. A

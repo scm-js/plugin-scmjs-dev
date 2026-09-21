@@ -54,6 +54,8 @@ export interface ScriptState {
   stale: boolean;
   /** The source differs from what the block was built from (or was never built). */
   unbuilt: boolean;
+  /** How many programs the script had when it was last applied: with any, the saved map is built by eudplib, needs Remastered, and runs every trigger each frame. Absent from an older TrigScript. */
+  programs?: number;
 }
 
 export interface ScriptSimulation {

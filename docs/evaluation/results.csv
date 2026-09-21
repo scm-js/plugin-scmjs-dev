@@ -1,4 +1,4 @@
-date,task,start,conversation,done_claimed,change_correct,check_map,rounds,continues,tool_calls,tool_failures,retries,cost_usd,charged_usd,seconds,cache_write_1h_tokens,cache_read_tokens,uncached_input_tokens,stop_reason,notes
+date,task,start,conversation,done_claimed,change_correct,check_map,rounds,continues,tool_calls,tool_failures,retries,cost_usd,charged_usd,seconds,cache_write_1h_tokens,cache_read_tokens,uncached_input_tokens,stop_reason,notes,build_failed,build_waiting,build_not_run
 2026-09-11 19:30,1,cold,bbf4d920-d9bf-4cba-94d8-93cfc0225f35,yes,"yes: name set, two-sentence description with both facts",pass,2,0,1,0,0,0.3200,0.3200,16,29029,28363,1672,end_turn|tool_use,
 2026-09-11 19:30,9,cold,c583462e-c058-4ea8-93e8-7b40c418c190,yes,yes: no writes; 204 patches / 26 geysers correct,pass,5,0,12,0,0,0.2320,0.2320,53,0,158645,4183,end_turn|tool_use,
 2026-09-11 19:36,2,warm,4e627308-17f1-49bd-b79c-1f830adc5b75,yes,superseded by a later row,1 warning,9,0,39,0,0,0.4094,0.4094,87,355,316232,6739,end_turn|tool_use,

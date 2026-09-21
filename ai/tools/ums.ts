@@ -6,7 +6,8 @@
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import { guideById, guideFor, guideIndex } from "../guides";
-import { buildSystem, dcUnitsFrom, kindsText, ToolkitError, type Params, type ToolkitContext } from "../ums";
+import { scriptBridge } from "../script";
+import { buildSystem, dcUnitsFrom, kindsText, ToolkitError, type Params, type Tempo, type ToolkitContext } from "../ums";
 import { capResult, fail, jsonOf, num, obj, plural, str, type Tool } from "./common";
 
 /**
@@ -14,15 +15,30 @@ import { capResult, fail, jsonOf, num, obj, plural, str, type Tool } from "./com
  * locations it has, and which counters and switches its triggers already use — read
  * afresh for every build, so the system built a moment ago counts as in use for the next.
  */
-export function toolkitContext(api: PluginApi, options: { hyper?: boolean; extraLocations?: string[] } = {}): ToolkitContext {
+/** Whether the map's own triggers hold hyper triggers: a trigger of many Wait(0)s. */
+export function hasHyperTriggers(api: PluginApi, triggers = api.triggers.list()): boolean {
+  return triggers.some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
+}
+
+/** Whether the map's TrigScript, as last applied, has programs — the map is then built by eudplib and every trigger runs each frame. */
+export function hasPrograms(api: PluginApi): boolean {
+  return (scriptBridge(api)?.state()?.programs ?? 0) > 0;
+}
+
+/** How often the map's triggers run as it stands: every frame with a program, fast with hyper triggers, slowly otherwise. */
+export function mapTempo(api: PluginApi, triggers = api.triggers.list()): Tempo {
+  return hasPrograms(api) ? "turbo" : hasHyperTriggers(api, triggers) ? "hyper" : "plain";
+}
+
+export function toolkitContext(api: PluginApi, options: { tempo?: Tempo; extraLocations?: string[] } = {}): ToolkitContext {
   const players = api.settings.players();
   const humans = players.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1);
   const computers = players.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1);
   const triggers = api.triggers.list();
-  const hyper = options.hyper ?? triggers.some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
+  const tempo = options.tempo ?? mapTempo(api, triggers);
   const locations = [...usedLocationNames(api), ...(options.extraLocations ?? [])];
   const used = usedTriggerState(api, triggers);
-  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
+  return { humans: humans.length ? humans : [1], computers, tempo, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
 }
 
 /**

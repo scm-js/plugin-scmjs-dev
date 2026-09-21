@@ -7,7 +7,7 @@
  *   npm i --no-save playwright        # here; npx playwright install chromium once
  *   SCMJS_SESSION=<session> AI_SERVER_ADMIN_TOKEN=<token> node scripts/evaluate.mjs \
  *       --maps ~/maps [--base http://localhost:5173] [--server https://api.scmjs.dev] \
- *       [--start cold|warm] [--only 1,2,R3] [--out docs/evaluation] [--timeout 20] [--browser <chrome>] [--list]
+ *       [--start cold|warm] [--only 1,2,R3] [--out docs/evaluation] [--timeout 20] [--browser <chrome>] [--plugin <url>] [--list]
  *
  * The session is the admin account's, copied from the browser: DevTools ▸ Application ▸
  * Local Storage ▸ the editor's origin ▸ `scmjs.plugin.scmjs-dev.settings` ▸ `session`.
@@ -44,6 +44,7 @@ const START = opt("--start", "cold");
 const ONLY = opt("--only", "")?.split(",").filter(Boolean) ?? [];
 const TIMEOUT_MS = Number(opt("--timeout", "20")) * 60_000;
 const BROWSER = opt("--browser", process.env.SCMJS_BROWSER ?? "");
+const PLUGIN = opt("--plugin", "");
 
 if (args.includes("--list")) {
   for (const t of TASKS) console.log(`${t.id.padEnd(4)} ${t.title.padEnd(34)} ${t.manual ? "manual" : `${t.kind}${t.map ? ` on ${t.map}` : ""}`}`);
@@ -64,13 +65,15 @@ async function loadPlaywright() {
 }
 
 const log = (text) => console.log(`   ${new Date().toTimeString().slice(0, 8)}  ${text}`);
-const COLUMNS = ["date", "task", "start", "conversation", "done_claimed", "change_correct", "check_map", "rounds", "continues", "tool_calls", "tool_failures", "retries", "cost_usd", "charged_usd", "seconds", "cache_write_1h_tokens", "cache_read_tokens", "uncached_input_tokens", "stop_reason", "notes"];
+const COLUMNS = ["date", "task", "start", "conversation", "done_claimed", "change_correct", "check_map", "rounds", "continues", "tool_calls", "tool_failures", "retries", "cost_usd", "charged_usd", "seconds", "cache_write_1h_tokens", "cache_read_tokens", "uncached_input_tokens", "stop_reason", "notes", "build_failed", "build_waiting", "build_not_run"];
 
 /* ── the browser ──────────────────────────────────────────────────────────────── */
 
 /** The plugin on, signed in as the session, and no file pickers so Save As downloads. */
 function seed(task) {
-  return `localStorage.setItem("scmjs.plugins", ${JSON.stringify(JSON.stringify([{ spec: "github:scm-js/plugin-scmjs-dev", enabled: true }]))});
+  // `--plugin http://localhost:3131/` runs a checkout served from this machine in place of the release the editor ships.
+  const plugins = PLUGIN ? [{ spec: "github:scm-js/plugin-scmjs-dev", enabled: false }, { spec: PLUGIN, enabled: true }] : [{ spec: "github:scm-js/plugin-scmjs-dev", enabled: true }];
+  return `localStorage.setItem("scmjs.plugins", ${JSON.stringify(JSON.stringify(plugins))});
   localStorage.setItem("scmjs.plugin.scmjs-dev.settings", ${JSON.stringify(JSON.stringify({
     serverUrl: SERVER, session: SESSION, deviceId: DEVICE, statusItem: true,
     ai: true, quality: "standard", showThinking: true, maxRounds: task.maxRounds ?? 24, attachView: false, dockAssistant: false, followMap: true,
@@ -280,14 +283,21 @@ async function runScenario(p, task, r) {
   log("designed, building");
   r.design = await dlg.locator(".ai-design, .dlg-body").first().innerText().catch(() => "");
   await dlg.locator("button", { hasText: /^Build$/ }).click();
-  const built = await p.statusMatches(/^Built |failed step|^Kept the open map/);
+  const built = await p.statusMatches(/^Built |^Stopped building |^Not built|^Kept the open map/);
   log(built.text || "build timed out");
   r.steps = await p.stepSummary(dlg);
   r.tool_calls = r.steps.length;
   r.tool_failures = r.steps.filter((s) => /fail/.test(s.state)).length;
-  const waiting = r.steps.filter((s) => /skipped/.test(s.state));
+  // A waiting system is a row that was skipped for its locations; "not run" is a row the build never reached.
+  const skipped = r.steps.filter((s) => /skipped/.test(s.state));
+  const waiting = skipped.filter((s) => !/^not run/.test(s.detail ?? ""));
+  r.build_failed = r.tool_failures;
+  r.build_waiting = waiting.length;
+  r.build_not_run = skipped.length - waiting.length;
   if (waiting.length) r.notes.push(`${waiting.length} system(s) waiting: ${waiting.map((s) => s.detail).join("; ")}`);
-  r.done_claimed = !built.ok ? "timeout" : /^Built/.test(built.text) && !r.tool_failures ? "yes" : built.text;
+  // "Built <name>." with every row passed is a build: with a failed, waiting or unreached step the status says which, and that is what is recorded.
+  const whole = built.ok && /^Built /.test(built.text) && !r.build_failed && !r.build_waiting && !r.build_not_run;
+  r.done_claimed = !built.ok ? "timeout" : whole ? "yes" : built.text;
   r.phaseDetail = built.text;
   await p.esc();
   if (task.then?.kind === "triggers" && r.done_claimed === "yes") {

@@ -8,7 +8,7 @@
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent } from "../protocol";
-import { isFailure, toContent, type Tool, type ToolResult } from "./tools/common";
+import { didWrite, isFailure, toContent, type Tool, type ToolResult } from "./tools/common";
 import type { Ctx } from "./ui";
 
 export type ToolCall = Extract<AgentContent, { type: "tool_use" }>;
@@ -88,7 +88,7 @@ export async function executeCalls(calls: ToolCall[], deps: ExecuteDeps, hooks: 
       // As the tool returned it: each tool caps its own output to what it is for.
       out.results.push(toContent(call.id, result));
       if (isFailure(result)) { hooks.after?.(call, tool, { kind: "failed", message: result.error }); continue; }
-      if (tool.writes) (tool.settings ? out.settingsWrites : out.edits).push(call.name);
+      if (didWrite(tool, input, result)) (tool.settings ? out.settingsWrites : out.edits).push(call.name);
       hooks.after?.(call, tool, { kind: "done", result });
     } catch (err) {
       const message = (err as Error).message;

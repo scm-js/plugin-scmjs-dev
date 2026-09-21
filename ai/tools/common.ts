@@ -24,6 +24,8 @@ export interface Tool {
   writes: boolean;
   /** A settings-style write: not in the undo model. */
   settings?: boolean;
+  /** For a tool that writes only when asked to (`scenario_rules` with `fix`): whether this call is one that does. Without it every call of a writing tool is. */
+  writesWhen?(input: Record<string, unknown>): boolean;
   /**
    * The step's line in the transcript, from the input — "Placed 4 Marines near 12,7", in
    * the past tense, naming what the person would look for on the map. Without it the
@@ -325,6 +327,27 @@ export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" :
 /* ── Phrasing for the transcript's step lines ── */
 
 /** The JSON of a result, when it is one (a cut result parses no further than its cut). */
+/** Whether this call of the tool is one that means to change the map — for how the step is shown before it has run. */
+export function mayWrite(tool: Tool | undefined, input: Record<string, unknown> | null | undefined): boolean {
+  if (!tool?.writes) return false;
+  return input && tool.writesWhen ? tool.writesWhen(input) : true;
+}
+
+/**
+ * Whether a finished call changed the map, for the count of edits a turn reports: a
+ * writing tool, called in a way that writes, that did not fail and did not answer
+ * `changed: 0` (or `added: 0`, or an empty `fixed`) — a brush stroke over what was
+ * already there, a check that found nothing to fix.
+ */
+export function didWrite(tool: Tool | undefined, input: Record<string, unknown> | null | undefined, result: ToolResult): boolean {
+  if (!mayWrite(tool, input) || isFailure(result)) return false;
+  const r = jsonOf(result);
+  if (!r) return true;
+  if (r.changed === 0 || r.added === 0) return false;
+  if (tool?.writesWhen && Array.isArray(r.fixed) && r.fixed.length === 0) return false;
+  return true;
+}
+
 export function jsonOf(result: ToolResult): Record<string, unknown> | null {
   const text = typeof result === "string" ? result : isFailure(result) ? "" : result.text ?? "";
   if (!text.startsWith("{") && !text.startsWith("[")) return null;

@@ -18,6 +18,8 @@ import { fitBase } from "../bases";
 import { clusterResources, compassOf, oppositeOf, scanSites, type ResourceCluster, type ResourceUnit } from "../sites";
 import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_FIELDS, mineralLooks, NEUTRAL, outwardDirection, rectAt, snapAngle, START_LOCATION, VESPENE_GEYSER, type TileRect as Footprint } from "../layout";
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
+import { KEEPERS } from "../scenarioBuild";
+import { hasHyperTriggers, mapTempo } from "./ums";
 import { capResult, fail, jsonOf, list, noSuchUnit, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
 
 /** Human and computer slots, 1-based, from the settings. */
@@ -386,10 +388,11 @@ export function layoutTools(): Tool[] {
       },
     },
     {
-      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers. fix: true gives an ownerless computer an Overlord.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers, hyper triggers beside a program. fix: true gives an ownerless computer a flier no trigger names.", inputSchema: obj({ fix: { type: "boolean" } }) },
       describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
       report: (result) => { const r = jsonOf(result); if (!r) return ""; const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : []; const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0; return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems"; },
       writes: true,
+      writesWhen: (input) => input.fix === true,
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return fail("No map is open.");
@@ -400,18 +403,22 @@ export function layoutTools(): Tool[] {
         for (const p of humans) if (!owned.has(p)) problems.push(`Player ${p} (human) owns no unit; a human is placed by the start location, so check it has one and that the triggers or the melee start give it something`);
         const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
         for (const p of humans) if (!starts.has(p)) problems.push(`Player ${p} (human) has no start location`);
-        const keeper = unitIdByName(api, "Zerg Overlord");
+        // A flier none of the map's triggers names: a wave's victory counts the wave's unit types, and must not count this.
+        const named = new Set(scn.triggers.flatMap((t) => [...t.conditions.map((c) => c.unitId), ...t.actions.map((a) => a.unitId)]));
+        const keeperName = KEEPERS.find((k) => { const id = unitIdByName(api, k); return id !== null && !named.has(id); }) ?? KEEPERS[0];
+        const keeper = unitIdByName(api, keeperName);
         for (const p of computers) {
           if (owned.has(p)) continue;
           if (input.fix === true && keeper !== null) {
             const px = (scn.width - 2) * TILE, py = (2 + fixed.length * 2) * TILE;
             api.document.edit(`AI: keeper for player ${p}`, (tx) => { tx.placeUnit(keeper, p - 1, px, py); });
-            fixed.push(`Player ${p} (computer) owned nothing: an Overlord at ${scn.width - 2},${2 + (fixed.length) * 2} keeps it in the game`);
+            fixed.push(`Player ${p} (computer) owned nothing: a ${keeperName} at ${scn.width - 2},${2 + (fixed.length) * 2} keeps it in the game`);
           } else problems.push(`Player ${p} (computer) owns nothing: it is defeated the moment the game starts and its triggers never run — give it a unit out of the way (fix: true does)`);
         }
-        const hyper = scn.triggers.some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
+        const tempo = mapTempo(api, scn.triggers);
         const counters = scn.triggers.some((t) => t.conditions.some((c) => c.type === api.consts.triggers.condition.Deaths) && t.actions.some((a) => a.type === api.consts.triggers.action.SetDeaths));
-        if (counters && !hyper) problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
+        if (tempo === "turbo" && hasHyperTriggers(api, scn.triggers)) problems.push("the map has a TrigScript program, so every trigger already runs each frame: its hyper triggers do nothing but hold up any other Wait of their owner, and timers the toolkit built for hyper tempo now run twice as fast (remove the hyper triggers and rebuild those systems with ums_build)");
+        if (counters && tempo === "plain") problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
         return capResult({ problems: problems.length ? problems : ["none"], fixed });
       },
     },

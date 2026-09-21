@@ -669,7 +669,31 @@ export interface MapFacts {
 export interface SystemKindSpec {
   kind: string;
   description: string;
-  params: { name: string; description: string; required: boolean }[];
+  params: SystemParamSpec[];
+  /**
+   * How a system of this kind can end the game for the human players. Absent for a kind
+   * that ends nothing. The design checker wants a win and a loss within reach. A plugin
+   * that sends these is also one that reads the design's `target`; an older plugin sends
+   * none, is not checked for endings, and is given classic designs only.
+   */
+  ends?: SystemEnding[];
+}
+
+export interface SystemEnding {
+  /** The humans can win by it, lose by it, or both. */
+  result: "win" | "loss" | "both";
+  /** Only when this parameter is given (and is not 0 or "none"): `checkpoints` ends the game only with a `finish`. */
+  when?: string;
+  /** And only when that parameter's value starts with this: a `countdown` whose `onEnd` starts with "victory". */
+  is?: string;
+}
+
+export interface SystemParamSpec {
+  name: string;
+  description: string;
+  required: boolean;
+  /** The value names a location, or a comma-separated list of them — checked against the design's. An older plugin says so only in the description. */
+  type?: "location" | "locations";
 }
 
 export interface UmsDesignInput {
@@ -743,10 +767,22 @@ export interface DesignSystem {
   description: string;
 }
 
+/**
+ * What the map is built for, chosen before a trigger exists. `classic`: triggers alone — it
+ * plays in every version, the list runs every two seconds or, with a `hyper` system, twelve
+ * times a second, and a custom system may not use `program()`. `remastered`: custom systems
+ * may be programs, the saved map is built by eudplib and needs StarCraft: Remastered, every
+ * trigger runs each frame, and the toolkit counts its timers at that rate — hyper triggers
+ * have no place on it.
+ */
+export type DesignTarget = "classic" | "remastered";
+
 /** The design document: everything the plugin needs to build the scenario, step by step. */
 export interface UmsDesign {
   name: string;
   description: string;
+  /** Absent in a design from an older server: classic. */
+  target?: DesignTarget;
   /** "madness", "bound", "defense", "rpg", "diplomacy", "arena", "survival", "other". */
   genre: string;
   premise: string;

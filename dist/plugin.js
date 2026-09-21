@@ -914,6 +914,18 @@ function summarizeResult(result) {
   return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
 }
 var plural = (n2, word) => `${n2} ${word}${n2 === 1 ? "" : "s"}`;
+function mayWrite(tool, input) {
+  if (!tool?.writes) return false;
+  return input && tool.writesWhen ? tool.writesWhen(input) : true;
+}
+function didWrite(tool, input, result) {
+  if (!mayWrite(tool, input) || isFailure(result)) return false;
+  const r = jsonOf(result);
+  if (!r) return true;
+  if (r.changed === 0 || r.added === 0) return false;
+  if (tool?.writesWhen && Array.isArray(r.fixed) && r.fixed.length === 0) return false;
+  return true;
+}
 function jsonOf(result) {
   const text = typeof result === "string" ? result : isFailure(result) ? "" : result.text ?? "";
   if (!text.startsWith("{") && !text.startsWith("[")) return null;
@@ -987,7 +999,7 @@ async function executeCalls(calls, deps, hooks = {}) {
         hooks.after?.(call, tool, { kind: "failed", message: result.error });
         continue;
       }
-      if (tool.writes) (tool.settings ? out.settingsWrites : out.edits).push(call.name);
+      if (didWrite(tool, input, result)) (tool.settings ? out.settingsWrites : out.edits).push(call.name);
       hooks.after?.(call, tool, { kind: "done", result });
     } catch (err) {
       const message = err.message;
@@ -2401,18 +2413,23 @@ Actions:
   ; Set Switch("Switch 3", clear);
   Preserve Trigger();
 }`;
-var SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations["Beacon Alpha"], ">=", 1);
+var SCRIPT_SHORT = `const beacon = bring(CurrentPlayer, units.AnyUnit, locations.Beacon, ">=", 1);
 trigger([P1, players.Force2], [beacon], [displayText("You found it!"), preserve()]);
 for (const p of [P1, P2, P3]) trigger(p, [deaths(p, units.TerranMarine, ">=", 10)], [setDeaths(p, units.TerranMarine, "set", 0), displayText("Ten lost.")]);
 
-program(() => {                      // runs in the game: a death-counter state machine
-  let wave = 0;                      // a death counter
-  while (true) {                     // one iteration per trigger cycle
-    if (bring(P1, units.AnyUnit, locations.Beacon, ">=", 1)) { createUnit(P2, units.ZergZergling, 4, locations.Spawn); wave += 1; }
-    if (wave >= 10) defeat();
-    wait(2000);
+program(() => {                      // runs in the game; the saved map then needs Remastered
+  let wave = 0;                      // an ordinary number
+  while (true) {                     // a loop that never ends must sleep
+    if (countUnits(P2, units.ZergZergling) === 0) {
+      wave += 1;
+      createUnit(P2, units.ZergZergling, 4 + wave * 2, locations.Spawn);
+      print(\`Wave \${wave}\`, { to: AllPlayers });
+    }
+    if (wave > 10) victory();
+    sleep(seconds(2));               // never wait() in a program
   }
-}, { owner: P1 });`;
+}, { owner: P1, name: "waves" });`;
+var SCRIPT_TEXT = 'Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map\'s names (units.*, locations.*, switches.*, players.*, P1 \u2026 P8, every condition and action as a lower-case function; enumerated words are the short ones: ">=", "add", "set"). That is level 1, and it plays in every version of StarCraft. Level 2 is program(() => { \u2026 }, { owner, name? }): code that runs in the game, built into the saved map by eudplib \u2014 **a map with a program needs StarCraft: Remastered, and every trigger on it then runs each frame**, about 24 times a second, so timers other triggers count in trigger cycles run fast and hyper triggers have no place on it; say so before adding a map\'s first program, and use one only for what triggers make painful (a sequence, arithmetic, per-player state, reading units, keys and chat). Inside a program: let numbers are signed 32-bit numbers, booleans, texts, records, arrays, Map and Set, classes; if / while / for / switch / ?: and functions (recursion too), game((\u2026) => \u2026) functions outside called from any program; a condition goes in an if or while, an action stands as a statement; the program runs each frame from where it left off until a sleep(frames(n) | seconds(n)) or its end, so a loop that never ends must sleep, and wait() is never used in one. What the game holds is read directly \u2014 minerals(p), countUnits(p, unit, location?), deaths(p, unit), kills(p, unit), elapsed() \u2014 and units are objects: for (const u of unitsAt(locations.Pen, { owner: P2 })) u.hp = u.maxHp / 2. A player, unit type or location handed to a condition or action is fixed when the script is built; an amount or a count may be a variable. print(`text ${n}`, { to }) shows a text with the program\'s numbers in it. script_declarations has the rest.';
 function buildReferenceLayers(p) {
   return [gameLayer(p), tilesetLayer(p), mapLayer(p)];
 }
@@ -2450,7 +2467,7 @@ function gameLayer(p) {
   out.push("```");
   out.push("");
   out.push("## TrigScript (compile_script, build_script)");
-  out.push(`Ordinary TypeScript that runs when built: every trigger(players, conditions, actions, options?) call records one trigger, so loops, helpers, arrays and the standard library all work. Read script_declarations once for this map's names (units.*, locations.*, switches.*, players.*, P1 \u2026 P8, every condition and action as a lower-case function; enumerated words are the short ones: ">=", "add", "set"). program(() => { \u2026 }, { owner }) is code that runs in the game: let numbers are death counters, booleans switches, let objects records; if / while / for / switch / ?: / functions inside (returning numbers or booleans) and game((\u2026) => \u2026) functions outside, called from any program; conditions in an if, actions as statements; a while runs one iteration per trigger cycle, a for with fixed bounds is unrolled; everything read from outside is computed at build time, so a condition argument, a text, a location, a unit or a player cannot be a program variable \u2014 an amount (setResources, setDeaths, setScore, setCountdownTimer) or a unit count (createUnit, killUnitAt, removeUnitAt, giveUnits) can. Arithmetic: + \u2212, \xD7 by a constant, / and % by a constant, Math.min / max / abs, clamp().`);
+  out.push(SCRIPT_TEXT);
   out.push("```ts");
   out.push(SCRIPT_SHORT);
   out.push("```");
@@ -4070,6 +4087,1444 @@ function scanSites(mask, w, h3, near, radius, limit = 5) {
   return kept;
 }
 
+// ai/ums.ts
+var ToolkitError = class extends Error {
+  problems;
+  constructor(problems) {
+    super(problems.join("; "));
+    this.name = "ToolkitError";
+    this.problems = problems;
+  }
+};
+var DEFAULT_DC_UNITS = [
+  "Cave (Unused)",
+  "Cave-in (Unused)",
+  "Cantina (Unused)",
+  "Mining Platform (Unused)",
+  "Independent Command Center (Unused)",
+  "Independent Starport (Unused)",
+  "Independent Jump Gate (Unused)",
+  "Ruins (Unused)",
+  "Khaydarin Crystal Formation (Unused)",
+  "Zerg Marker",
+  "Terran Marker",
+  "Protoss Marker",
+  "Map Revealer",
+  "Scanner Sweep",
+  "Data Disk",
+  "Khaydarin Crystal",
+  "Uraj Crystal",
+  "Khalis Crystal"
+];
+var CYCLES_PER_SECOND = { plain: 0.5, hyper: 12, turbo: 24 };
+function cyclesFor(seconds, tempo) {
+  return Math.max(1, Math.round(seconds * CYCLES_PER_SECOND[tempo]));
+}
+var TEMPO_TEXT = {
+  plain: "without hyper triggers, a cycle about every 2 s",
+  hyper: "with hyper triggers, about 12 cycles a second",
+  turbo: "the map has a program, so triggers run every frame, about 24 cycles a second"
+};
+function timerText(seconds, tempo) {
+  const cycles = cyclesFor(seconds, tempo);
+  const real = cycles / CYCLES_PER_SECOND[tempo];
+  const shown = Number(real.toFixed(2));
+  return `${cycles} trigger ${cycles === 1 ? "cycle" : "cycles"} = ${shown} s${Math.abs(real - seconds) > 5e-3 ? ` (asked for ${seconds} s)` : ""}; ${TEMPO_TEXT[tempo]}`;
+}
+var q = (s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+var player = (p) => typeof p === "number" ? `Player ${p}` : p;
+function trigger(owners, conditions, actions) {
+  const lines = [`Trigger(${owners.map((o) => q(player(o))).join(", ")}){`, "Conditions:"];
+  for (const c2 of conditions.length ? conditions : ["Always()"]) lines.push(`	${c2};`);
+  lines.push("Actions:");
+  for (const a2 of actions) lines.push(`	${a2};`);
+  lines.push("}", "");
+  return lines.join("\n");
+}
+var ACTION_ROOM = 62;
+function preservedChunks(owners, conditions, body, last = []) {
+  if (last.length > ACTION_ROOM) throw new ToolkitError([`${last.length} actions that cannot be split do not fit one trigger`]);
+  const chunks = [];
+  for (let i = 0; i < body.length; i += ACTION_ROOM) chunks.push(body.slice(i, i + ACTION_ROOM));
+  if (chunks.length === 0 || chunks[chunks.length - 1].length + last.length > ACTION_ROOM) chunks.push([]);
+  chunks[chunks.length - 1].push(...last);
+  return chunks.map((actions) => trigger(owners, conditions, [...actions, "Preserve Trigger()"]));
+}
+var CUR = "Current Player";
+var c = {
+  always: () => "Always()",
+  deaths: (p, unit, cmp, n2) => `Deaths(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
+  bring: (p, unit, loc2, cmp, n2) => `Bring(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${cmp}, ${n2})`,
+  command: (p, unit, cmp, n2) => `Command(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
+  kill: (p, unit, cmp, n2) => `Kill(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
+  score: (p, score, cmp, n2) => `Score(${q(player(p))}, ${score}, ${cmp}, ${n2})`,
+  accumulate: (p, cmp, n2, res) => `Accumulate(${q(player(p))}, ${cmp}, ${n2}, ${res})`,
+  elapsed: (cmp, s) => `Elapsed Time(${cmp}, ${s})`,
+  countdown: (cmp, s) => `Countdown Timer(${cmp}, ${s})`,
+  opponents: (p, cmp, n2) => `Opponents(${q(player(p))}, ${cmp}, ${n2})`,
+  switch: (name, state) => `Switch(${q(name)}, ${state})`
+};
+var a = {
+  preserve: () => "Preserve Trigger()",
+  wait: (ms) => `Wait(${ms})`,
+  create: (p, unit, n2, loc2) => `Create Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  setDeaths: (p, unit, mod, n2) => `Set Deaths(${q(player(p))}, ${q(unit)}, ${mod}, ${n2})`,
+  setResources: (p, mod, n2, res) => `Set Resources(${q(player(p))}, ${mod}, ${n2}, ${res})`,
+  setScore: (p, mod, n2, score) => `Set Score(${q(player(p))}, ${mod}, ${n2}, ${score})`,
+  text: (s) => `Display Text Message(Always Display, ${q(s)})`,
+  objectives: (s) => `Set Mission Objectives(${q(s)})`,
+  victory: () => "Victory()",
+  defeat: () => "Defeat()",
+  killAt: (p, unit, n2, loc2) => `Kill Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  removeAt: (p, unit, n2, loc2) => `Remove Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  move: (p, unit, n2, from, to) => `Move Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(from)}, ${q(to)})`,
+  order: (p, unit, from, to, order) => `Order(${q(player(p))}, ${q(unit)}, ${q(from)}, ${q(to)}, ${order})`,
+  hp: (p, unit, pct, n2, loc2) => `Modify Unit Hit Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
+  shields: (p, unit, pct, n2, loc2) => `Modify Unit Shield Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
+  lbKills: (label, unit) => `Leader Board Kills(${q(label)}, ${q(unit)})`,
+  lbControl: (label, unit) => `Leader Board Control(${q(label)}, ${q(unit)})`,
+  lbResources: (label, res) => `Leader Board Resources(${q(label)}, ${res})`,
+  lbPoints: (label, score) => `Leader Board Points(${q(label)}, ${score})`,
+  countdown: (mod, s) => `Set Countdown Timer(${mod}, ${s})`,
+  alliance: (p, status) => `Set Alliance Status(${q(player(p))}, ${status})`,
+  give: (from, to, unit, n2, loc2) => `Give Units to Player(${q(player(from))}, ${q(player(to))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
+  ping: (loc2) => `Minimap Ping(${q(loc2)})`,
+  center: (loc2) => `Center View(${q(loc2)})`,
+  setSwitch: (name, action) => `Set Switch(${q(name)}, ${action})`,
+  invincible: (p, unit, loc2, state) => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${state})`
+};
+var isTemplate = (value) => /\{p\}/.test(value);
+var fillTemplate = (value, p) => value.replace(/\{p\}/g, String(p));
+function hasLocation(locations, name) {
+  const v = name.trim().toLowerCase();
+  if (v === "anywhere") return true;
+  if (!isTemplate(v)) return locations.some((l) => l.toLowerCase() === v);
+  const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
+  return locations.some((l) => re.test(l.toLowerCase()));
+}
+function waitingOn(system, missing) {
+  const names = system.params.flatMap((p) => p.value.split(/\s*[,;]\s*/)).map((v) => v.trim()).filter((v) => v && v.toLowerCase() !== "anywhere");
+  return missing.filter((m) => names.some((v) => hasLocation([m], v)));
+}
+var Reader2 = class {
+  problems = [];
+  notes = [];
+  seen = /* @__PURE__ */ new Set();
+  kind;
+  params;
+  ctx;
+  constructor(kind, params, ctx) {
+    this.kind = kind;
+    this.params = params;
+    this.ctx = ctx;
+  }
+  raw(name) {
+    this.seen.add(name);
+    const v = this.params[name];
+    return v === void 0 || v.trim() === "" ? void 0 : v.trim();
+  }
+  str(name, fallback) {
+    const v = this.raw(name);
+    if (v !== void 0) return v;
+    if (fallback !== void 0) return fallback;
+    this.problems.push(`"${name}" is required`);
+    return "";
+  }
+  int(name, fallback, lo = 0, hi = 1e6) {
+    const v = this.raw(name);
+    if (v === void 0) return fallback;
+    const cleaned = v.replace(/[^0-9.-]/g, "");
+    const n2 = cleaned === "" ? NaN : Number(cleaned);
+    if (!Number.isFinite(n2)) {
+      this.problems.push(`"${name}" should be a number, not "${v}"`);
+      return fallback;
+    }
+    return Math.max(lo, Math.min(hi, Math.round(n2)));
+  }
+  bool(name, fallback) {
+    const v = this.raw(name);
+    if (v === void 0) return fallback;
+    if (/^(true|yes|on|1)$/i.test(v)) return true;
+    if (/^(false|no|off|0)$/i.test(v)) return false;
+    this.problems.push(`"${name}" should be yes or no, not "${v}"`);
+    return fallback;
+  }
+  /** One of a few words. */
+  choice(name, options, fallback) {
+    const v = this.raw(name);
+    if (v === void 0) return fallback;
+    const found = options.find((o) => o.toLowerCase() === v.toLowerCase());
+    if (found === void 0) this.problems.push(`"${name}" should be ${options.join(" or ")}, not "${v}"`);
+    return found ?? fallback;
+  }
+  /** A location name, checked against the context when it lists any; a `{p}` template passes when a numbered location backs it. */
+  location(name, fallback) {
+    const v = this.str(name, fallback);
+    if (v && this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, v)) {
+      this.problems.push(`"${name}" names location "${v}", which the map does not have`);
+    }
+    return v;
+  }
+  /** A location named inside a list parameter, checked the same way. */
+  locationIn(name, value) {
+    if (this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, value)) this.problems.push(`"${name}" names location "${value}", which the map does not have`);
+  }
+  /** Players: "humans" (default), "computers", "all", or a list like "1, 2, 5". 1-based. */
+  players(name, fallback = "humans") {
+    const v = this.raw(name) ?? fallback;
+    if (/^humans?$/i.test(v)) return this.ctx.humans;
+    if (/^computers?$/i.test(v)) return this.ctx.computers;
+    if (/^all$/i.test(v)) return [...this.ctx.humans, ...this.ctx.computers];
+    const list2 = v.split(/[,\s]+/).map((s) => Number(s.replace(/^p(?:layer)?\s*/i, ""))).filter((n2) => Number.isInteger(n2) && n2 >= 1 && n2 <= 12);
+    if (list2.length === 0) this.problems.push(`"${name}" should be humans, computers, all, or player numbers, not "${v}"`);
+    return list2;
+  }
+  /** One player: a number 1–12, or "computer" for the first computer slot; `fallback` may be "computer" too. */
+  onePlayer(name, fallback) {
+    let v = this.raw(name);
+    if (v === void 0) {
+      if (typeof fallback === "number") return fallback;
+      if (fallback === "computer") v = "computer";
+      else {
+        this.problems.push(`"${name}" is required`);
+        return 12;
+      }
+    }
+    if (/^computer$/i.test(v)) {
+      if (this.ctx.computers[0]) return this.ctx.computers[0];
+      this.problems.push(`"${name}" says computer, but the map has no computer player`);
+      return 12;
+    }
+    if (/^neutral$/i.test(v)) return 12;
+    const n2 = Number(v.replace(/^p(?:layer)?\s*/i, ""));
+    if (!Number.isInteger(n2) || n2 < 1 || n2 > 12) {
+      this.problems.push(`"${name}" should be a player number 1\u201312, not "${v}"`);
+      return 12;
+    }
+    return n2;
+  }
+  /** Comma-separated names. */
+  list(name, fallback = []) {
+    const v = this.raw(name);
+    return v === void 0 ? fallback : v.split(/\s*[,;]\s*/).map((s) => s.trim()).filter(Boolean);
+  }
+  /** Complain about parameters the kind does not take. */
+  finish() {
+    for (const k of Object.keys(this.params)) if (!this.seen.has(k) && !this.kind.params.some((p) => p.name === k)) this.problems.push(`"${k}" is not a parameter of ${this.kind.kind}`);
+    if (this.problems.length > 0) throw new ToolkitError(this.problems.map((p) => `${this.kind.kind}: ${p}`));
+  }
+};
+var Counters = class {
+  next = 0;
+  used = [];
+  ctx;
+  taken;
+  takenSwitches;
+  constructor(ctx) {
+    this.ctx = ctx;
+    this.taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
+    this.takenSwitches = new Set((ctx.usedSwitches ?? []).map((s) => s.toLowerCase()));
+  }
+  take(what) {
+    while (this.next < this.ctx.dcUnits.length && this.taken.has(this.ctx.dcUnits[this.next].toLowerCase())) this.next++;
+    const unit = this.ctx.dcUnits[this.next++];
+    if (!unit) {
+      const inUse = this.ctx.dcUnits.filter((u) => this.taken.has(u.toLowerCase()) && !this.used.includes(u)).length;
+      throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length}${inUse ? `, ${inUse} already in use by the map's triggers` : ""})`]);
+    }
+    this.taken.add(unit.toLowerCase());
+    this.used.push(unit);
+    return unit;
+  }
+  nextSwitch = 255;
+  /** A switch by its numbered name, from the top down — a name the map does not have would not parse. */
+  takeSwitch(what) {
+    while (this.nextSwitch >= 1 && this.takenSwitches.has(`switch ${this.nextSwitch}`)) this.nextSwitch--;
+    if (this.nextSwitch < 1) throw new ToolkitError([`no switch left for ${what}`]);
+    const name = `Switch ${this.nextSwitch--}`;
+    this.takenSwitches.add(name.toLowerCase());
+    return name;
+  }
+};
+var P2 = (name, description, required = false) => ({ name, description, required });
+var L = (name, description, required = false) => ({ name, description, required, type: "location" });
+var LL = (name, description, required = false) => ({ name, description, required, type: "locations" });
+var SEEN = 1;
+var FINISHED = 2;
+var MAX_WAVE_TYPES = 13;
+var KINDS = [
+  {
+    spec: {
+      kind: "hyper",
+      description: "Hyper triggers: make the whole trigger list run about twelve times a second instead of every two seconds. Needed by anything that spawns, counts or reacts faster than that. Three copies of a preserved trigger of 62 Wait(0)s.",
+      params: [P2("owner", "who runs them: a player number that is always in the game, or All Players (the default)")]
+    },
+    build(r) {
+      const owner = r.str("owner", "All Players");
+      const own = /^\d+$/.test(owner) ? Number(owner) : owner;
+      const t = trigger([own], [], [...Array.from({ length: 62 }, () => a.wait(0)), a.preserve()]);
+      return { triggers: [t, t, t] };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "spawn",
+      description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
+      params: [L("location", "the spawn location; may contain {p} for the player number", true), P2("unit", "the unit to create", true), P2("count", "units per spawn (default 1)"), P2("every", "seconds between spawns (default 10)"), P2("players", "humans (default), computers, all, or player numbers"), P2("owner", "each (default), computer, or a player number"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), L("attack", "a location to order the spawned units to attack-move to (default none)")]
+    },
+    build(r, ctx, dc) {
+      const location2 = r.str("location");
+      const unit = r.str("unit");
+      const count = r.int("count", 1, 1, 200);
+      const every = r.int("every", 10, 1, 3600);
+      const players2 = r.players("players");
+      const ownerRaw = r.str("owner", "each");
+      const limit = r.int("limit", 0, 0, 1700);
+      const attack = r.str("attack", "");
+      const cycles = cyclesFor(every, ctx.tempo);
+      const counter = dc.take("the spawn timer");
+      const triggers = [];
+      for (const p of players2) {
+        const loc2 = fillTemplate(location2, p);
+        r.locationIn("location", loc2);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
+        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
+        const conditions = [c.deaths(p, counter, "At least", cycles)];
+        if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
+        const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc2)];
+        if (attack) actions.push(a.order(owner, unit, loc2, attackLoc, "attack"));
+        actions.push(a.preserve());
+        triggers.push(trigger([p], conditions, actions));
+        triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
+      }
+      return { triggers, notes: [`spawn timer: ${timerText(every, ctx.tempo)}`] };
+    }
+  },
+  {
+    spec: {
+      kind: "kill-to-cash",
+      description: "Pay minerals (and gas) for kills. Watches the player's kill score and pays each time it passes `scorePerKill`, subtracting that much score \u2014 so units worth more kill score pay more often. Kill score is roughly the unit's cost (a Marine 100, a Zergling 50, a Hydralisk 175).",
+      params: [P2("minerals", "minerals per payment (default 10)"), P2("gas", "gas per payment (default 0)"), P2("scorePerKill", "kill score per payment (default 100)"), P2("players", "humans (default), all, or player numbers"), P2("message", "text shown on each payment (default none)")]
+    },
+    build(r) {
+      const minerals = r.int("minerals", 10, 0);
+      const gas = r.int("gas", 0, 0);
+      const per = r.int("scorePerKill", 100, 1);
+      const players2 = r.players("players");
+      const message = r.str("message", "");
+      const actions = [a.setScore(CUR, "Subtract", per, "Kills")];
+      if (minerals > 0) actions.push(a.setResources(CUR, "Add", minerals, "ore"));
+      if (gas > 0) actions.push(a.setResources(CUR, "Add", gas, "gas"));
+      if (message) actions.push(a.text(message));
+      actions.push(a.preserve());
+      return { triggers: [trigger(players2, [c.score(CUR, "Kills", "At least", per)], actions)] };
+    }
+  },
+  {
+    spec: {
+      kind: "income",
+      description: "Resources on a timer for players: `minerals` every `every` seconds.",
+      params: [P2("minerals", "minerals per tick (default 50)"), P2("gas", "gas per tick (default 0)"), P2("every", "seconds between ticks (default 30)"), P2("players", "humans (default), all, or player numbers"), P2("perUnit", "a unit or building each player must command at least one of, or no income (default none)")]
+    },
+    build(r, ctx, dc) {
+      const minerals = r.int("minerals", 50, 0);
+      const gas = r.int("gas", 0, 0);
+      const every = r.int("every", 30, 1, 3600);
+      const players2 = r.players("players");
+      const perUnit = r.str("perUnit", "");
+      const cycles = cyclesFor(every, ctx.tempo);
+      const counter = dc.take("the income timer");
+      const conditions = [c.deaths(CUR, counter, "At least", cycles)];
+      if (perUnit) conditions.push(c.command(CUR, perUnit, "At least", 1));
+      const actions = [a.setDeaths(CUR, counter, "Set To", 0)];
+      if (minerals > 0) actions.push(a.setResources(CUR, "Add", minerals, "ore"));
+      if (gas > 0) actions.push(a.setResources(CUR, "Add", gas, "gas"));
+      actions.push(a.preserve());
+      return { triggers: [trigger(players2, conditions, actions), trigger(players2, [], [a.setDeaths(CUR, counter, "Add", 1), a.preserve()])], notes: [`income timer: ${timerText(every, ctx.tempo)}`] };
+    }
+  },
+  {
+    spec: {
+      kind: "last-standing",
+      description: "The melee ending for a scenario: a player who commands none of `unit` is defeated; a player with no opponents left wins. Use `unit: Buildings` for a base game, a hero's name for a hero game, `Any unit` otherwise.",
+      params: [P2("unit", "what a player must keep to stay in (default Any unit)"), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before elimination can happen, so a slow start is not a loss (default 10)")],
+      ends: [{ result: "both" }]
+    },
+    build(r, ctx) {
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      const grace = r.int("grace", 10, 0, 3600);
+      return {
+        triggers: [
+          trigger(players2, [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", grace)], [a.defeat()]),
+          trigger(players2, [c.opponents(CUR, "Exactly", 0), c.elapsed("At least", grace)], [a.victory()])
+        ],
+        notes: [
+          "Opponents counts players who are neither allied for victory nor gone; allies in a force with Allied Victory win together",
+          ...ctx.computers.length ? [`a computer player counts as an opponent for as long as it owns anything, the unit that keeps its slot in the game included: with computers on the map (${ctx.computers.join(", ")}) nobody wins by this until they are gone or allied \u2014 for humans against the computer use \`waves\`, \`victory-on-kills\` or \`countdown\` for the win`] : []
+        ]
+      };
+    }
+  },
+  {
+    spec: {
+      kind: "defeat-when-lost",
+      description: "A player is defeated when they command none of `unit` (a hero, a base building).",
+      params: [P2("unit", "the unit that must survive", true), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before it can happen (default 5)"), P2("message", "text shown to everyone when it happens (default none)")],
+      ends: [{ result: "loss" }]
+    },
+    build(r) {
+      const unit = r.str("unit");
+      const players2 = r.players("players");
+      const grace = r.int("grace", 5, 0, 3600);
+      const message = r.str("message", "");
+      const actions = message ? [a.text(message), a.defeat()] : [a.defeat()];
+      return { triggers: [trigger(players2, [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", grace)], actions)] };
+    }
+  },
+  {
+    spec: {
+      kind: "victory-on-kills",
+      description: "Victory for a player who has killed `count` of `unit`; everyone else is defeated.",
+      params: [P2("count", "kills needed", true), P2("unit", "what counts (default Any unit)"), P2("players", "humans (default) or player numbers")],
+      ends: [{ result: "both" }]
+    },
+    build(r) {
+      const count = r.int("count", 0, 1);
+      if (count <= 0) r.problems.push('"count" must be at least 1');
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      const others = players2.length > 1;
+      return {
+        triggers: [
+          trigger(players2, [c.kill(CUR, unit, "At least", count)], [a.victory()]),
+          ...others ? [trigger(players2, [c.kill("Foes", unit, "At least", count)], [a.defeat()])] : []
+        ],
+        notes: others ? ["the losers see Defeat when a foe reaches the count"] : []
+      };
+    }
+  },
+  {
+    spec: {
+      kind: "countdown",
+      description: "A countdown timer from the start; when it ends, victory or defeat, or a draw. `onEnd` is `victory:humans`, `victory:Force 2`, `victory:1,3`, `defeat:humans` or `draw`.",
+      params: [P2("seconds", "how long", true), P2("onEnd", "what happens at zero (default draw)"), P2("message", "text shown when it ends (default none)")],
+      ends: [{ result: "win", when: "onEnd", is: "victory" }, { result: "loss", when: "onEnd", is: "defeat" }]
+    },
+    build(r, ctx) {
+      const seconds = r.int("seconds", 0, 1, 86400);
+      const onEnd = r.str("onEnd", "draw");
+      const message = r.str("message", "");
+      const triggers = [trigger(["All Players"], [], [a.countdown("Set To", seconds)])];
+      const m = /^(victory|defeat)\s*:\s*(.+)$/i.exec(onEnd);
+      const end = (owners, act) => trigger(owners, [c.countdown("Exactly", 0)], message ? [a.text(message), act] : [act]);
+      if (!m) {
+        triggers.push(end(["All Players"], "Draw()"));
+      } else {
+        const who = m[2].trim();
+        const owners = /^humans?$/i.test(who) ? ctx.humans : /^computers?$/i.test(who) ? ctx.computers : /^force\s*[1-4]$/i.test(who) ? [`Force ${who.replace(/\D/g, "")}`] : who.split(/[,\s]+/).map(Number).filter((n2) => n2 >= 1 && n2 <= 12);
+        const winners = m[1].toLowerCase() === "victory";
+        triggers.push(end(owners, winners ? a.victory() : a.defeat()));
+        const rest = ctx.humans.filter((p) => !owners.includes(p) && !(typeof owners[0] === "string"));
+        if (winners && rest.length > 0) triggers.push(end(rest, a.defeat()));
+      }
+      return { triggers };
+    }
+  },
+  {
+    spec: {
+      kind: "objectives",
+      description: "Set Mission Objectives for the players at the start.",
+      params: [P2("text", "the objectives, lines separated by \\n", true), P2("players", "humans (default), all, or player numbers")]
+    },
+    build(r) {
+      const text = r.str("text").replace(/\\n/g, "\n");
+      const players2 = r.players("players");
+      return { triggers: [trigger(players2, [], [a.objectives(text)])] };
+    }
+  },
+  {
+    spec: {
+      kind: "message",
+      description: "Show a text message to players at a moment: at the start, after `after` seconds, or when a player brings a unit to `location`.",
+      params: [P2("text", "what to show", true), P2("after", "seconds from the start (default 0)"), L("location", "show it when the player brings a unit here instead (default none)"), P2("players", "humans (default), all, or player numbers"), P2("once", "yes (default) or no: show it every time")]
+    },
+    build(r) {
+      const text = r.str("text");
+      const after = r.int("after", 0, 0, 86400);
+      const location2 = r.str("location", "");
+      const players2 = r.players("players");
+      const once = r.bool("once", true);
+      const conditions = location2 ? [c.bring(CUR, "Any unit", r.location("location"), "At least", 1)] : after > 0 ? [c.elapsed("At least", after)] : [];
+      return { triggers: [trigger(players2, conditions, once ? [a.text(text)] : [a.text(text), a.preserve()])] };
+    }
+  },
+  {
+    spec: {
+      kind: "lives",
+      description: "Shared lives for a defense map: an enemy unit reaching `goal` is removed and costs a life, one unit each trigger cycle; at zero lives the players are defeated. The count is a death counter on the enemy slot. Wants a `hyper` system on a map of triggers alone, or a crowd at the goal drains one life every two seconds.",
+      params: [P2("lives", "how many (default 20)", true), L("goal", "the location the enemies try to reach", true), P2("enemy", "the player whose units leak (default computer)"), P2("unit", "what counts as a leak (default Any unit)"), P2("players", "who is defeated at zero (default humans)")],
+      ends: [{ result: "loss" }]
+    },
+    build(r, ctx, dc) {
+      const lives = r.int("lives", 20, 1, 1e3);
+      const goal = r.location("goal");
+      const enemy = r.onePlayer("enemy", "computer");
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      const counter = dc.take("the lives counter");
+      return {
+        triggers: [
+          trigger([enemy], [], [a.setDeaths(enemy, counter, "Set To", lives)]),
+          trigger([enemy], [c.bring(enemy, unit, goal, "At least", 1)], [a.removeAt(enemy, unit, 1, goal), a.setDeaths(enemy, counter, "Subtract", 1), a.preserve()]),
+          trigger(players2, [c.deaths(enemy, counter, "Exactly", 0), c.elapsed("At least", 5)], [a.text("No lives left."), a.defeat()])
+        ],
+        notes: [
+          ctx.tempo === "plain" ? "one leaked unit is taken, and one life with it, each trigger cycle \u2014 about every 2 s without hyper triggers, so a crowd at the goal stands there while it drains; add a `hyper` system" : `one leaked unit is taken, and one life with it, each trigger cycle (${CYCLES_PER_SECOND[ctx.tempo]} a second)`,
+          "the lives counter is not shown \u2014 add a `leaderboard` of kind points or a `message` if the players should see it"
+        ]
+      };
+    }
+  },
+  {
+    spec: {
+      kind: "waves",
+      description: "Defense waves: every `interval` seconds the enemy spawns a wave at `spawn` and attack-moves it to `goal`; each wave is bigger than the last and cycles through `units`. Victory for the players when the last wave has come and the enemy commands none of the wave's unit types \u2014 whatever else it owns (a unit that keeps its slot in the game) does not count.",
+      params: [L("spawn", "where waves appear", true), L("goal", "where they attack toward", true), P2("units", "unit names, comma-separated, one per wave in turn", true), P2("waves", "how many (default 10)"), P2("interval", "seconds between waves (default 45)"), P2("count", "units in the first wave (default 6)"), P2("growth", "more units per wave (default 2)"), P2("enemy", "the spawning player (default computer)"), P2("players", "who wins at the end (default humans)"), P2("announce", 'yes (default) or no: show "Wave N"')],
+      ends: [{ result: "win" }]
+    },
+    build(r, _ctx, dc) {
+      const spawn = r.location("spawn");
+      const goal = r.location("goal");
+      const units = r.list("units");
+      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
+      const waves = r.int("waves", 10, 1, 100);
+      const interval = r.int("interval", 45, 5, 3600);
+      const count = r.int("count", 6, 1, 200);
+      const growth = r.int("growth", 2, 0, 100);
+      const enemy = r.onePlayer("enemy", "computer");
+      const players2 = r.players("players");
+      const announce = r.bool("announce", true);
+      const counter = dc.take("the wave counter");
+      const triggers = [];
+      for (let k = 1; k <= waves; k++) {
+        const unit = units[(k - 1) % Math.max(1, units.length)] ?? "Zerg Zergling";
+        const n2 = Math.min(200, count + growth * (k - 1));
+        const actions = [a.setDeaths(enemy, counter, "Set To", k), a.create(enemy, unit, n2, spawn), a.order(enemy, "Any unit", spawn, goal, "attack")];
+        if (announce) actions.unshift(a.text(`Wave ${k}: ${n2} ${unit}`));
+        triggers.push(trigger([enemy], [c.elapsed("At least", interval * k), c.deaths(enemy, counter, "Exactly", k - 1)], actions));
+      }
+      const types = [...new Set(units.slice(0, waves).map((u) => u.toLowerCase()))].map((u) => units.find((x) => x.toLowerCase() === u));
+      const counted = types.length <= MAX_WAVE_TYPES ? types : ["Men"];
+      const notes = [`${waves} waves, the last at ${interval * waves} s; won when the enemy commands no ${counted.join(", no ")}`];
+      if (counted !== types) notes.push(`more than ${MAX_WAVE_TYPES} unit types is more than a trigger's conditions hold, so victory counts Men: the enemy must own no other men (a flying building or a structure is fine)`);
+      triggers.push(trigger(players2, [c.deaths(enemy, counter, "At least", waves), ...counted.map((u) => c.command(enemy, u, "Exactly", 0)), c.elapsed("At least", interval * waves + 10)], [a.text("The last wave is dead."), a.victory()]));
+      return { triggers, notes };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "stages",
+      description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds \u2014 the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
+      params: [P2("every", "seconds per stage (default 240)"), P2("stages", "how many stages (default 6)"), P2("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), L("location", "the spawn location; may contain {p}", true), P2("from", "the first stage that spawns (default 1)"), P2("interval", "seconds between the extra spawns (default 15)"), P2("count", "units per extra spawn at the first spawning stage (default 2)"), P2("growth", "more units per stage (default 1)"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), L("attack", "a location the spawned units attack-move to (default none)"), P2("minerals", "minerals paid to each player at each new stage (default 0)"), P2("message", "text shown at each new stage; {stage} is the number (default none)"), P2("players", "humans (default), all, or player numbers"), P2("owner", "each (default), computer, or a player number")]
+    },
+    build(r, ctx, dc) {
+      const every = r.int("every", 240, 10, 7200);
+      const stages = r.int("stages", 6, 1, 20);
+      const units = r.list("units");
+      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
+      const location2 = r.str("location");
+      const from = r.int("from", 1, 1, 20);
+      const interval = r.int("interval", 15, 1, 3600);
+      const count = r.int("count", 2, 1, 200);
+      const growth = r.int("growth", 1, 0, 100);
+      const limit = r.int("limit", 0, 0, 1700);
+      const attack = r.str("attack", "");
+      const minerals = r.int("minerals", 0, 0);
+      const message = r.str("message", "");
+      const players2 = r.players("players");
+      const ownerRaw = r.str("owner", "each");
+      const stage = dc.take("the stage counter");
+      const timer = dc.take("the stage spawn timer");
+      const cycles = cyclesFor(interval, ctx.tempo);
+      const triggers = [];
+      for (const p of players2) {
+        const loc2 = fillTemplate(location2, p);
+        r.locationIn("location", loc2);
+        const attackLoc = fillTemplate(attack, p);
+        if (attack) r.location("attack", attackLoc);
+        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
+        for (let k = 1; k <= stages; k++) {
+          const actions = [a.setDeaths(p, stage, "Set To", k)];
+          if (minerals > 0) actions.push(a.setResources(p, "Add", minerals, "ore"));
+          if (message) actions.push(a.text(message.replace(/\{stage\}/g, String(k))));
+          triggers.push(trigger([p], [c.elapsed("At least", every * k), c.deaths(p, stage, "Exactly", k - 1)], actions));
+          if (k < from) continue;
+          const unit = units[Math.min(units.length - 1, k - from)] ?? "Zerg Zergling";
+          const n2 = Math.min(200, count + growth * (k - from));
+          const conditions = [c.deaths(p, stage, "Exactly", k), c.deaths(p, timer, "At least", cycles)];
+          if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
+          const spawn = [a.setDeaths(p, timer, "Set To", 0), a.create(owner, unit, n2, loc2)];
+          if (attack) spawn.push(a.order(owner, unit, loc2, attackLoc, "attack"));
+          spawn.push(a.preserve());
+          triggers.push(trigger([p], conditions, spawn));
+        }
+        triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
+      }
+      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from}: ${timerText(interval, ctx.tempo)}`] };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "obstacles",
+      description: "A bound's explosions: the `spots` fire in turn (or in `groups` at once) every `every` seconds, on a death-counter beat. Each firing creates the explosion unit at the spot for the computer and kills it there in the same instant \u2014 the death animation is the blast \u2014 and kills every unit the players have standing on the spot. No Wait actions, so it runs at hyper-trigger tempo without stalling anything.",
+      params: [LL("spots", "the spot locations in firing order, comma-separated", true), P2("every", "seconds between firings (default 0.8; decimals allowed)"), P2("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P2("unit", "the explosion unit (default Zerg Scourge)"), P2("owner", "who owns the explosion (default computer)"), P2("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P2("victim", "which of their units (default Any unit)")]
+    },
+    build(r, ctx, dc) {
+      const spots = r.list("spots");
+      if (spots.length === 0) r.problems.push('"spots" needs at least one location');
+      for (const sp of spots) r.locationIn("spots", sp);
+      const every = Math.max(0.1, Number(r.str("every", "0.8").replace(/[^0-9.]/g, "")) || 0.8);
+      const groups = r.int("groups", 1, 1, Math.max(1, spots.length));
+      const unit = r.str("unit", "Zerg Scourge");
+      const owner = r.onePlayer("owner", "computer");
+      const players2 = r.players("players");
+      const victim = r.str("victim", "Any unit");
+      const step = dc.take("the obstacle step");
+      const timer = dc.take("the obstacle beat");
+      const cycles = cyclesFor(every, ctx.tempo);
+      const n2 = Math.max(1, spots.length);
+      const steps = Math.ceil(n2 / groups);
+      const triggers = [];
+      let split = 0;
+      for (let k = 0; k < steps; k++) {
+        const blasts = [];
+        for (let g = 0; g < groups; g++) {
+          const spot = spots[k + g * steps];
+          if (spot === void 0) continue;
+          blasts.push(a.create(owner, unit, 1, spot), a.killAt(owner, unit, "All", spot));
+          for (const p of players2) blasts.push(a.killAt(p, victim, "All", spot));
+        }
+        const fired = preservedChunks([owner], [c.deaths(owner, step, "Exactly", k), c.deaths(owner, timer, "At least", cycles)], blasts, [a.setDeaths(owner, timer, "Set To", 0), a.setDeaths(owner, step, "Set To", (k + 1) % steps)]);
+        if (fired.length > 1) split++;
+        triggers.push(...fired);
+      }
+      triggers.push(trigger([owner], [], [a.setDeaths(owner, timer, "Add", 1), a.preserve()]));
+      const notes = [`${n2} spots in ${steps} steps of ${groups}; a step: ${timerText(every, ctx.tempo)}; a firing kills the players' units on the spot`];
+      if (n2 % steps !== 0 && groups > 1) notes.push(`${n2} spots do not divide into ${steps} even steps: the last ${steps - n2 % steps} fire ${groups - 1} at once`);
+      if (split > 0) notes.push(`${split} of the steps hold more actions than a trigger reads and are split over triggers that fire together, in a row`);
+      return { triggers, notes };
+    }
+  },
+  {
+    perPlayer: true,
+    spec: {
+      kind: "checkpoints",
+      description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it with a message \u2014 in order, so a checkpoint counts only after the one before it (`order: any` lets a runner skip ahead, never back); a player with no unit left gets one at their last checkpoint (or `start`) \u2014 unlimited, or `lives` times, the first unit not counted; reaching `finish` ends the game with a result for every player: everyone who arrives together wins (`tie: first` gives it to one), the rest lose. The system makes each player's first unit at `start`; a placed one works too.",
+      params: [P2("unit", "the unit that runs the course", true), L("start", "where a player begins and respawns before any checkpoint", true), LL("checkpoints", "the checkpoint locations in order, comma-separated", true), L("finish", "the finish location (default none: no victory here)"), P2("lives", "respawns per player (default unlimited)"), P2("order", "strict (default): a checkpoint counts only after the one before it; any: a later one counts at once"), P2("tie", "shared (default): runners who reach the finish in the same moment all win; first: only one of them"), P2("players", "humans (default) or player numbers"), P2("announce", 'yes (default) or no: "Checkpoint N" messages')],
+      ends: [{ result: "both", when: "finish" }, { result: "loss", when: "lives" }]
+    },
+    build(r, _ctx, dc) {
+      const unit = r.str("unit");
+      const startLoc = r.location("start");
+      const cps = r.list("checkpoints");
+      for (const cp of cps) r.locationIn("checkpoints", cp);
+      const finish = r.str("finish", "");
+      if (finish) r.location("finish", finish);
+      const lives = r.int("lives", 0, 0, 1e3);
+      const strict = r.choice("order", ["strict", "any"], "strict") === "strict";
+      const shared = r.choice("tie", ["shared", "first"], "shared") === "shared";
+      const players2 = r.players("players");
+      const announce = r.bool("announce", true);
+      const progress = dc.take("the checkpoint reached");
+      const used = lives > 0 ? dc.take("the lives used") : null;
+      const triggers = [];
+      const ending = finish ? { result: dc.take("the finish result"), finished: dc.takeSwitch("the finish reached"), closed: dc.takeSwitch("the finish closed") } : null;
+      if (ending) for (const p of players2) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "At least", SEEN)], [a.setSwitch(ending.closed, "set")]));
+      for (const p of players2) {
+        cps.forEach((cp, i) => {
+          const n2 = i + 1;
+          const actions = [a.setDeaths(p, progress, "Set To", n2)];
+          if (announce) actions.push(a.text(`Checkpoint ${n2}`));
+          actions.push(a.preserve());
+          triggers.push(trigger([p], [c.bring(p, unit, cp, "At least", 1), c.deaths(p, progress, strict ? "Exactly" : "At most", n2 - 1)], actions));
+        });
+        triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", 0), ...used ? [c.deaths(p, used, "Exactly", 0)] : []], [a.create(p, unit, 1, startLoc), a.center(startLoc)]));
+        [startLoc, ...cps].forEach((loc2, i) => {
+          const conditions = [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", i)];
+          if (used) conditions.push(c.deaths(p, used, "At most", lives - 1));
+          const actions = [a.create(p, unit, 1, loc2), a.center(loc2)];
+          if (used) actions.push(a.setDeaths(p, used, "Add", 1));
+          actions.push(a.preserve());
+          triggers.push(trigger([p], conditions, actions));
+        });
+        if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
+      }
+      if (ending && finish) {
+        for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(shared ? ending.closed : ending.finished, "not set"), c.deaths(p, ending.result, "At most", SEEN)], [a.setDeaths(p, ending.result, "Set To", FINISHED), a.setSwitch(ending.finished, "set"), a.text(`Player ${p} has finished!`)]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "Exactly", 0)], [a.setDeaths(p, ending.result, "Set To", SEEN)]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At least", FINISHED)], [a.victory()]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At most", SEEN)], [a.defeat()]));
+      }
+      return { triggers, notes: [`${cps.length} checkpoints${strict ? " in order" : ", in any order"}, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? `; ${shared ? "everyone at the finish in the same moment wins" : "the first to the finish wins"}, the rest lose, a cycle or two later` : ""}; each player's first ${unit} is made at ${startLoc} and costs no life`] };
+    }
+  },
+  {
+    spec: {
+      kind: "shop",
+      description: "Buy a unit: a player who brings `buyer` to `location` with `price` minerals pays and gets `unit` at `deliver`.",
+      params: [L("location", "the shop's beacon location", true), P2("unit", "what is sold", true), P2("price", "minerals (default 100)"), P2("gas", "gas (default 0)"), P2("buyer", "which unit must stand on the beacon (default Any unit)"), L("deliver", "where the bought unit appears (default the shop location)"), P2("players", "humans (default) or player numbers")]
+    },
+    build(r) {
+      const location2 = r.location("location");
+      const unit = r.str("unit");
+      const price = r.int("price", 100, 0);
+      const gas = r.int("gas", 0, 0);
+      const buyer = r.str("buyer", "Any unit");
+      const deliver = r.location("deliver", location2);
+      const players2 = r.players("players");
+      const conditions = [c.bring(CUR, buyer, location2, "At least", 1)];
+      if (price > 0) conditions.push(c.accumulate(CUR, "At least", price, "ore"));
+      if (gas > 0) conditions.push(c.accumulate(CUR, "At least", gas, "gas"));
+      const actions = [];
+      if (price > 0) actions.push(a.setResources(CUR, "Subtract", price, "ore"));
+      if (gas > 0) actions.push(a.setResources(CUR, "Subtract", gas, "gas"));
+      actions.push(a.create(CUR, unit, 1, deliver), a.move(CUR, buyer, "All", location2, deliver), a.preserve());
+      return { triggers: [trigger(players2, conditions, actions)], notes: ["the buyer is moved off the beacon after the purchase so one visit buys one unit"] };
+    }
+  },
+  {
+    spec: {
+      kind: "heal",
+      description: "A heal spot: a player's units standing on `location` are restored to full hit points (and shields).",
+      params: [L("location", "where", true), P2("unit", "what is healed (default Any unit)"), P2("players", "humans (default) or player numbers")]
+    },
+    build(r) {
+      const location2 = r.location("location");
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      return { triggers: [trigger(players2, [c.bring(CUR, unit, location2, "At least", 1)], [a.hp(CUR, unit, 100, "All", location2), a.shields(CUR, unit, 100, "All", location2), a.preserve()])] };
+    }
+  },
+  {
+    spec: {
+      kind: "respawn",
+      description: "When a player has none of `unit` left, a new one appears at `location` (optionally a limited number of times).",
+      params: [P2("unit", "the hero", true), L("location", "where it comes back", true), P2("lives", "how many respawns before it stops (default unlimited)"), P2("players", "humans (default) or player numbers"), P2("message", "text on respawn (default none)")]
+    },
+    build(r, _ctx, dc) {
+      const unit = r.str("unit");
+      const location2 = r.location("location");
+      const lives = r.int("lives", 0, 0, 1e3);
+      const players2 = r.players("players");
+      const message = r.str("message", "");
+      const conditions = [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", 3)];
+      const actions = [a.create(CUR, unit, 1, location2)];
+      if (message) actions.push(a.text(message));
+      if (lives > 0) {
+        const counter = dc.take("the respawn counter");
+        conditions.push(c.deaths(CUR, counter, "At most", lives - 1));
+        actions.push(a.setDeaths(CUR, counter, "Add", 1));
+      }
+      actions.push(a.preserve());
+      return { triggers: [trigger(players2, conditions, actions)] };
+    }
+  },
+  {
+    spec: {
+      kind: "leaderboard",
+      description: "The in-game leaderboard: `kind` kills, control (units owned), resources or points.",
+      params: [P2("kind", "kills (default), control, resources or points"), P2("label", "the heading (default by kind)"), P2("unit", "for kills and control: which unit (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
+    },
+    build(r) {
+      const kind = r.str("kind", "kills").toLowerCase();
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      let action;
+      switch (kind) {
+        case "control":
+          action = a.lbControl(r.str("label", "Units"), unit);
+          break;
+        case "resources":
+          action = a.lbResources(r.str("label", "Minerals"), "ore");
+          break;
+        case "points":
+          action = a.lbPoints(r.str("label", "Score"), "Total");
+          break;
+        case "kills":
+          action = a.lbKills(r.str("label", "Kills"), unit);
+          break;
+        default:
+          r.problems.push(`"kind" should be kills, control, resources or points, not "${kind}"`);
+          action = a.lbKills("Kills", unit);
+      }
+      return { triggers: [trigger(players2, [], [action])] };
+    }
+  },
+  {
+    spec: {
+      kind: "teleport",
+      description: "A unit brought to `from` is moved to `to`.",
+      params: [L("from", "the entry location", true), L("to", "the exit location", true), P2("unit", "what moves (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
+    },
+    build(r) {
+      const from = r.location("from");
+      const to = r.location("to");
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      return { triggers: [trigger(players2, [c.bring(CUR, unit, from, "At least", 1)], [a.move(CUR, unit, "All", from, to), a.preserve()])] };
+    }
+  },
+  {
+    spec: {
+      kind: "kill-zone",
+      description: "Units entering `location` die (a pit, lava, the edge of a bound).",
+      params: [L("location", "where", true), P2("unit", "what dies (default Any unit)"), P2("players", "whose units (default all)")]
+    },
+    build(r) {
+      const location2 = r.location("location");
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players", "all");
+      return { triggers: [trigger(players2, [c.bring(CUR, unit, location2, "At least", 1)], [a.killAt(CUR, unit, "All", location2), a.preserve()])] };
+    }
+  },
+  {
+    spec: {
+      kind: "alliance",
+      description: "Set alliances at the start: `players` treat `with` as `status` (Ally, Enemy or Allied Victory).",
+      params: [P2("players", "who is setting it (default humans)"), P2("with", "toward whom: a player number, computer, humans, or Force N", true), P2("status", "Ally (default), Enemy or Allied Victory")]
+    },
+    build(r, ctx) {
+      const players2 = r.players("players");
+      const withRaw = r.str("with");
+      const status = r.str("status", "Ally");
+      const st = /victory/i.test(status) ? "Allied Victory" : /enemy/i.test(status) ? "Enemy" : "Ally";
+      const targets = /^humans?$/i.test(withRaw) ? ctx.humans : /^computers?$/i.test(withRaw) ? ctx.computers : /^force\s*[1-4]$/i.test(withRaw) ? [`Force ${withRaw.replace(/\D/g, "")}`] : withRaw.split(/[,\s]+/).map(Number).filter((n2) => n2 >= 1 && n2 <= 12);
+      if (targets.length === 0) r.problems.push(`"with" should name players, not "${withRaw}"`);
+      return { triggers: [trigger(players2, [], targets.map((t) => a.alliance(t, st)))] };
+    }
+  },
+  {
+    spec: {
+      kind: "auto-attack",
+      description: "Keep a player's units moving: every cycle, order all of `unit` at `from` to attack-move to `to`. What makes a madness map's spawns fight by themselves.",
+      params: [P2("owner", "whose units (a player number or computer)", true), L("from", "where they are (Anywhere for all of them)", true), L("to", "where they go", true), P2("unit", "which units (default Any unit)"), P2("order", "attack (default), move or patrol")]
+    },
+    build(r) {
+      const owner = r.onePlayer("owner");
+      const from = r.location("from");
+      const to = r.location("to");
+      const unit = r.str("unit", "Any unit");
+      const order = r.str("order", "attack").toLowerCase();
+      const ord = order === "move" || order === "patrol" ? order : "attack";
+      return { triggers: [trigger([owner], [], [a.order(owner, unit, from, to, ord), a.preserve()])] };
+    }
+  },
+  {
+    spec: {
+      kind: "capture",
+      description: "Capture the flag, one flag: `flag` (a unit) stands at `home` owned by `keeper`, created there at the start. A player in `players` who brings `touch` into `home` is given the flag; bringing it to `pad` scores a capture \u2014 the flag goes home, the team's counter and the player's custom score rise \u2014 unless `requireHome` names where the takers' own flag must be standing and it is missing. A flag that is neither at home nor held by a taker returns home. At `win` captures the takers get Victory and every other human Defeat. Two of these, one per flag with the other team as takers, are a two-team map; add a `leaderboard` of kind points for the score.",
+      params: [P2("flag", "the flag unit (a Civilian, a Beacon, \u2026)", true), L("home", "the flag's own room", true), L("pad", "where the takers score", true), P2("players", "the takers: the other team's player numbers", true), P2("keeper", "who owns the flag at home (default computer)"), P2("touch", "what must enter the room to take the flag (default Any unit)"), L("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P2("win", "captures to win (default 3; 0 for none)"), P2("name", "the flag's name in messages (default the unit's)")],
+      ends: [{ result: "both" }]
+    },
+    build(r, ctx, dc) {
+      const flag = r.str("flag");
+      const home = r.location("home");
+      const pad = r.location("pad");
+      const players2 = r.players("players");
+      const keeper = r.onePlayer("keeper", "computer");
+      const touch = r.str("touch", "Any unit");
+      const requireHome = r.str("requireHome", "");
+      if (requireHome) r.locationIn("requireHome", requireHome);
+      const win = r.int("win", 3, 0, 1e3);
+      const name = r.str("name", flag);
+      const counter = dc.take("the capture score");
+      const others = ctx.humans.filter((h3) => !players2.includes(h3));
+      const scored = [c.bring(CUR, flag, pad, "At least", 1)];
+      return {
+        triggers: [
+          trigger([keeper], [], [a.setDeaths(keeper, counter, "Set To", 0), a.create(keeper, flag, 1, home)]),
+          trigger(players2, [c.bring(CUR, touch, home, "At least", 1), c.bring(keeper, flag, home, "At least", 1)], [a.give(keeper, CUR, flag, "All", home), a.text(`${name} taken!`), a.preserve()]),
+          trigger(players2, [...scored, ...requireHome ? [c.bring(keeper, flag, requireHome, "At least", 1)] : []], [a.removeAt(CUR, flag, "All", pad), a.setDeaths(keeper, counter, "Add", 1), a.setScore(CUR, "Add", 1, "Custom"), a.create(keeper, flag, 1, home), a.text(`${name} captured!`), a.preserve()]),
+          ...requireHome ? [trigger(players2, [...scored, c.bring(keeper, flag, requireHome, "Exactly", 0)], [a.text("Your own flag is missing \u2014 recover it first."), a.preserve()])] : [],
+          trigger([keeper], [c.bring(keeper, flag, home, "Exactly", 0), ...players2.map((p) => c.command(p, flag, "Exactly", 0))], [a.create(keeper, flag, 1, home), a.text(`${name} returned home.`), a.preserve()]),
+          ...win > 0 ? [trigger(players2, [c.deaths(keeper, counter, "At least", win)], [a.victory()]), ...others.length ? [trigger(others, [c.deaths(keeper, counter, "At least", win)], [a.defeat()])] : []] : []
+        ],
+        notes: [`the flag is created for Player ${keeper} at ${home} when the game starts: place none in the layout`, "the takers' messages show to the taker; a carrier that dies drops nothing \u2014 the flag returns home on the next cycle"]
+      };
+    }
+  },
+  {
+    spec: {
+      kind: "give",
+      description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
+      params: [L("location", "where", true), P2("from", "the owner giving them (default computer)"), P2("unit", "what is given (default Any unit)"), P2("players", "who can take them (default humans)"), P2("touch", "the unit that must be brought to take them (default Any unit)")]
+    },
+    build(r) {
+      const location2 = r.location("location");
+      const from = r.onePlayer("from", "computer");
+      const unit = r.str("unit", "Any unit");
+      const players2 = r.players("players");
+      const touch = r.str("touch", "Any unit");
+      return { triggers: [trigger(players2, [c.bring(CUR, touch, location2, "At least", 1), c.bring(from, unit, location2, "At least", 1)], [a.give(from, CUR, unit, "All", location2), a.preserve()])] };
+    }
+  }
+];
+function systemKinds() {
+  return KINDS.map((k) => k.spec);
+}
+function buildSystem(kind, params, ctx, dc = new Counters(ctx)) {
+  const k = KINDS.find((x) => x.spec.kind === kind);
+  if (!k) throw new ToolkitError([`no system kind called "${kind}" (the toolkit has ${KINDS.map((x) => x.spec.kind).join(", ")})`]);
+  if (!k.perPlayer && Object.values(params).some(isTemplate)) return buildPerPlayer(k, params, ctx, dc);
+  return buildOne(k, params, ctx, dc);
+}
+function buildPerPlayer(k, params, ctx, dc) {
+  const takesPlayers = k.spec.params.some((p) => p.name === "players");
+  const players2 = takesPlayers ? new Reader2(k.spec, params, ctx).players("players") : ctx.humans;
+  if (players2.length === 0) throw new ToolkitError([`${k.spec.kind}: a {p} template needs players to build for`]);
+  const parts = [];
+  const problems = [];
+  for (const p of players2) {
+    const filled = {};
+    for (const [key, value] of Object.entries(params)) filled[key] = fillTemplate(value, p);
+    if (takesPlayers) filled.players = String(p);
+    try {
+      parts.push(buildOne(k, filled, ctx, dc));
+    } catch (err) {
+      if (err instanceof ToolkitError) problems.push(...err.problems.map((x) => `player ${p}: ${x}`));
+      else throw err;
+    }
+  }
+  if (problems.length > 0) throw new ToolkitError(problems);
+  const notes = /* @__PURE__ */ new Set();
+  for (const part of parts) for (const n2 of part.notes) notes.add(n2);
+  return {
+    text: parts.map((x) => x.text).join("\n"),
+    count: parts.reduce((n2, x) => n2 + x.count, 0),
+    notes: [`built once per player (${players2.join(", ")}) from the {p} template`, ...notes],
+    dcUsed: parts.flatMap((x) => x.dcUsed)
+  };
+}
+function buildOne(k, params, ctx, dc) {
+  const reader = new Reader2(k.spec, params, ctx);
+  const before = dc.used.length;
+  const out = k.build(reader, ctx, dc);
+  reader.finish();
+  const text = out.triggers.join("\n");
+  return { text, count: out.triggers.length, notes: [...reader.notes, ...out.notes ?? []], dcUsed: dc.used.slice(before) };
+}
+function paramsOf(list2) {
+  const out = {};
+  for (const p of list2) out[p.key] = p.value;
+  return out;
+}
+function dcUnitsFrom(unitNames2) {
+  const have = new Set(unitNames2.map((n2) => n2.toLowerCase()));
+  return DEFAULT_DC_UNITS.filter((n2) => have.has(n2.toLowerCase()));
+}
+var TEMPLATE_RULE = 'Any location (or other) parameter may hold {p} for the player number \u2014 "Spawn {p}", "Armory {p}" \u2014 and the system is then built for every player in `players`, with {p} filled in; the map must have the numbered locations.';
+function kindsText() {
+  return `${TEMPLATE_RULE}
+
+` + KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}
+${k.spec.params.map((p) => `  - ${p.name}${p.required ? " (required)" : ""}: ${p.description}`).join("\n")}`).join("\n\n");
+}
+
+// ai/scenarioBuild.ts
+function designTempo(d) {
+  if (d.target === "remastered") return "turbo";
+  return d.systems.some((s) => s.kind === "hyper") ? "hyper" : "plain";
+}
+function systemsToBuild(d) {
+  if (d.target !== "remastered") return { systems: d.systems, dropped: [] };
+  return { systems: d.systems.filter((s) => s.kind !== "hyper"), dropped: d.systems.filter((s) => s.kind === "hyper") };
+}
+var KEEPERS = ["Zerg Overlord", "Protoss Observer", "Terran Science Vessel", "Protoss Shuttle", "Terran Dropship", "Zerg Queen"];
+function keeperFor(d) {
+  const named = /* @__PURE__ */ new Set();
+  for (const s of d.systems) {
+    for (const p of s.params) for (const v of p.value.split(/\s*[,;]\s*/)) named.add(v.trim().toLowerCase());
+    if (s.kind === "custom") {
+      for (const k of KEEPERS) if (s.description.toLowerCase().includes(k.toLowerCase())) named.add(k.toLowerCase());
+    }
+  }
+  return KEEPERS.find((k) => !named.has(k.toLowerCase())) ?? null;
+}
+function counterBudget(d, ctx) {
+  const taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
+  const free = ctx.dcUnits.filter((u) => !taken.has(u.toLowerCase())).length;
+  const roomy = { ...ctx, locations: [], dcUnits: [...ctx.dcUnits, ...Array.from({ length: 400 }, (_, i) => `(counter ${i + 1})`)] };
+  const dc = new Counters(roomy);
+  const by = [];
+  let switches = 0;
+  const countSwitch = dc.takeSwitch.bind(dc);
+  dc.takeSwitch = (what) => {
+    switches++;
+    return countSwitch(what);
+  };
+  for (const s of systemsToBuild(d).systems) {
+    if (s.kind === "custom") continue;
+    const before = dc.used.length;
+    try {
+      buildSystem(s.kind, paramsOf(s.params), roomy, dc);
+    } catch (err) {
+      if (!(err instanceof ToolkitError)) throw err;
+    }
+    if (dc.used.length > before) by.push({ name: s.name, counters: dc.used.length - before });
+  }
+  by.sort((a2, b) => b.counters - a2.counters);
+  return { counters: dc.used.length, free, switches, by, ok: dc.used.length <= free };
+}
+function budgetText(b) {
+  if (b.ok) return `${b.counters} of ${b.free} free death counters, ${b.switches} switch${b.switches === 1 ? "" : "es"}`;
+  return `the design's systems need ${b.counters} death counters and the map has ${b.free} free (${b.by.slice(0, 4).map((x) => `${x.name}: ${x.counters}`).join(", ")}${b.by.length > 4 ? ", \u2026" : ""}). Remove or merge systems in the design \u2014 several obstacle stretches on one beat, one spawn with {p} instead of one per player \u2014 and build again`;
+}
+function buildOutcome(c2) {
+  if (c2.stopped) return "stopped";
+  if (c2.failed > 0 || c2.notRun > 0) return "failed";
+  return c2.waiting > 0 ? "waiting" : "built";
+}
+function outcomeText(name, c2) {
+  const parts = [];
+  if (c2.failed) parts.push(`${c2.failed} failed`);
+  if (c2.waiting) parts.push(`${c2.waiting} waiting`);
+  if (c2.notRun) parts.push(`${c2.notRun} not run`);
+  switch (buildOutcome(c2)) {
+    case "built":
+      return `Built ${name}.`;
+    case "waiting":
+      return `Built ${name}, ${c2.waiting} waiting for locations.`;
+    case "stopped":
+      return `Stopped building ${name}: ${parts.join(", ") || "nothing left out"}. What was built stays.`;
+    case "failed":
+      return `Built ${name} with ${parts.join(", ")}.`;
+  }
+}
+
+// ai/guides.ts
+var BASICS = `# Scenario basics (UMS)
+
+**Players.** Slots 1\u20138 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. A player who owns nothing when the game starts is defeated on the spot, and a defeated player's triggers never run: a computer that only spawns things needs a unit of its own somewhere out of the way (the editor places one when a design forgets). The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script \u2014 which is usually what you want: the triggers are the AI.
+
+**Forces.** Four. Players in one force can be allied (they do not attack each other), share victory (one wins, all win) and share vision. A team of humans is one force with Allied Victory; the enemy computer is another force. Force names are shown in the lobby.
+
+**Triggers.** Each trigger has conditions (all must hold), actions (run in order) and a player list (it runs once *per player* it is listed for, with "Current Player" meaning that player). A trigger fires once, then never again, unless it has Preserve Trigger. The list runs top to bottom about every two seconds; with *hyper triggers* \u2014 a preserved trigger of ~62 Wait(0) actions, kept in three copies \u2014 it runs about twelve times a second, which is what makes spawns, timers and reactions feel instant. A Wait inside any *other* preserved trigger stalls that player's whole trigger queue, hyper triggers included: time with death counters instead.
+
+**Death counters.** Deaths(player, unit) is the game's counter per player per unit type, and Set Deaths writes it \u2014 so a unit that is never placed ("Cave (Unused)", "Cantina (Unused)", the Markers) is a free integer variable per player. Timers: add 1 every cycle, act when it reaches N, set it to 0. Twelve cycles a second with hypers, one every two seconds without. A map with a TrigScript *program* on it is a third case: it is built for StarCraft: Remastered, every trigger on it runs each frame \u2014 about twenty-four cycles a second \u2014 and hyper triggers do nothing there but hold up their owner's Waits, so such a map has none (where a genre below says \`hyper\`, that is for a map of triggers alone). The toolkit counts its timers for the map it is building on; a program added to a map later makes every cycle-counted timer already there run fast, and those systems want rebuilding.
+
+**Switches.** 256 booleans shared by everyone. Good for one-off flags ("boss spawned"), poor for anything counted.
+
+**Locations.** Named rectangles (254 of them, Anywhere is the whole map). Bring(player, unit, location) is how a map sees where a unit is; Create Unit, Move Unit, Kill Unit At Location, Order all take one. Make locations a little larger than the thing they watch. A location can exclude heights (ground / air) so a flier overhead does not trigger a ground beacon.
+
+**Resources and score.** Set Resources adds minerals or gas; Accumulate tests them. Kill score (Score \u2026 Kills) grows by roughly a unit's cost per kill and can be subtracted from, which is how "kill to cash" is paid. Leaderboards show kills, control, resources or points.
+
+**Ending the game.** Nothing ends a scenario by itself. Victory and Defeat are actions; the melee rule "no buildings, you lose" does not apply. Every human needs a path to each. Opponents(Current Player, Exactly, 0) is true when every non-allied player is gone or defeated \u2014 the usual last-standing victory.
+
+**Limits.** 1700 units on the map at once (Create Unit silently fails past it); 65535 strings in a Brood War map; 254 locations; text messages of a few hundred characters; a Wait longer than ~2 minutes is a bad idea. Units created on unwalkable ground or on top of a building are placed at the nearest free spot, or not at all when the location is packed.
+
+**Text.** Display Text Message shows a line at the top left; Set Mission Objectives fills the objectives box (F10 \u25B8 Objectives). Colour codes are bytes below 0x20 in the string (the editor's string fields have a picker).`;
+var MADNESS = `# Madness maps
+
+A *madness* map is a symmetric free-for-all where the map spawns each player's army for them and the armies fight on their own. The player's job is to spend what they earn on the right things and to pick the moment to push.
+
+**Layout.** One base per player, each a small walled plateau or corner with its hall (or a beacon that stands for it) and its *spawn location* beside it, all opening onto a common arena in the middle. Distances equal; the arena open; no resources to mine.
+
+**Players.** One human per base; one computer slot for props if any; humans each in their own force (or two forces for a team game with Allied Victory). All humans start hostile to each other.
+
+**Systems (toolkit kinds).**
+- \`hyper\`, always.
+- \`spawn\`: a unit every few seconds at \`Spawn {p}\`, owned by the player (\`owner: each\`), with \`attack\` set to the arena so the units go and fight. Several spawn systems for several unit types; \`limit\` keeps the unit count under control.
+- \`auto-attack\` on each player's units from Anywhere to the arena keeps stragglers moving.
+- \`kill-to-cash\` or \`income\` so there is something to spend; unit and upgrade costs go through Unit Settings.
+- \`stages\` so the game does not stall: every few minutes a stage rises, pays, and adds a heavier spawn.
+- \`last-standing\` with \`unit: Buildings\` (the hall is the life) or a hero unit.
+- \`leaderboard\` kills, \`objectives\`.
+
+**Pitfalls.** Spawns without a limit hit the 1700-unit cap in minutes and the game stops creating units for everyone. A base with two exits is a base that dies to a flank; one ramp. Spawned units that are not ordered sit at the spawn until attacked.`;
+var DEFENSE = `# Defense and tower defense
+
+Waves of enemy units walk from a spawn to a goal; the players kill them on the way. In a *tower defense* the players build static defence (turrets, cannons, sunkens) along a lane and cannot fight themselves; in a *hero defense* they control units.
+
+**Layout.** A lane from a spawn location to a goal location \u2014 a corridor of unbuildable ground with buildable strips beside it for towers, or a maze. The goal is a small location the enemies path into. Players start beside the lane with a builder each and no minerals to mine.
+
+**Players.** Humans in one force with Allied Victory and shared vision; one computer as the enemy, hostile to all; its units must be ordered, or they stand at the spawn.
+
+**Systems.**
+- \`hyper\`.
+- \`waves\`: units by wave, count and growth, interval, spawn and goal; the last wave cleared is the victory.
+- \`lives\`: a leak (an enemy reaching the goal) is removed and costs a shared life; zero lives is defeat.
+- \`kill-to-cash\` for the bounty (\`scorePerKill\` \u2248 the enemy unit's cost, so a Zergling pays half a Hydralisk).
+- \`income\` per wave or per tower (\`perUnit\`) if the map wants a steady economy.
+- \`leaderboard\` kills, \`objectives\`, \`message\` for the first wave.
+
+**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak \u2014 give lives.`;
+var RPG = `# RPG maps
+
+Each player controls a hero (a named unit, or an ordinary unit with Unit Settings) through a world of quests, shops and bosses. Progression is minerals from kills spent at shops, upgrades bought at beacons, and story told by text.
+
+**Layout.** A town (start locations, a heal spot, shops as beacon locations, a save/teleport gate) and regions of rising difficulty joined by paths; a boss room at the end. Enemy units are placed by hand (they belong to the computer) or spawned in regions when a player enters. Locations: the town, each shop's beacon, each region, each boss room, teleport pairs.
+
+**Players.** Humans in one force, allied, shared vision, Allied Victory. The computer owns the enemies and the shopkeepers; a *rescuable* slot for units that join when found.
+
+**Systems.**
+- \`hyper\`.
+- \`kill-to-cash\` for the economy; \`shop\` per item (bring the hero to the beacon with the price; \`deliver\` next to the shop); \`heal\` in the town.
+- \`respawn\` for the hero (with \`lives\`, or unlimited), or \`defeat-when-lost\` for permadeath.
+- \`spawn\` with \`owner: computer\` in a region for monsters that keep coming; \`give\` for a rescued companion; \`teleport\` between the town and the regions.
+- \`message\` on entering a region (\`location\`) for the story; \`objectives\`.
+- Victory: \`victory-on-kills\` of the boss unit (\`unit: <the boss>\`, \`count: 1\`), or a custom system for a staged fight.
+
+**Pitfalls.** Heroes need Unit Settings (hit points, damage) to survive at all; the default marine dies to two zerglings. A shop beacon inside the walking path buys by accident \u2014 set it off the path. Enemies placed by hand for the computer stand still unless the computer runs an AI script or a trigger orders them: \`auto-attack\` from a region to the town is the simplest guard behaviour.`;
+var BOUND = `# Bound maps
+
+A *bound* is an obstacle course: a narrow path the player's unit must run through, past explosions that fire in patterns, with checkpoints to respawn at. Pure timing and pattern; no economy.
+
+**How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot \u2014 the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
+
+**Layout.** A winding path four tiles wide across water or empty space, from a start to a finish, cut into *stretches*: each a field of *spots* laid back to back along the path \u2014 every spot a slab across the whole path, or two or three side by side when the field has lanes \u2014 with safe ground before and after it and a checkpoint at its end. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Stretch {n}, Spot {n}. Spots are numbered along the course, lane by lane within a slab: with one lane, Stretch 1 is Spot 1 \u2026 Spot 8 and Stretch 2 is Spot 9 \u2026 Spot 16; with two lanes a slab is two consecutive numbers (Spot 1 and 2 side by side, then 3 and 4).
+
+**Patterns.** One \`obstacles\` system per stretch, each with its own beat, over that stretch's run of spots: a *roll* is the spots in order one at a time (the runner follows the wave); *pairs* or *thirds* fire \`groups\` spots spread along the run at once (the runner reads two hazards); a *flash* is every spot of the stretch in one group (the runner waits for the gap); with lanes, the odd spots then the even ones alternate sides (the runner zigzags). The beat sets the difficulty \u2014 0.8 s for an opening, 0.5 s for a finale.
+
+**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
+
+**Systems (toolkit kinds).**
+- \`hyper\`, essential: the timing is the game.
+- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once \u2014 one system per stretch, over that stretch's spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
+- \`checkpoints\`: the unit, the start, the checkpoints in order, the finish \u2014 recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
+- \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
+
+**Pitfalls.** Without hyper triggers a bound is unplayable \u2014 the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer. A spot must lie on the path, and the pattern must leave a gap a unit can run through.`;
+var DIPLOMACY = `# Diplomacy and risk maps
+
+Territories on a world map, each with a building or beacon that marks control; income per territory held; alliances made and broken in the game's diplomacy menu; last empire standing wins.
+
+**Layout.** Regions of buildable ground separated by water, mountains and chokes, each with a capital location and a few resource-free building spots; start locations spread evenly; a legend of region names in the description or the objectives.
+
+**Players.** Up to eight humans, each in their own force so alliances are up to them (no shared vision); a computer for rebels or barbarians, hostile to all.
+
+**Systems.**
+- \`hyper\` is optional; a slow tempo suits.
+- \`income\` per region: one system per region with \`perUnit\` the region's capital building and \`players: humans\`, or a flat income plus \`kill-to-cash\`.
+- \`spawn\` with \`owner: computer\` in neutral regions for rebels; \`auto-attack\` to send them at the nearest capital.
+- \`last-standing\` with \`unit: Buildings\`; \`leaderboard\` control of the capital building; \`objectives\`.
+- A \`countdown\` with \`onEnd: draw\` if the game must end.
+
+**Pitfalls.** Eight players and Allied Victory in one force means everyone wins together \u2014 leave the humans in separate forces. Income systems each take a death counter; the toolkit has about eighteen.`;
+var ARENA = `# Arena and micro maps
+
+Rounds in a walled arena: each side gets the same units, the survivor of the round scores, first to N rounds wins. All skill, no economy.
+
+**Layout.** A flat arena with two (or four) spawn locations at its sides and a wall around it; a lobby location per player outside. Symmetric.
+
+**Players.** Two humans (or two forces of humans with Allied Victory), hostile.
+
+**Systems.**
+- \`hyper\`.
+- Round flow is custom: when the arena holds units of only one side, that side's score counter goes up, everything in the arena is removed, and after a short pause both sides get the round's units at their spawns. Say the unit list per round in the description.
+- \`spawn\` does not fit (it is periodic); use it only for a practice mode.
+- \`victory-on-kills\` does not fit either; the win is the round score \u2014 custom, or \`countdown\` with \`onEnd: victory:<the leader>\` when a timed match is enough.
+- \`leaderboard\` points with the round score in Set Score (Custom); \`objectives\`.
+
+**Pitfalls.** Units left from the last round decide the next; remove everything in the arena between rounds. A wall the units can shoot over is not a wall.`;
+var SURVIVAL = `# Survival, hero survival, cat and mouse
+
+Hold out until a timer runs out, or hunt the survivors before it does. In *cat and mouse* one side (the cats) hunts the others (the mice), who build walls and hide; in *hero survival* every player fights the map's spawns and the last one alive wins.
+
+**Layout.** A large open area with hiding places and chokes for the mice; spawn locations for the map's monsters at the edges; a safe start for each human.
+
+**Players.** Cats and mice in two forces (no Allied Victory across them); or every human alone; a computer for the monsters.
+
+**Systems.**
+- \`hyper\`.
+- \`countdown\` with \`onEnd: victory:Force 2\` (the mice) \u2014 the cats must win before it ends; or \`victory:humans\` in a co-op survival.
+- \`spawn\` with \`owner: computer\` at the edges, \`attack\` toward the centre, and \`auto-attack\` so the monsters hunt.
+- \`defeat-when-lost\` on each player's hero, or \`last-standing\`.
+- \`income\` for the mice to build with; \`kill-to-cash\` for the cats.
+- \`leaderboard\` control of the hero unit shows who is still alive; \`objectives\`.
+
+**Pitfalls.** A countdown victory for a force while another system gives Defeat on the same cycle is a race \u2014 put the defeat's grace period after the timer. Monsters spawned without an order stand still.`;
+var TERRAIN = `# Terrain work: how the brush, the shapes, ramps, bridges, bases and doodads behave
+
+**The isometric brush** (paint_terrain, every shape). Terrain is painted by type id (list_terrains, or the reference's tileset block); cliffs and shores between two types draw themselves where they join, and a type joins only the types the tileset's tables link it to. The brush bleeds: a shore or a cliff takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and a rect painted right up to water or a cliff redraws that edge \u2014 leave a few tiles' gap, or name the terrains to leave alone (\`keep\`). Diamonds the tileset cannot join to their neighbours are refused and counted. Painting the ground under a doodad removes it: doodads inside the painted rect go with the ground and are counted in one line; the re-blend also reaches along a cliff or shore well outside the rect, and a doodad it lifts there is put back where it still fits (a second undo step) or named with its position. Repainting the ground under a unit keeps the unit.
+
+**Shapes** (paint_shapes), in map tiles, later over earlier, each an object with an \`op\`:
+- \`ground\` (the whole map) and \`border\` (width) take a terrain id.
+- \`rect\` (x, y, w, h; optional \`cut\`: isometric corner cut in rows), \`diamond\` / \`ellipse\` (cx, cy, rx, ry), \`polygon\` (points).
+- \`stroke\` (points, width): a band \u2014 a river, a road, a wall. A river carries its bridges as \`bridges\`: [[x, y], \u2026]; the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides. Optional \`bank\` terrain id and \`bankWidth\` paint a band either side, bent with the river. A stroke's round ends reach half its width past each point: keep later strokes off a bridge's tiles.
+- \`plateau\` (like rect, plus \`ramps\`: which lower corners get a ramp down, "sw" and/or "se"): the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp.
+- \`lane\` (points, width, \`wall\` terrain id, \`wallWidth\`): a walkable band with walls either side, continuous by construction; the width is the walkable core kept.
+- \`ramp\` (x, y, side): on a cliff already there. \`bridge\` (x, y, along "se" or "sw"): a stamp over whatever is there \u2014 a channel of the bridge's water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge's ground either side, then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges.
+Only the tiles the shapes cover change. \`originX\` / \`originY\` shift every coordinate, for shapes written relative to an area's corner. \`clear\` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for ground or border); leave it off unless the area is meant to start empty. Optional \`locations\` ([{name, x0, y0, x1, y1}]) and \`units\` ([{unit, player, x, y}]) go on afterwards.
+
+**Ramps** go down south-west or south-east and nowhere else. A ramp is a doodad that fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for (the reference's tileset block lists the pairs); a tile-aligned cliff takes none. place_ramp tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit; a plateau shape makes an edge that fits.
+
+**Bridges** are doodads too, fitting only a channel of the bridge's water along the 2:1 diagonal (two tiles across for one down, running south-east or south-west) of the width the reference's tileset block gives. Badlands' bridges the editor cannot place; Installation and Ash World have none: there, a crossing is a gap of ground in the water \u2014 say so rather than trying. After painting, reachable answers whether units can walk from one place to another; a yes is not proof that a river holds, since a broken barrier answers yes too. To prove a bridge is the only way over, ask again with \`ignoreBridges\` (the tiles under every bridge count as water), which should answer no.
+
+**Bases.** place_base lays the mineral patches on the ring three tiles from a 4 \xD7 3 town hall footprint, where the game mines fastest, spread round a compass \`direction\` (where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines, the geyser on the same ring just past the line's end (\`geyserSide\` left / right / auto). Positions the editor refuses (cliffs, water, the edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does and says so. \`minerals\` (default 8), \`geysers\` (0\u20132, default 1), \`amount\` (1500) and \`gas\` (5000) are the numbers; \`hall\` names a Command Center, Nexus or Hatchery to place for \`player\`. find_site with purpose building and about 14 \xD7 11 finds room for hall and ring; bases reads what every start already has.
+
+**Doodads.** scatter_doodads keeps to the ground its category names (the editor's own rule: a Water doodad stands only on water, a Snow one only on snow) and clear of other doodads, so scatter a category over its own ground and read the count; a rect that also covers other ground places few and says so. place_doodads takes a name, an id or a category name, with the top-left corner at a tile.`;
+var GUIDES = [
+  { id: "terrain", title: "Terrain work: the brush, shapes, ramps, bridges, bases, doodads", keywords: [], text: TERRAIN },
+  { id: "basics", title: "Scenario basics", keywords: ["ums", "scenario", "trigger", "death counter", "hyper", "switch", "location"], text: BASICS },
+  { id: "madness", title: "Madness maps", keywords: ["madness", "mass", "spawn war", "auto spawn"], text: MADNESS },
+  { id: "defense", title: "Defense and tower defense", keywords: ["defense", "defence", "tower", "td", "waves", "sunken", "cannon"], text: DEFENSE },
+  { id: "rpg", title: "RPG maps", keywords: ["rpg", "hero", "quest", "adventure", "shop", "boss", "dungeon"], text: RPG },
+  { id: "bound", title: "Bound maps", keywords: ["bound", "obstacle", "dodge", "explosion", "scourge"], text: BOUND },
+  { id: "diplomacy", title: "Diplomacy and risk", keywords: ["diplomacy", "risk", "empire", "territory", "nations", "world map"], text: DIPLOMACY },
+  { id: "arena", title: "Arena and micro", keywords: ["arena", "micro", "rounds", "duel", "1v1", "pvp", "tournament"], text: ARENA },
+  { id: "survival", title: "Survival, hero survival, cat and mouse", keywords: ["survival", "survive", "cat and mouse", "hunt", "zombie", "horror", "hold out", "last man"], text: SURVIVAL }
+];
+function guideById(id) {
+  const wanted = id.trim().toLowerCase();
+  return GUIDES.find((g) => g.id === wanted || g.title.toLowerCase() === wanted) ?? null;
+}
+function guideFor(prompt) {
+  const text = ` ${prompt.toLowerCase()} `;
+  let best = null;
+  let score = 0;
+  for (const g of GUIDES) {
+    if (g.id === "basics" || g.id === "terrain") continue;
+    let n2 = 0;
+    for (const k of g.keywords) if (text.includes(` ${k} `) || text.includes(`${k} `) || text.includes(` ${k}`)) n2 += k.length > 3 ? 2 : 1;
+    if (n2 > score) {
+      best = g;
+      score = n2;
+    }
+  }
+  return best;
+}
+function guideIndex() {
+  return GUIDES.map((g) => `${g.id}: ${g.title}`).join("\n");
+}
+
+// ai/script.ts
+var SCRIPT_PLUGIN = "trigscript";
+var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
+function hasScriptPlugin(api) {
+  return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
+}
+function scriptBridge(api) {
+  if (!hasScriptPlugin(api)) return null;
+  const run = (name, ...args) => api.commands.run(`${SCRIPT_PLUGIN}.${name}`, ...args);
+  const async = async (name, ...args) => {
+    const r = run(name, ...args);
+    if (r === void 0) throw new Error(NO_SCRIPT_PLUGIN);
+    return await r;
+  };
+  return {
+    state: () => run("state") ?? null,
+    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
+    compile: (source) => async("compile", source),
+    build: (source, options) => async("build", source, options ?? {}),
+    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
+    simulate: (triggers, cycles, options) => run("simulate", triggers, cycles, options ?? {}) ?? { cycles: 0, events: [], switches: [] },
+    triggerAt: (file, line) => run("triggerAt", file, line) ?? null,
+    open: (file, line) => {
+      run("open", { file, line });
+    }
+  };
+}
+function describeDiagnostic(d) {
+  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
+}
+function repairDiagnostic(d) {
+  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
+}
+var FULL_TRIGGERS_CHARS = 12e3;
+var TRIGGERS_BLOCK_CHARS = 3e4;
+function handTriggers(api, block) {
+  return api.triggers.list().map((trigger2, index) => ({ index, trigger: trigger2 })).filter(({ index }) => !(block && index >= block.start && index < block.start + block.count));
+}
+function existingTriggersFor(api, hand) {
+  if (hand.length === 0) return void 0;
+  const full = compactTriggers(api.triggers.text.print(hand.map((h3) => h3.trigger)));
+  if (full.length <= FULL_TRIGGERS_CHARS) return full;
+  return indexTriggers(hand.map(({ index, trigger: trigger2 }) => ({ index, comment: api.triggers.comment(trigger2), ...api.triggers.summarize(trigger2) })));
+}
+function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
+  const shapes = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const key = shapeOf(r);
+    const s = shapes.get(key);
+    if (s) s.at.push(r.index);
+    else shapes.set(key, { first: r, at: [r.index] });
+  }
+  const groups = [...shapes.values()];
+  const line = (g, width) => {
+    const r = g.first;
+    const where = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
+    const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
+    return `${where} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
+  };
+  const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
+  for (const width of [400, 240, 160]) {
+    const lines = groups.map((g) => line(g, width));
+    const out = [head, ...lines].join("\n");
+    if (out.length <= budget) return out;
+    if (width === 160) {
+      const kept = [head];
+      let size = head.length;
+      let i = 0;
+      for (; i < lines.length; i++) {
+        if (size + lines[i].length + 60 > budget) break;
+        kept.push(lines[i]);
+        size += lines[i].length + 1;
+      }
+      const left = groups.slice(i).reduce((n2, g) => n2 + g.at.length, 0);
+      kept.push(`\u2026 and ${left} more triggers of ${groups.length - i} other shapes not listed.`);
+      return kept.join("\n");
+    }
+  }
+  return head;
+}
+function shapeOf(r) {
+  const names = (s) => [...s.matchAll(/(?:^|&& |; )([A-Z][A-Za-z ]+)\(/g)].map((m) => m[1]).join(",");
+  return `${r.players.replace(/\d+/g, "N")}|${names(r.conditions)}|${names(r.actions)}`;
+}
+function foldItems(actions) {
+  const items = [];
+  for (const part of actions.split("; ")) {
+    const last = items[items.length - 1];
+    if (last !== void 0 && (last.split('"').length - 1) % 2 === 1) items[items.length - 1] = `${last}; ${part}`;
+    else items.push(part);
+  }
+  const out = [];
+  for (let i = 0; i < items.length; i++) {
+    let j = i;
+    while (j + 1 < items.length && items[j + 1] === items[i]) j++;
+    const n2 = j - i + 1;
+    if (n2 >= 3) {
+      out.push(`${items[i]} \xD7${n2}`);
+      i = j;
+    } else out.push(items[i]);
+  }
+  return out.join("; ");
+}
+function compactTriggers(text) {
+  const lines = text.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let j = i;
+    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
+    const n2 = j - i + 1;
+    if (n2 >= 3) {
+      out.push(lines[i], `${/^\s*/.exec(lines[i])[0]}// \u2026 the line above ${n2} times`);
+      i = j;
+    } else out.push(lines[i]);
+  }
+  return out.join("\n");
+}
+
+// ai/tools/ums.ts
+function hasHyperTriggers(api, triggers = api.triggers.list()) {
+  return triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
+}
+function hasPrograms(api) {
+  return (scriptBridge(api)?.state()?.programs ?? 0) > 0;
+}
+function mapTempo(api, triggers = api.triggers.list()) {
+  return hasPrograms(api) ? "turbo" : hasHyperTriggers(api, triggers) ? "hyper" : "plain";
+}
+function toolkitContext(api, options = {}) {
+  const players2 = api.settings.players();
+  const humans = players2.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1);
+  const computers = players2.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1);
+  const triggers = api.triggers.list();
+  const tempo = options.tempo ?? mapTempo(api, triggers);
+  const locations = [...usedLocationNames(api), ...options.extraLocations ?? []];
+  const used = usedTriggerState(api, triggers);
+  return { humans: humans.length ? humans : [1], computers, tempo, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
+}
+function usedTriggerState(api, triggers = api.triggers.list()) {
+  const { condition, action } = api.consts.triggers;
+  const units = /* @__PURE__ */ new Set();
+  const switches = /* @__PURE__ */ new Set();
+  for (const t of triggers) {
+    for (const c2 of t.conditions) {
+      if (c2.type === condition.Deaths) units.add(c2.unitId);
+      else if (c2.type === condition.Switch) switches.add(c2.resource);
+    }
+    for (const a2 of t.actions) {
+      if (a2.type === action.SetDeaths) units.add(a2.unitId);
+      else if (a2.type === action.SetSwitch) switches.add(a2.target);
+    }
+  }
+  return { dcUnits: [...units].map((id) => api.names.unit(id)), switches: [...switches].map((i) => api.names.switch(i)) };
+}
+function usedLocationNames(api) {
+  const scn = api.document.scenario();
+  if (!scn) return [];
+  const out = [];
+  scn.locations.forEach((l, i) => {
+    if (l.left !== l.right || l.top !== l.bottom || l.nameIndex > 0) out.push(api.names.location(i));
+  });
+  return out;
+}
+function addSystem(api, kind, params, ctx, label = `AI: ${kind}`) {
+  const built = buildSystem(kind, params, ctx);
+  const parsed = api.triggers.text.parse(built.text, { briefing: false });
+  api.document.update(label, (tx) => {
+    for (const t of parsed) tx.triggers.add(t.trigger);
+  });
+  return { count: parsed.length, notes: built.notes };
+}
+function umsTools() {
+  return [
+    {
+      def: { name: "guide", description: `A guide to read once: "terrain" (how the brush, shapes, ramps, bridges, bases and doodads behave \u2014 before terrain work), "basics" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.`, inputSchema: obj({ id: { type: "string" } }) },
+      describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
+      writes: false,
+      run: (input) => {
+        const id = str(input.id);
+        if (!id) return `The guides:
+${guideIndex()}
+
+Ask for one by id, or describe the map.`;
+        const g = guideById(id) ?? guideFor(id);
+        return g ? g.text : `No guide matches "${id}". The guides:
+${guideIndex()}`;
+      }
+    },
+    {
+      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, capture the flag, leaderboards, countdown, last standing, alliances \u2026) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
+      writes: false,
+      run: () => kindsText()
+    },
+    {
+      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      describe: (input) => {
+        const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
+        return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`;
+      },
+      report: (result) => {
+        const r = jsonOf(result);
+        return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : "";
+      },
+      writes: true,
+      settings: true,
+      run: (input, { api }) => {
+        const kind = str(input.kind);
+        const raw = input.params && typeof input.params === "object" ? input.params : {};
+        const params = {};
+        for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
+        try {
+          const r = addSystem(api, kind, params, toolkitContext(api));
+          return capResult({ added: r.count, triggers: api.triggers.list().length, notes: r.notes });
+        } catch (err) {
+          if (err instanceof ToolkitError) return fail(`Not built:
+${err.problems.map((p) => `- ${p}`).join("\n")}`);
+          return fail(`Not built: ${err.message}`);
+        }
+      }
+    }
+  ];
+}
+
 // ai/tools/layout.ts
 function slots(api) {
   const players2 = api.settings.players();
@@ -4498,7 +5953,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       }
     },
     {
-      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers. fix: true gives an ownerless computer an Overlord.", inputSchema: obj({ fix: { type: "boolean" } }) },
+      def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers, hyper triggers beside a program. fix: true gives an ownerless computer a flier no trigger names.", inputSchema: obj({ fix: { type: "boolean" } }) },
       describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
       report: (result) => {
         const r = jsonOf(result);
@@ -4508,6 +5963,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
         return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems";
       },
       writes: true,
+      writesWhen: (input) => input.fix === true,
       run: (input, { api }) => {
         const scn = api.document.scenario();
         if (!scn) return fail("No map is open.");
@@ -4518,7 +5974,12 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
         for (const p of humans) if (!owned.has(p)) problems.push(`Player ${p} (human) owns no unit; a human is placed by the start location, so check it has one and that the triggers or the melee start give it something`);
         const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
         for (const p of humans) if (!starts.has(p)) problems.push(`Player ${p} (human) has no start location`);
-        const keeper = unitIdByName2(api, "Zerg Overlord");
+        const named = new Set(scn.triggers.flatMap((t) => [...t.conditions.map((c2) => c2.unitId), ...t.actions.map((a2) => a2.unitId)]));
+        const keeperName = KEEPERS.find((k) => {
+          const id = unitIdByName2(api, k);
+          return id !== null && !named.has(id);
+        }) ?? KEEPERS[0];
+        const keeper = unitIdByName2(api, keeperName);
         for (const p of computers) {
           if (owned.has(p)) continue;
           if (input.fix === true && keeper !== null) {
@@ -4526,12 +5987,13 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
             api.document.edit(`AI: keeper for player ${p}`, (tx) => {
               tx.placeUnit(keeper, p - 1, px, py);
             });
-            fixed.push(`Player ${p} (computer) owned nothing: an Overlord at ${scn.width - 2},${2 + fixed.length * 2} keeps it in the game`);
+            fixed.push(`Player ${p} (computer) owned nothing: a ${keeperName} at ${scn.width - 2},${2 + fixed.length * 2} keeps it in the game`);
           } else problems.push(`Player ${p} (computer) owns nothing: it is defeated the moment the game starts and its triggers never run \u2014 give it a unit out of the way (fix: true does)`);
         }
-        const hyper = scn.triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
+        const tempo = mapTempo(api, scn.triggers);
         const counters = scn.triggers.some((t) => t.conditions.some((c2) => c2.type === api.consts.triggers.condition.Deaths) && t.actions.some((a2) => a2.type === api.consts.triggers.action.SetDeaths));
-        if (counters && !hyper) problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
+        if (tempo === "turbo" && hasHyperTriggers(api, scn.triggers)) problems.push("the map has a TrigScript program, so every trigger already runs each frame: its hyper triggers do nothing but hold up any other Wait of their owner, and timers the toolkit built for hyper tempo now run twice as fast (remove the hyper triggers and rebuild those systems with ums_build)");
+        if (counters && tempo === "plain") problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
         return capResult({ problems: problems.length ? problems : ["none"], fixed });
       }
     }
@@ -4864,124 +6326,6 @@ function objectTools() {
       }
     }
   ];
-}
-
-// ai/script.ts
-var SCRIPT_PLUGIN = "trigscript";
-var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
-function hasScriptPlugin(api) {
-  return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
-}
-function scriptBridge(api) {
-  if (!hasScriptPlugin(api)) return null;
-  const run = (name, ...args) => api.commands.run(`${SCRIPT_PLUGIN}.${name}`, ...args);
-  const async = async (name, ...args) => {
-    const r = run(name, ...args);
-    if (r === void 0) throw new Error(NO_SCRIPT_PLUGIN);
-    return await r;
-  };
-  return {
-    state: () => run("state") ?? null,
-    declarations: (options) => String(run("declarations", options ?? {}) ?? ""),
-    compile: (source) => async("compile", source),
-    build: (source, options) => async("build", source, options ?? {}),
-    print: (triggers, options) => String(run("print", triggers, options ?? {}) ?? ""),
-    simulate: (triggers, cycles, options) => run("simulate", triggers, cycles, options ?? {}) ?? { cycles: 0, events: [], switches: [] },
-    triggerAt: (file, line) => run("triggerAt", file, line) ?? null,
-    open: (file, line) => {
-      run("open", { file, line });
-    }
-  };
-}
-function describeDiagnostic(d) {
-  return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
-}
-function repairDiagnostic(d) {
-  return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
-}
-var FULL_TRIGGERS_CHARS = 12e3;
-var TRIGGERS_BLOCK_CHARS = 3e4;
-function handTriggers(api, block) {
-  return api.triggers.list().map((trigger2, index) => ({ index, trigger: trigger2 })).filter(({ index }) => !(block && index >= block.start && index < block.start + block.count));
-}
-function existingTriggersFor(api, hand) {
-  if (hand.length === 0) return void 0;
-  const full = compactTriggers(api.triggers.text.print(hand.map((h3) => h3.trigger)));
-  if (full.length <= FULL_TRIGGERS_CHARS) return full;
-  return indexTriggers(hand.map(({ index, trigger: trigger2 }) => ({ index, comment: api.triggers.comment(trigger2), ...api.triggers.summarize(trigger2) })));
-}
-function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
-  const shapes = /* @__PURE__ */ new Map();
-  for (const r of rows) {
-    const key = shapeOf(r);
-    const s = shapes.get(key);
-    if (s) s.at.push(r.index);
-    else shapes.set(key, { first: r, at: [r.index] });
-  }
-  const groups = [...shapes.values()];
-  const line = (g, width) => {
-    const r = g.first;
-    const where = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
-    const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
-    return `${where} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
-  };
-  const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
-  for (const width of [400, 240, 160]) {
-    const lines = groups.map((g) => line(g, width));
-    const out = [head, ...lines].join("\n");
-    if (out.length <= budget) return out;
-    if (width === 160) {
-      const kept = [head];
-      let size = head.length;
-      let i = 0;
-      for (; i < lines.length; i++) {
-        if (size + lines[i].length + 60 > budget) break;
-        kept.push(lines[i]);
-        size += lines[i].length + 1;
-      }
-      const left = groups.slice(i).reduce((n2, g) => n2 + g.at.length, 0);
-      kept.push(`\u2026 and ${left} more triggers of ${groups.length - i} other shapes not listed.`);
-      return kept.join("\n");
-    }
-  }
-  return head;
-}
-function shapeOf(r) {
-  const names = (s) => [...s.matchAll(/(?:^|&& |; )([A-Z][A-Za-z ]+)\(/g)].map((m) => m[1]).join(",");
-  return `${r.players.replace(/\d+/g, "N")}|${names(r.conditions)}|${names(r.actions)}`;
-}
-function foldItems(actions) {
-  const items = [];
-  for (const part of actions.split("; ")) {
-    const last = items[items.length - 1];
-    if (last !== void 0 && (last.split('"').length - 1) % 2 === 1) items[items.length - 1] = `${last}; ${part}`;
-    else items.push(part);
-  }
-  const out = [];
-  for (let i = 0; i < items.length; i++) {
-    let j = i;
-    while (j + 1 < items.length && items[j + 1] === items[i]) j++;
-    const n2 = j - i + 1;
-    if (n2 >= 3) {
-      out.push(`${items[i]} \xD7${n2}`);
-      i = j;
-    } else out.push(items[i]);
-  }
-  return out.join("; ");
-}
-function compactTriggers(text) {
-  const lines = text.split("\n");
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    let j = i;
-    while (j + 1 < lines.length && lines[j + 1] === lines[i]) j++;
-    const n2 = j - i + 1;
-    if (n2 >= 3) {
-      out.push(lines[i], `${/^\s*/.exec(lines[i])[0]}// \u2026 the line above ${n2} times`);
-      i = j;
-    } else out.push(lines[i]);
-  }
-  return out.join("\n");
 }
 
 // ai/ui.ts
@@ -5848,6 +7192,10 @@ function windowOf(text, offset, size) {
 
 ${slice}`;
 }
+var FIRST_PROGRAM = "Warning: this is the map's first program. The saved map now needs StarCraft: Remastered, and every trigger on it runs each frame (about 24 times a second) instead of every two seconds, or twelve times a second with hyper triggers. The map has other triggers: any of them that counts trigger cycles on a death counter \u2014 every timer ums_build made \u2014 now runs 2 to 48 times fast. Tell the person, remove any hyper triggers, and rebuild those systems with ums_build (it reads the map's tempo).";
+function firstProgramWarning(hadPrograms, programs, otherTriggers) {
+  return !hadPrograms && programs > 0 && otherTriggers > 0;
+}
 function scriptTools() {
   return [
     {
@@ -5888,8 +7236,13 @@ function scriptTools() {
       run: async (input, { api }) => {
         const script = scriptBridge(api);
         if (!script) return fail(NO_SCRIPT_PLUGIN);
+        const hadPrograms = (script.state()?.programs ?? 0) > 0;
         const r = await script.build(str(input.source), { takeOver: input.takeOver === true });
-        return r.block ? `Built ${r.block.count} triggers at #${r.block.start + 1}.` : fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
+        if (!r.block) return fail(capResult({ errors: r.compiled.diagnostics.map(describeDiagnostic) }));
+        const built = `Built ${r.block.count} triggers at #${r.block.start + 1}.`;
+        return firstProgramWarning(hadPrograms, r.compiled.programs.length, api.triggers.list().length - r.block.count) ? `${built}
+
+${FIRST_PROGRAM}` : built;
       }
     },
     {
@@ -6376,1180 +7729,6 @@ function triggerTools() {
   ];
 }
 
-// ai/guides.ts
-var BASICS = `# Scenario basics (UMS)
-
-**Players.** Slots 1\u20138 are the game's players; slot 12 is neutral (resources, critters, props). A *Human* slot is a person; a *Computer* slot owns what the triggers create for the enemy or the shop; *Rescuable* units join whoever touches them; *Neutral* units belong to nobody. Every human needs a start location. A player who owns nothing when the game starts is defeated on the spot, and a defeated player's triggers never run: a computer that only spawns things needs a unit of its own somewhere out of the way (the editor places one when a design forgets). The game's AI does nothing for a computer slot in a scenario unless a trigger runs an AI script \u2014 which is usually what you want: the triggers are the AI.
-
-**Forces.** Four. Players in one force can be allied (they do not attack each other), share victory (one wins, all win) and share vision. A team of humans is one force with Allied Victory; the enemy computer is another force. Force names are shown in the lobby.
-
-**Triggers.** Each trigger has conditions (all must hold), actions (run in order) and a player list (it runs once *per player* it is listed for, with "Current Player" meaning that player). A trigger fires once, then never again, unless it has Preserve Trigger. The list runs top to bottom about every two seconds; with *hyper triggers* \u2014 a preserved trigger of ~62 Wait(0) actions, kept in three copies \u2014 it runs about twelve times a second, which is what makes spawns, timers and reactions feel instant. A Wait inside any *other* preserved trigger stalls that player's whole trigger queue, hyper triggers included: time with death counters instead.
-
-**Death counters.** Deaths(player, unit) is the game's counter per player per unit type, and Set Deaths writes it \u2014 so a unit that is never placed ("Cave (Unused)", "Cantina (Unused)", the Markers) is a free integer variable per player. Timers: add 1 every cycle, act when it reaches N, set it to 0. Twelve cycles a second with hypers, one every two seconds without.
-
-**Switches.** 256 booleans shared by everyone. Good for one-off flags ("boss spawned"), poor for anything counted.
-
-**Locations.** Named rectangles (254 of them, Anywhere is the whole map). Bring(player, unit, location) is how a map sees where a unit is; Create Unit, Move Unit, Kill Unit At Location, Order all take one. Make locations a little larger than the thing they watch. A location can exclude heights (ground / air) so a flier overhead does not trigger a ground beacon.
-
-**Resources and score.** Set Resources adds minerals or gas; Accumulate tests them. Kill score (Score \u2026 Kills) grows by roughly a unit's cost per kill and can be subtracted from, which is how "kill to cash" is paid. Leaderboards show kills, control, resources or points.
-
-**Ending the game.** Nothing ends a scenario by itself. Victory and Defeat are actions; the melee rule "no buildings, you lose" does not apply. Every human needs a path to each. Opponents(Current Player, Exactly, 0) is true when every non-allied player is gone or defeated \u2014 the usual last-standing victory.
-
-**Limits.** 1700 units on the map at once (Create Unit silently fails past it); 65535 strings in a Brood War map; 254 locations; text messages of a few hundred characters; a Wait longer than ~2 minutes is a bad idea. Units created on unwalkable ground or on top of a building are placed at the nearest free spot, or not at all when the location is packed.
-
-**Text.** Display Text Message shows a line at the top left; Set Mission Objectives fills the objectives box (F10 \u25B8 Objectives). Colour codes are bytes below 0x20 in the string (the editor's string fields have a picker).`;
-var MADNESS = `# Madness maps
-
-A *madness* map is a symmetric free-for-all where the map spawns each player's army for them and the armies fight on their own. The player's job is to spend what they earn on the right things and to pick the moment to push.
-
-**Layout.** One base per player, each a small walled plateau or corner with its hall (or a beacon that stands for it) and its *spawn location* beside it, all opening onto a common arena in the middle. Distances equal; the arena open; no resources to mine.
-
-**Players.** One human per base; one computer slot for props if any; humans each in their own force (or two forces for a team game with Allied Victory). All humans start hostile to each other.
-
-**Systems (toolkit kinds).**
-- \`hyper\`, always.
-- \`spawn\`: a unit every few seconds at \`Spawn {p}\`, owned by the player (\`owner: each\`), with \`attack\` set to the arena so the units go and fight. Several spawn systems for several unit types; \`limit\` keeps the unit count under control.
-- \`auto-attack\` on each player's units from Anywhere to the arena keeps stragglers moving.
-- \`kill-to-cash\` or \`income\` so there is something to spend; unit and upgrade costs go through Unit Settings.
-- \`stages\` so the game does not stall: every few minutes a stage rises, pays, and adds a heavier spawn.
-- \`last-standing\` with \`unit: Buildings\` (the hall is the life) or a hero unit.
-- \`leaderboard\` kills, \`objectives\`.
-
-**Pitfalls.** Spawns without a limit hit the 1700-unit cap in minutes and the game stops creating units for everyone. A base with two exits is a base that dies to a flank; one ramp. Spawned units that are not ordered sit at the spawn until attacked.`;
-var DEFENSE = `# Defense and tower defense
-
-Waves of enemy units walk from a spawn to a goal; the players kill them on the way. In a *tower defense* the players build static defence (turrets, cannons, sunkens) along a lane and cannot fight themselves; in a *hero defense* they control units.
-
-**Layout.** A lane from a spawn location to a goal location \u2014 a corridor of unbuildable ground with buildable strips beside it for towers, or a maze. The goal is a small location the enemies path into. Players start beside the lane with a builder each and no minerals to mine.
-
-**Players.** Humans in one force with Allied Victory and shared vision; one computer as the enemy, hostile to all; its units must be ordered, or they stand at the spawn.
-
-**Systems.**
-- \`hyper\`.
-- \`waves\`: units by wave, count and growth, interval, spawn and goal; the last wave cleared is the victory.
-- \`lives\`: a leak (an enemy reaching the goal) is removed and costs a shared life; zero lives is defeat.
-- \`kill-to-cash\` for the bounty (\`scorePerKill\` \u2248 the enemy unit's cost, so a Zergling pays half a Hydralisk).
-- \`income\` per wave or per tower (\`perUnit\`) if the map wants a steady economy.
-- \`leaderboard\` kills, \`objectives\`, \`message\` for the first wave.
-
-**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak \u2014 give lives.`;
-var RPG = `# RPG maps
-
-Each player controls a hero (a named unit, or an ordinary unit with Unit Settings) through a world of quests, shops and bosses. Progression is minerals from kills spent at shops, upgrades bought at beacons, and story told by text.
-
-**Layout.** A town (start locations, a heal spot, shops as beacon locations, a save/teleport gate) and regions of rising difficulty joined by paths; a boss room at the end. Enemy units are placed by hand (they belong to the computer) or spawned in regions when a player enters. Locations: the town, each shop's beacon, each region, each boss room, teleport pairs.
-
-**Players.** Humans in one force, allied, shared vision, Allied Victory. The computer owns the enemies and the shopkeepers; a *rescuable* slot for units that join when found.
-
-**Systems.**
-- \`hyper\`.
-- \`kill-to-cash\` for the economy; \`shop\` per item (bring the hero to the beacon with the price; \`deliver\` next to the shop); \`heal\` in the town.
-- \`respawn\` for the hero (with \`lives\`, or unlimited), or \`defeat-when-lost\` for permadeath.
-- \`spawn\` with \`owner: computer\` in a region for monsters that keep coming; \`give\` for a rescued companion; \`teleport\` between the town and the regions.
-- \`message\` on entering a region (\`location\`) for the story; \`objectives\`.
-- Victory: \`victory-on-kills\` of the boss unit (\`unit: <the boss>\`, \`count: 1\`), or a custom system for a staged fight.
-
-**Pitfalls.** Heroes need Unit Settings (hit points, damage) to survive at all; the default marine dies to two zerglings. A shop beacon inside the walking path buys by accident \u2014 set it off the path. Enemies placed by hand for the computer stand still unless the computer runs an AI script or a trigger orders them: \`auto-attack\` from a region to the town is the simplest guard behaviour.`;
-var BOUND = `# Bound maps
-
-A *bound* is an obstacle course: a narrow path the player's unit must run through, past explosions that fire in patterns, with checkpoints to respawn at. Pure timing and pattern; no economy.
-
-**How an explosion works.** An explosion is a unit (Scourge, Scarab, a nuke's flash) *created and killed in the same instant* at a spot \u2014 the death animation is the blast. The animation hurts nothing by itself: the same trigger kills every unit the players have standing on the spot, and that is what makes the spot lethal. Explosion units left alive do not attack (a Scourge cannot even hit ground units): create and kill, never create and wait.
-
-**Layout.** A winding path four tiles wide across water or empty space, from a start to a finish, cut into *stretches*: each a field of *spots* laid back to back along the path \u2014 every spot a slab across the whole path, or two or three side by side when the field has lanes \u2014 with safe ground before and after it and a checkpoint at its end. The \`bound\` layout preset makes all of it: Start, Finish, Checkpoint {n}, Stretch {n}, Spot {n}. Spots are numbered along the course, lane by lane within a slab: with one lane, Stretch 1 is Spot 1 \u2026 Spot 8 and Stretch 2 is Spot 9 \u2026 Spot 16; with two lanes a slab is two consecutive numbers (Spot 1 and 2 side by side, then 3 and 4).
-
-**Patterns.** One \`obstacles\` system per stretch, each with its own beat, over that stretch's run of spots: a *roll* is the spots in order one at a time (the runner follows the wave); *pairs* or *thirds* fire \`groups\` spots spread along the run at once (the runner reads two hazards); a *flash* is every spot of the stretch in one group (the runner waits for the gap); with lanes, the odd spots then the even ones alternate sides (the runner zigzags). The beat sets the difficulty \u2014 0.8 s for an opening, 0.5 s for a finale.
-
-**Players.** Humans each with one unit (a Zergling, a fast Terran unit), in one force or none; a computer owns the explosions. Lives per player, or unlimited.
-
-**Systems (toolkit kinds).**
-- \`hyper\`, essential: the timing is the game.
-- \`obstacles\`: the spots in firing order, a beat in seconds, how many fire at once \u2014 one system per stretch, over that stretch's spots. It runs on death counters, never Wait: a Wait in a preserved trigger stalls that player's whole queue, hyper triggers included.
-- \`checkpoints\`: the unit, the start, the checkpoints in order, the finish \u2014 recording progress, respawning at the last checkpoint, and the win for the first to the finish with the loss for the rest.
-- \`message\` at the start; \`leaderboard\` deaths if wanted. Nothing here needs a custom system.
-
-**Pitfalls.** Without hyper triggers a bound is unplayable \u2014 the explosions come every two seconds. Explosion units owned by a human hurt only enemies; give them to the computer. A spot must lie on the path, and the pattern must leave a gap a unit can run through.`;
-var DIPLOMACY = `# Diplomacy and risk maps
-
-Territories on a world map, each with a building or beacon that marks control; income per territory held; alliances made and broken in the game's diplomacy menu; last empire standing wins.
-
-**Layout.** Regions of buildable ground separated by water, mountains and chokes, each with a capital location and a few resource-free building spots; start locations spread evenly; a legend of region names in the description or the objectives.
-
-**Players.** Up to eight humans, each in their own force so alliances are up to them (no shared vision); a computer for rebels or barbarians, hostile to all.
-
-**Systems.**
-- \`hyper\` is optional; a slow tempo suits.
-- \`income\` per region: one system per region with \`perUnit\` the region's capital building and \`players: humans\`, or a flat income plus \`kill-to-cash\`.
-- \`spawn\` with \`owner: computer\` in neutral regions for rebels; \`auto-attack\` to send them at the nearest capital.
-- \`last-standing\` with \`unit: Buildings\`; \`leaderboard\` control of the capital building; \`objectives\`.
-- A \`countdown\` with \`onEnd: draw\` if the game must end.
-
-**Pitfalls.** Eight players and Allied Victory in one force means everyone wins together \u2014 leave the humans in separate forces. Income systems each take a death counter; the toolkit has about eighteen.`;
-var ARENA = `# Arena and micro maps
-
-Rounds in a walled arena: each side gets the same units, the survivor of the round scores, first to N rounds wins. All skill, no economy.
-
-**Layout.** A flat arena with two (or four) spawn locations at its sides and a wall around it; a lobby location per player outside. Symmetric.
-
-**Players.** Two humans (or two forces of humans with Allied Victory), hostile.
-
-**Systems.**
-- \`hyper\`.
-- Round flow is custom: when the arena holds units of only one side, that side's score counter goes up, everything in the arena is removed, and after a short pause both sides get the round's units at their spawns. Say the unit list per round in the description.
-- \`spawn\` does not fit (it is periodic); use it only for a practice mode.
-- \`victory-on-kills\` does not fit either; the win is the round score \u2014 custom, or \`countdown\` with \`onEnd: victory:<the leader>\` when a timed match is enough.
-- \`leaderboard\` points with the round score in Set Score (Custom); \`objectives\`.
-
-**Pitfalls.** Units left from the last round decide the next; remove everything in the arena between rounds. A wall the units can shoot over is not a wall.`;
-var SURVIVAL = `# Survival, hero survival, cat and mouse
-
-Hold out until a timer runs out, or hunt the survivors before it does. In *cat and mouse* one side (the cats) hunts the others (the mice), who build walls and hide; in *hero survival* every player fights the map's spawns and the last one alive wins.
-
-**Layout.** A large open area with hiding places and chokes for the mice; spawn locations for the map's monsters at the edges; a safe start for each human.
-
-**Players.** Cats and mice in two forces (no Allied Victory across them); or every human alone; a computer for the monsters.
-
-**Systems.**
-- \`hyper\`.
-- \`countdown\` with \`onEnd: victory:Force 2\` (the mice) \u2014 the cats must win before it ends; or \`victory:humans\` in a co-op survival.
-- \`spawn\` with \`owner: computer\` at the edges, \`attack\` toward the centre, and \`auto-attack\` so the monsters hunt.
-- \`defeat-when-lost\` on each player's hero, or \`last-standing\`.
-- \`income\` for the mice to build with; \`kill-to-cash\` for the cats.
-- \`leaderboard\` control of the hero unit shows who is still alive; \`objectives\`.
-
-**Pitfalls.** A countdown victory for a force while another system gives Defeat on the same cycle is a race \u2014 put the defeat's grace period after the timer. Monsters spawned without an order stand still.`;
-var TERRAIN = `# Terrain work: how the brush, the shapes, ramps, bridges, bases and doodads behave
-
-**The isometric brush** (paint_terrain, every shape). Terrain is painted by type id (list_terrains, or the reference's tileset block); cliffs and shores between two types draw themselves where they join, and a type joins only the types the tileset's tables link it to. The brush bleeds: a shore or a cliff takes about three tiles either side of the boundary, so a band of water narrower than about ten tiles is all shore, and a rect painted right up to water or a cliff redraws that edge \u2014 leave a few tiles' gap, or name the terrains to leave alone (\`keep\`). Diamonds the tileset cannot join to their neighbours are refused and counted. Painting the ground under a doodad removes it: doodads inside the painted rect go with the ground and are counted in one line; the re-blend also reaches along a cliff or shore well outside the rect, and a doodad it lifts there is put back where it still fits (a second undo step) or named with its position. Repainting the ground under a unit keeps the unit.
-
-**Shapes** (paint_shapes), in map tiles, later over earlier, each an object with an \`op\`:
-- \`ground\` (the whole map) and \`border\` (width) take a terrain id.
-- \`rect\` (x, y, w, h; optional \`cut\`: isometric corner cut in rows), \`diamond\` / \`ellipse\` (cx, cy, rx, ry), \`polygon\` (points).
-- \`stroke\` (points, width): a band \u2014 a river, a road, a wall. A river carries its bridges as \`bridges\`: [[x, y], \u2026]; the editor bends the river onto the 2:1 diagonal a bridge spans through each site, narrows it to the channel, paints the banks and fits the bridge, so the water reaches the bridge from both sides. Optional \`bank\` terrain id and \`bankWidth\` paint a band either side, bent with the river. A stroke's round ends reach half its width past each point: keep later strokes off a bridge's tiles.
-- \`plateau\` (like rect, plus \`ramps\`: which lower corners get a ramp down, "sw" and/or "se"): the editor cuts the corner into the diagonal edge a ramp fits, paints the pair the tileset has ramps for either side, and fits the ramp.
-- \`lane\` (points, width, \`wall\` terrain id, \`wallWidth\`): a walkable band with walls either side, continuous by construction; the width is the walkable core kept.
-- \`ramp\` (x, y, side): on a cliff already there. \`bridge\` (x, y, along "se" or "sw"): a stamp over whatever is there \u2014 a channel of the bridge's water along the 2:1 diagonal, about 30 tiles long, with 8 tiles of the bridge's ground either side, then the bridge; a river drawn separately must be brought to both ends of the channel as water, and the result says when it is not. Prefer a stroke with bridges.
-Only the tiles the shapes cover change. \`originX\` / \`originY\` shift every coordinate, for shapes written relative to an area's corner. \`clear\` removes the units, doodads and sprites inside the rectangle the shapes touch first (the whole map for ground or border); leave it off unless the area is meant to start empty. Optional \`locations\` ([{name, x0, y0, x1, y1}]) and \`units\` ([{unit, player, x, y}]) go on afterwards.
-
-**Ramps** go down south-west or south-east and nowhere else. A ramp is a doodad that fits only a straight diagonal cliff run facing south, between ground the tileset has a ramp for (the reference's tileset block lists the pairs); a tile-aligned cliff takes none. place_ramp tries every ramp within a few tiles with the editor's own placement rule and takes the nearest fit; a plateau shape makes an edge that fits.
-
-**Bridges** are doodads too, fitting only a channel of the bridge's water along the 2:1 diagonal (two tiles across for one down, running south-east or south-west) of the width the reference's tileset block gives. Badlands' bridges the editor cannot place; Installation and Ash World have none: there, a crossing is a gap of ground in the water \u2014 say so rather than trying. After painting, reachable answers whether units can walk from one place to another; a yes is not proof that a river holds, since a broken barrier answers yes too. To prove a bridge is the only way over, ask again with \`ignoreBridges\` (the tiles under every bridge count as water), which should answer no.
-
-**Bases.** place_base lays the mineral patches on the ring three tiles from a 4 \xD7 3 town hall footprint, where the game mines fastest, spread round a compass \`direction\` (where the line lies seen from the hall; default away from the map's centre) and wrapping the hall's corners like Blizzard's own lines, the geyser on the same ring just past the line's end (\`geyserSide\` left / right / auto). Positions the editor refuses (cliffs, water, the edge, units already there) are left out and the line closes over them; when that side has no whole line it turns to the nearest direction that does and says so. \`minerals\` (default 8), \`geysers\` (0\u20132, default 1), \`amount\` (1500) and \`gas\` (5000) are the numbers; \`hall\` names a Command Center, Nexus or Hatchery to place for \`player\`. find_site with purpose building and about 14 \xD7 11 finds room for hall and ring; bases reads what every start already has.
-
-**Doodads.** scatter_doodads keeps to the ground its category names (the editor's own rule: a Water doodad stands only on water, a Snow one only on snow) and clear of other doodads, so scatter a category over its own ground and read the count; a rect that also covers other ground places few and says so. place_doodads takes a name, an id or a category name, with the top-left corner at a tile.`;
-var GUIDES = [
-  { id: "terrain", title: "Terrain work: the brush, shapes, ramps, bridges, bases, doodads", keywords: [], text: TERRAIN },
-  { id: "basics", title: "Scenario basics", keywords: ["ums", "scenario", "trigger", "death counter", "hyper", "switch", "location"], text: BASICS },
-  { id: "madness", title: "Madness maps", keywords: ["madness", "mass", "spawn war", "auto spawn"], text: MADNESS },
-  { id: "defense", title: "Defense and tower defense", keywords: ["defense", "defence", "tower", "td", "waves", "sunken", "cannon"], text: DEFENSE },
-  { id: "rpg", title: "RPG maps", keywords: ["rpg", "hero", "quest", "adventure", "shop", "boss", "dungeon"], text: RPG },
-  { id: "bound", title: "Bound maps", keywords: ["bound", "obstacle", "dodge", "explosion", "scourge"], text: BOUND },
-  { id: "diplomacy", title: "Diplomacy and risk", keywords: ["diplomacy", "risk", "empire", "territory", "nations", "world map"], text: DIPLOMACY },
-  { id: "arena", title: "Arena and micro", keywords: ["arena", "micro", "rounds", "duel", "1v1", "pvp", "tournament"], text: ARENA },
-  { id: "survival", title: "Survival, hero survival, cat and mouse", keywords: ["survival", "survive", "cat and mouse", "hunt", "zombie", "horror", "hold out", "last man"], text: SURVIVAL }
-];
-function guideById(id) {
-  const wanted = id.trim().toLowerCase();
-  return GUIDES.find((g) => g.id === wanted || g.title.toLowerCase() === wanted) ?? null;
-}
-function guideFor(prompt) {
-  const text = ` ${prompt.toLowerCase()} `;
-  let best = null;
-  let score = 0;
-  for (const g of GUIDES) {
-    if (g.id === "basics" || g.id === "terrain") continue;
-    let n2 = 0;
-    for (const k of g.keywords) if (text.includes(` ${k} `) || text.includes(`${k} `) || text.includes(` ${k}`)) n2 += k.length > 3 ? 2 : 1;
-    if (n2 > score) {
-      best = g;
-      score = n2;
-    }
-  }
-  return best;
-}
-function guideIndex() {
-  return GUIDES.map((g) => `${g.id}: ${g.title}`).join("\n");
-}
-
-// ai/ums.ts
-var ToolkitError = class extends Error {
-  problems;
-  constructor(problems) {
-    super(problems.join("; "));
-    this.name = "ToolkitError";
-    this.problems = problems;
-  }
-};
-var DEFAULT_DC_UNITS = [
-  "Cave (Unused)",
-  "Cave-in (Unused)",
-  "Cantina (Unused)",
-  "Mining Platform (Unused)",
-  "Independent Command Center (Unused)",
-  "Independent Starport (Unused)",
-  "Independent Jump Gate (Unused)",
-  "Ruins (Unused)",
-  "Khaydarin Crystal Formation (Unused)",
-  "Zerg Marker",
-  "Terran Marker",
-  "Protoss Marker",
-  "Map Revealer",
-  "Scanner Sweep",
-  "Data Disk",
-  "Khaydarin Crystal",
-  "Uraj Crystal",
-  "Khalis Crystal"
-];
-function cyclesFor(seconds, hyper) {
-  return Math.max(1, Math.round(hyper ? seconds * 12 : seconds / 2));
-}
-var q = (s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
-var player = (p) => typeof p === "number" ? `Player ${p}` : p;
-function trigger(owners, conditions, actions) {
-  const lines = [`Trigger(${owners.map((o) => q(player(o))).join(", ")}){`, "Conditions:"];
-  for (const c2 of conditions.length ? conditions : ["Always()"]) lines.push(`	${c2};`);
-  lines.push("Actions:");
-  for (const a2 of actions) lines.push(`	${a2};`);
-  lines.push("}", "");
-  return lines.join("\n");
-}
-var CUR = "Current Player";
-var c = {
-  always: () => "Always()",
-  deaths: (p, unit, cmp, n2) => `Deaths(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
-  bring: (p, unit, loc2, cmp, n2) => `Bring(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${cmp}, ${n2})`,
-  command: (p, unit, cmp, n2) => `Command(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
-  kill: (p, unit, cmp, n2) => `Kill(${q(player(p))}, ${q(unit)}, ${cmp}, ${n2})`,
-  score: (p, score, cmp, n2) => `Score(${q(player(p))}, ${score}, ${cmp}, ${n2})`,
-  accumulate: (p, cmp, n2, res) => `Accumulate(${q(player(p))}, ${cmp}, ${n2}, ${res})`,
-  elapsed: (cmp, s) => `Elapsed Time(${cmp}, ${s})`,
-  countdown: (cmp, s) => `Countdown Timer(${cmp}, ${s})`,
-  opponents: (p, cmp, n2) => `Opponents(${q(player(p))}, ${cmp}, ${n2})`,
-  switch: (name, state) => `Switch(${q(name)}, ${state})`
-};
-var a = {
-  preserve: () => "Preserve Trigger()",
-  wait: (ms) => `Wait(${ms})`,
-  create: (p, unit, n2, loc2) => `Create Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
-  setDeaths: (p, unit, mod, n2) => `Set Deaths(${q(player(p))}, ${q(unit)}, ${mod}, ${n2})`,
-  setResources: (p, mod, n2, res) => `Set Resources(${q(player(p))}, ${mod}, ${n2}, ${res})`,
-  setScore: (p, mod, n2, score) => `Set Score(${q(player(p))}, ${mod}, ${n2}, ${score})`,
-  text: (s) => `Display Text Message(Always Display, ${q(s)})`,
-  objectives: (s) => `Set Mission Objectives(${q(s)})`,
-  victory: () => "Victory()",
-  defeat: () => "Defeat()",
-  killAt: (p, unit, n2, loc2) => `Kill Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
-  removeAt: (p, unit, n2, loc2) => `Remove Unit At Location(${q(player(p))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
-  move: (p, unit, n2, from, to) => `Move Unit(${q(player(p))}, ${q(unit)}, ${n2}, ${q(from)}, ${q(to)})`,
-  order: (p, unit, from, to, order) => `Order(${q(player(p))}, ${q(unit)}, ${q(from)}, ${q(to)}, ${order})`,
-  hp: (p, unit, pct, n2, loc2) => `Modify Unit Hit Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
-  shields: (p, unit, pct, n2, loc2) => `Modify Unit Shield Points(${q(player(p))}, ${q(unit)}, ${pct}, ${n2}, ${q(loc2)})`,
-  lbKills: (label, unit) => `Leader Board Kills(${q(label)}, ${q(unit)})`,
-  lbControl: (label, unit) => `Leader Board Control(${q(label)}, ${q(unit)})`,
-  lbResources: (label, res) => `Leader Board Resources(${q(label)}, ${res})`,
-  lbPoints: (label, score) => `Leader Board Points(${q(label)}, ${score})`,
-  countdown: (mod, s) => `Set Countdown Timer(${mod}, ${s})`,
-  alliance: (p, status) => `Set Alliance Status(${q(player(p))}, ${status})`,
-  give: (from, to, unit, n2, loc2) => `Give Units to Player(${q(player(from))}, ${q(player(to))}, ${q(unit)}, ${n2}, ${q(loc2)})`,
-  ping: (loc2) => `Minimap Ping(${q(loc2)})`,
-  center: (loc2) => `Center View(${q(loc2)})`,
-  setSwitch: (name, action) => `Set Switch(${q(name)}, ${action})`,
-  invincible: (p, unit, loc2, state) => `Set Invincibility(${q(player(p))}, ${q(unit)}, ${q(loc2)}, ${state})`
-};
-var isTemplate = (value) => /\{p\}/.test(value);
-var fillTemplate = (value, p) => value.replace(/\{p\}/g, String(p));
-function hasLocation(locations, name) {
-  const v = name.trim().toLowerCase();
-  if (v === "anywhere") return true;
-  if (!isTemplate(v)) return locations.some((l) => l.toLowerCase() === v);
-  const re = new RegExp(`^${v.split("{p}").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:[1-9]|1[0-2])")}$`);
-  return locations.some((l) => re.test(l.toLowerCase()));
-}
-function waitingOn(system, missing) {
-  return missing.filter((m) => system.params.some((p) => p.value.trim().toLowerCase() !== "anywhere" && hasLocation([m], p.value)));
-}
-var Reader2 = class {
-  problems = [];
-  notes = [];
-  seen = /* @__PURE__ */ new Set();
-  kind;
-  params;
-  ctx;
-  constructor(kind, params, ctx) {
-    this.kind = kind;
-    this.params = params;
-    this.ctx = ctx;
-  }
-  raw(name) {
-    this.seen.add(name);
-    const v = this.params[name];
-    return v === void 0 || v.trim() === "" ? void 0 : v.trim();
-  }
-  str(name, fallback) {
-    const v = this.raw(name);
-    if (v !== void 0) return v;
-    if (fallback !== void 0) return fallback;
-    this.problems.push(`"${name}" is required`);
-    return "";
-  }
-  int(name, fallback, lo = 0, hi = 1e6) {
-    const v = this.raw(name);
-    if (v === void 0) return fallback;
-    const cleaned = v.replace(/[^0-9.-]/g, "");
-    const n2 = cleaned === "" ? NaN : Number(cleaned);
-    if (!Number.isFinite(n2)) {
-      this.problems.push(`"${name}" should be a number, not "${v}"`);
-      return fallback;
-    }
-    return Math.max(lo, Math.min(hi, Math.round(n2)));
-  }
-  bool(name, fallback) {
-    const v = this.raw(name);
-    if (v === void 0) return fallback;
-    if (/^(true|yes|on|1)$/i.test(v)) return true;
-    if (/^(false|no|off|0)$/i.test(v)) return false;
-    this.problems.push(`"${name}" should be yes or no, not "${v}"`);
-    return fallback;
-  }
-  /** A location name, checked against the context when it lists any; a `{p}` template passes when a numbered location backs it. */
-  location(name, fallback) {
-    const v = this.str(name, fallback);
-    if (v && this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, v)) {
-      this.problems.push(`"${name}" names location "${v}", which the map does not have`);
-    }
-    return v;
-  }
-  /** A location named inside a list parameter, checked the same way. */
-  locationIn(name, value) {
-    if (this.ctx.locations && this.ctx.locations.length > 0 && !hasLocation(this.ctx.locations, value)) this.problems.push(`"${name}" names location "${value}", which the map does not have`);
-  }
-  /** Players: "humans" (default), "computers", "all", or a list like "1, 2, 5". 1-based. */
-  players(name, fallback = "humans") {
-    const v = this.raw(name) ?? fallback;
-    if (/^humans?$/i.test(v)) return this.ctx.humans;
-    if (/^computers?$/i.test(v)) return this.ctx.computers;
-    if (/^all$/i.test(v)) return [...this.ctx.humans, ...this.ctx.computers];
-    const list2 = v.split(/[,\s]+/).map((s) => Number(s.replace(/^p(?:layer)?\s*/i, ""))).filter((n2) => Number.isInteger(n2) && n2 >= 1 && n2 <= 12);
-    if (list2.length === 0) this.problems.push(`"${name}" should be humans, computers, all, or player numbers, not "${v}"`);
-    return list2;
-  }
-  /** One player: a number 1–12, or "computer" for the first computer slot; `fallback` may be "computer" too. */
-  onePlayer(name, fallback) {
-    let v = this.raw(name);
-    if (v === void 0) {
-      if (typeof fallback === "number") return fallback;
-      if (fallback === "computer") v = "computer";
-      else {
-        this.problems.push(`"${name}" is required`);
-        return 12;
-      }
-    }
-    if (/^computer$/i.test(v)) {
-      if (this.ctx.computers[0]) return this.ctx.computers[0];
-      this.problems.push(`"${name}" says computer, but the map has no computer player`);
-      return 12;
-    }
-    if (/^neutral$/i.test(v)) return 12;
-    const n2 = Number(v.replace(/^p(?:layer)?\s*/i, ""));
-    if (!Number.isInteger(n2) || n2 < 1 || n2 > 12) {
-      this.problems.push(`"${name}" should be a player number 1\u201312, not "${v}"`);
-      return 12;
-    }
-    return n2;
-  }
-  /** Comma-separated names. */
-  list(name, fallback = []) {
-    const v = this.raw(name);
-    return v === void 0 ? fallback : v.split(/\s*[,;]\s*/).map((s) => s.trim()).filter(Boolean);
-  }
-  /** Complain about parameters the kind does not take. */
-  finish() {
-    for (const k of Object.keys(this.params)) if (!this.seen.has(k) && !this.kind.params.some((p) => p.name === k)) this.problems.push(`"${k}" is not a parameter of ${this.kind.kind}`);
-    if (this.problems.length > 0) throw new ToolkitError(this.problems.map((p) => `${this.kind.kind}: ${p}`));
-  }
-};
-var Counters = class {
-  next = 0;
-  used = [];
-  ctx;
-  taken;
-  takenSwitches;
-  constructor(ctx) {
-    this.ctx = ctx;
-    this.taken = new Set((ctx.usedDcUnits ?? []).map((u) => u.toLowerCase()));
-    this.takenSwitches = new Set((ctx.usedSwitches ?? []).map((s) => s.toLowerCase()));
-  }
-  take(what) {
-    while (this.next < this.ctx.dcUnits.length && this.taken.has(this.ctx.dcUnits[this.next].toLowerCase())) this.next++;
-    const unit = this.ctx.dcUnits[this.next++];
-    if (!unit) {
-      const inUse = this.ctx.dcUnits.filter((u) => this.taken.has(u.toLowerCase()) && !this.used.includes(u)).length;
-      throw new ToolkitError([`no death-counter unit left for ${what} (the toolkit knows ${this.ctx.dcUnits.length}${inUse ? `, ${inUse} already in use by the map's triggers` : ""})`]);
-    }
-    this.taken.add(unit.toLowerCase());
-    this.used.push(unit);
-    return unit;
-  }
-  nextSwitch = 255;
-  /** A switch by its numbered name, from the top down — a name the map does not have would not parse. */
-  takeSwitch(what) {
-    while (this.nextSwitch >= 1 && this.takenSwitches.has(`switch ${this.nextSwitch}`)) this.nextSwitch--;
-    if (this.nextSwitch < 1) throw new ToolkitError([`no switch left for ${what}`]);
-    const name = `Switch ${this.nextSwitch--}`;
-    this.takenSwitches.add(name.toLowerCase());
-    return name;
-  }
-};
-var P2 = (name, description, required = false) => ({ name, description, required });
-var KINDS = [
-  {
-    spec: {
-      kind: "hyper",
-      description: "Hyper triggers: make the whole trigger list run about twelve times a second instead of every two seconds. Needed by anything that spawns, counts or reacts faster than that. Three copies of a preserved trigger of 62 Wait(0)s.",
-      params: [P2("owner", "who runs them: a player number that is always in the game, or All Players (the default)")]
-    },
-    build(r) {
-      const owner = r.str("owner", "All Players");
-      const own = /^\d+$/.test(owner) ? Number(owner) : owner;
-      const t = trigger([own], [], [...Array.from({ length: 62 }, () => a.wait(0)), a.preserve()]);
-      return { triggers: [t, t, t] };
-    }
-  },
-  {
-    perPlayer: true,
-    spec: {
-      kind: "spawn",
-      description: "Spawn units on a timer at a location, for one or every player. With `players: humans` and a location like `Spawn {p}`, each human gets a trigger with {p} replaced by their number; `owner: each` gives the units to that player, `owner: computer` to the first computer slot.",
-      params: [P2("location", "the spawn location; may contain {p} for the player number", true), P2("unit", "the unit to create", true), P2("count", "units per spawn (default 1)"), P2("every", "seconds between spawns (default 10)"), P2("players", "humans (default), computers, all, or player numbers"), P2("owner", "each (default), computer, or a player number"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P2("attack", "a location to order the spawned units to attack-move to (default none)")]
-    },
-    build(r, ctx, dc) {
-      const location2 = r.str("location");
-      const unit = r.str("unit");
-      const count = r.int("count", 1, 1, 200);
-      const every = r.int("every", 10, 1, 3600);
-      const players2 = r.players("players");
-      const ownerRaw = r.str("owner", "each");
-      const limit = r.int("limit", 0, 0, 1700);
-      const attack = r.str("attack", "");
-      const cycles = cyclesFor(every, ctx.hyper);
-      const counter = dc.take("the spawn timer");
-      const triggers = [];
-      for (const p of players2) {
-        const loc2 = fillTemplate(location2, p);
-        const attackLoc = fillTemplate(attack, p);
-        if (attack) r.location("attack", attackLoc);
-        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
-        const conditions = [c.deaths(p, counter, "At least", cycles)];
-        if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
-        const actions = [a.setDeaths(p, counter, "Set To", 0), a.create(owner, unit, count, loc2)];
-        if (attack) actions.push(a.order(owner, unit, loc2, attackLoc, "attack"));
-        actions.push(a.preserve());
-        triggers.push(trigger([p], conditions, actions));
-        triggers.push(trigger([p], [], [a.setDeaths(p, counter, "Add", 1), a.preserve()]));
-      }
-      return { triggers, notes: [`spawn timer: ${cycles} trigger cycles \u2248 ${every} s ${ctx.hyper ? "with" : "without"} hyper triggers`] };
-    }
-  },
-  {
-    spec: {
-      kind: "kill-to-cash",
-      description: "Pay minerals (and gas) for kills. Watches the player's kill score and pays each time it passes `scorePerKill`, subtracting that much score \u2014 so units worth more kill score pay more often. Kill score is roughly the unit's cost (a Marine 100, a Zergling 50, a Hydralisk 175).",
-      params: [P2("minerals", "minerals per payment (default 10)"), P2("gas", "gas per payment (default 0)"), P2("scorePerKill", "kill score per payment (default 100)"), P2("players", "humans (default), all, or player numbers"), P2("message", "text shown on each payment (default none)")]
-    },
-    build(r) {
-      const minerals = r.int("minerals", 10, 0);
-      const gas = r.int("gas", 0, 0);
-      const per = r.int("scorePerKill", 100, 1);
-      const players2 = r.players("players");
-      const message = r.str("message", "");
-      const actions = [a.setScore(CUR, "Subtract", per, "Kills")];
-      if (minerals > 0) actions.push(a.setResources(CUR, "Add", minerals, "ore"));
-      if (gas > 0) actions.push(a.setResources(CUR, "Add", gas, "gas"));
-      if (message) actions.push(a.text(message));
-      actions.push(a.preserve());
-      return { triggers: [trigger(players2, [c.score(CUR, "Kills", "At least", per)], actions)] };
-    }
-  },
-  {
-    spec: {
-      kind: "income",
-      description: "Resources on a timer for players: `minerals` every `every` seconds.",
-      params: [P2("minerals", "minerals per tick (default 50)"), P2("gas", "gas per tick (default 0)"), P2("every", "seconds between ticks (default 30)"), P2("players", "humans (default), all, or player numbers"), P2("perUnit", "a unit or building each player must command at least one of, or no income (default none)")]
-    },
-    build(r, ctx, dc) {
-      const minerals = r.int("minerals", 50, 0);
-      const gas = r.int("gas", 0, 0);
-      const every = r.int("every", 30, 1, 3600);
-      const players2 = r.players("players");
-      const perUnit = r.str("perUnit", "");
-      const cycles = cyclesFor(every, ctx.hyper);
-      const counter = dc.take("the income timer");
-      const conditions = [c.deaths(CUR, counter, "At least", cycles)];
-      if (perUnit) conditions.push(c.command(CUR, perUnit, "At least", 1));
-      const actions = [a.setDeaths(CUR, counter, "Set To", 0)];
-      if (minerals > 0) actions.push(a.setResources(CUR, "Add", minerals, "ore"));
-      if (gas > 0) actions.push(a.setResources(CUR, "Add", gas, "gas"));
-      actions.push(a.preserve());
-      return { triggers: [trigger(players2, conditions, actions), trigger(players2, [], [a.setDeaths(CUR, counter, "Add", 1), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "last-standing",
-      description: "The melee ending for a scenario: a player who commands none of `unit` is defeated; a player with no opponents left wins. Use `unit: Buildings` for a base game, a hero's name for a hero game, `Any unit` otherwise.",
-      params: [P2("unit", "what a player must keep to stay in (default Any unit)"), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before elimination can happen, so a slow start is not a loss (default 10)")]
-    },
-    build(r) {
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      const grace = r.int("grace", 10, 0, 3600);
-      return {
-        triggers: [
-          trigger(players2, [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", grace)], [a.defeat()]),
-          trigger(players2, [c.opponents(CUR, "Exactly", 0), c.elapsed("At least", grace)], [a.victory()])
-        ],
-        notes: ["Opponents counts players who are neither allied for victory nor gone; allies in a force with Allied Victory win together"]
-      };
-    }
-  },
-  {
-    spec: {
-      kind: "defeat-when-lost",
-      description: "A player is defeated when they command none of `unit` (a hero, a base building).",
-      params: [P2("unit", "the unit that must survive", true), P2("players", "humans (default) or player numbers"), P2("grace", "seconds before it can happen (default 5)"), P2("message", "text shown to everyone when it happens (default none)")]
-    },
-    build(r) {
-      const unit = r.str("unit");
-      const players2 = r.players("players");
-      const grace = r.int("grace", 5, 0, 3600);
-      const message = r.str("message", "");
-      const actions = message ? [a.text(message), a.defeat()] : [a.defeat()];
-      return { triggers: [trigger(players2, [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", grace)], actions)] };
-    }
-  },
-  {
-    spec: {
-      kind: "victory-on-kills",
-      description: "Victory for a player who has killed `count` of `unit`; everyone else is defeated.",
-      params: [P2("count", "kills needed", true), P2("unit", "what counts (default Any unit)"), P2("players", "humans (default) or player numbers")]
-    },
-    build(r) {
-      const count = r.int("count", 0, 1);
-      if (count <= 0) r.problems.push('"count" must be at least 1');
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      const others = players2.length > 1;
-      return {
-        triggers: [
-          trigger(players2, [c.kill(CUR, unit, "At least", count)], [a.victory()]),
-          ...others ? [trigger(players2, [c.kill("Foes", unit, "At least", count)], [a.defeat()])] : []
-        ],
-        notes: others ? ["the losers see Defeat when a foe reaches the count"] : []
-      };
-    }
-  },
-  {
-    spec: {
-      kind: "countdown",
-      description: "A countdown timer from the start; when it ends, victory or defeat, or a draw. `onEnd` is `victory:humans`, `victory:Force 2`, `victory:1,3`, `defeat:humans` or `draw`.",
-      params: [P2("seconds", "how long", true), P2("onEnd", "what happens at zero (default draw)"), P2("message", "text shown when it ends (default none)")]
-    },
-    build(r, ctx) {
-      const seconds = r.int("seconds", 0, 1, 86400);
-      const onEnd = r.str("onEnd", "draw");
-      const message = r.str("message", "");
-      const triggers = [trigger(["All Players"], [], [a.countdown("Set To", seconds)])];
-      const m = /^(victory|defeat)\s*:\s*(.+)$/i.exec(onEnd);
-      const end = (owners, act) => trigger(owners, [c.countdown("Exactly", 0)], message ? [a.text(message), act] : [act]);
-      if (!m) {
-        triggers.push(end(["All Players"], "Draw()"));
-      } else {
-        const who = m[2].trim();
-        const owners = /^humans?$/i.test(who) ? ctx.humans : /^computers?$/i.test(who) ? ctx.computers : /^force\s*[1-4]$/i.test(who) ? [`Force ${who.replace(/\D/g, "")}`] : who.split(/[,\s]+/).map(Number).filter((n2) => n2 >= 1 && n2 <= 12);
-        const winners = m[1].toLowerCase() === "victory";
-        triggers.push(end(owners, winners ? a.victory() : a.defeat()));
-        const rest = ctx.humans.filter((p) => !owners.includes(p) && !(typeof owners[0] === "string"));
-        if (winners && rest.length > 0) triggers.push(end(rest, a.defeat()));
-      }
-      return { triggers };
-    }
-  },
-  {
-    spec: {
-      kind: "objectives",
-      description: "Set Mission Objectives for the players at the start.",
-      params: [P2("text", "the objectives, lines separated by \\n", true), P2("players", "humans (default), all, or player numbers")]
-    },
-    build(r) {
-      const text = r.str("text").replace(/\\n/g, "\n");
-      const players2 = r.players("players");
-      return { triggers: [trigger(players2, [], [a.objectives(text)])] };
-    }
-  },
-  {
-    spec: {
-      kind: "message",
-      description: "Show a text message to players at a moment: at the start, after `after` seconds, or when a player brings a unit to `location`.",
-      params: [P2("text", "what to show", true), P2("after", "seconds from the start (default 0)"), P2("location", "show it when the player brings a unit here instead (default none)"), P2("players", "humans (default), all, or player numbers"), P2("once", "yes (default) or no: show it every time")]
-    },
-    build(r) {
-      const text = r.str("text");
-      const after = r.int("after", 0, 0, 86400);
-      const location2 = r.str("location", "");
-      const players2 = r.players("players");
-      const once = r.bool("once", true);
-      const conditions = location2 ? [c.bring(CUR, "Any unit", r.location("location"), "At least", 1)] : after > 0 ? [c.elapsed("At least", after)] : [];
-      return { triggers: [trigger(players2, conditions, once ? [a.text(text)] : [a.text(text), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "lives",
-      description: "Shared lives for a defense map: an enemy unit reaching `goal` is removed and costs a life; at zero lives the players are defeated. The count is a death counter on the enemy slot.",
-      params: [P2("lives", "how many (default 20)", true), P2("goal", "the location the enemies try to reach", true), P2("enemy", "the player whose units leak (default computer)"), P2("unit", "what counts as a leak (default Any unit)"), P2("players", "who is defeated at zero (default humans)")]
-    },
-    build(r, _ctx, dc) {
-      const lives = r.int("lives", 20, 1, 1e3);
-      const goal = r.location("goal");
-      const enemy = r.onePlayer("enemy", "computer");
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      const counter = dc.take("the lives counter");
-      return {
-        triggers: [
-          trigger([enemy], [], [a.setDeaths(enemy, counter, "Set To", lives)]),
-          trigger([enemy], [c.bring(enemy, unit, goal, "At least", 1)], [a.removeAt(enemy, unit, "All", goal), a.setDeaths(enemy, counter, "Subtract", 1), a.preserve()]),
-          trigger(players2, [c.deaths(enemy, counter, "Exactly", 0), c.elapsed("At least", 5)], [a.text("No lives left."), a.defeat()])
-        ],
-        notes: ["several leaks in one cycle cost one life; the lives counter is not shown \u2014 add a `leaderboard` of kind points or a `message` if the players should see it"]
-      };
-    }
-  },
-  {
-    spec: {
-      kind: "waves",
-      description: "Defense waves: every `interval` seconds the enemy spawns a wave at `spawn` and attack-moves it to `goal`; each wave is bigger than the last and cycles through `units`. Victory for the players when the last wave is dead.",
-      params: [P2("spawn", "where waves appear", true), P2("goal", "where they attack toward", true), P2("units", "unit names, comma-separated, one per wave in turn", true), P2("waves", "how many (default 10)"), P2("interval", "seconds between waves (default 45)"), P2("count", "units in the first wave (default 6)"), P2("growth", "more units per wave (default 2)"), P2("enemy", "the spawning player (default computer)"), P2("players", "who wins at the end (default humans)"), P2("announce", 'yes (default) or no: show "Wave N"')]
-    },
-    build(r, _ctx, dc) {
-      const spawn = r.location("spawn");
-      const goal = r.location("goal");
-      const units = r.list("units");
-      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
-      const waves = r.int("waves", 10, 1, 100);
-      const interval = r.int("interval", 45, 5, 3600);
-      const count = r.int("count", 6, 1, 200);
-      const growth = r.int("growth", 2, 0, 100);
-      const enemy = r.onePlayer("enemy", "computer");
-      const players2 = r.players("players");
-      const announce = r.bool("announce", true);
-      const counter = dc.take("the wave counter");
-      const triggers = [];
-      for (let k = 1; k <= waves; k++) {
-        const unit = units[(k - 1) % Math.max(1, units.length)] ?? "Zerg Zergling";
-        const n2 = Math.min(200, count + growth * (k - 1));
-        const actions = [a.setDeaths(enemy, counter, "Set To", k), a.create(enemy, unit, n2, spawn), a.order(enemy, "Any unit", spawn, goal, "attack")];
-        if (announce) actions.unshift(a.text(`Wave ${k}: ${n2} ${unit}`));
-        triggers.push(trigger([enemy], [c.elapsed("At least", interval * k), c.deaths(enemy, counter, "Exactly", k - 1)], actions));
-      }
-      triggers.push(trigger(players2, [c.deaths(enemy, counter, "At least", waves), c.command(enemy, "Any unit", "Exactly", 0), c.elapsed("At least", interval * waves + 10)], [a.text("The last wave is dead."), a.victory()]));
-      return { triggers, notes: [`${waves} waves, the last at ${interval * waves} s; the enemy player must own nothing else, or the victory never comes`] };
-    }
-  },
-  {
-    perPlayer: true,
-    spec: {
-      kind: "stages",
-      description: "Escalation over time: a stage counter rises every `every` seconds up to `stages`; at each stage the players get a message, extra minerals, and from `from` on, an extra spawn at `location` every `interval` seconds \u2014 the unit for the stage from `units` in turn (the last one repeats), `count` plus `growth` per stage, ordered to `attack`. Madness and survival maps that must not stall.",
-      params: [P2("every", "seconds per stage (default 240)"), P2("stages", "how many stages (default 6)"), P2("units", "unit names, comma-separated, one per stage in turn from the first spawning stage", true), P2("location", "the spawn location; may contain {p}", true), P2("from", "the first stage that spawns (default 1)"), P2("interval", "seconds between the extra spawns (default 15)"), P2("count", "units per extra spawn at the first spawning stage (default 2)"), P2("growth", "more units per stage (default 1)"), P2("limit", "stop spawning while the owner commands at least this many of the unit (default none)"), P2("attack", "a location the spawned units attack-move to (default none)"), P2("minerals", "minerals paid to each player at each new stage (default 0)"), P2("message", "text shown at each new stage; {stage} is the number (default none)"), P2("players", "humans (default), all, or player numbers"), P2("owner", "each (default), computer, or a player number")]
-    },
-    build(r, ctx, dc) {
-      const every = r.int("every", 240, 10, 7200);
-      const stages = r.int("stages", 6, 1, 20);
-      const units = r.list("units");
-      if (units.length === 0) r.problems.push('"units" needs at least one unit name');
-      const location2 = r.str("location");
-      const from = r.int("from", 1, 1, 20);
-      const interval = r.int("interval", 15, 1, 3600);
-      const count = r.int("count", 2, 1, 200);
-      const growth = r.int("growth", 1, 0, 100);
-      const limit = r.int("limit", 0, 0, 1700);
-      const attack = r.str("attack", "");
-      const minerals = r.int("minerals", 0, 0);
-      const message = r.str("message", "");
-      const players2 = r.players("players");
-      const ownerRaw = r.str("owner", "each");
-      const stage = dc.take("the stage counter");
-      const timer = dc.take("the stage spawn timer");
-      const cycles = cyclesFor(interval, ctx.hyper);
-      const triggers = [];
-      for (const p of players2) {
-        const loc2 = fillTemplate(location2, p);
-        const attackLoc = fillTemplate(attack, p);
-        if (attack) r.location("attack", attackLoc);
-        const owner = /^each$/i.test(ownerRaw) ? p : /^computer$/i.test(ownerRaw) ? ctx.computers[0] ?? p : Number(ownerRaw) || p;
-        for (let k = 1; k <= stages; k++) {
-          const actions = [a.setDeaths(p, stage, "Set To", k)];
-          if (minerals > 0) actions.push(a.setResources(p, "Add", minerals, "ore"));
-          if (message) actions.push(a.text(message.replace(/\{stage\}/g, String(k))));
-          triggers.push(trigger([p], [c.elapsed("At least", every * k), c.deaths(p, stage, "Exactly", k - 1)], actions));
-          if (k < from) continue;
-          const unit = units[Math.min(units.length - 1, k - from)] ?? "Zerg Zergling";
-          const n2 = Math.min(200, count + growth * (k - from));
-          const conditions = [c.deaths(p, stage, "Exactly", k), c.deaths(p, timer, "At least", cycles)];
-          if (limit > 0) conditions.push(c.command(owner, unit, "At most", limit - 1));
-          const spawn = [a.setDeaths(p, timer, "Set To", 0), a.create(owner, unit, n2, loc2)];
-          if (attack) spawn.push(a.order(owner, unit, loc2, attackLoc, "attack"));
-          spawn.push(a.preserve());
-          triggers.push(trigger([p], conditions, spawn));
-        }
-        triggers.push(trigger([p], [c.deaths(p, stage, "At least", from)], [a.setDeaths(p, timer, "Add", 1), a.preserve()]));
-      }
-      return { triggers, notes: [`${stages} stages, one every ${every} s; extra spawns from stage ${from} every ${interval} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers)`] };
-    }
-  },
-  {
-    perPlayer: true,
-    spec: {
-      kind: "obstacles",
-      description: "A bound's explosions: the `spots` fire in turn (or in `groups` at once) every `every` seconds, on a death-counter beat. Each firing creates the explosion unit at the spot for the computer and kills it there in the same instant \u2014 the death animation is the blast \u2014 and kills every unit the players have standing on the spot. No Wait actions, so it runs at hyper-trigger tempo without stalling anything.",
-      params: [P2("spots", "the spot locations in firing order, comma-separated", true), P2("every", "seconds between firings (default 0.8; decimals allowed)"), P2("groups", "how many spots fire at once, spread evenly along the list (default 1)"), P2("unit", "the explosion unit (default Zerg Scourge)"), P2("owner", "who owns the explosion (default computer)"), P2("players", "whose units die on a firing spot: humans (default), all, or player numbers"), P2("victim", "which of their units (default Any unit)")]
-    },
-    build(r, ctx, dc) {
-      const spots = r.list("spots");
-      if (spots.length === 0) r.problems.push('"spots" needs at least one location');
-      for (const sp of spots) r.locationIn("spots", sp);
-      const every = Math.max(0.1, Number(r.str("every", "0.8").replace(/[^0-9.]/g, "")) || 0.8);
-      const groups = r.int("groups", 1, 1, Math.max(1, spots.length));
-      const unit = r.str("unit", "Zerg Scourge");
-      const owner = r.onePlayer("owner", "computer");
-      const players2 = r.players("players");
-      const victim = r.str("victim", "Any unit");
-      const step = dc.take("the obstacle step");
-      const timer = dc.take("the obstacle beat");
-      const cycles = Math.max(1, Math.round(every * (ctx.hyper ? 12 : 0.5)));
-      const n2 = Math.max(1, spots.length);
-      const steps = Math.ceil(n2 / groups);
-      const triggers = [];
-      for (let k = 0; k < steps; k++) {
-        const actions = [a.setDeaths(owner, timer, "Set To", 0), a.setDeaths(owner, step, "Set To", (k + 1) % steps)];
-        for (let g = 0; g < groups; g++) {
-          const spot = spots[(k + g * steps) % n2];
-          if (spot === void 0) continue;
-          actions.push(a.create(owner, unit, 1, spot), a.killAt(owner, unit, "All", spot));
-          for (const p of players2) actions.push(a.killAt(p, victim, "All", spot));
-        }
-        actions.push(a.preserve());
-        triggers.push(trigger([owner], [c.deaths(owner, step, "Exactly", k), c.deaths(owner, timer, "At least", cycles)], actions));
-      }
-      triggers.push(trigger([owner], [], [a.setDeaths(owner, timer, "Add", 1), a.preserve()]));
-      return { triggers, notes: [`${n2} spots in ${steps} steps of ${groups}, one every ${every} s (${cycles} cycles ${ctx.hyper ? "with" : "without"} hyper triggers); a firing kills the players' units on the spot`] };
-    }
-  },
-  {
-    perPlayer: true,
-    spec: {
-      kind: "checkpoints",
-      description: "A course's checkpoints, respawn and finish: bringing the `unit` to a checkpoint records it (in order, never backwards) with a message; a player with no unit left gets one at their last checkpoint (or `start`) \u2014 unlimited, or `lives` times; the first to bring the unit to `finish` wins and the others lose.",
-      params: [P2("unit", "the unit that runs the course", true), P2("start", "where a player begins and respawns before any checkpoint", true), P2("checkpoints", "the checkpoint locations in order, comma-separated", true), P2("finish", "the finish location (default none: no victory here)"), P2("lives", "respawns per player (default unlimited)"), P2("players", "humans (default) or player numbers"), P2("announce", 'yes (default) or no: "Checkpoint N" messages')]
-    },
-    build(r, _ctx, dc) {
-      const unit = r.str("unit");
-      const startLoc = r.location("start");
-      const cps = r.list("checkpoints");
-      for (const cp of cps) r.locationIn("checkpoints", cp);
-      const finish = r.str("finish", "");
-      if (finish) r.location("finish", finish);
-      const lives = r.int("lives", 0, 0, 1e3);
-      const players2 = r.players("players");
-      const announce = r.bool("announce", true);
-      const progress = dc.take("the checkpoint reached");
-      const used = lives > 0 ? dc.take("the lives used") : null;
-      const triggers = [];
-      for (const p of players2) {
-        cps.forEach((cp, i) => {
-          const n2 = i + 1;
-          const actions = [a.setDeaths(p, progress, "Set To", n2)];
-          if (announce) actions.push(a.text(`Checkpoint ${n2}`));
-          actions.push(a.preserve());
-          triggers.push(trigger([p], [c.bring(p, unit, cp, "At least", 1), c.deaths(p, progress, "At most", n2 - 1)], actions));
-        });
-        [startLoc, ...cps].forEach((loc2, i) => {
-          const conditions = [c.command(p, unit, "Exactly", 0), c.deaths(p, progress, "Exactly", i)];
-          if (used) conditions.push(c.deaths(p, used, "At most", lives - 1));
-          const actions = [a.create(p, unit, 1, loc2), a.center(loc2)];
-          if (used) actions.push(a.setDeaths(p, used, "Add", 1));
-          actions.push(a.preserve());
-          triggers.push(trigger([p], conditions, actions));
-        });
-        if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
-      }
-      if (finish) {
-        const sw = dc.takeSwitch("the finish");
-        for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(sw, "not set")], [a.setSwitch(sw, "set"), a.text(`Player ${p} has finished!`), a.victory()]));
-        triggers.push(trigger(players2, [c.switch(sw, "set"), c.bring(CUR, unit, finish, "Exactly", 0)], [a.defeat()]));
-      }
-      return { triggers, notes: [`${cps.length} checkpoints, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? "; first to the finish wins, the rest lose" : ""}`] };
-    }
-  },
-  {
-    spec: {
-      kind: "shop",
-      description: "Buy a unit: a player who brings `buyer` to `location` with `price` minerals pays and gets `unit` at `deliver`.",
-      params: [P2("location", "the shop's beacon location", true), P2("unit", "what is sold", true), P2("price", "minerals (default 100)"), P2("gas", "gas (default 0)"), P2("buyer", "which unit must stand on the beacon (default Any unit)"), P2("deliver", "where the bought unit appears (default the shop location)"), P2("players", "humans (default) or player numbers")]
-    },
-    build(r) {
-      const location2 = r.location("location");
-      const unit = r.str("unit");
-      const price = r.int("price", 100, 0);
-      const gas = r.int("gas", 0, 0);
-      const buyer = r.str("buyer", "Any unit");
-      const deliver = r.location("deliver", location2);
-      const players2 = r.players("players");
-      const conditions = [c.bring(CUR, buyer, location2, "At least", 1)];
-      if (price > 0) conditions.push(c.accumulate(CUR, "At least", price, "ore"));
-      if (gas > 0) conditions.push(c.accumulate(CUR, "At least", gas, "gas"));
-      const actions = [];
-      if (price > 0) actions.push(a.setResources(CUR, "Subtract", price, "ore"));
-      if (gas > 0) actions.push(a.setResources(CUR, "Subtract", gas, "gas"));
-      actions.push(a.create(CUR, unit, 1, deliver), a.move(CUR, buyer, "All", location2, deliver), a.preserve());
-      return { triggers: [trigger(players2, conditions, actions)], notes: ["the buyer is moved off the beacon after the purchase so one visit buys one unit"] };
-    }
-  },
-  {
-    spec: {
-      kind: "heal",
-      description: "A heal spot: a player's units standing on `location` are restored to full hit points (and shields).",
-      params: [P2("location", "where", true), P2("unit", "what is healed (default Any unit)"), P2("players", "humans (default) or player numbers")]
-    },
-    build(r) {
-      const location2 = r.location("location");
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      return { triggers: [trigger(players2, [c.bring(CUR, unit, location2, "At least", 1)], [a.hp(CUR, unit, 100, "All", location2), a.shields(CUR, unit, 100, "All", location2), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "respawn",
-      description: "When a player has none of `unit` left, a new one appears at `location` (optionally a limited number of times).",
-      params: [P2("unit", "the hero", true), P2("location", "where it comes back", true), P2("lives", "how many respawns before it stops (default unlimited)"), P2("players", "humans (default) or player numbers"), P2("message", "text on respawn (default none)")]
-    },
-    build(r, _ctx, dc) {
-      const unit = r.str("unit");
-      const location2 = r.location("location");
-      const lives = r.int("lives", 0, 0, 1e3);
-      const players2 = r.players("players");
-      const message = r.str("message", "");
-      const conditions = [c.command(CUR, unit, "Exactly", 0), c.elapsed("At least", 3)];
-      const actions = [a.create(CUR, unit, 1, location2)];
-      if (message) actions.push(a.text(message));
-      if (lives > 0) {
-        const counter = dc.take("the respawn counter");
-        conditions.push(c.deaths(CUR, counter, "At most", lives - 1));
-        actions.push(a.setDeaths(CUR, counter, "Add", 1));
-      }
-      actions.push(a.preserve());
-      return { triggers: [trigger(players2, conditions, actions)] };
-    }
-  },
-  {
-    spec: {
-      kind: "leaderboard",
-      description: "The in-game leaderboard: `kind` kills, control (units owned), resources or points.",
-      params: [P2("kind", "kills (default), control, resources or points"), P2("label", "the heading (default by kind)"), P2("unit", "for kills and control: which unit (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
-    },
-    build(r) {
-      const kind = r.str("kind", "kills").toLowerCase();
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      let action;
-      switch (kind) {
-        case "control":
-          action = a.lbControl(r.str("label", "Units"), unit);
-          break;
-        case "resources":
-          action = a.lbResources(r.str("label", "Minerals"), "ore");
-          break;
-        case "points":
-          action = a.lbPoints(r.str("label", "Score"), "Total");
-          break;
-        case "kills":
-          action = a.lbKills(r.str("label", "Kills"), unit);
-          break;
-        default:
-          r.problems.push(`"kind" should be kills, control, resources or points, not "${kind}"`);
-          action = a.lbKills("Kills", unit);
-      }
-      return { triggers: [trigger(players2, [], [action])] };
-    }
-  },
-  {
-    spec: {
-      kind: "teleport",
-      description: "A unit brought to `from` is moved to `to`.",
-      params: [P2("from", "the entry location", true), P2("to", "the exit location", true), P2("unit", "what moves (default Any unit)"), P2("players", "humans (default), all, or player numbers")]
-    },
-    build(r) {
-      const from = r.location("from");
-      const to = r.location("to");
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      return { triggers: [trigger(players2, [c.bring(CUR, unit, from, "At least", 1)], [a.move(CUR, unit, "All", from, to), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "kill-zone",
-      description: "Units entering `location` die (a pit, lava, the edge of a bound).",
-      params: [P2("location", "where", true), P2("unit", "what dies (default Any unit)"), P2("players", "whose units (default all)")]
-    },
-    build(r) {
-      const location2 = r.location("location");
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players", "all");
-      return { triggers: [trigger(players2, [c.bring(CUR, unit, location2, "At least", 1)], [a.killAt(CUR, unit, "All", location2), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "alliance",
-      description: "Set alliances at the start: `players` treat `with` as `status` (Ally, Enemy or Allied Victory).",
-      params: [P2("players", "who is setting it (default humans)"), P2("with", "toward whom: a player number, computer, humans, or Force N", true), P2("status", "Ally (default), Enemy or Allied Victory")]
-    },
-    build(r, ctx) {
-      const players2 = r.players("players");
-      const withRaw = r.str("with");
-      const status = r.str("status", "Ally");
-      const st = /victory/i.test(status) ? "Allied Victory" : /enemy/i.test(status) ? "Enemy" : "Ally";
-      const targets = /^humans?$/i.test(withRaw) ? ctx.humans : /^computers?$/i.test(withRaw) ? ctx.computers : /^force\s*[1-4]$/i.test(withRaw) ? [`Force ${withRaw.replace(/\D/g, "")}`] : withRaw.split(/[,\s]+/).map(Number).filter((n2) => n2 >= 1 && n2 <= 12);
-      if (targets.length === 0) r.problems.push(`"with" should name players, not "${withRaw}"`);
-      return { triggers: [trigger(players2, [], targets.map((t) => a.alliance(t, st)))] };
-    }
-  },
-  {
-    spec: {
-      kind: "auto-attack",
-      description: "Keep a player's units moving: every cycle, order all of `unit` at `from` to attack-move to `to`. What makes a madness map's spawns fight by themselves.",
-      params: [P2("owner", "whose units (a player number or computer)", true), P2("from", "where they are (Anywhere for all of them)", true), P2("to", "where they go", true), P2("unit", "which units (default Any unit)"), P2("order", "attack (default), move or patrol")]
-    },
-    build(r) {
-      const owner = r.onePlayer("owner");
-      const from = r.location("from");
-      const to = r.location("to");
-      const unit = r.str("unit", "Any unit");
-      const order = r.str("order", "attack").toLowerCase();
-      const ord = order === "move" || order === "patrol" ? order : "attack";
-      return { triggers: [trigger([owner], [], [a.order(owner, unit, from, to, ord), a.preserve()])] };
-    }
-  },
-  {
-    spec: {
-      kind: "capture",
-      description: "Capture the flag, one flag: `flag` (a unit) stands at `home` owned by `keeper`, created there at the start. A player in `players` who brings `touch` into `home` is given the flag; bringing it to `pad` scores a capture \u2014 the flag goes home, the team's counter and the player's custom score rise \u2014 unless `requireHome` names where the takers' own flag must be standing and it is missing. A flag that is neither at home nor held by a taker returns home. At `win` captures the takers get Victory and every other human Defeat. Two of these, one per flag with the other team as takers, are a two-team map; add a `leaderboard` of kind points for the score.",
-      params: [P2("flag", "the flag unit (a Civilian, a Beacon, \u2026)", true), P2("home", "the flag's own room", true), P2("pad", "where the takers score", true), P2("players", "the takers: the other team's player numbers", true), P2("keeper", "who owns the flag at home (default computer)"), P2("touch", "what must enter the room to take the flag (default Any unit)"), P2("requireHome", "a location the takers' own flag must be standing in for a capture to count (default none)"), P2("win", "captures to win (default 3; 0 for none)"), P2("name", "the flag's name in messages (default the unit's)")]
-    },
-    build(r, ctx, dc) {
-      const flag = r.str("flag");
-      const home = r.location("home");
-      const pad = r.location("pad");
-      const players2 = r.players("players");
-      const keeper = r.onePlayer("keeper", "computer");
-      const touch = r.str("touch", "Any unit");
-      const requireHome = r.str("requireHome", "");
-      if (requireHome) r.locationIn("requireHome", requireHome);
-      const win = r.int("win", 3, 0, 1e3);
-      const name = r.str("name", flag);
-      const counter = dc.take("the capture score");
-      const others = ctx.humans.filter((h3) => !players2.includes(h3));
-      const scored = [c.bring(CUR, flag, pad, "At least", 1)];
-      return {
-        triggers: [
-          trigger([keeper], [], [a.setDeaths(keeper, counter, "Set To", 0), a.create(keeper, flag, 1, home)]),
-          trigger(players2, [c.bring(CUR, touch, home, "At least", 1), c.bring(keeper, flag, home, "At least", 1)], [a.give(keeper, CUR, flag, "All", home), a.text(`${name} taken!`), a.preserve()]),
-          trigger(players2, [...scored, ...requireHome ? [c.bring(keeper, flag, requireHome, "At least", 1)] : []], [a.removeAt(CUR, flag, "All", pad), a.setDeaths(keeper, counter, "Add", 1), a.setScore(CUR, "Add", 1, "Custom"), a.create(keeper, flag, 1, home), a.text(`${name} captured!`), a.preserve()]),
-          ...requireHome ? [trigger(players2, [...scored, c.bring(keeper, flag, requireHome, "Exactly", 0)], [a.text("Your own flag is missing \u2014 recover it first."), a.preserve()])] : [],
-          trigger([keeper], [c.bring(keeper, flag, home, "Exactly", 0), ...players2.map((p) => c.command(p, flag, "Exactly", 0))], [a.create(keeper, flag, 1, home), a.text(`${name} returned home.`), a.preserve()]),
-          ...win > 0 ? [trigger(players2, [c.deaths(keeper, counter, "At least", win)], [a.victory()]), ...others.length ? [trigger(others, [c.deaths(keeper, counter, "At least", win)], [a.defeat()])] : []] : []
-        ],
-        notes: [`the flag is created for Player ${keeper} at ${home} when the game starts: place none in the layout`, "the takers' messages show to the taker; a carrier that dies drops nothing \u2014 the flag returns home on the next cycle"]
-      };
-    }
-  },
-  {
-    spec: {
-      kind: "give",
-      description: "Units of `unit` that `from` owns at `location` are given to the player who brings a unit there (rescue by touch, a hired unit).",
-      params: [P2("location", "where", true), P2("from", "the owner giving them (default computer)"), P2("unit", "what is given (default Any unit)"), P2("players", "who can take them (default humans)"), P2("touch", "the unit that must be brought to take them (default Any unit)")]
-    },
-    build(r) {
-      const location2 = r.location("location");
-      const from = r.onePlayer("from", "computer");
-      const unit = r.str("unit", "Any unit");
-      const players2 = r.players("players");
-      const touch = r.str("touch", "Any unit");
-      return { triggers: [trigger(players2, [c.bring(CUR, touch, location2, "At least", 1), c.bring(from, unit, location2, "At least", 1)], [a.give(from, CUR, unit, "All", location2), a.preserve()])] };
-    }
-  }
-];
-function systemKinds() {
-  return KINDS.map((k) => k.spec);
-}
-function buildSystem(kind, params, ctx, dc = new Counters(ctx)) {
-  const k = KINDS.find((x) => x.spec.kind === kind);
-  if (!k) throw new ToolkitError([`no system kind called "${kind}" (the toolkit has ${KINDS.map((x) => x.spec.kind).join(", ")})`]);
-  if (!k.perPlayer && Object.values(params).some(isTemplate)) return buildPerPlayer(k, params, ctx, dc);
-  return buildOne(k, params, ctx, dc);
-}
-function buildPerPlayer(k, params, ctx, dc) {
-  const takesPlayers = k.spec.params.some((p) => p.name === "players");
-  const players2 = takesPlayers ? new Reader2(k.spec, params, ctx).players("players") : ctx.humans;
-  if (players2.length === 0) throw new ToolkitError([`${k.spec.kind}: a {p} template needs players to build for`]);
-  const parts = [];
-  const problems = [];
-  for (const p of players2) {
-    const filled = {};
-    for (const [key, value] of Object.entries(params)) filled[key] = fillTemplate(value, p);
-    if (takesPlayers) filled.players = String(p);
-    try {
-      parts.push(buildOne(k, filled, ctx, dc));
-    } catch (err) {
-      if (err instanceof ToolkitError) problems.push(...err.problems.map((x) => `player ${p}: ${x}`));
-      else throw err;
-    }
-  }
-  if (problems.length > 0) throw new ToolkitError(problems);
-  const notes = /* @__PURE__ */ new Set();
-  for (const part of parts) for (const n2 of part.notes) notes.add(n2);
-  return {
-    text: parts.map((x) => x.text).join("\n"),
-    count: parts.reduce((n2, x) => n2 + x.count, 0),
-    notes: [`built once per player (${players2.join(", ")}) from the {p} template`, ...notes],
-    dcUsed: parts.flatMap((x) => x.dcUsed)
-  };
-}
-function buildOne(k, params, ctx, dc) {
-  const reader = new Reader2(k.spec, params, ctx);
-  const before = dc.used.length;
-  const out = k.build(reader, ctx, dc);
-  reader.finish();
-  const text = out.triggers.join("\n");
-  return { text, count: out.triggers.length, notes: [...reader.notes, ...out.notes ?? []], dcUsed: dc.used.slice(before) };
-}
-function paramsOf(list2) {
-  const out = {};
-  for (const p of list2) out[p.key] = p.value;
-  return out;
-}
-function dcUnitsFrom(unitNames2) {
-  const have = new Set(unitNames2.map((n2) => n2.toLowerCase()));
-  return DEFAULT_DC_UNITS.filter((n2) => have.has(n2.toLowerCase()));
-}
-var TEMPLATE_RULE = 'Any location (or other) parameter may hold {p} for the player number \u2014 "Spawn {p}", "Armory {p}" \u2014 and the system is then built for every player in `players`, with {p} filled in; the map must have the numbered locations.';
-function kindsText() {
-  return `${TEMPLATE_RULE}
-
-` + KINDS.map((k) => `${k.spec.kind}: ${k.spec.description}
-${k.spec.params.map((p) => `  - ${p.name}${p.required ? " (required)" : ""}: ${p.description}`).join("\n")}`).join("\n\n");
-}
-
-// ai/tools/ums.ts
-function toolkitContext(api, options = {}) {
-  const players2 = api.settings.players();
-  const humans = players2.filter((p) => /human/i.test(p.typeName)).map((p) => p.slot + 1);
-  const computers = players2.filter((p) => /computer/i.test(p.typeName)).map((p) => p.slot + 1);
-  const triggers = api.triggers.list();
-  const hyper = options.hyper ?? triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
-  const locations = [...usedLocationNames(api), ...options.extraLocations ?? []];
-  const used = usedTriggerState(api, triggers);
-  return { humans: humans.length ? humans : [1], computers, hyper, dcUnits: dcUnitsFrom(api.names.units().map((u) => u.label)), locations, usedDcUnits: used.dcUnits, usedSwitches: used.switches };
-}
-function usedTriggerState(api, triggers = api.triggers.list()) {
-  const { condition, action } = api.consts.triggers;
-  const units = /* @__PURE__ */ new Set();
-  const switches = /* @__PURE__ */ new Set();
-  for (const t of triggers) {
-    for (const c2 of t.conditions) {
-      if (c2.type === condition.Deaths) units.add(c2.unitId);
-      else if (c2.type === condition.Switch) switches.add(c2.resource);
-    }
-    for (const a2 of t.actions) {
-      if (a2.type === action.SetDeaths) units.add(a2.unitId);
-      else if (a2.type === action.SetSwitch) switches.add(a2.target);
-    }
-  }
-  return { dcUnits: [...units].map((id) => api.names.unit(id)), switches: [...switches].map((i) => api.names.switch(i)) };
-}
-function usedLocationNames(api) {
-  const scn = api.document.scenario();
-  if (!scn) return [];
-  const out = [];
-  scn.locations.forEach((l, i) => {
-    if (l.left !== l.right || l.top !== l.bottom || l.nameIndex > 0) out.push(api.names.location(i));
-  });
-  return out;
-}
-function addSystem(api, kind, params, ctx, label = `AI: ${kind}`) {
-  const built = buildSystem(kind, params, ctx);
-  const parsed = api.triggers.text.parse(built.text, { briefing: false });
-  api.document.update(label, (tx) => {
-    for (const t of parsed) tx.triggers.add(t.trigger);
-  });
-  return { count: parsed.length, notes: built.notes };
-}
-function umsTools() {
-  return [
-    {
-      def: { name: "guide", description: `A guide to read once: "terrain" (how the brush, shapes, ramps, bridges, bases and doodads behave \u2014 before terrain work), "basics" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.`, inputSchema: obj({ id: { type: "string" } }) },
-      describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
-      writes: false,
-      run: (input) => {
-        const id = str(input.id);
-        if (!id) return `The guides:
-${guideIndex()}
-
-Ask for one by id, or describe the map.`;
-        const g = guideById(id) ?? guideFor(id);
-        return g ? g.text : `No guide matches "${id}". The guides:
-${guideIndex()}`;
-      }
-    },
-    {
-      def: { name: "ums_kinds", description: "The toolkit's trigger systems (hyper, spawn, waves, lives, shops, heal, respawn, teleport, kill zones, capture the flag, leaderboards, countdown, last standing, alliances \u2026) with each kind's parameters. Build them with ums_build rather than by hand.", inputSchema: obj({}) },
-      writes: false,
-      run: () => kindsText()
-    },
-    {
-      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
-      describe: (input) => {
-        const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
-        return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`;
-      },
-      report: (result) => {
-        const r = jsonOf(result);
-        return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : "";
-      },
-      writes: true,
-      settings: true,
-      run: (input, { api }) => {
-        const kind = str(input.kind);
-        const raw = input.params && typeof input.params === "object" ? input.params : {};
-        const params = {};
-        for (const [k, v] of Object.entries(raw)) params[k] = Array.isArray(v) ? v.join(", ") : String(v);
-        try {
-          const r = addSystem(api, kind, params, toolkitContext(api));
-          return capResult({ added: r.count, triggers: api.triggers.list().length, notes: r.notes });
-        } catch (err) {
-          if (err instanceof ToolkitError) return fail(`Not built:
-${err.problems.map((p) => `- ${p}`).join("\n")}`);
-          return fail(`Not built: ${err.message}`);
-        }
-      }
-    }
-  ];
-}
-
 // ai/tools.ts
 function tools() {
   return [...readTools(), ...terrainTools(), ...layoutTools(), ...objectTools(), ...triggerTools(), ...umsTools(), ...settingsTools(), ...scriptTools()];
@@ -7880,8 +8059,8 @@ function openAssistant(ctx, store) {
         let think = null;
         const live = (text) => block.set(text);
         const step = (tool, name, input2) => {
-          const row = steps.add(input2 ? describeStep(tool, name, input2, ctx) : `${prettyName(name)}\u2026`, { icon: tool?.writes ? "\u270E" : "\u25B8", title: input2 ? describeCall(name, input2) : void 0, running: true });
-          if (tool?.writes) row.element.classList.add("ai-write");
+          const row = steps.add(input2 ? describeStep(tool, name, input2, ctx) : `${prettyName(name)}\u2026`, { icon: mayWrite(tool, input2) ? "\u270E" : "\u25B8", title: input2 ? describeCall(name, input2) : void 0, running: true });
+          if (mayWrite(tool, input2)) row.element.classList.add("ai-write");
           const n2 = steps.count();
           const start2 = (input3) => {
             const text = describeStep(tool, name, input3, ctx);
@@ -8085,8 +8264,8 @@ function openAssistant(ctx, store) {
               if (s.failed) row.fail(s.result ?? "failed");
               else {
                 row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done.");
-                if (tool?.writes) {
-                  if (tool.settings) settingsWrites++;
+                if (didWrite(tool, s.input, s.result ?? "")) {
+                  if (tool?.settings) settingsWrites++;
                   else edits++;
                 }
               }
@@ -8173,9 +8352,23 @@ function openAssistant(ctx, store) {
         conv.continueOffered = false;
         pinned = true;
         addUser(text);
+        running = new AbortController();
+        const turn = running;
+        const turnDoc = api.document.id();
+        send.setBusy(true);
+        stop.hidden = false;
         const content = [{ type: "text", text }];
         if (attach.input.checked) {
-          const picture = await viewPicture();
+          const picture = await viewPicture().catch(() => null);
+          if (turn.signal.aborted || api.document.id() !== turnDoc) {
+            running = null;
+            send.setBusy(false);
+            stop.hidden = true;
+            if (api.document.id() === turnDoc) input.value = text;
+            else conv.prefill = text;
+            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? "Stopped before anything was sent." : MAP_CHANGED));
+            return;
+          }
           if (picture) {
             content.unshift({ type: "image", source: picture });
             const v = api.view.visible();
@@ -8185,11 +8378,7 @@ function openAssistant(ctx, store) {
           }
         }
         conv.messages.push({ role: "user", content });
-        running = new AbortController();
-        const turnDoc = api.document.id();
         following = ctx.settings().followMap && api.document.isOpen();
-        send.setBusy(true);
-        stop.hidden = false;
         startedAt = Date.now();
         const historyBefore = api.document.history().undoDepth;
         const edits = [];
@@ -8247,8 +8436,8 @@ function openAssistant(ctx, store) {
             };
             conv.messages = fitHistory(trimHistory(conv.messages));
             conv.conversation ??= newConversationId();
-            const turn = conv.turn ?? 0;
-            conv.turn = turn + 1;
+            const turn2 = conv.turn ?? 0;
+            conv.turn = turn2 + 1;
             const r = await ctx.client.run("agent", {
               messages: conv.messages,
               tools: toolList.map((t) => t.def),
@@ -8279,7 +8468,7 @@ function openAssistant(ctx, store) {
               onProgress: () => {
                 if (phase === "waiting" || phase === "thinking") tickClock();
               }
-            }, { ...recipeOptions(ctx.settings()), conversation: conv.conversation, turn, ...task ? { task } : {} });
+            }, { ...recipeOptions(ctx.settings()), conversation: conv.conversation, turn: turn2, ...task ? { task } : {} });
             const charged = r.usage.chargedUsd ?? r.usage.costUsd;
             conv.spent = (conv.spent ?? 0) + charged;
             turnCost += charged;
@@ -8932,6 +9121,13 @@ var EXAMPLES2 = {
   "a tower defense": "A two-lane tower defense for up to four players: waves walk from the north spawns down the lanes to the goal at the south; players build turrets beside the lanes; twenty waves, shared lives."
 };
 var REPAIR_ROUNDS = 2;
+var BuildEnded = class extends Error {
+  reason;
+  constructor(reason) {
+    super(reason === "map" ? "the map in front changed, so the build stopped" : "stopped");
+    this.reason = reason;
+  }
+};
 var Waiting = class extends Error {
   locations;
   constructor(locations) {
@@ -8983,7 +9179,8 @@ function openScenario(ctx, presetPrompt) {
     target: info ? "open" : "new",
     design: null,
     refine: "",
-    built: false
+    /** What the last build of this design came to; null before one, and again after a new design. */
+    built: null
   };
   api.ui.dialog({
     title: "Make Scenario",
@@ -9047,7 +9244,7 @@ function openScenario(ctx, presetPrompt) {
       const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
       const showDesign = (d) => {
         designBody.replaceChildren();
-        designSummary.textContent = `${d.genre}: ${d.name} \u2014 ${d.systems.length} systems, ${d.locations.length} locations, ${d.players.filter((p) => p.type === "human").length} human players`;
+        designSummary.textContent = `${d.genre}: ${d.name} \u2014 ${d.systems.length} systems, ${d.locations.length} locations, ${d.players.filter((p) => p.type === "human").length} human players${d.target === "remastered" ? ", for Remastered" : ""}`;
         designBox.open = true;
         const nameField = w.text({ value: d.name, onChange: (v) => {
           d.name = v;
@@ -9068,6 +9265,13 @@ function openScenario(ctx, presetPrompt) {
         briefingField.addEventListener("input", () => {
           d.briefing = briefingField.value.split("\n").map((s) => s.trim()).filter(Boolean);
         });
+        const targetField = w.select([{ value: "classic", label: "Every version of StarCraft (triggers only)" }, { value: "remastered", label: "StarCraft: Remastered (scripts may be programs)" }], { value: d.target ?? "classic", onChange: (v) => {
+          d.target = v;
+          showDesign(d);
+        } });
+        targetField.options[1].disabled = !hasScriptPlugin(api);
+        const tempo = designTempo(d);
+        const targetHint2 = h("div", { className: "ai-hint" }, d.target === "remastered" ? `The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second${d.systems.some((x) => x.kind === "hyper") ? " and the hyper triggers in the list are left out" : ""}.` : tempo === "hyper" ? "Triggers only. The design has hyper triggers, so timers are counted at about 12 cycles a second." : "Triggers only, and no hyper triggers: the trigger list runs about every two seconds, and no timer is finer than that.");
         const players2 = noteList(d.players.map((p) => `Player ${p.slot}: ${p.type}, ${p.race}, force ${p.force} \u2014 ${p.role}`));
         const forces = noteList(d.forces.map((f) => `Force ${f.index} "${f.name}"${f.allied ? ", allied" : ""}${f.alliedVictory ? ", allied victory" : ""}${f.sharedVision ? ", shared vision" : ""}`));
         const locations = noteList(d.locations.map((l) => `${l.name} \u2014 ${l.purpose}`));
@@ -9095,7 +9299,8 @@ function openScenario(ctx, presetPrompt) {
           h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
           w.group(
             `${d.genre}: ${d.name}`,
-            w.form([{ label: "Name", field: nameField }, { label: "Description", field: descField }]),
+            w.form([{ label: "Name", field: nameField }, { label: "Description", field: descField }, { label: "Plays on", field: targetField }]),
+            targetHint2,
             h("div", { className: "ai-hint" }, d.premise)
           ),
           w.group("Players and forces", players2, forces),
@@ -9110,6 +9315,11 @@ function openScenario(ctx, presetPrompt) {
       };
       const stepsBox = w.steps();
       stepsBox.hidden = true;
+      const stopButton = w.button("Stop the build", { onClick: () => {
+        building?.abort.abort();
+        runner.abort();
+      } });
+      stopButton.hidden = true;
       const afterBox = h("div", { className: "ai-btns", hidden: true });
       const findingsBox = h("div", null);
       const addStep = (label) => {
@@ -9178,7 +9388,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
           const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario", task: taskFor("design", ctx.settings().scenarioCeilingUsd) });
           if (!r) return;
           state.design = r.output;
-          state.built = false;
+          state.built = null;
           stepsBox.hidden = true;
           afterBox.hidden = true;
           findingsBox.replaceChildren();
@@ -9190,27 +9400,42 @@ Change this: ${state.refine.trim()}` : state.prompt;
         }
       };
       let buildTask;
+      let building = null;
+      const checkBuild = () => {
+        if (!building) return;
+        if (building.abort.signal.aborted) throw new BuildEnded("stopped");
+        if (api.document.id() !== building.doc) throw new BuildEnded("map");
+      };
       const writeCustom = async (system, d) => {
         const bridge = scriptBridge(api);
         if (!bridge) throw new Error("the TrigScript plugin is off");
         const existing = bridge.state();
+        const classic = d.target !== "remastered";
+        const rate = classic ? `This map is for every version of StarCraft: write triggers only (level 1) \u2014 no program(), which would make the map need Remastered. Hyper triggers ${designTempo(d) === "hyper" ? "are on the map, so the trigger list runs about twelve times a second" : "are not on the map, so the trigger list runs about every two seconds"}.` : "This map is for StarCraft: Remastered: write this system as a program() (or several). Every trigger on the map runs each frame and there are no hyper triggers.";
         const prompt = `System "${system.name}" of the scenario "${d.name}" (${d.genre}). ${system.description}
 
 The scenario's premise: ${d.premise}
 Locations on the map: ${d.locations.map((l) => `${l.name} (${l.purpose})`).join("; ")}.
-Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} on the map. Write only this system; the other systems already exist as ordinary triggers.`;
+${rate} Write only this system; the other systems already exist as ordinary triggers.`;
         const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)) };
         let r = await runRecipe(ctx, runner, "triggers", input, { task: buildTask });
+        checkBuild();
         if (!r) throw new Error(runner.lastError ?? "the model did not answer");
         let script = r.output.script;
         let compiled = await bridge.compile(script);
-        for (let round = 0; !compiled.ok && round < REPAIR_ROUNDS; round++) {
-          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task: buildTask });
+        checkBuild();
+        const faults = (c2) => c2.ok && classic && c2.programs.length > 0 ? [{ line: c2.programs[0].source.line, column: 1, message: `this map is for every version of StarCraft, and a program() makes it need Remastered and runs every trigger each frame: write the system with trigger() alone (${c2.programs.length} program${c2.programs.length === 1 ? "" : "s"} found)` }] : c2.diagnostics.map(repairDiagnostic);
+        const bad = (c2) => !c2.ok || classic && c2.programs.length > 0;
+        for (let round = 0; bad(compiled) && round < REPAIR_ROUNDS; round++) {
+          r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: faults(compiled) } }, { task: buildTask });
+          checkBuild();
           if (!r) throw new Error("the model did not answer the repair");
           script = r.output.script;
           compiled = await bridge.compile(script);
+          checkBuild();
         }
         if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open TrigScript to fix it`);
+        if (classic && compiled.programs.length > 0) throw new Error(`the script still uses program() after ${REPAIR_ROUNDS} repairs, which this map (for every version of StarCraft) cannot have; change the design to Remastered, or open TrigScript to rewrite it`);
         const built = await bridge.build(script, {});
         if (!built.block) throw new Error("the build failed");
         return `${built.block.count} triggers from a script: ${r.output.summary}`;
@@ -9231,14 +9456,28 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         const findings = [];
         const cur = api.document.info();
         const humans = d.players.filter((p) => p.type === "human").map((p) => p.slot);
-        const hyper = d.systems.some((s) => s.kind === "hyper");
+        const tempo = designTempo(d);
         const locationNames2 = d.locations.map((l) => l.name);
         const kinds = new Set(systemKinds().map((k) => k.kind));
+        const { systems: toBuild, dropped } = systemsToBuild(d);
+        for (const s of dropped) findings.push(`${s.name}: left out \u2014 on a Remastered map every trigger already runs each frame`);
+        building = { doc: api.document.id(), abort: new AbortController() };
+        stopButton.hidden = false;
         const steps = [];
+        steps.push({
+          label: "Death counters and switches",
+          vital: true,
+          run: async () => {
+            const budget = counterBudget(d, toolkitContext(api, { tempo, extraLocations: locationNames2 }));
+            if (!budget.ok) throw new Error(budgetText(budget));
+            return budgetText(budget);
+          }
+        });
         const preset = d.layout?.preset ? d.layout : null;
         steps.push({
           label: preset ? `Terrain and locations (${preset.preset} preset)` : "Terrain and locations",
           hint: preset ? "" : "scmjs.dev plans the layout; this takes a few minutes",
+          vital: true,
           run: async () => {
             let plan;
             if (preset) {
@@ -9252,6 +9491,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               }
             } else {
               plan = await planTerrain();
+              checkBuild();
             }
             const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
             if (!rendered) throw new Error("the plan could not be rendered");
@@ -9324,7 +9564,8 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               findings.push(`start locations for player${missing.length === 1 ? "" : "s"} ${missing.join(", ")} were placed by the editor; check where`);
             }
             const keepers = [];
-            const keeper = unitIdByName2(api, "Zerg Overlord");
+            const keeperName = keeperFor(d);
+            const keeper = keeperName === null ? null : unitIdByName2(api, keeperName);
             const owned = new Set(api.document.scenario().units.map((u) => u.owner));
             for (const p of d.players.filter((x) => x.type === "computer")) {
               if (owned.has(p.slot - 1) || keeper === null) continue;
@@ -9334,12 +9575,12 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               });
               keepers.push(p.slot);
             }
-            if (keepers.length) findings.push(`player${keepers.length === 1 ? "" : "s"} ${keepers.join(", ")} (computer) owned nothing, which would defeat them at once and stop their triggers: an Overlord in the top-right corner keeps them in the game`);
+            if (keepers.length) findings.push(`player${keepers.length === 1 ? "" : "s"} ${keepers.join(", ")} (computer) owned nothing, which would defeat them at once and stop their triggers: a ${keeperName} in the top-right corner keeps them in the game`);
             return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
           }
         });
         const systemStepFrom = steps.length;
-        for (const s of d.systems) {
+        for (const s of toBuild) {
           steps.push({
             label: `${s.kind === "custom" ? "Script" : "System"}: ${s.name}`,
             run: async () => {
@@ -9348,7 +9589,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               const needs = waitingOn(s, missingLocations());
               if (needs.length) throw new Waiting(needs);
               try {
-                const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { hyper, extraLocations: locationNames2 }), `AI: ${s.name}`);
+                const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { tempo, extraLocations: locationNames2 }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n2) => `${s.name}: ${n2}`));
                 return `${r.count} trigger${r.count === 1 ? "" : "s"}`;
               } catch (err) {
@@ -9360,7 +9601,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         }
         if (!d.systems.some((s) => s.kind === "objectives") && d.objectives.trim()) {
           steps.push({ label: "Objectives", run: async () => {
-            const r = addSystem(api, "objectives", { text: d.objectives.replace(/\n/g, "\\n") }, toolkitContext(api, { hyper, extraLocations: locationNames2 }), "AI: objectives");
+            const r = addSystem(api, "objectives", { text: d.objectives.replace(/\n/g, "\\n") }, toolkitContext(api, { tempo, extraLocations: locationNames2 }), "AI: objectives");
             return `${r.count} trigger`;
           } });
         }
@@ -9401,14 +9642,30 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           run: async () => {
             const issues = api.query.validate().filter((i) => i.level !== "info");
             for (const i of issues) findings.push(`Check Map: ${i.text}`);
+            if (d.target === "remastered" && toBuild.some((x) => x.kind !== "custom") && !hasPrograms(api)) findings.push("The design is for Remastered, and its timers are counted at 24 trigger cycles a second, but no script on the map has a program: until one does the triggers run every two seconds and every timer is about 48 times slow. Add a program in TrigScript, or set the design to every version and build again.");
             return issues.length ? `${issues.length} thing${issues.length === 1 ? "" : "s"} to look at` : "nothing wrong";
           }
         });
         const rows = steps.map((s) => addStep(s.label));
         stepsBox.scrollIntoView({ block: "nearest" });
         let failed = 0;
+        let notRun = 0;
+        let ended = null;
         const waiting = [];
+        const leave = (from, why) => {
+          for (let j = from; j < steps.length; j++) {
+            rows[j].set("skipped", why);
+            notRun++;
+          }
+        };
         for (let i = 0; i < steps.length; i++) {
+          try {
+            checkBuild();
+          } catch (err) {
+            ended = err;
+            leave(i, "not run");
+            break;
+          }
           rows[i].set("running", steps[i].hint ?? "");
           runner.onTick = (s) => rows[i].detail(`${steps[i].hint ? `${steps[i].hint}; ` : ""}${s} s`);
           try {
@@ -9423,19 +9680,42 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               rows[i].set("skipped", err.message);
               continue;
             }
+            if (err instanceof BuildEnded || building.abort.signal.aborted) {
+              ended = err instanceof BuildEnded ? err : new BuildEnded("stopped");
+              rows[i].set("skipped", "not run: stopped");
+              notRun++;
+              leave(i + 1, "not run");
+              break;
+            }
             failed++;
             rows[i].set("failed", err.message);
             findings.push(`${steps[i].label}: ${err.message}`);
-            if (i === 0) {
-              for (let j = 1; j < steps.length; j++) rows[j].set("skipped", "not run");
+            if (steps[i].vital) {
+              leave(i + 1, "not run");
               break;
             }
           }
         }
+        const builtDoc = building.doc;
+        building = null;
+        stopButton.hidden = true;
+        if (ended?.reason === "map") findings.push("The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays.");
         const buildWaiting = async () => {
+          if (api.document.id() !== builtDoc) {
+            waitHint.textContent = "These systems belong to the map the scenario was built on; bring it to the front first.";
+            return;
+          }
           const again = waiting.splice(0);
           waitButton.setBusy(true);
-          for (const i of again) {
+          building = { doc: builtDoc, abort: new AbortController() };
+          stopButton.hidden = false;
+          for (const [n2, i] of again.entries()) {
+            try {
+              checkBuild();
+            } catch {
+              waiting.push(...again.slice(n2));
+              break;
+            }
             rows[i].set("running");
             try {
               rows[i].set("done", await steps[i].run());
@@ -9443,27 +9723,42 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
               if (err instanceof Waiting) {
                 waiting.push(i);
                 rows[i].set("skipped", err.message);
+              } else if (err instanceof BuildEnded) {
+                waiting.push(...again.slice(n2));
+                rows[i].set("skipped", "not run: stopped");
+                break;
               } else {
+                failed++;
                 rows[i].set("failed", err.message);
                 findings.push(`${steps[i].label}: ${err.message}`);
               }
             }
           }
+          building = null;
+          stopButton.hidden = true;
           waitButton.setBusy(false);
           waitBox.hidden = waiting.length === 0;
           waitHint.textContent = waitingText();
-          if (waiting.length === 0) api.ui.status(`AI: built the rest of ${d.name}`);
+          settle();
         };
-        const waitingText = () => `${waiting.length} system${waiting.length === 1 ? "" : "s"} wait${waiting.length === 1 ? "s" : ""} for locations the plan did not place: ${[...new Set(waiting.flatMap((i) => waitingOn(d.systems[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ")}. Draw them, then build.`;
+        const waitingText = () => `${waiting.length} system${waiting.length === 1 ? "" : "s"} wait${waiting.length === 1 ? "s" : ""} for locations the plan did not place: ${[...new Set(waiting.flatMap((i) => waitingOn(toBuild[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ")}. Draw them, then build.`;
         const waitButton = w.button("Build the waiting systems", { onClick: () => void buildWaiting() });
         const waitHint = h("span", { className: "ai-hint" }, "");
         const waitBox = h("div", { className: "ai-btns", hidden: true }, waitButton, waitHint);
         runner.onTick = null;
-        state.built = true;
         buildButton.setBusy(false);
         redesignButton.setBusy(false);
+        const settle = () => {
+          const counts = { failed, waiting: waiting.length, notRun, stopped: ended?.reason === "stopped" };
+          state.built = buildOutcome(counts);
+          const text = outcomeText(d.name, counts);
+          afterHint.textContent = `${text} Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.`;
+          runner.idle(text);
+          api.ui.status(`AI: ${text}`);
+        };
         const notes = findings.filter((f) => f.trim());
-        if (notes.length) findingsBox.replaceChildren(h("details", { open: failed > 0 }, h("summary", null, `${notes.length} note${notes.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(notes))));
+        if (notes.length) findingsBox.replaceChildren(h("details", { open: failed > 0 || ended !== null }, h("summary", null, `${notes.length} note${notes.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(notes))));
+        const afterHint = h("span", { className: "ai-hint" }, "");
         afterBox.replaceChildren(
           w.button("Review it\u2026", { onClick: () => {
             dialog.close();
@@ -9473,7 +9768,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
             dialog.close();
             api.commands.run("ask", `I just built the scenario "${d.name}" (${d.genre}) from a design: ${d.systems.map((s) => s.name).join(", ")}. Look it over and tell me what to fix first.`);
           } }),
-          h("span", { className: "ai-hint" }, failed ? `${failed} step${failed === 1 ? "" : "s"} failed; the rest went in. Every edit is an undo step, the settings and triggers are not.` : "Built. Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.")
+          afterHint
         );
         if (waiting.length) {
           waitHint.textContent = waitingText();
@@ -9481,8 +9776,7 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
           afterBox.after(waitBox);
         }
         afterBox.hidden = false;
-        runner.idle(failed ? `Built with ${failed} failed step${failed === 1 ? "" : "s"}.` : waiting.length ? `Built ${d.name}; ${waiting.length} waiting.` : `Built ${d.name}.`);
-        api.ui.status(`AI: built ${d.name}`);
+        settle();
       };
       const askBody = h(
         "div",
@@ -9508,12 +9802,14 @@ Hyper triggers ${d.systems.some((s) => s.kind === "hyper") ? "are" : "are not"} 
         runner.el,
         designBox,
         stepsBox,
+        h("div", { className: "ai-btns" }, stopButton),
         findingsBox,
         afterBox,
         ledgerLine(ctx)
       );
       promptField.focus();
       return () => {
+        building?.abort.abort();
         runner.dispose();
       };
     },
