@@ -2789,14 +2789,58 @@ var PRESETS = [
       locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
       const strips = [];
       for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));
+      const cells = compileShapes(shapes, { width: W, height: H, terrains: ctx.terrains, rampPairs: ctx.rampPairs }).cells;
+      const taken = [];
+      const free = (x0, y0, x1, y1) => {
+        if (x0 < 1 || y0 < 1 || x1 > W - 1 || y1 > H - 1) return false;
+        if (taken.some((t) => x0 < t.x1 && x1 > t.x0 && y0 < t.y1 && y1 > t.y0)) return false;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (cells[y * W + x] !== roles.ground) return false;
+        return true;
+      };
+      const PAD_W = 4, PAD_H = 3, PAD_GAP = 2;
+      const block = (sp, margin) => [sp.x - margin, sp.y - margin, sp.x + sp.w + margin, sp.y + sp.h + PAD_GAP + PAD_H + margin];
+      const place = (w, h3, margin, sx) => {
+        for (let y = 10; y + h3 + PAD_GAP + PAD_H + margin < goalY - enclosure; y += 2) {
+          const xs = sx === null ? Array.from({ length: Math.max(0, Math.floor((W - w) / 2)) }, (_, k) => k * 2) : [0, -2, 2, -4, 4, -6, 6].map((dx) => Math.round(sx - w / 2) + dx);
+          for (const x of xs) if (free(...block({ x, y, w, h: h3 }, margin))) return { x, y, w, h: h3 };
+        }
+        return null;
+      };
+      const layout = (w, h3, margin) => {
+        taken.length = 0;
+        const spots2 = [];
+        for (let i = 0; i < ctx.humans.length; i++) {
+          const first = i % strips.length;
+          const order = [...strips.keys()].sort((p, q2) => (p - first + strips.length) % strips.length - (q2 - first + strips.length) % strips.length);
+          let spot = null;
+          for (const k of order) {
+            spot = place(w, h3, margin, strips[k]);
+            if (spot) break;
+          }
+          spot ??= place(w, h3, margin, null);
+          if (!spot) return null;
+          spots2.push(spot);
+          const [x0, y0, x1, y1] = block(spot, 1);
+          taken.push({ x0, y0, x1, y1 });
+        }
+        return spots2;
+      };
+      let spots = null;
+      for (const [w, h3, margin] of [[14, 12, 3], [12, 10, 3], [10, 8, 3], [10, 8, 2], [8, 6, 2], [6, 5, 2]]) {
+        spots = layout(w, h3, margin);
+        if (spots) break;
+      }
+      const crowded = spots === null;
+      spots ??= ctx.humans.map((_, i) => ({ x: strips[i % strips.length] - 7, y: 16 + Math.floor(i / strips.length) * 30, w: 14, h: 12 }));
       ctx.humans.forEach((p, i) => {
-        const sx = strips[i % strips.length], sy = 16 + Math.floor(i / strips.length) * 30;
-        const yw = 14, yh = 12;
-        locations.push(loc(`Yard ${p}`, sx - yw / 2, sy, yw, yh));
-        locations.push(loc(`Pad ${p}`, sx - 2, sy + yh + 2, 4, 3));
-        units.push(start(p, sx, sy + yh / 2));
+        const spot = spots[i];
+        const cx = spot.x + spot.w / 2;
+        locations.push(loc(`Yard ${p}`, spot.x, spot.y, spot.w, spot.h));
+        locations.push(loc(`Pad ${p}`, cx - PAD_W / 2, spot.y + spot.h + PAD_GAP, PAD_W, PAD_H));
+        units.push(start(p, cx, spot.y + spot.h / 2));
       });
-      return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
+      const yardNotes = crowded ? [`no open ground was left for a yard for each of the ${ctx.humans.length} players beside ${lanes} lane${lanes === 1 ? "" : "s"}: fewer or narrower lanes, or a larger map, would make room \u2014 check where the yards landed`] : [];
+      return { shapes, locations, units, notes: [...yardNotes, `${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
     }
   },
   {

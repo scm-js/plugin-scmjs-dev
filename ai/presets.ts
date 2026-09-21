@@ -13,7 +13,7 @@
  * every tileset and its ramps fit where ramps can fit at all.
  */
 import type { BridgePair, LayoutPresetSpec, MapPlan, RampPair, Shape, TerrainVocab } from "../protocol";
-import { RAMP_CUT } from "./shapes";
+import { compileShapes, RAMP_CUT } from "./shapes";
 
 export interface PresetContext {
   width: number;
@@ -226,17 +226,63 @@ const PRESETS: Preset[] = [
       // The goal is a pocket the lanes end in, painted after them so the walls do not close it.
       shapes.push({ op: "rect", terrain: floor, x: goalX, y: goalY, w: goalW, h: 10, cut: 2 });
       locations.push(loc("Goal", goalX + 2, goalY + 2, goalW - 4, 6));
-      // Yards: one per human, in the strips between and beside the lanes, top to bottom.
+      // Yards: one per human, in the strips between and beside the lanes, top to bottom — each where the ground the
+      // lanes leave is really open. A lane's bend swings into the strip beside it and the shore takes tiles of its own,
+      // so a yard put down by arithmetic once stood half in the water with its pad in the lane's wall; the shapes are
+      // compiled here and a place is taken only when every tile of the yard, the pad and a margin round them is ground.
       const strips: number[] = [];
       for (let i = 0; i <= lanes; i++) strips.push(Math.round(((laneXs[i - 1] ?? 0) + (laneXs[i] ?? W)) / 2));
+      const cells = compileShapes(shapes, { width: W, height: H, terrains: ctx.terrains, rampPairs: ctx.rampPairs }).cells;
+      const taken: { x0: number; y0: number; x1: number; y1: number }[] = [];
+      const free = (x0: number, y0: number, x1: number, y1: number): boolean => {
+        if (x0 < 1 || y0 < 1 || x1 > W - 1 || y1 > H - 1) return false;
+        if (taken.some((t) => x0 < t.x1 && x1 > t.x0 && y0 < t.y1 && y1 > t.y0)) return false;
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (cells[y * W + x] !== roles.ground) return false;
+        return true;
+      };
+      const PAD_W = 4, PAD_H = 3, PAD_GAP = 2;
+      type Spot = { x: number; y: number; w: number; h: number };
+      const block = (sp: Spot, margin: number): [number, number, number, number] => [sp.x - margin, sp.y - margin, sp.x + sp.w + margin, sp.y + sp.h + PAD_GAP + PAD_H + margin];
+      /** The highest open place for a yard of a size, with its pad under it, around a strip's middle — or anywhere on the map. */
+      const place = (w: number, h: number, margin: number, sx: number | null): Spot | null => {
+        for (let y = 10; y + h + PAD_GAP + PAD_H + margin < goalY - enclosure; y += 2) {
+          const xs = sx === null ? Array.from({ length: Math.max(0, Math.floor((W - w) / 2)) }, (_, k) => k * 2) : [0, -2, 2, -4, 4, -6, 6].map((dx) => Math.round(sx - w / 2) + dx);
+          for (const x of xs) if (free(...block({ x, y, w, h }, margin))) return { x, y, w, h };
+        }
+        return null;
+      };
+      /** Every player a yard of one size, round the strips and then wherever is left — or null when they do not all fit. */
+      const layout = (w: number, h: number, margin: number): Spot[] | null => {
+        taken.length = 0;
+        const spots: Spot[] = [];
+        for (let i = 0; i < ctx.humans.length; i++) {
+          const first = i % strips.length;
+          const order = [...strips.keys()].sort((p, q) => ((p - first + strips.length) % strips.length) - ((q - first + strips.length) % strips.length));
+          let spot: Spot | null = null;
+          for (const k of order) { spot = place(w, h, margin, strips[k]); if (spot) break; }
+          spot ??= place(w, h, margin, null);
+          if (!spot) return null;
+          spots.push(spot);
+          const [x0, y0, x1, y1] = block(spot, 1);
+          taken.push({ x0, y0, x1, y1 });
+        }
+        return spots;
+      };
+      // The largest yards that let everyone have one: the same size for all, the margin given up before the size is.
+      let spots: Spot[] | null = null;
+      for (const [w, h, margin] of [[14, 12, 3], [12, 10, 3], [10, 8, 3], [10, 8, 2], [8, 6, 2], [6, 5, 2]]) { spots = layout(w, h, margin); if (spots) break; }
+      const crowded = spots === null;
+      // No room at any size: where the arithmetic would have put them, and said so.
+      spots ??= ctx.humans.map((_, i) => ({ x: strips[i % strips.length] - 7, y: 16 + Math.floor(i / strips.length) * 30, w: 14, h: 12 }));
       ctx.humans.forEach((p, i) => {
-        const sx = strips[i % strips.length], sy = 16 + Math.floor(i / strips.length) * 30;
-        const yw = 14, yh = 12;
-        locations.push(loc(`Yard ${p}`, sx - yw / 2, sy, yw, yh));
-        locations.push(loc(`Pad ${p}`, sx - 2, sy + yh + 2, 4, 3));
-        units.push(start(p, sx, sy + yh / 2));
+        const spot = spots[i];
+        const cx = spot.x + spot.w / 2;
+        locations.push(loc(`Yard ${p}`, spot.x, spot.y, spot.w, spot.h));
+        locations.push(loc(`Pad ${p}`, cx - PAD_W / 2, spot.y + spot.h + PAD_GAP, PAD_W, PAD_H));
+        units.push(start(p, cx, spot.y + spot.h / 2));
       });
-      return { shapes, locations, units, notes: [`${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
+      const yardNotes = crowded ? [`no open ground was left for a yard for each of the ${ctx.humans.length} players beside ${lanes} lane${lanes === 1 ? "" : "s"}: fewer or narrower lanes, or a larger map, would make room — check where the yards landed`] : [];
+      return { shapes, locations, units, notes: [...yardNotes, `${lanes} lane${lanes === 1 ? "" : "s"} ${width} wide walled by ${wall === "water" && roles.water === null ? "cliff (no water in this tileset)" : wall}, one goal at the south edge`] };
     },
   },
   {

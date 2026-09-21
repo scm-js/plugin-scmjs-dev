@@ -80,6 +80,35 @@ describe("layout presets", () => {
     for (let y = 0; y < 100; y++) expect([2, 11]).toContain(compiled.cells[y * 128 + lx]);
   });
 
+  it("every yard and hire pad is on open ground, whatever the lanes, the bends and the players", () => {
+    for (const lanes of [1, 2, 3, 4]) for (const bends of ["no", "yes"]) for (const wall of ["water", "cliff"]) for (const count of [1, 2, 4, 6, 8]) {
+      const humans = Array.from({ length: count }, (_, i) => i + 1);
+      const { plan, notes } = buildPreset("lanes", { lanes: String(lanes), bends, wall }, { ...ctx, humans });
+      // A map with no room left says so rather than pretending; on 128 × 128 that never happens.
+      expect(notes.join(" "), `${lanes} lanes, bends ${bends}, ${wall}, ${count} players`).not.toMatch(/no open ground/);
+      const compiled = compileShapes(plan.shapes!, { width: 128, height: 128, terrains, rampPairs: ctx.rampPairs });
+      const seen: { name: string; x0: number; y0: number; x1: number; y1: number }[] = [];
+      for (const l of plan.locations.filter((x) => /^(Yard|Pad) /.test(x.name))) {
+        const where = `${l.name} with ${lanes} lanes, bends ${bends}, ${wall}, ${count} players`;
+        expect(l.x0, where).toBeGreaterThanOrEqual(0); expect(l.y0, where).toBeGreaterThanOrEqual(0);
+        expect(l.x1, where).toBeLessThanOrEqual(128); expect(l.y1, where).toBeLessThanOrEqual(128);
+        for (let y = l.y0; y < l.y1; y++) for (let x = l.x0; x < l.x1; x++) expect(compiled.cells[y * 128 + x], `${where}: tile ${x},${y}`).toBe(2);
+        for (const o of seen) expect(l.x0 >= o.x1 || l.x1 <= o.x0 || l.y0 >= o.y1 || l.y1 <= o.y0, `${where} overlaps ${o.name}`).toBe(true);
+        seen.push(l);
+      }
+      expect(seen, `${lanes} lanes, ${count} players`).toHaveLength(count * 2);
+      // Each start location stands in its player's yard.
+      for (const u of plan.units) { const yard = plan.locations.find((l) => l.name === `Yard ${u.player}`)!; expect(u.x >= yard.x0 && u.x <= yard.x1 && u.y >= yard.y0 && u.y <= yard.y1, `start of ${u.player}`).toBe(true); }
+    }
+  });
+
+  it("says so when a small map has no room for a yard", () => {
+    const humans = [1, 2, 3, 4, 5, 6, 7, 8];
+    const { notes, plan } = buildPreset("lanes", { lanes: "4", bends: "yes", laneWidth: "10" }, { ...ctx, width: 64, height: 64, humans });
+    expect(notes.join(" ")).toMatch(/no open ground was left for a yard for each of the 8 players/);
+    expect(plan.locations.filter((l) => l.name.startsWith("Yard "))).toHaveLength(8);
+  });
+
   it("lays an arena out: a walled floor, a spawn per player inside, a lobby with the start outside", () => {
     const { plan } = buildPreset("arena", { size: "48", wall: "water" }, ctx);
     const names = plan.locations.map((l) => l.name);
