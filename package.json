@@ -28,6 +28,7 @@
   "devDependencies": {
     "@scm-js/plugin-api": "^1.18.0",
     "esbuild": "^0.28.2",
+    "scmjs-plugin-trigscript": "https://github.com/scm-js/plugin-trigscript/archive/refs/tags/v3.10.3.tar.gz",
     "typescript": "~5.9.2",
     "vitest": "^3.2.4"
   }

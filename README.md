@@ -289,7 +289,9 @@ geometry, vendored, and `bases.ts` that geometry fitted to the ground there is; 
 `intent.ts` where a tool call lands on the map; `ums.ts` the toolkit of trigger systems
 and `guides.ts` the genre guides; `slots.ts` the buttons inside the editor's own dialogs; `markdown.ts` a
 small renderer; `dialogs/` one file per menu item. `tests/` runs it all against a fake
-`fetch` and a fake popup. `docs/evaluation.md` is the fixed set of live tasks run against
+`fetch` and a fake popup; `tests/ums-behaviour.test.ts` runs the toolkit's triggers rather than
+reading them, through the editor's text parser and TrigScript's trigger interpreter
+(`tests/helpers/play.ts`, on TrigScript's testing bundle, a devDependency at a tag). `docs/evaluation.md` is the fixed set of live tasks run against
 the assistant before and after a change, and how to read the server's call log for them;
 `npm run evaluate` drives it in a headless browser.
 
