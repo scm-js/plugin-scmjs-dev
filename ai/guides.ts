@@ -67,13 +67,14 @@ Waves of enemy units walk from a spawn to a goal; the players kill them on the w
 
 **Systems.**
 - \`hyper\`.
-- \`waves\`: units by wave, count and growth, interval, spawn and goal; the last wave cleared is the victory.
+- \`start-units\`: the builder and the first defenders, at each player's own yard (\`Yard {p}\`). A layout preset places start locations and nothing else; without this the players own nothing and cannot build, buy or fight.
+- \`waves\`, ONE system however many lanes: \`spawn\` lists the head of every lane and each wave comes at all of them; units by wave, count and growth, interval, goal. Its victory counts the waves' own unit types, so the unit that keeps the computer's slot alive does not stand in the way. A second \`waves\` system would end the game on its own clock.
 - \`lives\`: a leak (an enemy reaching the goal) is removed and costs a shared life; zero lives is defeat.
 - \`kill-to-cash\` for the bounty (\`scorePerKill\` ≈ the enemy unit's cost, so a Zergling pays half a Hydralisk).
 - \`income\` per wave or per tower (\`perUnit\`) if the map wants a steady economy.
 - \`leaderboard\` kills, \`objectives\`, \`message\` for the first wave.
 
-**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak — give lives.`;
+**Pitfalls.** Towers on the lane block it and the wave stops: make the lane unbuildable. Bounty through kill score pays in lumps of \`scorePerKill\`; set it to the cheapest enemy's score. A wave stronger than the towers ends the game in one leak — give lives. A shop whose \`buyer\` is a unit nobody was given sells nothing.`;
 
 const RPG = `# RPG maps
 

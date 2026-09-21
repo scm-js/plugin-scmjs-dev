@@ -8,7 +8,7 @@
  * holds the test says so, and `owed(` becomes `it(`. Nothing is owed at the moment.
  */
 import { describe, expect, it } from "vitest";
-import { buildSystem, cyclesFor, DEFAULT_DC_UNITS, timerText, waitingOn, type BuiltSystem, type ToolkitContext } from "../ai/ums";
+import { buildSystem, countedUnit, cyclesFor, DEFAULT_DC_UNITS, systemKinds, timerText, waitingOn, type BuiltSystem, type ToolkitContext } from "../ai/ums";
 import { ActionType, ConditionType, parse, play } from "./helpers/play";
 
 const SPOTS = Array.from({ length: 16 }, (_, i) => `Spot ${i + 1}`);
@@ -70,6 +70,19 @@ describe("waves", () => {
     expect(results(game)).toEqual(["1 victory"]);
   });
 
+  it("two lanes are one system: a wave at every spawn, and one victory", () => {
+    const b = buildSystem("waves", { spawn: "Start, Checkpoint 1", goal: "Finish", units: "Zerg Zergling", waves: "2", interval: "5", count: "3", growth: "0" }, ctx);
+    expect(b.count).toBe(3);
+    expect(b.dcUsed).toHaveLength(1);
+    const game = play(b.text, { players: [1, 8], locations: LOCATIONS, units: [{ type: "Zerg Overlord", owner: 8 }], condition: ELAPSED }, 1);
+    expect(game.units(8, "Zerg Zergling")).toBe(12);
+    expect(game.sim.game.living().filter((u) => u.type === 37).map((u) => u.x).sort((x, y) => x - y)).toEqual([...Array(6).fill(25), ...Array(6).fill(125)]);
+    game.kill(8, "Zerg Zergling");
+    game.run(1);
+    expect(results(game)).toEqual(["1 victory"]);
+    expect(() => buildSystem("waves", { spawn: "Start, Nowhere", goal: "Finish", units: "Zerg Zergling" }, ctx)).toThrow(/"spawn" names location "Nowhere"/);
+  });
+
   it("count Men when the types are more than a trigger's conditions hold", () => {
     const many = ["Zerg Zergling", "Zerg Hydralisk", "Zerg Ultralisk", "Zerg Drone", "Zerg Mutalisk", "Zerg Guardian", "Zerg Queen", "Zerg Defiler", "Zerg Scourge", "Zerg Lurker", "Zerg Devourer", "Zerg Broodling", "Terran Marine", "Terran Firebat"];
     const b = wave(many.join(", "), "14");
@@ -77,6 +90,26 @@ describe("waves", () => {
     expect(b.notes.join(" ")).toMatch(/counts Men/);
     expect(() => parse(b.text, LOCATIONS)).not.toThrow();
     expect(parse(wave(many.slice(0, 13).join(", "), "13").text, LOCATIONS).at(-1)!.conditions.filter((x) => x.type !== 0)).toHaveLength(15);
+  });
+});
+
+describe("starting units", () => {
+  it("each player gets them once, where their numbered location is", () => {
+    const yards = { ...ctx, locations: [...LOCATIONS, "Yard 1", "Yard 2"] };
+    const b = buildSystem("start-units", { units: "1 Terran SCV, 4 Terran Marine, Terran Firebat", location: "Yard {p}" }, yards);
+    expect(b.count).toBe(2);
+    expect(b.notes[0]).toBe("1 Terran SCV, 4 Terran Marine, 1 Terran Firebat for each of players 1, 2, once, when the game starts");
+    const game = play(b.text, { players: [1, 2], locations: yards.locations }, 5);
+    expect([game.units(1, "Terran SCV"), game.units(1, "Terran Marine"), game.units(1, "Terran Firebat"), game.units(2)]).toEqual([1, 4, 1, 6]);
+    expect(() => buildSystem("start-units", { units: "Terran SCV", location: "Yard {p}", players: "1, 2, 3" }, yards)).toThrow(/"Yard 3"/);
+    expect(countedUnit("2x Terran Firebat")).toEqual({ unit: "Terran Firebat", count: 2 });
+    expect(countedUnit("Terran SCV")).toEqual({ unit: "Terran SCV", count: 1 });
+  });
+
+  it("the catalogue says which kinds give the players units, and which need one owned", () => {
+    const kinds = systemKinds();
+    expect(kinds.filter((k) => k.creates).map((k) => `${k.kind}: ${k.creates!.join(",")}`)).toEqual(["start-units: units", "spawn: unit", "stages: units", "checkpoints: unit", "respawn: unit"]);
+    expect(kinds.flatMap((k) => k.params.filter((p) => p.owned).map((p) => `${k.kind}.${p.name}`))).toEqual(["last-standing.unit", "defeat-when-lost.unit", "shop.buyer"]);
   });
 });
 

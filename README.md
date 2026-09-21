@@ -109,7 +109,7 @@ plugin compiles and the editor's brush draws, so a lane is continuous and a plat
 asks for a ramp gets one where the editor's placement check says the ramp fits (ramps go
 down south-west or south-east, as the game's do); a river that names its bridges bends
 onto the diagonal a bridge spans at each one, narrows to the channel and gets the bridge,
-so the water reaches it from both sides, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers,
+so the water reaches it from both sides, on the tilesets whose bridges fit the brush's shores. Systems the *toolkit* knows — hyper triggers, starting units,
 spawn cycles, kill-to-cash, income, waves, lives, shops, heal spots, respawn, teleports, capture the flag,
 kill zones, leaderboards, countdowns, last standing, alliances, auto-attack, escalation stages, a bound's obstacles and checkpoints, rescue by
 touch — are built by code from their parameters, instantly and the same way every time;

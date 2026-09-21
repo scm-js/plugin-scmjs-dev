@@ -677,6 +677,13 @@ export interface SystemKindSpec {
    * none, is not checked for endings, and is given classic designs only.
    */
   ends?: SystemEnding[];
+  /**
+   * The parameters that name units a system of this kind makes *for the players it is for*
+   * (`start-units`' `units`, a `respawn`'s `unit`) — not while its `owner` parameter hands
+   * them to someone else. With a layout preset nothing else puts a unit on the map, so
+   * these are all a human can be counted on to own.
+   */
+  creates?: string[];
 }
 
 export interface SystemEnding {
@@ -694,6 +701,8 @@ export interface SystemParamSpec {
   required: boolean;
   /** The value names a location, or a comma-separated list of them — checked against the design's. An older plugin says so only in the description. */
   type?: "location" | "locations";
+  /** The value names a unit the system's players must already own for the system to do anything: a shop's buyer on the beacon, the unit whose loss is a defeat. */
+  owned?: boolean;
 }
 
 export interface UmsDesignInput {
