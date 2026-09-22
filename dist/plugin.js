@@ -8654,7 +8654,7 @@ function openAssistant(ctx, store) {
           }
           const secs = Math.round((Date.now() - startedAt) / 1e3);
           if (stoppedAtLimit) {
-            setPhase("stopped", `after ${maxRounds} rounds of tool calls; AI Options sets the limit`);
+            setPhase("stopped", `after ${maxRounds} rounds of tool calls; Tools \u25B8 AI \u25B8 Options\u2026 sets the limit`);
             more.hidden = false;
             conv.continueOffered = true;
           } else if (cutOff) {
@@ -8667,7 +8667,7 @@ function openAssistant(ctx, store) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
           if (stoppedAtCeiling) {
-            setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); AI Options sets it`);
+            setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); Tools \u25B8 AI \u25B8 Options\u2026 sets it`);
             more.hidden = false;
             conv.continueOffered = true;
           } else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
@@ -10212,18 +10212,20 @@ function openTriggers(ctx) {
 }
 
 // ai/options.ts
+var OPTIONS_PAGE = "plugin:scmjs-dev";
+function openOptions(api) {
+  api.ui.open("preferences", { page: OPTIONS_PAGE });
+}
 var QUALITY_CHOICES = [
   { value: "quick", label: "Quick \u2014 fastest and cheapest" },
   { value: "standard", label: "Standard \u2014 tuned for each feature (recommended)" },
   { value: "thorough", label: "Thorough \u2014 the highest setting; slower and dearer" }
 ];
-function openOptions(ctx, store) {
-  const { api, account } = ctx;
+function registerOptionsPage(deps) {
+  const { api, store, account } = deps;
   const w = api.ui.widgets;
-  api.ui.dialog({
-    title: "AI Options",
-    size: "md",
-    mount(body, dialog) {
+  api.ui.preferencesPage({
+    mount(body, page) {
       const root = styled(body);
       const s = store.get();
       const balance = h("div", { className: "ai-hint" }, account.summary());
@@ -10231,8 +10233,8 @@ function openOptions(ctx, store) {
         balance.textContent = account.summary();
       });
       const accountBtn = w.button(account.signedIn() ? "Account\u2026" : "Sign in\u2026", { primary: !account.signedIn(), onClick: () => {
-        dialog.close();
-        ctx.openAccount();
+        page.close();
+        deps.openAccount();
       } });
       const aiBox = w.checkbox("Use the AI features", { value: s.ai, onChange: (v) => {
         store.set({ ai: v });
@@ -10302,8 +10304,7 @@ function openOptions(ctx, store) {
       return () => {
         offAccount();
       };
-    },
-    buttons: [{ label: "Close", primary: true }]
+    }
   });
 }
 
@@ -10379,7 +10380,7 @@ function installDialogSlots(ctx, actions) {
 function installAi(deps) {
   const { api, store, client, account } = deps;
   const out = [];
-  const ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(ctx, store), openAccount: deps.openAccount, presence: null };
+  const ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(api), openAccount: deps.openAccount, presence: null };
   const conversations = new Conversations(api.document);
   let assistantPanel = null;
   const open = () => api.document.isOpen();
@@ -11098,6 +11099,7 @@ function activate(api) {
       openSaveDialog(ctx, links);
     }
   };
+  registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
   api.commands.register({ id: "account", title: "scmjs.dev Account\u2026", run: ctx.openAccount });
   api.commands.register({ id: "sign-in", title: "Sign in to scmjs.dev\u2026", run: async () => {
     if (account.kind() === "account") {

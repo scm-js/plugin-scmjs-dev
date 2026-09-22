@@ -17,7 +17,7 @@ export interface Ctx {
   client: ScmjsClient;
   ledger: Ledger;
   account: AccountManager;
-  /** The AI Options dialog. */
+  /** The plugin's page in Edit ▸ Preferences (Tools ▸ AI ▸ Options…). */
   openSettings: () => void;
   /** The scmjs.dev Account dialog: sign-in, balance, top-up. */
   openAccount: () => void;

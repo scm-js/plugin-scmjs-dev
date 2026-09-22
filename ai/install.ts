@@ -40,7 +40,7 @@ export interface AiDeps {
 export function installAi(deps: AiDeps): () => void {
   const { api, store, client, account } = deps;
   const out: Disposable[] = [];
-  const ctx: Ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(ctx, store), openAccount: deps.openAccount, presence: null };
+  const ctx: Ctx = { api, settings: () => store.get(), client, ledger: client.ledger, account, openSettings: () => openOptions(api), openAccount: deps.openAccount, presence: null };
   // One conversation per open map, for the life of the session; the panel shows the map in front's.
   const conversations = new Conversations(api.document);
   let assistantPanel: AssistantHandle | null = null;

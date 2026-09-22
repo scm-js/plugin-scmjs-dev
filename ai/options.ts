@@ -1,13 +1,32 @@
 /**
- * The AI options and their dialog, Tools ▸ AI ▸ Options…: the one tick that turns the
- * AI features off, the quality (how hard the model works, and so what a request costs),
- * and the assistant's knobs under an advanced fold. There is nothing to configure about
- * *how* the plugin reaches the model — the service is scmjs.dev's, the account is the
- * Account dialog's — so the dialog opens on the balance line and a button to that
- * dialog, which is where a person who came here for the sign-in wants to be.
+ * The AI options, as the plugin's page in Edit ▸ Preferences (under Plugins; Tools ▸ AI ▸
+ * Options… opens it): the one tick that turns the AI features off, the quality (how hard
+ * the model works, and so what a request costs), and the assistant's knobs under an
+ * advanced fold. Every control writes as it changes, so the page needs no apply. There
+ * is nothing to configure about *how* the plugin reaches the model — the service is
+ * scmjs.dev's, the account is the Account dialog's — so the page opens on the balance
+ * line and a button to that dialog, which is where a person who came here for the
+ * sign-in wants to be. Registered at activation whether the AI features are on or off:
+ * the tick that turns them back on lives here.
  */
-import type { Quality, SettingsStore } from "../account";
-import { h, styled, type Ctx } from "./ui";
+import type { PluginApi } from "@scm-js/plugin-api";
+import type { AccountManager, Quality, SettingsStore } from "../account";
+import { h, styled } from "./ui";
+
+/** The page id `api.ui.open("preferences", { page })` takes. */
+export const OPTIONS_PAGE = "plugin:scmjs-dev";
+
+/** Open the page — Tools ▸ AI ▸ Options… and the "ai-options" command. */
+export function openOptions(api: PluginApi): void {
+  api.ui.open("preferences", { page: OPTIONS_PAGE });
+}
+
+export interface OptionsDeps {
+  api: PluginApi;
+  store: SettingsStore;
+  account: AccountManager;
+  openAccount: () => void;
+}
 
 /** The quality choices, worded for what they cost rather than what they are called on the server. */
 export const QUALITY_CHOICES: { value: Quality; label: string }[] = [
@@ -16,20 +35,18 @@ export const QUALITY_CHOICES: { value: Quality; label: string }[] = [
   { value: "thorough", label: "Thorough — the highest setting; slower and dearer" },
 ];
 
-export function openOptions(ctx: Ctx, store: SettingsStore) {
-  const { api, account } = ctx;
+export function registerOptionsPage(deps: OptionsDeps): void {
+  const { api, store, account } = deps;
   const w = api.ui.widgets;
-  api.ui.dialog({
-    title: "AI Options",
-    size: "md",
-    mount(body, dialog) {
+  api.ui.preferencesPage({
+    mount(body, page) {
       const root = styled(body);
       const s = store.get();
 
       /* The account line and the way to it. */
       const balance = h("div", { className: "ai-hint" }, account.summary());
       const offAccount = account.onChange(() => { balance.textContent = account.summary(); });
-      const accountBtn = w.button(account.signedIn() ? "Account…" : "Sign in…", { primary: !account.signedIn(), onClick: () => { dialog.close(); ctx.openAccount(); } });
+      const accountBtn = w.button(account.signedIn() ? "Account…" : "Sign in…", { primary: !account.signedIn(), onClick: () => { page.close(); deps.openAccount(); } });
 
       /* The one switch. */
       const aiBox = w.checkbox("Use the AI features", { value: s.ai, onChange: (v) => { store.set({ ai: v }); } });
@@ -79,6 +96,5 @@ export function openOptions(ctx: Ctx, store: SettingsStore) {
 
       return () => { offAccount(); };
     },
-    buttons: [{ label: "Close", primary: true }],
   });
 }

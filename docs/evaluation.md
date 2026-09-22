@@ -275,7 +275,7 @@ Map: BGH. Prompt:
 > mineral line, facing the nearest ramp. Do all eight without stopping to ask; after
 > each one, say which is done.
 
-Run with the tool-round limit lowered to 6 (the script does this; by hand, AI Options),
+Run with the tool-round limit lowered to 6 (the script does this; by hand, Tools ▸ AI ▸ Options…),
 so the chain is actually hit. Correct: the assistant reaches the limit, "Continue" resumes
 without losing the brief (the first message), and by the end all eight bunkers exist.
 Look at `message_count` and the request size per call: the history should be trimmed

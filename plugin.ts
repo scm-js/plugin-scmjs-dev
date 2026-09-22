@@ -32,6 +32,7 @@
 import type { Disposable, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import { AccountManager, settingsStore } from "./account";
 import { installAi } from "./ai/install";
+import { registerOptionsPage } from "./ai/options";
 import { formatUsd, ScmjsClient } from "./client";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
@@ -60,6 +61,9 @@ export function activate(api: PluginApi) {
     openMaps: () => { openMapsDialog(ctx, links); },
     saveToCloud: () => { openSaveDialog(ctx, links); },
   };
+
+  /* The AI options page in Edit ▸ Preferences — there whether the AI features are on or off, since the tick that turns them on is on it. */
+  registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
 
   /* Commands: the menu items, the status bar and other plugins all reach the same ones. */
   api.commands.register({ id: "account", title: "scmjs.dev Account…", run: ctx.openAccount });

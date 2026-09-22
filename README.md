@@ -132,7 +132,7 @@ give them no direction of their own; check them against the cliffs.
 a drag on the map. The model sees the area and a margin round it as it is now, plus a
 picture, so the edges join.
 
-AI Options also holds two spending ceilings, one for an assistant message with its tool
+Tools ▸ AI ▸ Options… — the plugin's page in Edit ▸ Preferences — also holds two spending ceilings, one for an assistant message with its tool
 rounds and one for a Make Scenario design or build, which Write Triggers with its repair
 rounds also runs under. At the ceiling the work stops with
 the map as edited so far; the assistant offers to continue for as much again, and a

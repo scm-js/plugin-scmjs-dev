@@ -1,6 +1,6 @@
 /**
  * The AI Assistant: a conversation about the open map, in a panel floating over it (or
- * docked at the right, by AI Options). A message goes to the server's `agent` recipe with the tools in
+ * docked at the right, by the plugin's page in Preferences). A message goes to the server's `agent` recipe with the tools in
  * `tools.ts`, the map's facts (what is selected, where the view is) and the per-map
  * reference block; every tool call the model makes runs here, all of a turn's calls
  * answered together, and the loop continues while the model keeps calling tools, up to
@@ -744,7 +744,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1000);
-          if (stoppedAtLimit) { setPhase("stopped", `after ${maxRounds} rounds of tool calls; AI Options sets the limit`); more.hidden = false; conv.continueOffered = true; }
+          if (stoppedAtLimit) { setPhase("stopped", `after ${maxRounds} rounds of tool calls; Tools ▸ AI ▸ Options… sets the limit`); more.hidden = false; conv.continueOffered = true; }
           else if (cutOff) { setPhase("stopped", "the answer was cut off at the output limit; Continue picks it up"); more.hidden = false; conv.continueOffered = true; }
           else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
           finishActivity(stoppedAtLimit || cutOff);
@@ -752,7 +752,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           // The ceiling is a stop like the round limit, not a failure: the edits stand and Continue grants as much again.
           stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
-          if (stoppedAtCeiling) { setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); AI Options sets it`); more.hidden = false; conv.continueOffered = true; }
+          if (stoppedAtCeiling) { setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); Tools ▸ AI ▸ Options… sets it`); more.hidden = false; conv.continueOffered = true; }
           else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           // A tab switch stopped the turn before the model had answered: the question is
           // not lost with the unanswered brief — it waits in the input for when the map
