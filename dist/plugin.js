@@ -392,7 +392,8 @@ var DEFAULT_SETTINGS = {
   attachView: false,
   dockAssistant: false,
   followMap: true,
-  shareName: ""
+  shareName: "",
+  aiOffered: false
 };
 var KEY = "settings";
 function newDeviceId() {
@@ -494,7 +495,15 @@ var AccountManager = class {
       this.listeners.delete(listener);
     };
   }
+  /** Whether the server offers the AI: the account's role when there is a session, what a new account gets when not, and the last answer before the server has been asked. */
+  aiOffered() {
+    if (this.view) return this.view.ai ?? true;
+    if (this.info && !this.store.get().session) return this.info.ai ?? true;
+    return this.store.get().aiOffered;
+  }
   changed() {
+    const offered = this.aiOffered();
+    if (offered !== this.store.get().aiOffered) this.store.set({ aiOffered: offered });
     const s = this.state();
     for (const l of this.listeners) {
       try {
@@ -509,7 +518,7 @@ var AccountManager = class {
     const v = this.view;
     switch (this.kind()) {
       case "guest":
-        return "Not signed in \xB7 the first AI request starts a free trial";
+        return this.aiOffered() && this.info?.trial !== false ? "Not signed in \xB7 the first AI request starts a free trial" : "Not signed in";
       case "trial":
         return v ? `Free trial \xB7 ${formatUsd(v.balanceUsd)} left \xB7 sign in to keep it and get more` : "Free trial";
       default: {
@@ -10245,7 +10254,7 @@ var QUALITY_CHOICES = [
 function registerOptionsPage(deps) {
   const { api, store, account } = deps;
   const w = api.ui.widgets;
-  api.ui.preferencesPage({
+  return api.ui.preferencesPage({
     mount(body, page) {
       const root2 = styled(body);
       const s = store.get();
@@ -10592,6 +10601,7 @@ function openAccountDialog(ctx) {
         clear2(buttons);
         clear2(storageBox);
         clear2(ledgerBox);
+        aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows = [];
         if (s.kind === "guest") {
           rows.push(["Status", h2("span", { className: "sd-big" }, "Not signed in")]);
@@ -10685,6 +10695,12 @@ function openAccountDialog(ctx) {
       const aiBox = w.checkbox("Use the AI features (Tools \u25B8 AI, the assistant, the AI buttons in the editor's dialogs)", { value: settings.ai, onChange: (v) => {
         account.store.set({ ai: v });
       } });
+      const aiRow = h2(
+        "div",
+        { style: "display: flex; flex-direction: column; gap: 8px" },
+        aiBox,
+        h2("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools \u25B8 AI \u25B8 Options\u2026 has the quality and the assistant's settings.")
+      );
       const statusBox = w.checkbox("Show my status in the status bar", { value: settings.statusItem, onChange: (v) => {
         account.store.set({ statusItem: v });
       } });
@@ -10695,8 +10711,7 @@ function openAccountDialog(ctx) {
         h2(
           "div",
           { style: "padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px" },
-          aiBox,
-          h2("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools \u25B8 AI \u25B8 Options\u2026 has the quality and the assistant's settings."),
+          aiRow,
           statusBox,
           account.overridden() ? h2("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} \u2014 a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null
         )
@@ -11857,7 +11872,6 @@ function activate(api) {
       openSaveDialog(ctx, links);
     }
   };
-  registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
   api.commands.register({ id: "account", title: "scmjs.dev Account\u2026", run: ctx.openAccount });
   api.commands.register({ id: "sign-in", title: "Sign in to scmjs.dev\u2026", run: async () => {
     if (account.kind() === "account") {
@@ -11931,8 +11945,15 @@ function activate(api) {
   account.onChange(syncStatus);
   const provided = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
   let ai = null;
+  let optionsPage = null;
   const syncAi = () => {
-    const want = store.get().ai;
+    const offered = store.get().aiOffered;
+    if (offered && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
+    else if (!offered && optionsPage) {
+      optionsPage.dispose();
+      optionsPage = null;
+    }
+    const want = offered && store.get().ai;
     if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
     else if (!want && ai) {
       ai();
@@ -11950,6 +11971,7 @@ function activate(api) {
   });
   return () => {
     ai?.();
+    optionsPage?.dispose();
     share();
     status?.remove();
     provided.dispose();

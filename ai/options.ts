@@ -6,10 +6,10 @@
  * is nothing to configure about *how* the plugin reaches the model — the service is
  * scmjs.dev's, the account is the Account dialog's — so the page opens on the balance
  * line and a button to that dialog, which is where a person who came here for the
- * sign-in wants to be. Registered at activation whether the AI features are on or off:
- * the tick that turns them back on lives here.
+ * sign-in wants to be. Registered whether the AI features are on or off — the tick that
+ * turns them back on lives here — but only while the server offers the AI at all.
  */
-import type { PluginApi } from "@scm-js/plugin-api";
+import type { Disposable, PluginApi } from "@scm-js/plugin-api";
 import type { AccountManager, Quality, SettingsStore } from "../account";
 import { h, styled } from "./ui";
 
@@ -35,10 +35,10 @@ export const QUALITY_CHOICES: { value: Quality; label: string }[] = [
   { value: "thorough", label: "Thorough — the highest setting; slower and dearer" },
 ];
 
-export function registerOptionsPage(deps: OptionsDeps): void {
+export function registerOptionsPage(deps: OptionsDeps): Disposable {
   const { api, store, account } = deps;
   const w = api.ui.widgets;
-  api.ui.preferencesPage({
+  return api.ui.preferencesPage({
     mount(body, page) {
       const root = styled(body);
       const s = store.get();

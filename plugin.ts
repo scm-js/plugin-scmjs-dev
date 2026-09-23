@@ -67,8 +67,6 @@ export function activate(api: PluginApi) {
     saveToCloud: () => { openSaveDialog(ctx, links); },
   };
 
-  /* The AI options page in Edit ▸ Preferences — there whether the AI features are on or off, since the tick that turns them on is on it. */
-  registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
 
   /* Commands: the menu items, the status bar and other plugins all reach the same ones. */
   api.commands.register({ id: "account", title: "scmjs.dev Account…", run: ctx.openAccount });
@@ -133,10 +131,18 @@ export function activate(api: PluginApi) {
   /* The service for other plugins. */
   const provided: Disposable = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
 
-  /* The AI features, in while the tick says so. */
+  /*
+   * The AI features, in while the tick says so and the server offers them. The options
+   * page in Edit ▸ Preferences follows the offer alone — the tick that turns the rest on
+   * is on it — so a person the server keeps off the AI sees none of it.
+   */
   let ai: (() => void) | null = null;
+  let optionsPage: Disposable | null = null;
   const syncAi = () => {
-    const want = store.get().ai;
+    const offered = store.get().aiOffered;
+    if (offered && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
+    else if (!offered && optionsPage) { optionsPage.dispose(); optionsPage = null; }
+    const want = offered && store.get().ai;
     if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
     else if (!want && ai) { ai(); ai = null; }
   };
@@ -153,5 +159,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { ai?.(); share(); status?.remove(); provided.dispose(); };
+  return () => { ai?.(); optionsPage?.dispose(); share(); status?.remove(); provided.dispose(); };
 }

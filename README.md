@@ -16,6 +16,12 @@ server, a token or a key: it talks to scmjs.dev and to nothing else, and it send
 until you press a button — with no session stored it makes no request at startup. Every
 menu item that reaches the network carries the plugin's mark.
 
+The server decides who gets the AI. When it keeps the AI to some accounts (scmjs.dev
+does for now), everyone else sees no Tools ▸ AI menu, assistant, AI buttons or AI page
+in Preferences; the account, map storage and shared maps are the same for everybody.
+The plugin remembers the server's last answer, so until it has asked once — a sign-in,
+or opening the Account dialog — the AI stays hidden.
+
 ## Install
 
 It is on from the start. If it has been turned off: **Plugins ▸ Manage Plugins…** and

@@ -52,12 +52,18 @@ export interface Settings {
   followMap: boolean;
   /** The name last typed to join a shared map, offered the next time. */
   shareName: string;
+  /**
+   * The server offers this person the AI — their role may call a recipe, or for a guest
+   * a new account's would. Kept from the last answer, since a start with no session asks
+   * the server nothing; off until the server has said so once.
+   */
+  aiOffered: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
   ai: true, quality: "standard", showThinking: true, maxRounds: 24, ceilingUsd: 0.5, scenarioCeilingUsd: 1.5, attachView: false, dockAssistant: false, followMap: true,
-  shareName: "",
+  shareName: "", aiOffered: false,
 };
 
 const KEY = "settings";
@@ -180,13 +186,25 @@ export class AccountManager {
     return () => { this.listeners.delete(listener); };
   }
 
-  private changed() { const s = this.state(); for (const l of this.listeners) { try { l(s); } catch (err) { console.error("[scmjs.dev] listener failed", err); } } }
+  /** Whether the server offers the AI: the account's role when there is a session, what a new account gets when not, and the last answer before the server has been asked. */
+  aiOffered(): boolean {
+    if (this.view) return this.view.ai ?? true;
+    if (this.info && !this.store.get().session) return this.info.ai ?? true;
+    return this.store.get().aiOffered;
+  }
+
+  private changed() {
+    const offered = this.aiOffered();
+    if (offered !== this.store.get().aiOffered) this.store.set({ aiOffered: offered });
+    const s = this.state();
+    for (const l of this.listeners) { try { l(s); } catch (err) { console.error("[scmjs.dev] listener failed", err); } }
+  }
 
   /** One line for the status bar's tooltip and the AI dialogs' foot. */
   summary(): string {
     const v = this.view;
     switch (this.kind()) {
-      case "guest": return "Not signed in · the first AI request starts a free trial";
+      case "guest": return this.aiOffered() && this.info?.trial !== false ? "Not signed in · the first AI request starts a free trial" : "Not signed in";
       case "trial": return v ? `Free trial · ${formatUsd(v.balanceUsd)} left · sign in to keep it and get more` : "Free trial";
       default: {
         if (!v) return "Signed in";

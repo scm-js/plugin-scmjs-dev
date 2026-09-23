@@ -127,9 +127,13 @@ describe("the account manager", () => {
     const seen: string[] = [];
     account.onChange((s) => seen.push(s.kind));
     expect(account.kind()).toBe("guest");
-    expect(account.summary()).toBe("Not signed in · the first AI request starts a free trial");
+    // Nothing is offered before the server has said so once; a server that does not say (before 0.11.0) offers it.
+    expect(account.summary()).toBe("Not signed in");
+    expect(store.get().aiOffered).toBe(false);
     await account.connect();
     expect(account.offers()?.maps).toBe(true);
+    expect(store.get().aiOffered).toBe(true);
+    expect(account.summary()).toBe("Not signed in · the first AI request starts a free trial");
     expect(account.state()).toMatchObject({ kind: "guest", account: null, storage: null });
     // Two callers race for the session: one trial request.
     await Promise.all([account.ensureSession(), account.ensureSession()]);
@@ -144,6 +148,32 @@ describe("the account manager", () => {
     const err = await again.ensureSession().catch((e: unknown) => e);
     expect((err as ScmjsError).code).toBe("budget_exceeded");
     expect((err as ScmjsError).message).toMatch(/Sign in to scmjs.dev/);
+  });
+
+  it("offers the AI only where the server says the role may call it, and keeps the answer for the next start", async () => {
+    let signedIn = false;
+    const accounts = { providers: [{ id: "discord", name: "Discord" }], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true, ai: false };
+    const admin = view({ kind: "account", name: "Boss", role: "admin", unlimited: true, balanceUsd: 0, weeklyUsd: 0, creditUsd: 0, providers: ["discord"], ai: true });
+    const { fetchImpl } = fakeFetch({
+      "GET /v1/info": () => json({ name: "Test", version: "1", accounts, caller: signedIn ? { kind: "user", remaining: {}, account: admin } : { kind: "anonymous", remaining: {} } }),
+      "GET /v1/account": () => json({ account: admin, ledger: [] }),
+      "POST /v1/auth/logout": () => json({ ok: true }),
+    });
+    const store = memoryStore({ aiOffered: true });
+    const account = new AccountManager(store, new ScmjsClient(() => ({ serverUrl: "https://api.example", session: store.get().session }), fetchImpl));
+    // The last answer stands until the server is asked.
+    expect(account.aiOffered()).toBe(true);
+    await account.connect();
+    expect(account.aiOffered()).toBe(false);
+    expect(store.get().aiOffered).toBe(false);
+    expect(account.summary()).toBe("Not signed in");
+    // An admin's session: the role may call recipes.
+    signedIn = true;
+    store.set({ session: "sess_admin" });
+    await account.connect();
+    expect(store.get().aiOffered).toBe(true);
+    await account.signOut();
+    expect(store.get().aiOffered).toBe(false);
   });
 
   it("signs in through the popup, refreshes, follows a balance note, and signs out", async () => {

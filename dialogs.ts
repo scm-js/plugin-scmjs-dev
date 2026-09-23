@@ -38,6 +38,7 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         const s = account.state();
         const v = s.account;
         clear(head); clear(buttons); clear(storageBox); clear(ledgerBox);
+        aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows: [string, Node | string][] = [];
         if (s.kind === "guest") {
           rows.push(["Status", h("span", { className: "sd-big" }, "Not signed in")]);
@@ -117,12 +118,14 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
       /* Settings. */
       const settings = account.store.get();
       const aiBox = w.checkbox("Use the AI features (Tools ▸ AI, the assistant, the AI buttons in the editor's dialogs)", { value: settings.ai, onChange: (v) => { account.store.set({ ai: v }); } });
+      // Only while the server offers this person the AI; render keeps it in step.
+      const aiRow = h("div", { style: "display: flex; flex-direction: column; gap: 8px" }, aiBox,
+        h("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools ▸ AI ▸ Options… has the quality and the assistant's settings."));
       const statusBox = w.checkbox("Show my status in the status bar", { value: settings.statusItem, onChange: (v) => { account.store.set({ statusItem: v }); } });
       const settingsFold = h("details", null,
         h("summary", null, "Settings"),
         h("div", { style: "padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px" },
-          aiBox,
-          h("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools ▸ AI ▸ Options… has the quality and the assistant's settings."),
+          aiRow,
           statusBox,
           account.overridden() ? h("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} — a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null,
         ),

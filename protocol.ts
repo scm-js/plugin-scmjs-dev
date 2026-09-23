@@ -239,6 +239,8 @@ export interface AccountsInfo {
   maps: boolean;
   /** Shared maps (`/v1/rooms`) are on: a signed-in account can share a map for others to edit with it. */
   rooms?: boolean;
+  /** A trial or a newly signed-in account may use the AI (the default role allows a recipe); absent from a server before 0.11.0, which always did. */
+  ai?: boolean;
 }
 
 export interface CreditPack {
@@ -269,6 +271,8 @@ export interface AccountView {
   providers: string[];
   /** Map storage used and allowed; absent when the server keeps no maps or for a trial. */
   storage?: StorageView;
+  /** The role may call at least one recipe, so the plugin offers the AI; absent from a server before 0.11.0, which always allowed it. */
+  ai?: boolean;
 }
 
 /* ── Map storage ────────────────────────────────────────── */
