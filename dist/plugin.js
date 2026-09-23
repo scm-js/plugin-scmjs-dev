@@ -10594,6 +10594,7 @@ function openAccountDialog(ctx) {
       const buttons = h2("div", { className: "sd-btns" });
       const storageBox = h2("div", null);
       const ledgerBox = h2("div", null);
+      const featuresBox = h2("div", null);
       const render = () => {
         const s = account.state();
         const v = s.account;
@@ -10601,6 +10602,7 @@ function openAccountDialog(ctx) {
         clear2(buttons);
         clear2(storageBox);
         clear2(ledgerBox);
+        clear2(featuresBox);
         aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows = [];
         if (s.kind === "guest") {
@@ -10621,7 +10623,6 @@ function openAccountDialog(ctx) {
             if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
           }
         }
-        if ((s.offers || v) && !account.aiOffered()) rows.push(["AI", h2("span", { className: "sd-hint" }, "The AI features are off for now while I work out the tooling and costs.")]);
         append2(head, [h2("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h2("span", { className: "sd-k" }, k), h2("span", { className: "sd-v" }, val)]))]);
         if (s.kind !== "account") {
           const providers = s.offers?.providers ?? [];
@@ -10669,6 +10670,26 @@ function openAccountDialog(ctx) {
             await account.signOut();
             say("Signed out.");
           } }));
+        }
+        if (s.offers) {
+          const signedIn = s.kind === "account";
+          const state = (on, off2, needsSignIn) => !on ? ["Off", "sd-bad", off2] : needsSignIn && !signedIn ? ["Sign in to use", "", ""] : ["On", "sd-ok", ""];
+          const features = [
+            ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
+            ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
+            ["Shared maps", state(!!s.offers.rooms, "This server does not share maps.", true)]
+          ];
+          featuresBox.append(w.group("Status", h2(
+            "table",
+            { className: "sd-ledger" },
+            h2("tbody", null, ...features.map(([name, [text, cls, note]]) => h2(
+              "tr",
+              null,
+              h2("td", { style: "width: 1%" }, name),
+              h2("td", { className: cls, style: "width: 1%" }, text),
+              h2("td", { className: "sd-note" }, note)
+            )))
+          )));
         }
         if (s.kind === "account") {
           if (s.storage) storageBox.append(w.group("Map storage", storageBar(s.storage.usedBytes, s.storage.capBytes), h2("div", { className: "sd-hint" }, `${s.storage.maps} map${s.storage.maps === 1 ? "" : "s"}, ${s.storage.revisions} revision${s.storage.revisions === 1 ? "" : "s"}. Account \u25B8 My Maps\u2026 lists them; Account \u25B8 Save to scmjs.dev\u2026 adds one.`)));
@@ -10720,6 +10741,7 @@ function openAccountDialog(ctx) {
       root2.append(
         head,
         buttons,
+        featuresBox,
         storageBox,
         ledgerBox,
         settingsFold,

@@ -33,11 +33,12 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
       const buttons = h("div", { className: "sd-btns" });
       const storageBox = h("div", null);
       const ledgerBox = h("div", null);
+      const featuresBox = h("div", null);
 
       const render = () => {
         const s = account.state();
         const v = s.account;
-        clear(head); clear(buttons); clear(storageBox); clear(ledgerBox);
+        clear(head); clear(buttons); clear(storageBox); clear(ledgerBox); clear(featuresBox);
         aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows: [string, Node | string][] = [];
         if (s.kind === "guest") {
@@ -58,8 +59,6 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
             if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
           }
         }
-        // Once the server has answered: say why there is no AI rather than leave people looking for it.
-        if ((s.offers || v) && !account.aiOffered()) rows.push(["AI", h("span", { className: "sd-hint" }, "The AI features are off for now while I work out the tooling and costs.")]);
         append(head, [h("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h("span", { className: "sd-k" }, k), h("span", { className: "sd-v" }, val)]))]);
 
         // Buttons for the state.
@@ -93,6 +92,25 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
           buttons.append(w.button("Manage on scmjs.dev", { onClick: () => window.open(account.accountPageUrl(), "_blank", "noopener") }));
           buttons.append(w.button("My Maps…", { onClick: () => { dialog.close(); ctx.openMaps(); } }));
           buttons.append(w.button("Sign out", { onClick: async () => { await account.signOut(); say("Signed out."); } }));
+        }
+
+        // What the server offers this person, once it has answered: so nobody is left looking for a feature that is off.
+        if (s.offers) {
+          const signedIn = s.kind === "account";
+          const state = (on: boolean, off: string, needsSignIn: boolean): [string, string, string] =>
+            !on ? ["Off", "sd-bad", off] : needsSignIn && !signedIn ? ["Sign in to use", "", ""] : ["On", "sd-ok", ""];
+          const features: [string, [string, string, string]][] = [
+            ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
+            ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
+            ["Shared maps", state(!!s.offers.rooms, "This server does not share maps.", true)],
+          ];
+          featuresBox.append(w.group("Status", h("table", { className: "sd-ledger" },
+            h("tbody", null, ...features.map(([name, [text, cls, note]]) => h("tr", null,
+              h("td", { style: "width: 1%" }, name),
+              h("td", { className: cls, style: "width: 1%" }, text),
+              h("td", { className: "sd-note" }, note),
+            ))),
+          )));
         }
 
         // Storage.
@@ -133,7 +151,7 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         ),
       );
 
-      root.append(head, buttons, storageBox, ledgerBox, settingsFold, status,
+      root.append(head, buttons, featuresBox, storageBox, ledgerBox, settingsFold, status,
         h("div", { className: "sd-hint" }, `scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else, never a prompt or a card. Delete all of it from the account page at ${SITE_URL}.`));
 
       render();
