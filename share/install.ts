@@ -7,6 +7,7 @@
 import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
+import { SharedChat } from "./chat";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
 import { forgetLinkOnPage, inviteOnPage } from "./link";
 import { doing, drawPeople } from "./presence";
@@ -33,6 +34,7 @@ export function installShare(opts: ShareOptions): () => void {
   let status: StatusItemHandle | null = null;
   let overlay: OverlayHandle | null = null;
   let unhook: (() => void)[] = [];
+  let chat: SharedChat | null = null;
   /** The invite the page was opened with, until someone joins with it. */
   let pageInvite: string | null = null;
 
@@ -61,10 +63,14 @@ export function installShare(opts: ShareOptions): () => void {
 
   const attach = (s: SharedMap) => {
     shared = s;
+    // The chat once the map is live, and only from a server that has one (welcome.chat).
+    const syncChat = () => { if (!chat && s.phase === "live" && s.chat !== null) chat = new SharedChat(api, s); };
     unhook.push(s.onChange(() => {
       syncStatus();
+      syncChat();
       if (s.phase === "ended") detach(s);
     }));
+    syncChat();
     unhook.push(s.onPresence(() => overlay?.redraw()));
     overlay = api.ui.overlay({
       name: "People on the shared map",
@@ -85,6 +91,8 @@ export function installShare(opts: ShareOptions): () => void {
     if (shared !== s) return;
     for (const u of unhook) u();
     unhook = [];
+    chat?.dispose();
+    chat = null;
     overlay?.remove();
     overlay = null;
     shared = null;

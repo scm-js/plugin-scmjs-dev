@@ -18,7 +18,7 @@
 import type { PluginApi, Rect, SyncOp, SyncSession } from "@scm-js/plugin-api";
 import type { ScmjsClient } from "../client";
 import { describeError } from "../client";
-import type { RoomClientMessage, RoomEndReason, RoomInfo, RoomPerson, RoomServerMessage } from "../protocol";
+import type { RoomChatLine, RoomClientMessage, RoomEndReason, RoomInfo, RoomPerson, RoomServerMessage } from "../protocol";
 import { ROOM_PROTOCOL } from "../protocol";
 
 /** What a person tells the room about themselves; relayed as it is. */
@@ -51,6 +51,10 @@ export interface SharedDeps {
   /** Milliseconds between presence messages at most. */
   presenceMs?: number;
 }
+
+/** The server's limit on a chat line, and how many lines this editor keeps. */
+export const CHAT_MAX = 500;
+const CHAT_KEEP = 200;
 
 export type SharedPhase = "connecting" | "live" | "ended";
 
@@ -86,6 +90,8 @@ export class SharedMap {
   ending: string | null = null;
   /** The shared map's document id, once there is one. */
   documentId: number | null = null;
+  /** The room's chat, oldest first; null when the server has none (one before ai-server 0.13.0). */
+  chat: RoomChatLine[] | null = null;
 
   private session: SyncSession | null = null;
   private ws: SocketLike | null = null;
@@ -95,6 +101,7 @@ export class SharedMap {
   private lastSeq = 0;
   private listeners = new Set<() => void>();
   private presenceListeners = new Set<() => void>();
+  private chatListeners = new Set<(line: RoomChatLine) => void>();
   private presenceTimer: ReturnType<typeof setTimeout> | null = null;
   private presenceSent = 0;
   private mine: Presence = { px: null, py: null, view: null, layer: "", dialog: null };
@@ -113,6 +120,20 @@ export class SharedMap {
   onPresence(fn: () => void): () => void {
     this.presenceListeners.add(fn);
     return () => this.presenceListeners.delete(fn);
+  }
+
+  /** A chat line arrived — anyone's, this editor's own included (the server sends it back). */
+  onChat(fn: (line: RoomChatLine) => void): () => void {
+    this.chatListeners.add(fn);
+    return () => this.chatListeners.delete(fn);
+  }
+
+  /** Send a line to the room's chat; false when there is no chat or nothing to say. */
+  say(text: string): boolean {
+    const t = text.trim();
+    if (!t || this.chat === null || this.phase !== "live") return false;
+    this.send({ type: "chat", text: t.slice(0, CHAT_MAX) });
+    return true;
   }
 
   private emit(presenceOnly = false) {
@@ -233,6 +254,7 @@ export class SharedMap {
     this.room = { ...(this.room ?? {}), ...msg.room };
     for (const p of msg.people) this.people.set(p.id, p);
     for (const p of msg.presence) this.presence.set(p.from, p.data as Presence);
+    this.chat = msg.chat ? [...msg.chat] : null;
     if (this.session) {
       // The owner: the room was made from this editor's copy, so there is nothing to catch up on.
       this.welcomed = true;
@@ -295,6 +317,13 @@ export class SharedMap {
         this.presence.set(msg.from, msg.data as Presence);
         this.emit(true);
         return;
+      case "chat": {
+        const chat = this.chat ?? (this.chat = []);
+        chat.push(msg.line);
+        if (chat.length > CHAT_KEEP) chat.splice(0, chat.length - CHAT_KEEP);
+        for (const fn of [...this.chatListeners]) { try { fn(msg.line); } catch (err) { console.error(err); } }
+        return;
+      }
       case "snapshot-please":
         void this.answerCopy(0);
         return;

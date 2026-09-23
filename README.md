@@ -89,6 +89,12 @@ shows what is used.
   resize or tileset change as the whole map. Each person's pointer and the edge of their
   view are drawn over the map (View ▸ *People on the shared map* hides them), and a cell in
   the status bar says who is in.
+- **Chat.** A *Chat* button in the map's bottom-right corner (while the shared map is in
+  front) opens a small window over the map to write to everyone in it. A message that comes
+  in while it is closed shows as a notice and a count on the button, and people who join
+  later see what was said before them. The server keeps the last 100 messages with the
+  room, in memory; they end with it. An editor from before map buttons (`ui.mapButton`)
+  shows it as a status-bar cell instead. Needs ai-server 0.13.0.
 - The editor keeps the copies the same through its `api.sync`: other people's changes wait
   while you hold the mouse on the map or have a map dialog open, the later change to a tile
   wins, a change to a unit someone deleted is dropped, and Ctrl+Z undoes your own changes

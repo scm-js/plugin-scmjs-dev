@@ -8193,9 +8193,9 @@ function openAssistant(ctx, store) {
       const intent = intentOverlay(api);
       const phaseLabel = h("span", { className: "ai-phase" }, "Ready");
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
-      const clock = h("span", { className: "ai-dim ai-mono" }, "");
+      const clock2 = h("span", { className: "ai-dim ai-mono" }, "");
       const cost = h("span", { className: "ai-pill", title: "What this panel has cost \xB7 what the session has cost" }, "");
-      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost));
+      const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock2, cost));
       let phase = "idle";
       let startedAt = 0;
       let clockTimer = null;
@@ -8203,7 +8203,7 @@ function openAssistant(ctx, store) {
         cost.textContent = state.spent ? `${formatUsd(state.spent)} here \xB7 ${formatUsd(ctx.ledger.totals.costUsd)} session` : ctx.ledger.totals.calls ? `${formatUsd(ctx.ledger.totals.costUsd)} session` : "";
       };
       const tickClock = () => {
-        clock.textContent = startedAt ? `${Math.round((Date.now() - startedAt) / 1e3)} s` : "";
+        clock2.textContent = startedAt ? `${Math.round((Date.now() - startedAt) / 1e3)} s` : "";
       };
       const setPhase = (next, detail = "") => {
         phase = next;
@@ -8218,7 +8218,7 @@ function openAssistant(ctx, store) {
         if (!busy && clockTimer !== null) {
           window.clearInterval(clockTimer);
           clockTimer = null;
-          clock.textContent = "";
+          clock2.textContent = "";
         }
         ctx.presence?.set({ text: busy ? `AI \xB7 ${PHASE_LABELS[next].toLowerCase()}${detail ? ` \xB7 ${detail}` : ""}` : state.spent ? `AI \xB7 ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
         setCost();
@@ -11536,6 +11536,501 @@ function luminance(hex2) {
   return (0.299 * (n2 >> 16 & 255) + 0.587 * (n2 >> 8 & 255) + 0.114 * (n2 & 255)) / 255;
 }
 
+// share/shared.ts
+var CHAT_MAX = 500;
+var CHAT_KEEP = 200;
+var OPEN = 1;
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  return btoa(s);
+}
+function fromBase64(text) {
+  const s = atob(text);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+var ENDINGS = {
+  owner: "The person who shared the map ended the session.",
+  removed: "You were removed from the shared map.",
+  idle: "The shared map closed after nobody used it for a while.",
+  server: "The server restarted, which ends every shared map."
+};
+var SharedMap = class _SharedMap {
+  phase = "connecting";
+  room = null;
+  you = null;
+  people = /* @__PURE__ */ new Map();
+  presence = /* @__PURE__ */ new Map();
+  /** Why it ended, in a sentence; null while it runs. */
+  ending = null;
+  /** The shared map's document id, once there is one. */
+  documentId = null;
+  /** The room's chat, oldest first; null when the server has none (one before ai-server 0.13.0). */
+  chat = null;
+  session = null;
+  ws = null;
+  welcomed = false;
+  outbox = [];
+  held = null;
+  lastSeq = 0;
+  listeners = /* @__PURE__ */ new Set();
+  presenceListeners = /* @__PURE__ */ new Set();
+  chatListeners = /* @__PURE__ */ new Set();
+  presenceTimer = null;
+  presenceSent = 0;
+  mine = { px: null, py: null, view: null, layer: "", dialog: null };
+  deps;
+  constructor(deps) {
+    this.deps = deps;
+  }
+  onChange(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+  /** Someone moved their pointer or view, or opened a dialog: what the overlay redraws on. */
+  onPresence(fn) {
+    this.presenceListeners.add(fn);
+    return () => this.presenceListeners.delete(fn);
+  }
+  /** A chat line arrived — anyone's, this editor's own included (the server sends it back). */
+  onChat(fn) {
+    this.chatListeners.add(fn);
+    return () => this.chatListeners.delete(fn);
+  }
+  /** Send a line to the room's chat; false when there is no chat or nothing to say. */
+  say(text) {
+    const t = text.trim();
+    if (!t || this.chat === null || this.phase !== "live") return false;
+    this.send({ type: "chat", text: t.slice(0, CHAT_MAX) });
+    return true;
+  }
+  emit(presenceOnly = false) {
+    for (const fn of [...presenceOnly ? this.presenceListeners : /* @__PURE__ */ new Set([...this.listeners, ...this.presenceListeners])]) {
+      try {
+        fn();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+  get owner() {
+    return this.you?.owner === true;
+  }
+  /** Changes this editor made that the server has not confirmed yet. */
+  pending() {
+    return this.session?.pending() ?? 0;
+  }
+  holding() {
+    return this.session?.holding() ?? null;
+  }
+  /* ── Starting ───────────────────────────────────────────── */
+  /** Share the map in front under `name`. Needs a signed-in session on the client. */
+  static async share(deps, name) {
+    const s = new _SharedMap(deps);
+    const session = deps.api.sync.start(s.syncOptions());
+    if (!session) throw new Error("A map is being shared already, or no map is open.");
+    s.session = session;
+    s.documentId = session.documentId;
+    const copy = session.snapshot();
+    try {
+      const bytes = await copy;
+      if (!bytes) throw new Error("The map could not be copied.");
+      const { room } = await deps.client.createRoom(name, toBase64(bytes));
+      s.room = room;
+      await s.connect(room.invite, deps.client.session());
+      return s;
+    } catch (err) {
+      s.end(describeError(err));
+      throw err;
+    }
+  }
+  /** Join the room behind `invite` as `name`, opening its map beside the ones open. */
+  static async join(deps, invite, name) {
+    const s = new _SharedMap(deps);
+    s.held = [];
+    try {
+      await s.connect(invite, deps.client.session(), name);
+      return s;
+    } catch (err) {
+      s.end(describeError(err));
+      throw err;
+    }
+  }
+  syncOptions() {
+    return {
+      send: (op) => {
+        if (this.welcomed) this.send({ type: "op", op });
+        else this.outbox.push(op);
+      },
+      onEnd: (reason) => {
+        if (this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
+      },
+      onApplied: (report) => {
+        if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
+      }
+    };
+  }
+  /** Open the socket, say hello, and resolve once welcomed (and, joining, once the map is open). */
+  connect(invite, session, name) {
+    const make = this.deps.socket ?? ((url) => new WebSocket(url));
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (err) => {
+        if (settled) return;
+        settled = true;
+        if (err) reject(err);
+        else resolve();
+      };
+      let ws;
+      try {
+        ws = make(this.deps.client.roomSocketUrl());
+      } catch (err) {
+        settle(err);
+        return;
+      }
+      this.ws = ws;
+      ws.onopen = () => {
+        const hello = { type: "hello", protocol: ROOM_PROTOCOL, invite, ...name ? { name } : {}, ...session ? { session } : {} };
+        ws.send(JSON.stringify(hello));
+      };
+      ws.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(String(ev.data));
+        } catch {
+          return;
+        }
+        if (msg.type === "welcome") {
+          this.welcome(msg).then(() => settle(), (err) => settle(err));
+          return;
+        }
+        if (!this.welcomed && msg.type === "error") {
+          settle(new Error(msg.message));
+          return;
+        }
+        if (this.held) {
+          this.held.push(msg);
+          return;
+        }
+        this.handle(msg);
+      };
+      ws.onclose = (ev) => {
+        if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
+        if (this.phase !== "ended") this.end("The connection to the shared map was lost. The map is still open here; save it, or join again.");
+      };
+      ws.onerror = () => {
+      };
+    });
+  }
+  async welcome(msg) {
+    this.you = msg.you;
+    this.room = { ...this.room ?? {}, ...msg.room };
+    for (const p of msg.people) this.people.set(p.id, p);
+    for (const p of msg.presence) this.presence.set(p.from, p.data);
+    this.chat = msg.chat ? [...msg.chat] : null;
+    if (this.session) {
+      this.welcomed = true;
+      this.lastSeq = msg.snapshot.seq;
+      for (const op of this.outbox.splice(0)) this.send({ type: "op", op });
+    } else {
+      const bytes = fromBase64(msg.snapshot.map);
+      const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
+      if (!opened) throw new Error("The shared map could not be opened.");
+      const session = this.deps.api.sync.start(this.syncOptions());
+      if (!session) throw new Error("Another map is being shared from this editor already.");
+      this.session = session;
+      this.documentId = session.documentId;
+      this.welcomed = true;
+      this.lastSeq = msg.snapshot.seq;
+      for (const op of msg.ops) {
+        session.receive(op.op);
+        this.lastSeq = op.seq;
+      }
+      const held = this.held ?? [];
+      this.held = null;
+      for (const m of held) this.handle(m);
+    }
+    this.phase = "live";
+    this.emit();
+    this.flushPresence();
+  }
+  /* ── Messages ───────────────────────────────────────────── */
+  send(msg) {
+    if (this.ws && this.ws.readyState === OPEN) this.ws.send(JSON.stringify(msg));
+  }
+  handle(msg) {
+    const { api } = this.deps;
+    switch (msg.type) {
+      case "op":
+        this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.session?.receive(msg.op);
+        return;
+      case "ack":
+        this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.session?.confirm();
+        return;
+      case "joined":
+        this.people.set(msg.person.id, msg.person);
+        api.ui.toast({ kind: "info", title: `${msg.person.name} joined the shared map` });
+        this.emit();
+        return;
+      case "left": {
+        const who = this.people.get(msg.person);
+        this.people.delete(msg.person);
+        this.presence.delete(msg.person);
+        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : "left"} the shared map.`);
+        this.emit();
+        return;
+      }
+      case "presence":
+        this.presence.set(msg.from, msg.data);
+        this.emit(true);
+        return;
+      case "chat": {
+        const chat = this.chat ?? (this.chat = []);
+        chat.push(msg.line);
+        if (chat.length > CHAT_KEEP) chat.splice(0, chat.length - CHAT_KEEP);
+        for (const fn of [...this.chatListeners]) {
+          try {
+            fn(msg.line);
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        return;
+      }
+      case "snapshot-please":
+        void this.answerCopy(0);
+        return;
+      case "link":
+        if (this.room) this.room = { ...this.room, invite: msg.invite };
+        this.emit();
+        return;
+      case "ended":
+        this.end(ENDINGS[msg.reason] ?? "The shared map ended.");
+        return;
+      case "error":
+        if (msg.about === "op") {
+          this.end(`A change could not be shared (${msg.message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.`);
+        } else {
+          api.ui.status(msg.message);
+        }
+        return;
+      default:
+        return;
+    }
+  }
+  /** The server wants a fresh copy of the map for people joining. Only a quiet moment gives one that matches a point in its order. */
+  async answerCopy(tries) {
+    const session = this.session;
+    if (!session || this.phase !== "live") return;
+    const seq = this.lastSeq;
+    const copy = session.snapshot();
+    const bytes = await copy;
+    if (bytes) {
+      this.send({ type: "snapshot", seq, map: toBase64(bytes) });
+      return;
+    }
+    if (tries < 20) setTimeout(() => void this.answerCopy(tries + 1), 1500);
+  }
+  /* ── Presence ───────────────────────────────────────────── */
+  /** Say where this person is; sent at most every `presenceMs`, the last word always. */
+  setPresence(patch) {
+    this.mine = { ...this.mine, ...patch };
+    this.flushPresence();
+  }
+  flushPresence() {
+    if (this.phase !== "live" || this.presenceTimer) return;
+    const gap = this.deps.presenceMs ?? 80;
+    const wait = Math.max(0, this.presenceSent + gap - Date.now());
+    this.presenceTimer = setTimeout(() => {
+      this.presenceTimer = null;
+      this.presenceSent = Date.now();
+      this.send({ type: "presence", data: this.mine });
+    }, wait);
+  }
+  /* ── The owner's controls, and leaving ──────────────────── */
+  kick(personId) {
+    this.send({ type: "kick", person: personId });
+  }
+  relink() {
+    this.send({ type: "relink" });
+  }
+  /** Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays open. */
+  leave(forEveryone = false) {
+    if (forEveryone && this.owner) this.send({ type: "end" });
+    this.end(null);
+  }
+  end(message) {
+    if (this.phase === "ended") return;
+    this.phase = "ended";
+    this.ending = message;
+    if (this.presenceTimer) {
+      clearTimeout(this.presenceTimer);
+      this.presenceTimer = null;
+    }
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onclose = null;
+      ws.onmessage = null;
+      try {
+        ws.close(1e3);
+      } catch {
+      }
+    }
+    const session = this.session;
+    this.session = null;
+    session?.stop();
+    this.emit();
+    this.listeners.clear();
+    this.presenceListeners.clear();
+  }
+};
+
+// share/chat.ts
+var CHAT_STYLE = `
+.sd.sd-chat { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+.sd-chat .sd-chat-lines { flex: 1; min-height: 60px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px 0; }
+.sd-chat .sd-chat-line { line-height: 1.35; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sd-chat .sd-chat-who { font-weight: 600; margin-right: 6px; }
+.sd-chat .sd-chat-at { color: var(--text-faint, #6b7382); font-size: 10px; margin-right: 6px; font-family: var(--font-mono, monospace); }
+.sd-chat .sd-chat-empty { color: var(--text-dim, #99a2b3); font-size: 11px; }
+.sd-chat .sd-chat-input { display: flex; gap: 6px; }
+.sd-chat .sd-chat-input input { flex: 1; min-width: 0; }
+`;
+function chatButton(api, onClick) {
+  if (typeof api.ui.mapButton === "function") {
+    const b = api.ui.mapButton({ label: "Chat", title: "Chat with the people on this shared map", onClick });
+    return { set: (label, badge, active) => b.set({ label, badge: badge || null, active }), remove: () => b.remove() };
+  }
+  const s = api.ui.statusItem({ text: "Chat", title: "Chat with the people on this shared map", onClick });
+  return { set: (label, badge) => s.set({ text: badge ? `${label} (${badge})` : label }), remove: () => s.remove() };
+}
+var clock = (iso) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+var SharedChat = class {
+  api;
+  shared;
+  button = null;
+  panel = null;
+  lines = null;
+  unread = 0;
+  unhook = [];
+  constructor(api, shared) {
+    this.api = api;
+    this.shared = shared;
+    this.unhook.push(shared.onChat((line) => this.arrived(line)));
+    const onDocument = api.events.on("document", () => this.syncButton());
+    this.unhook.push(() => onDocument.dispose());
+    this.syncButton();
+  }
+  /** The button shows only while the shared map is the one in front. */
+  syncButton() {
+    const here = this.shared.documentId !== null && this.api.document.id() === this.shared.documentId;
+    if (here && !this.button) {
+      this.button = chatButton(this.api, () => this.toggle());
+      this.paintButton();
+    } else if (!here && this.button) {
+      this.button.remove();
+      this.button = null;
+    }
+  }
+  paintButton() {
+    this.button?.set("Chat", this.unread, !!this.panel?.isOpen());
+  }
+  arrived(line) {
+    if (this.panel?.isOpen() && this.lines) {
+      this.lines.querySelector(".sd-chat-empty")?.remove();
+      this.lines.append(this.lineEl(line));
+      this.lines.scrollTop = this.lines.scrollHeight;
+      return;
+    }
+    if (line.from === this.shared.you?.id) return;
+    this.unread++;
+    this.paintButton();
+    this.api.ui.toast({ kind: "info", title: `${line.name} in the chat`, detail: line.text.length > 140 ? `${line.text.slice(0, 139)}\u2026` : line.text });
+  }
+  lineEl(line) {
+    const mine = line.from === this.shared.you?.id;
+    return h2(
+      "div",
+      { className: "sd-chat-line" },
+      h2("span", { className: "sd-chat-at", title: new Date(line.at).toLocaleString() }, clock(line.at)),
+      h2("span", { className: "sd-chat-who", style: `color:${personColor({ id: line.from, name: line.name, color: line.color, owner: false })}` }, mine ? `${line.name} (you)` : line.name),
+      line.text
+    );
+  }
+  toggle() {
+    if (this.panel?.isOpen()) {
+      this.panel.close();
+      return;
+    }
+    this.open();
+  }
+  open() {
+    if (this.panel?.isOpen()) return;
+    const w = this.api.ui.widgets;
+    this.unread = 0;
+    this.panel = this.api.ui.panel({
+      title: `Chat \xB7 ${this.shared.room?.name ?? "shared map"}`,
+      width: 320,
+      height: 360,
+      resizable: true,
+      mount: (body) => {
+        const root2 = styled2(body);
+        root2.classList.add("sd-chat");
+        const style = document.createElement("style");
+        style.textContent = CHAT_STYLE;
+        body.prepend(style);
+        const lines = h2("div", { className: "sd-chat-lines" });
+        const past = this.shared.chat ?? [];
+        if (!past.length) lines.append(h2("div", { className: "sd-chat-empty" }, "Nothing said yet. Everyone on the shared map sees what you write here; it goes when the sharing ends."));
+        for (const line of past) lines.append(this.lineEl(line));
+        const input = w.text({ placeholder: "Say something to everyone here" });
+        input.maxLength = CHAT_MAX;
+        const send = () => {
+          if (this.shared.say(input.value)) input.value = "";
+          input.focus();
+        };
+        input.addEventListener("keydown", (e) => {
+          e.stopPropagation();
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            send();
+          }
+        });
+        root2.append(lines, h2("div", { className: "sd-chat-input" }, input, w.button("Send", { onClick: send })));
+        this.lines = lines;
+        queueMicrotask(() => {
+          lines.scrollTop = lines.scrollHeight;
+          input.focus();
+        });
+        return () => {
+          this.lines = null;
+        };
+      },
+      onClose: () => {
+        this.panel = null;
+        this.paintButton();
+      }
+    });
+    this.paintButton();
+  }
+  dispose() {
+    for (const u of this.unhook) u();
+    this.unhook.length = 0;
+    this.panel?.close();
+    this.panel = null;
+    this.button?.remove();
+    this.button = null;
+  }
+};
+
 // share/dialogs.ts
 var SHARE_STYLE = `
 .sd .sd-people { display: flex; flex-direction: column; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
@@ -11741,329 +12236,6 @@ function openJoinDialog(ctx, controls, given = null) {
   });
 }
 
-// share/shared.ts
-var OPEN = 1;
-function toBase64(bytes) {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
-  return btoa(s);
-}
-function fromBase64(text) {
-  const s = atob(text);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
-}
-var ENDINGS = {
-  owner: "The person who shared the map ended the session.",
-  removed: "You were removed from the shared map.",
-  idle: "The shared map closed after nobody used it for a while.",
-  server: "The server restarted, which ends every shared map."
-};
-var SharedMap = class _SharedMap {
-  phase = "connecting";
-  room = null;
-  you = null;
-  people = /* @__PURE__ */ new Map();
-  presence = /* @__PURE__ */ new Map();
-  /** Why it ended, in a sentence; null while it runs. */
-  ending = null;
-  /** The shared map's document id, once there is one. */
-  documentId = null;
-  session = null;
-  ws = null;
-  welcomed = false;
-  outbox = [];
-  held = null;
-  lastSeq = 0;
-  listeners = /* @__PURE__ */ new Set();
-  presenceListeners = /* @__PURE__ */ new Set();
-  presenceTimer = null;
-  presenceSent = 0;
-  mine = { px: null, py: null, view: null, layer: "", dialog: null };
-  deps;
-  constructor(deps) {
-    this.deps = deps;
-  }
-  onChange(fn) {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-  /** Someone moved their pointer or view, or opened a dialog: what the overlay redraws on. */
-  onPresence(fn) {
-    this.presenceListeners.add(fn);
-    return () => this.presenceListeners.delete(fn);
-  }
-  emit(presenceOnly = false) {
-    for (const fn of [...presenceOnly ? this.presenceListeners : /* @__PURE__ */ new Set([...this.listeners, ...this.presenceListeners])]) {
-      try {
-        fn();
-      } catch (err) {
-        console.error(err);
-      }
-    }
-  }
-  get owner() {
-    return this.you?.owner === true;
-  }
-  /** Changes this editor made that the server has not confirmed yet. */
-  pending() {
-    return this.session?.pending() ?? 0;
-  }
-  holding() {
-    return this.session?.holding() ?? null;
-  }
-  /* ── Starting ───────────────────────────────────────────── */
-  /** Share the map in front under `name`. Needs a signed-in session on the client. */
-  static async share(deps, name) {
-    const s = new _SharedMap(deps);
-    const session = deps.api.sync.start(s.syncOptions());
-    if (!session) throw new Error("A map is being shared already, or no map is open.");
-    s.session = session;
-    s.documentId = session.documentId;
-    const copy = session.snapshot();
-    try {
-      const bytes = await copy;
-      if (!bytes) throw new Error("The map could not be copied.");
-      const { room } = await deps.client.createRoom(name, toBase64(bytes));
-      s.room = room;
-      await s.connect(room.invite, deps.client.session());
-      return s;
-    } catch (err) {
-      s.end(describeError(err));
-      throw err;
-    }
-  }
-  /** Join the room behind `invite` as `name`, opening its map beside the ones open. */
-  static async join(deps, invite, name) {
-    const s = new _SharedMap(deps);
-    s.held = [];
-    try {
-      await s.connect(invite, deps.client.session(), name);
-      return s;
-    } catch (err) {
-      s.end(describeError(err));
-      throw err;
-    }
-  }
-  syncOptions() {
-    return {
-      send: (op) => {
-        if (this.welcomed) this.send({ type: "op", op });
-        else this.outbox.push(op);
-      },
-      onEnd: (reason) => {
-        if (this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
-      },
-      onApplied: (report) => {
-        if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
-      }
-    };
-  }
-  /** Open the socket, say hello, and resolve once welcomed (and, joining, once the map is open). */
-  connect(invite, session, name) {
-    const make = this.deps.socket ?? ((url) => new WebSocket(url));
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const settle = (err) => {
-        if (settled) return;
-        settled = true;
-        if (err) reject(err);
-        else resolve();
-      };
-      let ws;
-      try {
-        ws = make(this.deps.client.roomSocketUrl());
-      } catch (err) {
-        settle(err);
-        return;
-      }
-      this.ws = ws;
-      ws.onopen = () => {
-        const hello = { type: "hello", protocol: ROOM_PROTOCOL, invite, ...name ? { name } : {}, ...session ? { session } : {} };
-        ws.send(JSON.stringify(hello));
-      };
-      ws.onmessage = (ev) => {
-        let msg;
-        try {
-          msg = JSON.parse(String(ev.data));
-        } catch {
-          return;
-        }
-        if (msg.type === "welcome") {
-          this.welcome(msg).then(() => settle(), (err) => settle(err));
-          return;
-        }
-        if (!this.welcomed && msg.type === "error") {
-          settle(new Error(msg.message));
-          return;
-        }
-        if (this.held) {
-          this.held.push(msg);
-          return;
-        }
-        this.handle(msg);
-      };
-      ws.onclose = (ev) => {
-        if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
-        if (this.phase !== "ended") this.end("The connection to the shared map was lost. The map is still open here; save it, or join again.");
-      };
-      ws.onerror = () => {
-      };
-    });
-  }
-  async welcome(msg) {
-    this.you = msg.you;
-    this.room = { ...this.room ?? {}, ...msg.room };
-    for (const p of msg.people) this.people.set(p.id, p);
-    for (const p of msg.presence) this.presence.set(p.from, p.data);
-    if (this.session) {
-      this.welcomed = true;
-      this.lastSeq = msg.snapshot.seq;
-      for (const op of this.outbox.splice(0)) this.send({ type: "op", op });
-    } else {
-      const bytes = fromBase64(msg.snapshot.map);
-      const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
-      if (!opened) throw new Error("The shared map could not be opened.");
-      const session = this.deps.api.sync.start(this.syncOptions());
-      if (!session) throw new Error("Another map is being shared from this editor already.");
-      this.session = session;
-      this.documentId = session.documentId;
-      this.welcomed = true;
-      this.lastSeq = msg.snapshot.seq;
-      for (const op of msg.ops) {
-        session.receive(op.op);
-        this.lastSeq = op.seq;
-      }
-      const held = this.held ?? [];
-      this.held = null;
-      for (const m of held) this.handle(m);
-    }
-    this.phase = "live";
-    this.emit();
-    this.flushPresence();
-  }
-  /* ── Messages ───────────────────────────────────────────── */
-  send(msg) {
-    if (this.ws && this.ws.readyState === OPEN) this.ws.send(JSON.stringify(msg));
-  }
-  handle(msg) {
-    const { api } = this.deps;
-    switch (msg.type) {
-      case "op":
-        this.lastSeq = Math.max(this.lastSeq, msg.seq);
-        this.session?.receive(msg.op);
-        return;
-      case "ack":
-        this.lastSeq = Math.max(this.lastSeq, msg.seq);
-        this.session?.confirm();
-        return;
-      case "joined":
-        this.people.set(msg.person.id, msg.person);
-        api.ui.toast({ kind: "info", title: `${msg.person.name} joined the shared map` });
-        this.emit();
-        return;
-      case "left": {
-        const who = this.people.get(msg.person);
-        this.people.delete(msg.person);
-        this.presence.delete(msg.person);
-        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : "left"} the shared map.`);
-        this.emit();
-        return;
-      }
-      case "presence":
-        this.presence.set(msg.from, msg.data);
-        this.emit(true);
-        return;
-      case "snapshot-please":
-        void this.answerCopy(0);
-        return;
-      case "link":
-        if (this.room) this.room = { ...this.room, invite: msg.invite };
-        this.emit();
-        return;
-      case "ended":
-        this.end(ENDINGS[msg.reason] ?? "The shared map ended.");
-        return;
-      case "error":
-        if (msg.about === "op") {
-          this.end(`A change could not be shared (${msg.message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.`);
-        } else {
-          api.ui.status(msg.message);
-        }
-        return;
-      default:
-        return;
-    }
-  }
-  /** The server wants a fresh copy of the map for people joining. Only a quiet moment gives one that matches a point in its order. */
-  async answerCopy(tries) {
-    const session = this.session;
-    if (!session || this.phase !== "live") return;
-    const seq = this.lastSeq;
-    const copy = session.snapshot();
-    const bytes = await copy;
-    if (bytes) {
-      this.send({ type: "snapshot", seq, map: toBase64(bytes) });
-      return;
-    }
-    if (tries < 20) setTimeout(() => void this.answerCopy(tries + 1), 1500);
-  }
-  /* ── Presence ───────────────────────────────────────────── */
-  /** Say where this person is; sent at most every `presenceMs`, the last word always. */
-  setPresence(patch) {
-    this.mine = { ...this.mine, ...patch };
-    this.flushPresence();
-  }
-  flushPresence() {
-    if (this.phase !== "live" || this.presenceTimer) return;
-    const gap = this.deps.presenceMs ?? 80;
-    const wait = Math.max(0, this.presenceSent + gap - Date.now());
-    this.presenceTimer = setTimeout(() => {
-      this.presenceTimer = null;
-      this.presenceSent = Date.now();
-      this.send({ type: "presence", data: this.mine });
-    }, wait);
-  }
-  /* ── The owner's controls, and leaving ──────────────────── */
-  kick(personId) {
-    this.send({ type: "kick", person: personId });
-  }
-  relink() {
-    this.send({ type: "relink" });
-  }
-  /** Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays open. */
-  leave(forEveryone = false) {
-    if (forEveryone && this.owner) this.send({ type: "end" });
-    this.end(null);
-  }
-  end(message) {
-    if (this.phase === "ended") return;
-    this.phase = "ended";
-    this.ending = message;
-    if (this.presenceTimer) {
-      clearTimeout(this.presenceTimer);
-      this.presenceTimer = null;
-    }
-    const ws = this.ws;
-    this.ws = null;
-    if (ws) {
-      ws.onclose = null;
-      ws.onmessage = null;
-      try {
-        ws.close(1e3);
-      } catch {
-      }
-    }
-    const session = this.session;
-    this.session = null;
-    session?.stop();
-    this.emit();
-    this.listeners.clear();
-    this.presenceListeners.clear();
-  }
-};
-
 // share/install.ts
 function installShare(opts) {
   const { api, client } = opts;
@@ -12072,6 +12244,7 @@ function installShare(opts) {
   let status = null;
   let overlay = null;
   let unhook = [];
+  let chat = null;
   let pageInvite = null;
   const ctx = { api, account: opts.account, store: opts.store, openAccount: opts.openAccount, openMaps: opts.openMaps, saveToCloud: opts.saveToCloud };
   const deps = { api, client, socket: opts.socket };
@@ -12101,10 +12274,15 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
   };
   const attach = (s) => {
     shared = s;
+    const syncChat = () => {
+      if (!chat && s.phase === "live" && s.chat !== null) chat = new SharedChat(api, s);
+    };
     unhook.push(s.onChange(() => {
       syncStatus();
+      syncChat();
       if (s.phase === "ended") detach(s);
     }));
+    syncChat();
     unhook.push(s.onPresence(() => overlay?.redraw()));
     overlay = api.ui.overlay({
       name: "People on the shared map",
@@ -12128,6 +12306,8 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
     if (shared !== s) return;
     for (const u of unhook) u();
     unhook = [];
+    chat?.dispose();
+    chat = null;
     overlay?.remove();
     overlay = null;
     shared = null;

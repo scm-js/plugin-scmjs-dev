@@ -532,6 +532,18 @@ export interface RoomPerson {
   owner: boolean;
 }
 
+/** One line of a room's chat. */
+export interface RoomChatLine {
+  /** The `RoomPerson.id` who wrote it. */
+  from: string;
+  /** Their name and colour when they wrote it, since they may have left since. */
+  name: string;
+  color: number;
+  text: string;
+  /** ISO time the server took it. */
+  at: string;
+}
+
 export interface RoomOp {
   seq: number;
   /** A `RoomPerson.id`. */
@@ -553,6 +565,8 @@ export type RoomClientMessage =
   | { type: "relink" }
   /** Owner only: end the room for everyone. */
   | { type: "end" }
+  /** A line for the room's chat; everyone in the room is sent it, the writer too. */
+  | { type: "chat"; text: string }
   | { type: "ping" };
 
 export type RoomLeaveReason = "left" | "removed" | "lost";
@@ -572,6 +586,11 @@ export type RoomServerMessage =
     ops: RoomOp[];
     /** The last presence each person sent. */
     presence: { from: string; data: unknown }[];
+    /**
+     * The room's chat so far, oldest first (the last lines only). Absent from a server
+     * before 0.13.0, which has no chat — an editor offers it only when this is there.
+     */
+    chat?: RoomChatLine[];
   }
   | ({ type: "op" } & RoomOp)
   /** The oldest op this connection sent is in, as `seq`. */
@@ -579,6 +598,7 @@ export type RoomServerMessage =
   | { type: "joined"; person: RoomPerson }
   | { type: "left"; person: string; reason: RoomLeaveReason }
   | { type: "presence"; from: string; data: unknown }
+  | { type: "chat"; line: RoomChatLine }
   | { type: "snapshot-please" }
   /** Owner only: the room's new invite. */
   | { type: "link"; invite: string }
