@@ -102,7 +102,7 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
           const features: [string, [string, string, string]][] = [
             ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
             ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
-            ["Shared maps", state(!!s.offers.rooms, "This server does not share maps.", true)],
+            ["Shared editing", state(!!s.offers.rooms, "This server has no shared map editing.", true)],
           ];
           featuresBox.append(w.group("Status", h("table", { className: "sd-ledger" },
             h("tbody", null, ...features.map(([name, [text, cls, note]]) => h("tr", null,

@@ -10677,7 +10677,7 @@ function openAccountDialog(ctx) {
           const features = [
             ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
             ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
-            ["Shared maps", state(!!s.offers.rooms, "This server does not share maps.", true)]
+            ["Shared editing", state(!!s.offers.rooms, "This server has no shared map editing.", true)]
           ];
           featuresBox.append(w.group("Status", h2(
             "table",
