@@ -58,6 +58,8 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
             if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
           }
         }
+        // Once the server has answered: say why there is no AI rather than leave people looking for it.
+        if ((s.offers || v) && !account.aiOffered()) rows.push(["AI", h("span", { className: "sd-hint" }, "The AI features are off for now while I work out the tooling and costs.")]);
         append(head, [h("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h("span", { className: "sd-k" }, k), h("span", { className: "sd-v" }, val)]))]);
 
         // Buttons for the state.

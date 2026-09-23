@@ -10621,6 +10621,7 @@ function openAccountDialog(ctx) {
             if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
           }
         }
+        if ((s.offers || v) && !account.aiOffered()) rows.push(["AI", h2("span", { className: "sd-hint" }, "The AI features are off for now while I work out the tooling and costs.")]);
         append2(head, [h2("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h2("span", { className: "sd-k" }, k), h2("span", { className: "sd-v" }, val)]))]);
         if (s.kind !== "account") {
           const providers = s.offers?.providers ?? [];
