@@ -92,6 +92,14 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
         const room = shared.room;
         const invite = room?.invite;
         if (shared.phase === "connecting") { box.append(w.spinner({ label: "Connecting…" })); return; }
+        if (shared.phase === "reconnecting") {
+          box.append(
+            w.spinner({ label: "Reconnecting…" }),
+            h("div", { className: "sd-hint" }, "The connection to the shared map dropped. Keep working: your changes are kept here and sent once it is back. The editor keeps trying for two minutes."),
+            h("div", { className: "sd-btns" }, w.button("Leave", { onClick: () => shared.leave(false) })),
+          );
+          return;
+        }
         if (invite) {
           const link = w.text({ value: inviteLink(invite, account.serverUrl(), where()) });
           link.readOnly = true;
@@ -112,7 +120,7 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
         const list = h("div", { className: "sd-people" });
         for (const person of shared.people.values()) {
           const me = person.id === shared.you?.id;
-          const sub = [person.owner ? "shared the map" : "", me ? "you" : "", doing(shared.presence.get(person.id))].filter(Boolean).join(" · ");
+          const sub = [person.owner ? "shared the map" : "", me ? "you" : "", person.away ? "connection lost, may come back" : doing(shared.presence.get(person.id))].filter(Boolean).join(" · ");
           list.append(h("div", { className: "sd-person" },
             h("span", { className: "sd-swatch", style: `background:${personColor(person)}` }),
             h("div", null, h("div", null, person.name), sub ? h("div", { className: "sd-sub" }, sub) : null),

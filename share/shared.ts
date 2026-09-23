@@ -11,9 +11,16 @@
  *
  * Then the server's `op`s go to `session.receive`, its `ack`s to `session.confirm`, and
  * the session's changes go out as `op`s. Nothing here resolves anything — the editor does,
- * and every editor that has seen the same ops has the same map. The socket dropping, the
- * server refusing one of our changes, or the owner ending the room all end it here: the
- * map stays open, and anyone can save it.
+ * and every editor that has seen the same ops has the same map. The server refusing one of
+ * our changes, or the owner ending the room, ends it here: the map stays open, and anyone
+ * can save it.
+ *
+ * The socket dropping does not end it (on a server from 0.14.0, which hands out a resume
+ * token). The changes the server has not confirmed are kept, and the socket comes back
+ * with the token and the last seq seen: the ops since are replayed — this editor's own
+ * confirm its oldest unconfirmed changes, anyone else's are received — and what is still
+ * unconfirmed goes out again. Back too late for the server to have those ops, it hands
+ * over a fresh copy instead, which opens in a new tab beside the one as it was.
  */
 import type { PluginApi, Rect, SyncOp, SyncSession } from "@scm-js/plugin-api";
 import type { ScmjsClient } from "../client";
@@ -56,9 +63,16 @@ export interface SharedDeps {
 export const CHAT_MAX = 500;
 const CHAT_KEEP = 200;
 
-export type SharedPhase = "connecting" | "live" | "ended";
+export type SharedPhase = "connecting" | "live" | "reconnecting" | "ended";
 
 const OPEN = 1;
+/** How long to keep trying to reconnect, and the longest wait between tries. */
+const RECONNECT_FOR_MS = 120_000;
+const RECONNECT_MAX_WAIT_MS = 30_000;
+/** A ping this often; nothing heard for `QUIET_MS` means the connection is gone, whatever the browser thinks. */
+const PING_MS = 20_000;
+const QUIET_MS = 50_000;
+const LOST = "The connection to the shared map was lost. The map is still open here; save it, or join again.";
 
 export function toBase64(bytes: Uint8Array): string {
   let s = "";
@@ -94,11 +108,26 @@ export class SharedMap {
   chat: RoomChatLine[] | null = null;
 
   private session: SyncSession | null = null;
+  /** Bumped when a session is let go, so what an old one still says is not taken for the new one's. */
+  private generation = 0;
   private ws: SocketLike | null = null;
   private welcomed = false;
-  private readonly outbox: SyncOp[] = [];
+  /** Every change the session sent that the server has not confirmed, oldest first — sent or not. */
+  private readonly unacked: SyncOp[] = [];
   private held: RoomServerMessage[] | null = null;
   private lastSeq = 0;
+  /** Sharing: the first welcome is for a room made from this editor's own copy. */
+  private sharing = false;
+  private invite = "";
+  private name: string | undefined;
+  /** From `welcome.resume`; null from a server that cannot resume (before 0.14.0). */
+  private resumeToken: string | null = null;
+  private lostAt = 0;
+  private tries = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private lastHeard = 0;
+  private readonly online = () => { if (this.phase === "reconnecting") this.retryNow(); };
   private listeners = new Set<() => void>();
   private presenceListeners = new Set<() => void>();
   private chatListeners = new Set<(line: RoomChatLine) => void>();
@@ -160,6 +189,7 @@ export class SharedMap {
   /** Share the map in front under `name`. Needs a signed-in session on the client. */
   static async share(deps: SharedDeps, name: string): Promise<SharedMap> {
     const s = new SharedMap(deps);
+    s.sharing = true;
     const session = deps.api.sync.start(s.syncOptions());
     if (!session) throw new Error("A map is being shared already, or no map is open.");
     s.session = session;
@@ -171,7 +201,8 @@ export class SharedMap {
       if (!bytes) throw new Error("The map could not be copied.");
       const { room } = await deps.client.createRoom(name, toBase64(bytes));
       s.room = room;
-      await s.connect(room.invite, deps.client.session());
+      s.invite = room.invite;
+      await s.connect();
       return s;
     } catch (err) {
       s.end(describeError(err));
@@ -183,8 +214,10 @@ export class SharedMap {
   static async join(deps: SharedDeps, invite: string, name: string): Promise<SharedMap> {
     const s = new SharedMap(deps);
     s.held = [];
+    s.invite = invite;
+    s.name = name;
     try {
-      await s.connect(invite, deps.client.session(), name);
+      await s.connect();
       return s;
     } catch (err) {
       s.end(describeError(err));
@@ -193,13 +226,15 @@ export class SharedMap {
   }
 
   private syncOptions() {
+    const generation = this.generation;
     return {
       send: (op: SyncOp) => {
-        if (this.welcomed) this.send({ type: "op", op });
-        else this.outbox.push(op);
+        if (generation !== this.generation) return;
+        this.unacked.push(op);
+        if (this.welcomed && this.phase !== "reconnecting") this.send({ type: "op", op });
       },
       onEnd: (reason: "closed" | "stopped") => {
-        if (this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
+        if (generation === this.generation && this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
       },
       onApplied: (report: { ops: number; dropped: number; lost: number }) => {
         if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
@@ -207,9 +242,22 @@ export class SharedMap {
     };
   }
 
-  /** Open the socket, say hello, and resolve once welcomed (and, joining, once the map is open). */
-  private connect(invite: string, session: string, name?: string): Promise<void> {
+  private hello(): RoomClientMessage {
+    const session = this.deps.client.session();
+    return {
+      type: "hello", protocol: ROOM_PROTOCOL, invite: this.invite,
+      ...(this.name ? { name: this.name } : {}), ...(session ? { session } : {}),
+      ...(this.resumeToken ? { resume: { token: this.resumeToken, seq: this.lastSeq } } : {}),
+    };
+  }
+
+  private openSocket(): SocketLike {
     const make = this.deps.socket ?? ((url: string) => new WebSocket(url) as unknown as SocketLike);
+    return make(this.deps.client.roomSocketUrl());
+  }
+
+  /** Open the socket, say hello, and resolve once welcomed (and, joining, once the map is open). */
+  private connect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const settle = (err?: unknown) => {
@@ -220,19 +268,16 @@ export class SharedMap {
       };
       let ws: SocketLike;
       try {
-        ws = make(this.deps.client.roomSocketUrl());
+        ws = this.openSocket();
       } catch (err) {
         settle(err);
         return;
       }
       this.ws = ws;
-      ws.onopen = () => {
-        const hello: RoomClientMessage = { type: "hello", protocol: ROOM_PROTOCOL, invite, ...(name ? { name } : {}), ...(session ? { session } : {}) };
-        ws.send(JSON.stringify(hello));
-      };
+      ws.onopen = () => ws.send(JSON.stringify(this.hello()));
       ws.onmessage = (ev) => {
-        let msg: RoomServerMessage;
-        try { msg = JSON.parse(String(ev.data)) as RoomServerMessage; } catch { return; }
+        const msg = this.parse(ev.data);
+        if (!msg) return;
         if (msg.type === "welcome") {
           this.welcome(msg).then(() => settle(), (err) => settle(err));
           return;
@@ -243,23 +288,33 @@ export class SharedMap {
       };
       ws.onclose = (ev) => {
         if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
-        if (this.phase !== "ended") this.end("The connection to the shared map was lost. The map is still open here; save it, or join again.");
+        this.dropped(ws);
       };
       ws.onerror = () => { /* onclose follows and says it */ };
     });
   }
 
+  private parse(data: unknown): RoomServerMessage | null {
+    this.lastHeard = Date.now();
+    try { return JSON.parse(String(data)) as RoomServerMessage; } catch { return null; }
+  }
+
   private async welcome(msg: Extract<RoomServerMessage, { type: "welcome" }>) {
     this.you = msg.you;
     this.room = { ...(this.room ?? {}), ...msg.room };
+    if (msg.room.invite) this.invite = msg.room.invite;
+    this.people.clear();
+    this.presence.clear();
     for (const p of msg.people) this.people.set(p.id, p);
     for (const p of msg.presence) this.presence.set(p.from, p.data as Presence);
     this.chat = msg.chat ? [...msg.chat] : null;
-    if (this.session) {
+    this.resumeToken = msg.resume ?? null;
+    if (this.sharing) {
       // The owner: the room was made from this editor's copy, so there is nothing to catch up on.
+      this.sharing = false;
       this.welcomed = true;
       this.lastSeq = msg.snapshot.seq;
-      for (const op of this.outbox.splice(0)) this.send({ type: "op", op });
+      for (const op of this.unacked) this.send({ type: "op", op });
     } else {
       const bytes = fromBase64(msg.snapshot.map);
       const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
@@ -278,9 +333,148 @@ export class SharedMap {
       this.held = null;
       for (const m of held) this.handle(m);
     }
+    this.goLive();
+  }
+
+  private goLive() {
     this.phase = "live";
+    this.lastHeard = Date.now();
+    if (!this.pingTimer) {
+      this.pingTimer = setInterval(() => {
+        if (this.phase !== "live" || !this.ws) return;
+        if (Date.now() - this.lastHeard > QUIET_MS) {
+          // Nothing, not even a pong: the connection is gone even if the browser has not
+          // noticed. 4000 tells a server that does hear it that this was not leaving.
+          const ws = this.ws;
+          ws.onclose = null;
+          try { ws.close(4000, "quiet"); } catch { /* gone */ }
+          this.dropped(ws);
+          return;
+        }
+        this.send({ type: "ping" });
+      }, PING_MS);
+    }
     this.emit();
     this.flushPresence();
+  }
+
+  /* ── Reconnecting ───────────────────────────────────────── */
+
+  /** `ws` closed without anyone ending the room: try to come back, or end if the server cannot take us back. */
+  private dropped(ws: SocketLike) {
+    if (ws !== this.ws || this.phase === "ended") return;
+    this.ws = null;
+    if (this.phase !== "live" || !this.resumeToken || !this.session) { this.end(LOST); return; }
+    this.phase = "reconnecting";
+    this.lostAt = Date.now();
+    this.tries = 0;
+    if (this.presenceTimer) { clearTimeout(this.presenceTimer); this.presenceTimer = null; }
+    if (typeof addEventListener === "function") addEventListener("online", this.online);
+    this.emit();
+    this.retryLater();
+  }
+
+  private retryLater() {
+    const wait = Math.min(RECONNECT_MAX_WAIT_MS, 1000 * 2 ** this.tries++);
+    if (Date.now() + wait - this.lostAt > RECONNECT_FOR_MS) { this.end(LOST); return; }
+    this.retryTimer = setTimeout(() => { this.retryTimer = null; this.reconnect(); }, wait);
+  }
+
+  /** The browser says the network is back: try now rather than at the next turn. */
+  private retryNow() {
+    if (this.ws || !this.retryTimer) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.reconnect();
+  }
+
+  private reconnect() {
+    if (this.phase !== "reconnecting") return;
+    let ws: SocketLike;
+    try {
+      ws = this.openSocket();
+    } catch {
+      this.retryLater();
+      return;
+    }
+    this.ws = ws;
+    let back = false;
+    ws.onopen = () => ws.send(JSON.stringify(this.hello()));
+    ws.onmessage = (ev) => {
+      const msg = this.parse(ev.data);
+      if (!msg) return;
+      if (back) {
+        if (this.held) this.held.push(msg);
+        else this.handle(msg);
+        return;
+      }
+      if (msg.type === "resumed") { back = true; this.resumed(msg); return; }
+      if (msg.type === "welcome") {
+        back = true;
+        this.fresh(msg).catch((err) => this.end(`The shared map could not be opened again (${describeError(err)}). The map is still open here; save it, or join again.`));
+        return;
+      }
+      if (msg.type === "error") this.end(msg.code === "not_found" ? "The shared map ended while you were away. The map is still open here; save it, or join again." : `${msg.message} The map is still open here; save it, or join again.`);
+    };
+    ws.onclose = () => {
+      if (ws !== this.ws || this.phase === "ended") return;
+      if (back) { this.dropped(ws); return; }
+      this.ws = null;
+      this.retryLater();
+    };
+    ws.onerror = () => { /* onclose follows */ };
+  }
+
+  /** Back in time: the same person, and what happened meanwhile. */
+  private resumed(msg: Extract<RoomServerMessage, { type: "resumed" }>) {
+    const session = this.session;
+    if (!session) { this.end(LOST); return; }
+    this.you = msg.you;
+    this.room = { ...(this.room ?? {}), ...msg.room };
+    if (msg.room.invite) this.invite = msg.room.invite;
+    this.people.clear();
+    this.presence.clear();
+    for (const p of msg.people) this.people.set(p.id, p);
+    for (const p of msg.presence) this.presence.set(p.from, p.data as Presence);
+    for (const op of msg.ops) {
+      if (op.from === msg.you.id) {
+        // Ours, taken before the drop: the confirmation that never arrived.
+        if (!this.unacked.length) { this.end("The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again."); return; }
+        this.unacked.shift();
+        session.confirm();
+      } else {
+        session.receive(op.op);
+      }
+      this.lastSeq = op.seq;
+    }
+    // What the server never got goes again, in order.
+    for (const op of this.unacked) this.send({ type: "op", op });
+    if (this.chat !== null) {
+      for (const line of newLines(this.chat, msg.chat)) this.addChat(line);
+    }
+    this.deps.api.ui.status("Reconnected to the shared map.");
+    this.goLive();
+  }
+
+  /**
+   * Back too late: the server no longer has what happened meanwhile and sent the map as
+   * it is now. The map as this editor had it stays open in its tab, out of the shared
+   * session; the fresh copy opens beside it.
+   */
+  private async fresh(msg: Extract<RoomServerMessage, { type: "welcome" }>) {
+    const unsent = this.unacked.length;
+    this.generation++;
+    const old = this.session;
+    this.session = null;
+    this.unacked.length = 0;
+    old?.stop();
+    this.held = [];
+    await this.welcome(msg);
+    this.deps.api.ui.toast({
+      kind: "warn", title: "Shared map opened again",
+      detail: `You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab${unsent ? `, with ${unsent} change${unsent === 1 ? "" : "s"} the others never got` : ""}.`,
+      ttl: 0,
+    });
   }
 
   /* ── Messages ───────────────────────────────────────────── */
@@ -298,6 +492,7 @@ export class SharedMap {
         return;
       case "ack":
         this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.unacked.shift();
         this.session?.confirm();
         return;
       case "joined":
@@ -309,25 +504,33 @@ export class SharedMap {
         const who = this.people.get(msg.person);
         this.people.delete(msg.person);
         this.presence.delete(msg.person);
-        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : "left"} the shared map.`);
+        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : msg.reason === "lost" ? "lost the connection to" : "left"} the shared map.`);
         this.emit();
         return;
       }
+      case "away": {
+        const who = this.people.get(msg.person);
+        if (who) this.people.set(who.id, { ...who, away: true });
+        this.presence.delete(msg.person);
+        this.emit();
+        return;
+      }
+      case "back":
+        this.people.set(msg.person.id, msg.person);
+        this.emit();
+        return;
       case "presence":
         this.presence.set(msg.from, msg.data as Presence);
         this.emit(true);
         return;
-      case "chat": {
-        const chat = this.chat ?? (this.chat = []);
-        chat.push(msg.line);
-        if (chat.length > CHAT_KEEP) chat.splice(0, chat.length - CHAT_KEEP);
-        for (const fn of [...this.chatListeners]) { try { fn(msg.line); } catch (err) { console.error(err); } }
+      case "chat":
+        this.addChat(msg.line);
         return;
-      }
       case "snapshot-please":
         void this.answerCopy(0);
         return;
       case "link":
+        this.invite = msg.invite;
         if (this.room) this.room = { ...this.room, invite: msg.invite };
         this.emit();
         return;
@@ -344,6 +547,13 @@ export class SharedMap {
       default:
         return;
     }
+  }
+
+  private addChat(line: RoomChatLine) {
+    const chat = this.chat ?? (this.chat = []);
+    chat.push(line);
+    if (chat.length > CHAT_KEEP) chat.splice(0, chat.length - CHAT_KEEP);
+    for (const fn of [...this.chatListeners]) { try { fn(line); } catch (err) { console.error(err); } }
   }
 
   /** The server wants a fresh copy of the map for people joining. Only a quiet moment gives one that matches a point in its order. */
@@ -392,6 +602,9 @@ export class SharedMap {
     this.phase = "ended";
     this.ending = message;
     if (this.presenceTimer) { clearTimeout(this.presenceTimer); this.presenceTimer = null; }
+    if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
+    if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
+    if (typeof removeEventListener === "function") removeEventListener("online", this.online);
     const ws = this.ws;
     this.ws = null;
     if (ws) {
@@ -406,4 +619,13 @@ export class SharedMap {
     this.listeners.clear();
     this.presenceListeners.clear();
   }
+}
+
+/** The lines in `theirs` (the server's, oldest first) after the last one `ours` has. */
+export function newLines(ours: RoomChatLine[], theirs: RoomChatLine[]): RoomChatLine[] {
+  const last = ours.at(-1);
+  if (!last) return theirs;
+  const same = (l: RoomChatLine) => l.from === last.from && l.at === last.at && l.text === last.text;
+  for (let i = theirs.length - 1; i >= 0; i--) if (same(theirs[i]!)) return theirs.slice(i + 1);
+  return theirs.filter((l) => l.at > last.at);
 }

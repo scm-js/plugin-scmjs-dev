@@ -102,8 +102,9 @@ shows what is used.
 - A room lives in the server's memory. It ends when the person who shared it stops, half an
   hour after the last person leaves, or when the server restarts — everyone keeps the map
   and can save it. Up to eight people per map, three shared maps per account. If the
-  connection drops, the editor leaves the room and says so; join again from the link to
-  carry on.
+  connection drops, the editor reconnects on its own for up to two minutes and keeps your
+  changes meanwhile; if the map has moved on too far for it to catch up, the shared map
+  opens again in a new tab and your copy stays open beside it.
 
 ## The AI
 

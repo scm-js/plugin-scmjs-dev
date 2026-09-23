@@ -47,9 +47,9 @@ export function installShare(opts: ShareOptions): () => void {
   const syncStatus = () => {
     if (!shared || shared.phase === "ended") { status?.remove(); status = null; return; }
     const n = shared.people.size;
-    const text = shared.phase === "connecting" ? "Sharing…" : `Shared · ${n} ${n === 1 ? "person" : "people"}`;
-    const lines = [...shared.people.values()].map((p) => `${p.name}${p.id === shared!.you?.id ? " (you)" : ""}${p.owner ? " · shared the map" : ""}${doing(shared!.presence.get(p.id)) ? ` · ${doing(shared!.presence.get(p.id))}` : ""}`);
-    const spec = { text, title: `${shared.room?.name ?? "Shared map"}\n${lines.join("\n")}\nClick to see the link and who is in.`, busy: shared.phase === "connecting", onClick: () => { openShareDialog(ctx, controls); } };
+    const text = shared.phase === "connecting" ? "Sharing…" : shared.phase === "reconnecting" ? "Reconnecting…" : `Shared · ${n} ${n === 1 ? "person" : "people"}`;
+    const lines = [...shared.people.values()].map((p) => `${p.name}${p.id === shared!.you?.id ? " (you)" : ""}${p.owner ? " · shared the map" : ""}${p.away ? " · connection lost" : doing(shared!.presence.get(p.id)) ? ` · ${doing(shared!.presence.get(p.id))}` : ""}`);
+    const spec = { text, title: `${shared.room?.name ?? "Shared map"}\n${lines.join("\n")}\nClick to see the link and who is in.`, busy: shared.phase === "connecting" || shared.phase === "reconnecting", onClick: () => { openShareDialog(ctx, controls); } };
     if (status) status.set(spec);
     else status = api.ui.statusItem(spec);
   };

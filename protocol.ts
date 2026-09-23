@@ -490,6 +490,14 @@ export interface CheckoutResponse {
  * for a fresh copy (`snapshot-please`). Rooms live in the server's memory: one ends when
  * its owner ends it, when nobody has been in it for a while, or when the server restarts
  * — everyone still has the map in their editor and can save it.
+ *
+ * A connection that drops without closing (a network change, a laptop lid) leaves its
+ * person in the room as *away* for a couple of minutes. A `hello` carrying the `resume`
+ * token from its `welcome` and the last seq it saw comes back as the same person: the
+ * server answers `resumed` with every op since, the editor's own among them (those count
+ * as confirmations). When the ops it missed are no longer kept, the answer is an ordinary
+ * `welcome` instead — a fresh copy. A server before 0.14.0 ignores `resume` and always
+ * answers `welcome`.
  */
 
 /** Bumped when a message changes shape in a way the other side would misread. */
@@ -530,6 +538,8 @@ export interface RoomPerson {
   /** 0–7, which of the editor's player colours to draw this person in. */
   color: number;
   owner: boolean;
+  /** The connection dropped and the person may come back; absent while they are here. */
+  away?: boolean;
 }
 
 /** One line of a room's chat. */
@@ -553,7 +563,11 @@ export interface RoomOp {
 
 export type RoomClientMessage =
   /** First, and only once. `session` makes the owner the owner; anyone else gives a `name`. */
-  | { type: "hello"; protocol: number; invite: string; name?: string; session?: string }
+  | {
+    type: "hello"; protocol: number; invite: string; name?: string; session?: string;
+    /** Coming back after a drop: `welcome.resume`, and the last `seq` this editor saw (an `op` or an `ack`). */
+    resume?: { token: string; seq: number };
+  }
   | { type: "op"; op: unknown }
   /** Where this person is and what they are doing; relayed as it is, the last one kept for people joining. */
   | { type: "presence"; data: unknown }
@@ -591,12 +605,32 @@ export type RoomServerMessage =
      * before 0.13.0, which has no chat — an editor offers it only when this is there.
      */
     chat?: RoomChatLine[];
+    /** What to send in `hello.resume` after a drop. Absent from a server before 0.14.0. */
+    resume?: string;
+  }
+  /**
+   * The answer to a `hello` with `resume` when every op since its `seq` is still kept:
+   * the same person as before, and what happened while away. `ops` include this
+   * editor's own (each confirms its oldest unconfirmed change); anything it sent that is
+   * not among them never arrived and is to be sent again.
+   */
+  | {
+    type: "resumed";
+    you: RoomPerson;
+    room: RoomInfo & { invite?: string };
+    people: RoomPerson[];
+    ops: RoomOp[];
+    presence: { from: string; data: unknown }[];
+    chat: RoomChatLine[];
   }
   | ({ type: "op" } & RoomOp)
   /** The oldest op this connection sent is in, as `seq`. */
   | { type: "ack"; seq: number }
   | { type: "joined"; person: RoomPerson }
   | { type: "left"; person: string; reason: RoomLeaveReason }
+  /** Their connection dropped; they may come back (`back`) or, after a while, leave (`left`, `"lost"`). */
+  | { type: "away"; person: string }
+  | { type: "back"; person: RoomPerson }
   | { type: "presence"; from: string; data: unknown }
   | { type: "chat"; line: RoomChatLine }
   | { type: "snapshot-please" }
