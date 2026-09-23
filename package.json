@@ -26,7 +26,7 @@
     "evaluate": "node scripts/evaluate.mjs"
   },
   "devDependencies": {
-    "@scm-js/plugin-api": "^1.34.0",
+    "@scm-js/plugin-api": "^1.35.0",
     "esbuild": "^0.28.2",
     "scmjs-plugin-trigscript": "https://github.com/scm-js/plugin-trigscript/archive/refs/tags/v3.10.4.tar.gz",
     "typescript": "~6.0.3",
