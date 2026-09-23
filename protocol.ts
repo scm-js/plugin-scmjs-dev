@@ -39,7 +39,7 @@ export type RecipeName =
   | "map-plan"
   /** A layout for one area of an existing map. */
   | "region-plan"
-  /** A trigger script (the editor's TypeScript-subset language) from a description. */
+  /** A TrigScript (TypeScript the editor runs to record triggers) from a description. */
   | "triggers"
   /** Plain-language explanation of triggers given as the editor's text format. */
   | "explain-triggers"
@@ -189,10 +189,12 @@ export type ErrorCode =
   | "refused"
   | "upstream"
   | "internal"
-  /** No map or revision by that id on the account. */
+  /** No map or revision by that id on the account; no shared map behind that link. */
   | "not_found"
   /** The upload would take the account past its storage cap. */
-  | "storage_full";
+  | "storage_full"
+  /** A shared map has as many people as it takes, or the account shares as many maps as it may. */
+  | "room_full";
 
 export interface ErrorBody {
   error: {
@@ -235,13 +237,15 @@ export interface AccountsInfo {
   accountUrl: string;
   /** Map storage (`/v1/maps`) is on: a signed-in account can keep maps and their revisions here. */
   maps: boolean;
+  /** Shared maps (`/v1/rooms`) are on: a signed-in account can share a map for others to edit with it. */
+  rooms?: boolean;
 }
 
 export interface CreditPack {
   id: string;
   /** What it costs. */
   priceUsd: number;
-  /** What lands on the balance — the price less the payment fee, when sold at cost. */
+  /** What lands on the balance — the price less the payment fee and the server's margin. */
   creditUsd: number;
 }
 
@@ -414,6 +418,123 @@ export interface CheckoutResponse {
   /** The payment page, for a new tab. */
   url: string;
 }
+
+/* ── Shared maps ────────────────────────────────────────── */
+
+/*
+ * A *room* is one map several editors change together. A signed-in account opens one with
+ * `POST /v1/rooms` (the map as it stands) and gets an *invite*: a code anyone may use —
+ * signed in or not — to look the room up (`GET /v1/rooms/:invite`) and join it over the
+ * WebSocket at `/v1/rooms/socket`. The first message on the socket is a `hello`.
+ *
+ * The server never opens the map. It numbers every change (`op`) it is sent, confirms it
+ * to the sender (`ack`), and relays it to everyone else in the same order; the editors do
+ * the rest (scm-js's `api.sync`). It keeps the latest copy of the map (`snapshot`) and the
+ * changes since, which is what a person joining is given, and now and then asks someone
+ * for a fresh copy (`snapshot-please`). Rooms live in the server's memory: one ends when
+ * its owner ends it, when nobody has been in it for a while, or when the server restarts
+ * — everyone still has the map in their editor and can save it.
+ */
+
+/** Bumped when a message changes shape in a way the other side would misread. */
+export const ROOM_PROTOCOL = 1;
+
+export interface RoomInfo {
+  id: string;
+  /** The map's name as the owner shared it. */
+  name: string;
+  /** The owner's display name. */
+  owner: string | null;
+  /** People in the room now. */
+  people: number;
+  maxPeople: number;
+  createdAt: string;
+}
+
+/** `POST /v1/rooms` — the map as base64 (a whole `.scx` / `.scm`), and a name for it. */
+export interface RoomCreateRequest {
+  name: string;
+  map: string;
+}
+
+/** `POST /v1/rooms` — the room and its invite, for the owner. */
+export interface RoomCreateResponse {
+  room: RoomInfo & { invite: string };
+}
+
+/** `GET /v1/rooms/:invite` — what a link leads to, before joining. */
+export interface RoomLookupResponse {
+  room: RoomInfo;
+}
+
+export interface RoomPerson {
+  /** This connection's id in the room; the same person in two tabs is two. */
+  id: string;
+  name: string;
+  /** 0–7, which of the editor's player colours to draw this person in. */
+  color: number;
+  owner: boolean;
+}
+
+export interface RoomOp {
+  seq: number;
+  /** A `RoomPerson.id`. */
+  from: string;
+  op: unknown;
+}
+
+export type RoomClientMessage =
+  /** First, and only once. `session` makes the owner the owner; anyone else gives a `name`. */
+  | { type: "hello"; protocol: number; invite: string; name?: string; session?: string }
+  | { type: "op"; op: unknown }
+  /** Where this person is and what they are doing; relayed as it is, the last one kept for people joining. */
+  | { type: "presence"; data: unknown }
+  /** A whole map, after every op up to `seq` — only in answer to `snapshot-please`, with nothing of one's own unconfirmed. */
+  | { type: "snapshot"; seq: number; map: string }
+  /** Owner only: send someone out of the room. */
+  | { type: "kick"; person: string }
+  /** Owner only: a new invite; the old one stops working, and nobody in the room is sent out. */
+  | { type: "relink" }
+  /** Owner only: end the room for everyone. */
+  | { type: "end" }
+  | { type: "ping" };
+
+export type RoomLeaveReason = "left" | "removed" | "lost";
+export type RoomEndReason = "owner" | "removed" | "idle" | "server";
+
+export type RoomServerMessage =
+  | {
+    type: "welcome";
+    protocol: number;
+    you: RoomPerson;
+    /** `invite` only for the owner. */
+    room: RoomInfo & { invite?: string };
+    people: RoomPerson[];
+    /** The map to open: base64 of the file, as it was after op `seq`. */
+    snapshot: { seq: number; map: string };
+    /** Every op after the snapshot, to apply in order. */
+    ops: RoomOp[];
+    /** The last presence each person sent. */
+    presence: { from: string; data: unknown }[];
+  }
+  | ({ type: "op" } & RoomOp)
+  /** The oldest op this connection sent is in, as `seq`. */
+  | { type: "ack"; seq: number }
+  | { type: "joined"; person: RoomPerson }
+  | { type: "left"; person: string; reason: RoomLeaveReason }
+  | { type: "presence"; from: string; data: unknown }
+  | { type: "snapshot-please" }
+  /** Owner only: the room's new invite. */
+  | { type: "link"; invite: string }
+  /** The room is over for this connection; the socket closes after it. */
+  | { type: "ended"; reason: RoomEndReason }
+  /**
+   * Something this connection sent was not taken. `about: "op"` means a change was
+   * refused — the other editors will never see it, so this editor's copy no longer matches
+   * theirs and it should leave the room.
+   */
+  | { type: "error"; code: ErrorCode; message: string; about?: "op" | "snapshot" }
+  | { type: "pong" };
 
 /* ── Admin ──────────────────────────────────────────────── */
 
@@ -1056,7 +1177,7 @@ export interface ImageInput {
 
 export interface TriggersInput {
   prompt: string;
-  /** The editor's generated `.d.ts` for this map: every unit, location, switch and player by name. */
+  /** The editor's generated `.d.ts` for this map (the compact variant): the library, every unit, location, switch and player by name. */
   declarations: string;
   /** The map's current script, when it has one; the model extends or edits it. */
   script?: string;
@@ -1223,3 +1344,4 @@ export interface AgentOutput {
   content: AgentContent[];
   stopReason: "end_turn" | "tool_use" | "max_tokens" | "refusal";
 }
+

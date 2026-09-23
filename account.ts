@@ -50,11 +50,14 @@ export interface Settings {
   dockAssistant: boolean;
   /** The map view follows the assistant's work: it glides to where each call lands and zooms out to fit. Off the moment the user moves the view during a turn. */
   followMap: boolean;
+  /** The name last typed to join a shared map, offered the next time. */
+  shareName: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
   ai: true, quality: "standard", showThinking: true, maxRounds: 24, ceilingUsd: 0.5, scenarioCeilingUsd: 1.5, attachView: false, dockAssistant: false, followMap: true,
+  shareName: "",
 };
 
 const KEY = "settings";

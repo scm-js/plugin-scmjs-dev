@@ -13,6 +13,10 @@
  *   among them the one tick that turns the AI features off.
  * - **Map storage** (`maps.ts`): maps kept on the account with numbered revisions and
  *   notes, opened back into the editor.
+ * - **Shared maps** (`share/`): Account ▸ Share this Map… puts the open map in a room on
+ *   the server and gives a link; anyone who opens it edits the map with you at the same
+ *   time, and everyone's pointer shows on the map. The editor's `api.sync` keeps the
+ *   copies the same; the server only orders and relays the changes.
  * - The **AI features** (`ai/`): Tools ▸ AI — a whole scenario from a sentence, a map
  *   laid out from a prompt, an area redone, triggers written and explained, names,
  *   briefings, a review, string rewrites, and an assistant beside the map that reads
@@ -36,6 +40,7 @@ import { registerOptionsPage } from "./ai/options";
 import { formatUsd, ScmjsClient } from "./client";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
+import { installShare } from "./share/install";
 import type { Ctx } from "./ui";
 
 export const SERVICE_NAME = "account";
@@ -95,6 +100,9 @@ export function activate(api: PluginApi) {
   api.menu.add("File", { label: "Open from scmjs.dev…", icon: "plugin", after: "Open Recent", command: "maps" });
   api.menu.add("File", { label: "Save to scmjs.dev…", icon: "plugin", after: "Save Copy As…", command: "save" });
 
+  /* Shared maps: two items at the end of the Account menu, the status cell and the pointers while one is shared. */
+  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
+
   /* The status bar cell. */
   let status: StatusItemHandle | null = null;
   const statusText = () => {
@@ -145,5 +153,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { ai?.(); status?.remove(); provided.dispose(); };
+  return () => { ai?.(); share(); status?.remove(); provided.dispose(); };
 }

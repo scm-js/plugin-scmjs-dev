@@ -4,7 +4,7 @@ A plugin for [scmJS](https://github.com/jeany55/scm-js), the browser-based StarC
 Brood War map editor, and one the editor ships with. It puts your
 [scmjs.dev](https://scmjs.dev) account in the editor — sign in from the **Account** menu
 or the status bar, see your balance, keep maps on your account with numbered revisions
-and notes — and the AI that comes with the account: a whole scenario from a sentence, a
+and notes, share the map you have open so others edit it with you at the same time — and the AI that comes with the account: a whole scenario from a sentence, a
 map laid out from a description, an area redone, triggers written and explained, a name
 and a briefing, a review, string rewrites, and an assistant beside the map that reads and
 edits everything in it with you.
@@ -57,6 +57,32 @@ into Manage Plugins and press **Add**. To pin a version, add a ref:
 Maps are kept on a signed-in account; a trial cannot store them. What an account may
 keep is the server's cap (250 MB on scmjs.dev, and a role can have more); the dialog
 shows what is used.
+
+## Editing a map together
+
+- **Account ▸ Share this Map…** (signed in) copies the open map to a *room* on scmjs.dev
+  and gives a link. The Share dialog then shows the link with a Copy button, who is in
+  (each in a player colour, with the dialog they have open), and for the person who shared
+  it: **Remove** beside each person, **New link** (the old link stops working, nobody is
+  sent out) and **Stop sharing** (ends it for everyone).
+- **Joining** takes only the link: opened in a browser, the editor starts with the Join
+  dialog up; in the desktop editor, paste it into **Account ▸ Join a Shared Map…**. The
+  dialog says whose map it is and how many people are in it; type a name and the map
+  opens beside what you have open.
+- While shared, everyone's changes reach everyone as they are made — terrain, doodads,
+  units, sprites, locations, fog, the settings and trigger dialogs, strings, sounds, and a
+  resize or tileset change as the whole map. Each person's pointer and the edge of their
+  view are drawn over the map (View ▸ *People on the shared map* hides them), and a cell in
+  the status bar says who is in.
+- The editor keeps the copies the same through its `api.sync`: other people's changes wait
+  while you hold the mouse on the map or have a map dialog open, the later change to a tile
+  wins, a change to a unit someone deleted is dropped, and Ctrl+Z undoes your own changes
+  only. The server orders and relays the changes and never opens the map.
+- A room lives in the server's memory. It ends when the person who shared it stops, half an
+  hour after the last person leaves, or when the server restarts — everyone keeps the map
+  and can save it. Up to eight people per map, three shared maps per account. If the
+  connection drops, the editor leaves the room and says so; join again from the link to
+  carry on.
 
 ## The AI
 
@@ -280,9 +306,10 @@ api.services.watch<ScmjsAccountService>("scmjs-dev.account", (account) => {
 ## What is stored, and where
 
 In this browser (Preferences ▸ Browser storage, under the plugin): the session, a random
-device id the one free trial is keyed by, the ticks and the AI options. On the server:
-your provider id and display name, a ledger of what your calls cost, and the maps you
-stored. Nothing else — never a prompt, never a card. The account page on scmjs.dev
+device id the one free trial is keyed by, the ticks and the AI options, and the name you
+last joined a shared map under. On the server: your provider id and display name, a ledger
+of what your calls cost, and the maps you stored — and, only while a map is shared, a copy
+of it and the changes since in the server's memory. Nothing else — never a prompt, never a card. The account page on scmjs.dev
 deletes all of it.
 
 ## Development
@@ -296,7 +323,9 @@ npm run build      # dist/plugin.js, the bundle the editor loads
 
 The account half: `client.ts` is the typed client for the server's account, map and
 recipe routes, `account.ts` the session, the settings and the state every surface reads,
-`dialogs.ts` the Account dialog, `maps.ts` the two map dialogs, `protocol.ts` the wire
+`dialogs.ts` the Account dialog, `maps.ts` the two map dialogs, `share/` shared maps (`shared.ts`
+the room's socket joined to the editor's sync session, `presence.ts` the pointers, `link.ts`
+invite links, `dialogs.ts` Share and Join, `install.ts` the menu, status cell and overlay), `protocol.ts` the wire
 shapes copied from the server's `src/protocol.ts` (keep them identical). The AI half is
 `ai/`: `install.ts` puts the AI contributions in and takes them out; `options.ts` is the
 Options dialog; `ui.ts` the runner every AI dialog shares; `facts.ts` and `reference.ts`

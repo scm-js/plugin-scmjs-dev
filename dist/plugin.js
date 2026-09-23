@@ -2,6 +2,7 @@
 
 // protocol.ts
 var PROTOCOL_VERSION = 1;
+var ROOM_PROTOCOL = 1;
 var MAP_PLAN_PROMPT_MAX = 12e3;
 var SYMMETRY_MODES = ["none", "mirror-x", "mirror-y", "rot180", "rot90", "diag", "antidiag", "quad", "octo"];
 
@@ -35,6 +36,8 @@ function describeError(err) {
       case "task_ceiling":
         return err.message;
       case "storage_full":
+        return err.message;
+      case "room_full":
         return err.message;
       case "not_found":
         return err.message;
@@ -210,6 +213,23 @@ var ScmjsClient = class {
   checkout(pack) {
     return this.request("/v1/billing/checkout", { method: "POST", json: { pack } });
   }
+  /* ── Shared maps ──────────────────────────────────────── */
+  /** `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and its invite. */
+  createRoom(name, map) {
+    return this.request("/v1/rooms", { method: "POST", json: { name, map } });
+  }
+  /** `GET /v1/rooms/:invite`: what an invite leads to. */
+  lookupRoom(invite, signal) {
+    return this.request(`/v1/rooms/${encodeURIComponent(invite)}`, { signal });
+  }
+  /** The rooms' WebSocket address: the server's, as `ws:` / `wss:`. */
+  roomSocketUrl() {
+    return `${this.base().replace(/^http/, "ws")}/v1/rooms/socket`;
+  }
+  /** The session the server issued, for a room's hello (a WebSocket carries no header). */
+  session() {
+    return this.credentials().session.trim();
+  }
   /* ── Maps ─────────────────────────────────────────────── */
   storage() {
     return this.request("/v1/storage");
@@ -371,7 +391,8 @@ var DEFAULT_SETTINGS = {
   scenarioCeilingUsd: 1.5,
   attachView: false,
   dockAssistant: false,
-  followMap: true
+  followMap: true,
+  shareName: ""
 };
 var KEY = "settings";
 function newDeviceId() {
@@ -1534,20 +1555,20 @@ function spanNodes(spans) {
   });
 }
 function renderMarkdown(md) {
-  const root = document.createElement("div");
-  root.className = "ai-md";
+  const root2 = document.createElement("div");
+  root2.className = "ai-md";
   for (const b of parseBlocks(md)) {
     switch (b.kind) {
       case "p": {
         const p = document.createElement("p");
         p.append(...spanNodes(parseSpans(b.text)));
-        root.append(p);
+        root2.append(p);
         break;
       }
       case "h": {
         const h3 = document.createElement(`h${Math.min(6, b.level + 2)}`);
         h3.append(...spanNodes(parseSpans(b.text)));
-        root.append(h3);
+        root2.append(h3);
         break;
       }
       case "ul":
@@ -1558,7 +1579,7 @@ function renderMarkdown(md) {
           li.append(...spanNodes(parseSpans(item)));
           list2.append(li);
         }
-        root.append(list2);
+        root2.append(list2);
         break;
       }
       case "code": {
@@ -1567,18 +1588,18 @@ function renderMarkdown(md) {
         code.textContent = b.text;
         if (b.lang) code.dataset.lang = b.lang;
         pre.append(code);
-        root.append(pre);
+        root2.append(pre);
         break;
       }
       case "quote": {
         const q2 = document.createElement("blockquote");
         q2.append(...spanNodes(parseSpans(b.text)));
-        root.append(q2);
+        root2.append(q2);
         break;
       }
     }
   }
-  return root;
+  return root2;
 }
 
 // ai/ramps.ts
@@ -5461,9 +5482,9 @@ function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
   const groups = [...shapes.values()];
   const line = (g, width) => {
     const r = g.first;
-    const where = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
+    const where2 = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
     const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
-    return `${where} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
+    return `${where2} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
   };
   const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
   for (const width of [400, 240, 160]) {
@@ -6586,9 +6607,9 @@ function styled(body) {
   const style = document.createElement("style");
   style.textContent = STYLE;
   style.dataset.ai = String(++styleCount);
-  const root = h("div", { className: "ai" });
-  body.append(style, root);
-  return root;
+  const root2 = h("div", { className: "ai" });
+  body.append(style, root2);
+  return root2;
 }
 function chips(labels, pick) {
   return h("div", { className: "ai-chips" }, ...labels.map((l) => h("button", { type: "button", className: "ai-chip", onClick: () => pick(l) }, l)));
@@ -6830,7 +6851,7 @@ async function openRegion(ctx, preset) {
     size: "lg",
     tall: true,
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const promptField = textarea({ placeholder: 'What should this area become? ("a lake with a bridge", "a plateau with one ramp to the south", "a forest with a path through it")', rows: 3 });
       promptField.addEventListener("input", () => {
@@ -6903,7 +6924,7 @@ async function openRegion(ctx, preset) {
         runner.idle(`Applied: ${summarizeRender(rendered)}. Edit \u25B8 Undo takes it back.`);
         api.ui.status(`AI: ${summarizeRender(rendered)}`);
       };
-      root.append(
+      root2.append(
         w.group(
           "What to make of it",
           promptField,
@@ -8133,8 +8154,8 @@ function openAssistant(ctx, store) {
     dock: dock ? "right" : "float",
     grow: true,
     mount(body) {
-      const root = styled(body);
-      root.classList.add("ai-assistant");
+      const root2 = styled(body);
+      root2.classList.add("ai-assistant");
       const intent = intentOverlay(api);
       const phaseLabel = h("span", { className: "ai-phase" }, "Ready");
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
@@ -8389,7 +8410,7 @@ function openAssistant(ctx, store) {
           running.abort();
         }
       });
-      root.addEventListener("keydown", (e) => {
+      root2.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && running && e.target !== input) {
           e.preventDefault();
           running.abort();
@@ -8685,7 +8706,7 @@ function openAssistant(ctx, store) {
           input.focus();
         }
       };
-      append(root, [
+      append(root2, [
         strip,
         h("div", { className: "ai-chat-wrap" }, chat, jump),
         context,
@@ -8732,7 +8753,7 @@ function openDescribe(ctx) {
     title: "Name and Describe",
     size: "md",
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const info = api.document.info();
       const promptField = textarea({ placeholder: 'Tone, length, language \u2014 or leave it to the facts. ("short and grim", "in German", "mention the gold expansion")', rows: 2 });
@@ -8768,7 +8789,7 @@ function openDescribe(ctx) {
           list2.append(row);
         });
       };
-      root.append(
+      root2.append(
         current,
         promptField,
         h("div", { className: "ai-btns" }, w.button("Suggest", { primary: true, onClick: async () => {
@@ -8792,7 +8813,7 @@ function openBriefing(ctx) {
     title: "Write Briefing",
     size: "md",
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const promptField = textarea({ placeholder: 'Who is speaking, what is at stake, how long \u2014 or leave it to the triggers and the map. ("a terse Terran commander", "three lines", "in Spanish")', rows: 2 });
       const objectives = textarea({ rows: 4, placeholder: "Objectives, one per line." });
@@ -8832,7 +8853,7 @@ function openBriefing(ctx) {
         lines.value = out.lines.join("\n");
         writeButton.disabled = false;
       };
-      root.append(
+      root2.append(
         promptField,
         h("div", { className: "ai-btns" }, w.button("Write", { primary: true, onClick: async () => {
           const r = await runRecipe(ctx, runner, "briefing", { facts: mapFacts(api), prompt: promptField.value.trim() || void 0 });
@@ -8861,7 +8882,7 @@ function openExplain(ctx) {
     size: "lg",
     tall: true,
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const which = w.select([
         { value: "triggers", label: `Triggers (${list2.length})` },
@@ -8900,7 +8921,7 @@ function openExplain(ctx) {
           out.replaceChildren(renderMarkdown(text));
         }
       };
-      root.append(
+      root2.append(
         w.group(
           "Which",
           w.form([
@@ -8936,7 +8957,7 @@ function openReview(ctx) {
     size: "lg",
     tall: true,
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const info = api.document.info();
       const promptField = textarea({ placeholder: "What to look at \u2014 or leave empty for a general review.", rows: 2 });
@@ -8979,7 +9000,7 @@ function openReview(ctx) {
         summary.replaceChildren(renderMarkdown(r.output.summary));
         showFindings(r.output.findings);
       };
-      root.append(
+      root2.append(
         w.group(
           "What to look at",
           promptField,
@@ -9054,7 +9075,7 @@ function openGenerate(ctx) {
     size: "lg",
     tall: true,
     mount(body, dialog) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const promptField = textarea({ placeholder: "What kind of map? Say how many players, the feel of the terrain, where the bases go, anything the layout should have.", rows: 4 });
       promptField.addEventListener("input", () => {
@@ -9216,7 +9237,7 @@ Change this: ${state.refine.trim()}` : state.prompt,
         runner.idle(`Applied: ${summarizeRender(rendered)}. Edit \u25B8 Undo takes it back.`);
         api.ui.status(`AI: ${summarizeRender(rendered)}`);
       };
-      root.append(
+      root2.append(
         w.group(
           "What to make",
           promptField,
@@ -9335,7 +9356,7 @@ function openScenario(ctx, presetPrompt) {
     size: "lg",
     tall: true,
     mount(body, dialog) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const askSummary = h("summary", null, "What to make");
       const askBox = h("details", { className: "ai-fold", open: true }, askSummary);
@@ -9950,7 +9971,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         h("div", { className: "ai-btns" }, designButton)
       );
       askBox.append(askBody);
-      root.append(
+      root2.append(
         askBox,
         runner.el,
         designBox,
@@ -9991,7 +10012,7 @@ function openStrings(ctx) {
     size: "xl",
     tall: true,
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const instruction = textarea({ placeholder: "What to do with the strings.", rows: 2 });
       const scope = w.select([
@@ -10064,7 +10085,7 @@ function openStrings(ctx) {
         const n2 = proposed.filter((p) => p.after !== p.before).length;
         runner.idle(`${n2} of ${strings.length} strings would change. Untick any to keep, then Apply.`);
       };
-      root.append(
+      root2.append(
         w.group(
           "Instruction",
           instruction,
@@ -10102,7 +10123,7 @@ function openTriggers(ctx) {
     size: "lg",
     tall: true,
     mount(body) {
-      const root = styled(body);
+      const root2 = styled(body);
       const runner = new Runner(ctx);
       const existing = bridge.state();
       const hasScript = !!existing?.source;
@@ -10191,7 +10212,7 @@ function openTriggers(ctx) {
           api.ui.status(`AI: built ${r.block.count} triggers from the script.`);
         } else runner.idle("Not built: the script has errors.");
       };
-      root.append(
+      root2.append(
         w.group(
           "What the triggers should do",
           promptField,
@@ -10226,7 +10247,7 @@ function registerOptionsPage(deps) {
   const w = api.ui.widgets;
   api.ui.preferencesPage({
     mount(body, page) {
-      const root = styled(body);
+      const root2 = styled(body);
       const s = store.get();
       const balance = h("div", { className: "ai-hint" }, account.summary());
       const offAccount = account.onChange(() => {
@@ -10264,7 +10285,7 @@ function registerOptionsPage(deps) {
       const followBox2 = w.checkbox("Follow the assistant's work around the map", { value: s.followMap, onChange: (v) => {
         store.set({ followMap: v });
       } });
-      root.append(
+      root2.append(
         w.group(
           "Account",
           h("div", { className: "ai-btns" }, accountBtn, balance),
@@ -10425,8 +10446,8 @@ function installAi(deps) {
     label: (c2) => c2.markedArea ? "Ask AI about this area\u2026" : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "Ask AI about the selection\u2026" : "Ask AI about this spot\u2026",
     enabled: open,
     run: (c2) => {
-      const where = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
-      showAssistant().ask(`About ${where}: `, false);
+      const where2 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
+      showAssistant().ask(`About ${where2}: `, false);
     }
   }));
   out.push(api.hotkeys.add("Ctrl+Shift+A", { command: "assistant" }));
@@ -10507,9 +10528,9 @@ var STYLE2 = `
 function styled2(body) {
   const style = document.createElement("style");
   style.textContent = STYLE2;
-  const root = h2("div", { className: "sd" });
-  body.append(style, root);
-  return root;
+  const root2 = h2("div", { className: "sd" });
+  body.append(style, root2);
+  return root2;
 }
 function textarea2(props) {
   const el = h2("textarea", { placeholder: props.placeholder ?? "", rows: props.rows ?? 3 });
@@ -10557,7 +10578,7 @@ function openAccountDialog(ctx) {
     title: "scmjs.dev Account",
     size: "md",
     mount(body, dialog) {
-      const root = styled2(body);
+      const root2 = styled2(body);
       const status = w.statusLine({ text: "" });
       const say = (text, kind) => status.set(text, kind);
       const head = h2("div", null);
@@ -10680,7 +10701,7 @@ function openAccountDialog(ctx) {
           account.overridden() ? h2("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} \u2014 a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null
         )
       );
-      root.append(
+      root2.append(
         head,
         buttons,
         storageBox,
@@ -10751,11 +10772,11 @@ async function thumbnailOf(ctx) {
     return null;
   }
 }
-function needsAccount(ctx, root, dialog) {
+function needsAccount(ctx, root2, dialog) {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
   const w = ctx.api.ui.widgets;
-  root.append(
+  root2.append(
     h2("div", { className: "sd-hint" }, s.kind === "trial" ? "Maps are kept on a signed-in account; a trial cannot store them." : "Sign in to scmjs.dev to keep maps on your account."),
     h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
       dialog.close();
@@ -10776,8 +10797,8 @@ function openMapsDialog(ctx, link) {
     size: "lg",
     tall: true,
     mount(body, dialog) {
-      const root = styled2(body);
-      if (needsAccount(ctx, root, dialog)) return;
+      const root2 = styled2(body);
+      if (needsAccount(ctx, root2, dialog)) return;
       const status = w.statusLine({ text: "" });
       const say = (text, kind) => status.set(text, kind);
       const storageBox = h2("div", null);
@@ -10977,7 +10998,7 @@ function openMapsDialog(ctx, link) {
         dialog.close();
         ctx.saveToCloud();
       } });
-      root.append(
+      root2.append(
         storageBox,
         h2("div", { className: "sd-split" }, listBox, detailBox),
         h2("div", { className: "sd-btns" }, saveHere, w.button("Refresh", { onClick: () => void load() })),
@@ -10999,11 +11020,11 @@ function openSaveDialog(ctx, link) {
     title: "Save to scmjs.dev",
     size: "md",
     mount(body, dialog) {
-      const root = styled2(body);
-      if (needsAccount(ctx, root, dialog)) return;
+      const root2 = styled2(body);
+      if (needsAccount(ctx, root2, dialog)) return;
       const info = api.document.info();
       if (!info) {
-        root.append(h2("div", { className: "sd-hint" }, "No map is open."));
+        root2.append(h2("div", { className: "sd-hint" }, "No map is open."));
         return;
       }
       const status = w.statusLine({ text: "" });
@@ -11044,7 +11065,7 @@ function openSaveDialog(ctx, link) {
           dialog.setBusy(false);
         }
       } });
-      root.append(
+      root2.append(
         w.form([{ label: "Save as", field: target }]),
         nameRow,
         h2("div", null, h2("div", { className: "sd-hint", style: "margin-bottom: 4px" }, "Note for this revision"), noteField),
@@ -11069,6 +11090,743 @@ function openSaveDialog(ctx, link) {
     },
     buttons: [{ label: "Cancel" }]
   });
+}
+
+// share/link.ts
+var ROOM_QUERY = "scmjs-room";
+var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
+var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
+function inviteLink(invite, serverUrl, where2) {
+  const base = where2 && (where2.protocol === "http:" || where2.protocol === "https:") ? `${where2.origin}${where2.pathname}` : WEB_EDITOR_URL;
+  const params = new URLSearchParams({ [ROOM_QUERY]: invite });
+  if (serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL) params.set(SERVER_QUERY, serverUrl);
+  return `${base}?${params.toString()}`;
+}
+function inviteFrom(text) {
+  const t = text.trim();
+  if (INVITE.test(t)) return t;
+  const m = /[?&]scmjs-room=([A-Za-z0-9_-]{16,64})/.exec(t);
+  return m ? m[1] : null;
+}
+function inviteOnPage(search) {
+  const v = new URLSearchParams(search).get(ROOM_QUERY);
+  return v && INVITE.test(v) ? v : null;
+}
+
+// share/presence.ts
+var PERSON_COLORS = ["#f40404", "#0c48cc", "#2cb494", "#88409c", "#f88c14", "#703014", "#cce0d0", "#fcfc38"];
+var personColor = (p) => PERSON_COLORS[p.color % PERSON_COLORS.length];
+var DIALOG_NAMES = {
+  mapProperties: "Map Properties",
+  resizeMap: "Resize Map",
+  mapRevision: "Map Revision",
+  playerSettings: "Player Settings",
+  forceSettings: "Forces",
+  playerColors: "Player Colors",
+  unitSettings: "Unit Settings",
+  upgradeSettings: "Upgrade Settings",
+  techSettings: "Tech Settings",
+  stringEditor: "the String Editor",
+  soundEditor: "the Sound Editor",
+  switches: "Switches",
+  locationList: "the location list",
+  unitProperties: "Unit Properties",
+  locationProperties: "Location Properties",
+  spriteProperties: "Sprite Properties",
+  triggerEditor: "the Trigger Editor",
+  missionBriefing: "Mission Briefing",
+  cuwpEditor: "Unit Properties Slots",
+  replaceTerrain: "Replace Terrain",
+  autoStarts: "Auto-place Start Locations",
+  importTriggers: "Import Triggers",
+  importStrings: "Import Strings"
+};
+function doing(p) {
+  if (!p?.dialog) return "";
+  const name = DIALOG_NAMES[p.dialog];
+  return name ? `in ${name}` : "";
+}
+function drawPeople(ctx, view, people, presence) {
+  ctx.save();
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  for (const person of people) {
+    const p = presence.get(person.id);
+    if (!p) continue;
+    const color = personColor(person);
+    if (p.view) {
+      const x0 = view.x(p.view.x0 * 32), y0 = view.y(p.view.y0 * 32);
+      const x1 = view.x(p.view.x1 * 32), y1 = view.y(p.view.y1 * 32);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+    if (p.px !== null && p.py !== null) {
+      const x = view.x(p.px), y = view.y(p.py);
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 14);
+      ctx.lineTo(x + 4, y + 10.5);
+      ctx.lineTo(x + 9.5, y + 10.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      const label = [person.name, doing(p)].filter(Boolean).join(" \xB7 ");
+      const w = ctx.measureText(label).width + 8;
+      ctx.fillRect(x + 10, y + 12, w, 16);
+      ctx.fillStyle = luminance(color) > 0.6 ? "#000" : "#fff";
+      ctx.fillText(label, x + 14, y + 20);
+    }
+  }
+  ctx.restore();
+}
+function luminance(hex2) {
+  const n2 = parseInt(hex2.slice(1), 16);
+  return (0.299 * (n2 >> 16 & 255) + 0.587 * (n2 >> 8 & 255) + 0.114 * (n2 & 255)) / 255;
+}
+
+// share/dialogs.ts
+var SHARE_STYLE = `
+.sd .sd-link { display: flex; gap: 6px; align-items: center; }
+.sd .sd-link input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11px; }
+.sd .sd-people { display: flex; flex-direction: column; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
+.sd .sd-person { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border, #222); }
+.sd .sd-person:last-child { border-bottom: none; }
+.sd .sd-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.5); }
+.sd .sd-person .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; }
+`;
+function root(body) {
+  const r = styled2(body);
+  const style = document.createElement("style");
+  style.textContent = SHARE_STYLE;
+  body.prepend(style);
+  return r;
+}
+var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+function openShareDialog(ctx, controls) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  let unsubscribe = null;
+  return api.ui.dialog({
+    title: "Share this Map",
+    mount(body, dialog) {
+      const box = root(body);
+      const status = w.statusLine({ text: "" });
+      const renderStart = () => {
+        clear2(box);
+        if (!api.document.isOpen()) {
+          box.append(w.hint("Open a map first."));
+          return;
+        }
+        if (account.kind() !== "account") {
+          box.append(
+            h2("div", { className: "sd-hint" }, "Sharing a map takes a scmjs.dev account. The people you share it with need only the link."),
+            h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
+              dialog.close();
+              ctx.openAccount();
+            } }))
+          );
+          return;
+        }
+        const name = w.text({ value: api.document.info()?.name ?? "" });
+        const start2 = w.button("Start sharing", { primary: true, onClick: async () => {
+          start2.setBusy(true);
+          status.busy("Copying the map to scmjs.dev\u2026");
+          try {
+            await controls.share(name.value.trim() || "Untitled map");
+            status.set("");
+            render();
+          } catch (err) {
+            status.set(describeError(err), "error");
+          } finally {
+            start2.setBusy(false);
+          }
+        } });
+        box.append(
+          h2("div", { className: "sd-hint" }, "Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map."),
+          w.form([{ label: "Name", field: name }]),
+          h2("div", { className: "sd-hint" }, "The map stays on scmjs.dev only while it is shared: it ends when you stop sharing, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it."),
+          h2("div", { className: "sd-btns" }, start2),
+          status
+        );
+      };
+      const renderLive = (shared) => {
+        clear2(box);
+        const room = shared.room;
+        const invite = room?.invite;
+        if (shared.phase === "connecting") {
+          box.append(w.spinner({ label: "Connecting\u2026" }));
+          return;
+        }
+        if (invite) {
+          const link = w.text({ value: inviteLink(invite, account.serverUrl(), where()) });
+          link.readOnly = true;
+          const copy = w.button("Copy", { onClick: async () => {
+            try {
+              await navigator.clipboard.writeText(link.value);
+              status.set("The link is on the clipboard.", "ok");
+            } catch {
+              link.select();
+              status.set("Select the link and copy it.", "warn");
+            }
+          } });
+          box.append(
+            h2("div", { className: "sd-hint" }, "Send this link to the people you want to edit with. Anyone who has it can join."),
+            h2("div", { className: "sd-link" }, link, copy)
+          );
+          if (shared.owner) {
+            box.append(h2("div", { className: "sd-btns" }, w.button("New link", { ghost: true, onClick: () => {
+              shared.relink();
+              status.set("The old link no longer works. Nobody in the map was sent out.", "ok");
+            } })));
+          }
+        } else {
+          box.append(h2("div", { className: "sd-hint" }, `You are editing \u201C${room?.name ?? "a shared map"}\u201D with others.`));
+        }
+        const list2 = h2("div", { className: "sd-people" });
+        for (const person of shared.people.values()) {
+          const me = person.id === shared.you?.id;
+          const sub = [person.owner ? "shared the map" : "", me ? "you" : "", doing(shared.presence.get(person.id))].filter(Boolean).join(" \xB7 ");
+          list2.append(h2(
+            "div",
+            { className: "sd-person" },
+            h2("span", { className: "sd-swatch", style: `background:${personColor(person)}` }),
+            h2("div", null, h2("div", null, person.name), sub ? h2("div", { className: "sd-sub" }, sub) : null),
+            shared.owner && !me ? w.button("Remove", { ghost: true, onClick: () => shared.kick(person.id) }) : h2("span", null)
+          ));
+        }
+        const stop = shared.owner ? w.button("Stop sharing", { danger: true, onClick: async () => {
+          if (!await api.ui.confirm("Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.")) return;
+          shared.leave(true);
+        } }) : w.button("Leave", { onClick: () => shared.leave(false) });
+        box.append(h2("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list2, h2("div", { className: "sd-btns" }, stop), status);
+      };
+      const render = () => {
+        unsubscribe?.();
+        unsubscribe = null;
+        const shared = controls.current();
+        if (!shared || shared.phase === "ended") {
+          renderStart();
+          return;
+        }
+        unsubscribe = shared.onChange(() => {
+          if (dialog.isOpen()) render();
+        });
+        renderLive(shared);
+      };
+      render();
+      return () => {
+        unsubscribe?.();
+      };
+    }
+  });
+}
+function openJoinDialog(ctx, controls, given = null) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  return api.ui.dialog({
+    title: "Join a Shared Map",
+    mount(body, dialog) {
+      const box = root(body);
+      const status = w.statusLine({ text: "" });
+      const about = h2("div", { className: "sd-hint" }, "");
+      let room = null;
+      let looking = null;
+      const link = w.text({ value: given ?? "", placeholder: "Paste the link you were sent" });
+      const name = w.text({ value: ctx.store.get().shareName || (account.kind() === "account" ? account.current()?.name ?? "" : ""), placeholder: "How the others see you" });
+      const join = w.button("Join", { primary: true, onClick: async () => {
+        const invite = inviteFrom(link.value);
+        if (!invite) {
+          status.set("That is not a shared map's link.", "error");
+          return;
+        }
+        const who = name.value.trim();
+        if (!who) {
+          status.set("Type a name for the others to see.", "error");
+          name.focus();
+          return;
+        }
+        ctx.store.set({ shareName: who });
+        join.setBusy(true);
+        status.busy("Joining\u2026");
+        try {
+          await controls.join(invite, who);
+          dialog.close();
+        } catch (err) {
+          status.set(describeError(err), "error");
+        } finally {
+          join.setBusy(false);
+        }
+      } });
+      const lookUp = async () => {
+        looking?.abort();
+        room = null;
+        const invite = inviteFrom(link.value);
+        if (!invite) {
+          about.textContent = link.value.trim() ? "That is not a shared map's link." : "";
+          return;
+        }
+        const ctl = new AbortController();
+        looking = ctl;
+        about.textContent = "Looking it up\u2026";
+        try {
+          room = (await account.client.lookupRoom(invite, ctl.signal)).room;
+          about.textContent = `\u201C${room.name}\u201D${room.owner ? `, shared by ${room.owner}` : ""} \xB7 ${room.people} of ${room.maxPeople} people editing now.`;
+        } catch (err) {
+          if (!ctl.signal.aborted) about.textContent = describeError(err);
+        }
+      };
+      link.addEventListener("input", () => void lookUp());
+      clear2(box);
+      box.append(
+        w.form([{ label: "Link", field: link }, { label: "Your name", field: name }]),
+        about,
+        h2("div", { className: "sd-hint" }, "The map opens beside the ones you have open. You edit it together with everyone in it; closing it leaves."),
+        h2("div", { className: "sd-btns" }, join),
+        status
+      );
+      if (controls.current() && controls.current().phase !== "ended") status.set("You are in a shared map already; joining this one leaves it.", "warn");
+      if (given) void lookUp();
+      return () => looking?.abort();
+    }
+  });
+}
+
+// share/shared.ts
+var OPEN = 1;
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  return btoa(s);
+}
+function fromBase64(text) {
+  const s = atob(text);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+var ENDINGS = {
+  owner: "The person who shared the map ended the session.",
+  removed: "You were removed from the shared map.",
+  idle: "The shared map closed after nobody used it for a while.",
+  server: "The server restarted, which ends every shared map."
+};
+var SharedMap = class _SharedMap {
+  phase = "connecting";
+  room = null;
+  you = null;
+  people = /* @__PURE__ */ new Map();
+  presence = /* @__PURE__ */ new Map();
+  /** Why it ended, in a sentence; null while it runs. */
+  ending = null;
+  /** The shared map's document id, once there is one. */
+  documentId = null;
+  session = null;
+  ws = null;
+  welcomed = false;
+  outbox = [];
+  held = null;
+  lastSeq = 0;
+  listeners = /* @__PURE__ */ new Set();
+  presenceListeners = /* @__PURE__ */ new Set();
+  presenceTimer = null;
+  presenceSent = 0;
+  mine = { px: null, py: null, view: null, layer: "", dialog: null };
+  deps;
+  constructor(deps) {
+    this.deps = deps;
+  }
+  onChange(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+  /** Someone moved their pointer or view, or opened a dialog: what the overlay redraws on. */
+  onPresence(fn) {
+    this.presenceListeners.add(fn);
+    return () => this.presenceListeners.delete(fn);
+  }
+  emit(presenceOnly = false) {
+    for (const fn of [...presenceOnly ? this.presenceListeners : /* @__PURE__ */ new Set([...this.listeners, ...this.presenceListeners])]) {
+      try {
+        fn();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+  get owner() {
+    return this.you?.owner === true;
+  }
+  /** Changes this editor made that the server has not confirmed yet. */
+  pending() {
+    return this.session?.pending() ?? 0;
+  }
+  holding() {
+    return this.session?.holding() ?? null;
+  }
+  /* ── Starting ───────────────────────────────────────────── */
+  /** Share the map in front under `name`. Needs a signed-in session on the client. */
+  static async share(deps, name) {
+    const s = new _SharedMap(deps);
+    const session = deps.api.sync.start(s.syncOptions());
+    if (!session) throw new Error("A map is being shared already, or no map is open.");
+    s.session = session;
+    s.documentId = session.documentId;
+    const copy = session.snapshot();
+    try {
+      const bytes = await copy;
+      if (!bytes) throw new Error("The map could not be copied.");
+      const { room } = await deps.client.createRoom(name, toBase64(bytes));
+      s.room = room;
+      await s.connect(room.invite, deps.client.session());
+      return s;
+    } catch (err) {
+      s.end(describeError(err));
+      throw err;
+    }
+  }
+  /** Join the room behind `invite` as `name`, opening its map beside the ones open. */
+  static async join(deps, invite, name) {
+    const s = new _SharedMap(deps);
+    s.held = [];
+    try {
+      await s.connect(invite, deps.client.session(), name);
+      return s;
+    } catch (err) {
+      s.end(describeError(err));
+      throw err;
+    }
+  }
+  syncOptions() {
+    return {
+      send: (op) => {
+        if (this.welcomed) this.send({ type: "op", op });
+        else this.outbox.push(op);
+      },
+      onEnd: (reason) => {
+        if (this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
+      },
+      onApplied: (report) => {
+        if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
+      }
+    };
+  }
+  /** Open the socket, say hello, and resolve once welcomed (and, joining, once the map is open). */
+  connect(invite, session, name) {
+    const make = this.deps.socket ?? ((url) => new WebSocket(url));
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (err) => {
+        if (settled) return;
+        settled = true;
+        if (err) reject(err);
+        else resolve();
+      };
+      let ws;
+      try {
+        ws = make(this.deps.client.roomSocketUrl());
+      } catch (err) {
+        settle(err);
+        return;
+      }
+      this.ws = ws;
+      ws.onopen = () => {
+        const hello = { type: "hello", protocol: ROOM_PROTOCOL, invite, ...name ? { name } : {}, ...session ? { session } : {} };
+        ws.send(JSON.stringify(hello));
+      };
+      ws.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(String(ev.data));
+        } catch {
+          return;
+        }
+        if (msg.type === "welcome") {
+          this.welcome(msg).then(() => settle(), (err) => settle(err));
+          return;
+        }
+        if (!this.welcomed && msg.type === "error") {
+          settle(new Error(msg.message));
+          return;
+        }
+        if (this.held) {
+          this.held.push(msg);
+          return;
+        }
+        this.handle(msg);
+      };
+      ws.onclose = (ev) => {
+        if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
+        if (this.phase !== "ended") this.end("The connection to the shared map was lost. The map is still open here; save it, or join again.");
+      };
+      ws.onerror = () => {
+      };
+    });
+  }
+  async welcome(msg) {
+    this.you = msg.you;
+    this.room = { ...this.room ?? {}, ...msg.room };
+    for (const p of msg.people) this.people.set(p.id, p);
+    for (const p of msg.presence) this.presence.set(p.from, p.data);
+    if (this.session) {
+      this.welcomed = true;
+      this.lastSeq = msg.snapshot.seq;
+      for (const op of this.outbox.splice(0)) this.send({ type: "op", op });
+    } else {
+      const bytes = fromBase64(msg.snapshot.map);
+      const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
+      if (!opened) throw new Error("The shared map could not be opened.");
+      const session = this.deps.api.sync.start(this.syncOptions());
+      if (!session) throw new Error("Another map is being shared from this editor already.");
+      this.session = session;
+      this.documentId = session.documentId;
+      this.welcomed = true;
+      this.lastSeq = msg.snapshot.seq;
+      for (const op of msg.ops) {
+        session.receive(op.op);
+        this.lastSeq = op.seq;
+      }
+      const held = this.held ?? [];
+      this.held = null;
+      for (const m of held) this.handle(m);
+    }
+    this.phase = "live";
+    this.emit();
+    this.flushPresence();
+  }
+  /* ── Messages ───────────────────────────────────────────── */
+  send(msg) {
+    if (this.ws && this.ws.readyState === OPEN) this.ws.send(JSON.stringify(msg));
+  }
+  handle(msg) {
+    const { api } = this.deps;
+    switch (msg.type) {
+      case "op":
+        this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.session?.receive(msg.op);
+        return;
+      case "ack":
+        this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.session?.confirm();
+        return;
+      case "joined":
+        this.people.set(msg.person.id, msg.person);
+        api.ui.toast({ kind: "info", title: `${msg.person.name} joined the shared map` });
+        this.emit();
+        return;
+      case "left": {
+        const who = this.people.get(msg.person);
+        this.people.delete(msg.person);
+        this.presence.delete(msg.person);
+        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : "left"} the shared map.`);
+        this.emit();
+        return;
+      }
+      case "presence":
+        this.presence.set(msg.from, msg.data);
+        this.emit(true);
+        return;
+      case "snapshot-please":
+        void this.answerCopy(0);
+        return;
+      case "link":
+        if (this.room) this.room = { ...this.room, invite: msg.invite };
+        this.emit();
+        return;
+      case "ended":
+        this.end(ENDINGS[msg.reason] ?? "The shared map ended.");
+        return;
+      case "error":
+        if (msg.about === "op") {
+          this.end(`A change could not be shared (${msg.message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.`);
+        } else {
+          api.ui.status(msg.message);
+        }
+        return;
+      default:
+        return;
+    }
+  }
+  /** The server wants a fresh copy of the map for people joining. Only a quiet moment gives one that matches a point in its order. */
+  async answerCopy(tries) {
+    const session = this.session;
+    if (!session || this.phase !== "live") return;
+    const seq = this.lastSeq;
+    const copy = session.snapshot();
+    const bytes = await copy;
+    if (bytes) {
+      this.send({ type: "snapshot", seq, map: toBase64(bytes) });
+      return;
+    }
+    if (tries < 20) setTimeout(() => void this.answerCopy(tries + 1), 1500);
+  }
+  /* ── Presence ───────────────────────────────────────────── */
+  /** Say where this person is; sent at most every `presenceMs`, the last word always. */
+  setPresence(patch) {
+    this.mine = { ...this.mine, ...patch };
+    this.flushPresence();
+  }
+  flushPresence() {
+    if (this.phase !== "live" || this.presenceTimer) return;
+    const gap = this.deps.presenceMs ?? 80;
+    const wait = Math.max(0, this.presenceSent + gap - Date.now());
+    this.presenceTimer = setTimeout(() => {
+      this.presenceTimer = null;
+      this.presenceSent = Date.now();
+      this.send({ type: "presence", data: this.mine });
+    }, wait);
+  }
+  /* ── The owner's controls, and leaving ──────────────────── */
+  kick(personId) {
+    this.send({ type: "kick", person: personId });
+  }
+  relink() {
+    this.send({ type: "relink" });
+  }
+  /** Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays open. */
+  leave(forEveryone = false) {
+    if (forEveryone && this.owner) this.send({ type: "end" });
+    this.end(null);
+  }
+  end(message) {
+    if (this.phase === "ended") return;
+    this.phase = "ended";
+    this.ending = message;
+    if (this.presenceTimer) {
+      clearTimeout(this.presenceTimer);
+      this.presenceTimer = null;
+    }
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onclose = null;
+      ws.onmessage = null;
+      try {
+        ws.close(1e3);
+      } catch {
+      }
+    }
+    const session = this.session;
+    this.session = null;
+    session?.stop();
+    this.emit();
+    this.listeners.clear();
+    this.presenceListeners.clear();
+  }
+};
+
+// share/install.ts
+function installShare(opts) {
+  const { api, client } = opts;
+  const disposables = [];
+  let shared = null;
+  let status = null;
+  let overlay = null;
+  let unhook = [];
+  const ctx = { api, account: opts.account, store: opts.store, openAccount: opts.openAccount, openMaps: opts.openMaps, saveToCloud: opts.saveToCloud };
+  const deps = { api, client, socket: opts.socket };
+  const others = () => shared ? [...shared.people.values()].filter((p) => p.id !== shared.you?.id) : [];
+  const syncStatus = () => {
+    if (!shared || shared.phase === "ended") {
+      status?.remove();
+      status = null;
+      return;
+    }
+    const n2 = shared.people.size;
+    const text = shared.phase === "connecting" ? "Sharing\u2026" : `Shared \xB7 ${n2} ${n2 === 1 ? "person" : "people"}`;
+    const lines = [...shared.people.values()].map((p) => `${p.name}${p.id === shared.you?.id ? " (you)" : ""}${p.owner ? " \xB7 shared the map" : ""}${doing(shared.presence.get(p.id)) ? ` \xB7 ${doing(shared.presence.get(p.id))}` : ""}`);
+    const spec = { text, title: `${shared.room?.name ?? "Shared map"}
+${lines.join("\n")}
+Click to see the link and who is in.`, busy: shared.phase === "connecting", onClick: () => {
+      openShareDialog(ctx, controls);
+    } };
+    if (status) status.set(spec);
+    else status = api.ui.statusItem(spec);
+  };
+  const tell = () => {
+    if (!shared) return;
+    const dialogs = api.ui.openDialogs().filter((d) => d !== "pluginDialog");
+    shared.setPresence({ view: api.view.visible(), layer: api.selection.layer(), dialog: dialogs.at(-1) ?? null });
+  };
+  const attach = (s) => {
+    shared = s;
+    unhook.push(s.onChange(() => {
+      syncStatus();
+      if (s.phase === "ended") detach(s);
+    }));
+    unhook.push(s.onPresence(() => overlay?.redraw()));
+    overlay = api.ui.overlay({
+      name: "People on the shared map",
+      above: "everything",
+      draw: (c2, view) => {
+        if (shared) drawPeople(c2, view, others(), shared.presence);
+      },
+      onHover: (p) => {
+        shared?.setPresence(p && p.inMap ? { px: p.px, py: p.py } : { px: null, py: null });
+      }
+    });
+    for (const event of ["view", "layer", "dialogs"]) {
+      const d = api.events.on(event, tell);
+      unhook.push(() => d.dispose());
+    }
+    tell();
+    syncStatus();
+  };
+  const detach = (s) => {
+    if (shared !== s) return;
+    for (const u of unhook) u();
+    unhook = [];
+    overlay?.remove();
+    overlay = null;
+    shared = null;
+    syncStatus();
+    if (s.ending) api.ui.toast({ kind: "warn", title: "Shared editing ended", detail: s.ending, ttl: 0 });
+  };
+  const controls = {
+    current: () => shared,
+    share: async (name) => {
+      if (shared && shared.phase !== "ended") return shared;
+      const s = await SharedMap.share(deps, name);
+      attach(s);
+      return s;
+    },
+    join: async (invite2, name) => {
+      shared?.leave(false);
+      const s = await SharedMap.join(deps, invite2, name);
+      attach(s);
+      api.ui.toast({ kind: "ok", title: `Joined \u201C${s.room?.name ?? "the shared map"}\u201D`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
+      return s;
+    }
+  };
+  disposables.push(api.commands.register({ id: "share", title: "Share this Map\u2026", enabled: () => api.document.isOpen() || !!shared, run: () => {
+    openShareDialog(ctx, controls);
+  } }));
+  disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map\u2026", run: () => {
+    openJoinDialog(ctx, controls);
+  } }));
+  disposables.push(api.menu.add("Account", { label: "Share this Map\u2026", icon: "plugin", command: "share", separator: true }));
+  disposables.push(api.menu.add("Account", { label: "Join a Shared Map\u2026", icon: "plugin", command: "join" }));
+  const search = opts.search ?? (typeof location !== "undefined" ? location.search : "");
+  const invite = inviteOnPage(search);
+  if (invite) {
+    if (typeof history !== "undefined" && typeof location !== "undefined") {
+      const url = new URL(location.href);
+      url.searchParams.delete(ROOM_QUERY);
+      history.replaceState(history.state, "", url.toString());
+    }
+    openJoinDialog(ctx, controls, invite);
+  }
+  return () => {
+    shared?.leave(false);
+    for (const d of disposables) d.dispose();
+  };
 }
 
 // plugin.ts
@@ -11130,6 +11888,7 @@ function activate(api) {
   api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
   api.menu.add("File", { label: "Open from scmjs.dev\u2026", icon: "plugin", after: "Open Recent", command: "maps" });
   api.menu.add("File", { label: "Save to scmjs.dev\u2026", icon: "plugin", after: "Save Copy As\u2026", command: "save" });
+  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
   let status = null;
   const statusText = () => {
     switch (account.kind()) {
@@ -11191,6 +11950,7 @@ function activate(api) {
   });
   return () => {
     ai?.();
+    share();
     status?.remove();
     provided.dispose();
   };

@@ -10,7 +10,8 @@
  */
 import type {
   AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, MapListResponse, MapMeta, MapPatch, MapResponse,
-  RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, StorageResponse, TrialResponse, Usage,
+  RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateResponse, RoomLookupResponse,
+  StorageResponse, TrialResponse, Usage,
 } from "./protocol";
 import { PROTOCOL_VERSION } from "./protocol";
 
@@ -45,6 +46,7 @@ export function describeError(err: unknown): string {
       case "budget_exceeded": return `The balance is used up: ${err.message}`;
       case "task_ceiling": return err.message;
       case "storage_full": return err.message;
+      case "room_full": return err.message;
       case "not_found": return err.message;
       case "recipe_disabled": return "This feature is turned off on the server for now.";
       case "model_not_allowed": return `The server does not allow that model: ${err.message}`;
@@ -277,6 +279,28 @@ export class ScmjsClient {
 
   checkout(pack: string): Promise<CheckoutResponse> {
     return this.request<CheckoutResponse>("/v1/billing/checkout", { method: "POST", json: { pack } });
+  }
+
+  /* ── Shared maps ──────────────────────────────────────── */
+
+  /** `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and its invite. */
+  createRoom(name: string, map: string): Promise<RoomCreateResponse> {
+    return this.request<RoomCreateResponse>("/v1/rooms", { method: "POST", json: { name, map } });
+  }
+
+  /** `GET /v1/rooms/:invite`: what an invite leads to. */
+  lookupRoom(invite: string, signal?: AbortSignal): Promise<RoomLookupResponse> {
+    return this.request<RoomLookupResponse>(`/v1/rooms/${encodeURIComponent(invite)}`, { signal });
+  }
+
+  /** The rooms' WebSocket address: the server's, as `ws:` / `wss:`. */
+  roomSocketUrl(): string {
+    return `${this.base().replace(/^http/, "ws")}/v1/rooms/socket`;
+  }
+
+  /** The session the server issued, for a room's hello (a WebSocket carries no header). */
+  session(): string {
+    return this.credentials().session.trim();
   }
 
   /* ── Maps ─────────────────────────────────────────────── */
