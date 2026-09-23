@@ -7,13 +7,13 @@
 import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
-import { metaOf, thumbnailOf, type Link } from "../maps";
+import { metaOf, pictureOf, thumbnailOf, type Link } from "../maps";
 import type { KeepDays } from "../protocol";
 import { SharedChat } from "./chat";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
 import { forgetLinkOnPage, inviteOnPage } from "./link";
 import { doing, drawPeople } from "./presence";
-import { SharedMap, type SharedDeps } from "./shared";
+import { SharedMap, toBase64, type SharedDeps } from "./shared";
 
 export interface ShareOptions {
   api: PluginApi;
@@ -112,9 +112,14 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
       const fileName = info?.fileName ?? `${name}.scx`;
       const meta = keepDays === undefined || !info ? null : metaOf(info, api.query.statistics(), api.settings.players());
       // Kept open, it is one of the account's maps: with a picture, as Save to scmjs.dev gives it (and the link's card shows).
-      const thumbnail = meta ? await thumbnailOf({ ...opts, api, account: opts.account }) : null;
+      const ctxOf = { ...opts, api, account: opts.account };
+      const thumbnail = meta ? await thumbnailOf(ctxOf) : null;
       if (meta && thumbnail) meta.thumbnail = thumbnail;
-      const keep = keepDays === undefined || !meta ? undefined : { keepDays, mapId: opts.links.get()?.mapId, fileName, note: "When sharing started", meta };
+      const picture = meta ? await pictureOf(ctxOf) : null;
+      const keep = keepDays === undefined || !meta ? undefined : {
+        keepDays, mapId: opts.links.get()?.mapId, fileName, note: "When sharing started", meta,
+        ...(picture ? { picture: toBase64(new Uint8Array(await picture.arrayBuffer())) } : {}),
+      };
       const s = await SharedMap.share(deps, name, keep);
       // Kept: the map is on the account now, and Save to scmjs.dev offers it.
       if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });

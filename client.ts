@@ -206,6 +206,8 @@ export interface UploadFields {
   description?: string;
   note?: string;
   meta?: MapMeta;
+  /** The map's bigger picture, for its card (a server with `cards` only: an older one refuses a second part). */
+  picture?: Blob | null;
 }
 
 /* ── Client ─────────────────────────────────────────────── */
@@ -350,6 +352,7 @@ export class ScmjsClient {
     if (fields.description !== undefined) fd.append("description", fields.description);
     if (fields.note !== undefined) fd.append("note", fields.note);
     if (fields.meta) fd.append("meta", JSON.stringify(fields.meta));
+    if (fields.picture) fd.append("picture", fields.picture, "picture.jpg");
     return fd;
   }
 

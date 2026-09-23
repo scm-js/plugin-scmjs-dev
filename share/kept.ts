@@ -7,7 +7,30 @@ import { describeError } from "../client";
 import type { KeepDays, SharedMapView } from "../protocol";
 import { ago, clear, formatDate, h, shortDay, type Ctx } from "../ui";
 import type { ShareControls } from "./dialogs";
-import { inviteLink } from "./link";
+import { copyLink, inviteLink } from "./link";
+import { openEmbedDialog, type EmbedTarget } from "./embed";
+
+const here = () => (typeof location !== "undefined" ? location : null);
+
+/**
+ * What an embed of a kept map can point at: a copy link to its newest revision (one that
+ * follows later saves; made the first time), or the shared map's own link.
+ */
+export function keptEmbedTarget(ctx: Ctx, view: SharedMapView): EmbedTarget | null {
+  if (view.kind !== "kept" || !view.card) return null;
+  const { account } = ctx;
+  return {
+    name: view.name,
+    edit: { link: inviteLink(view.invite, account.serverUrl(), here()), card: view.card },
+    copy: async () => {
+      const { map } = await account.client.map(view.id);
+      let link = map.linkList.find((l) => l.revision === null) ?? null;
+      if (!link) link = (await account.client.createLink(view.id, null)).link;
+      if (!link.card) throw new Error("this server has no pictures for links yet.");
+      return { link: copyLink(link.token, account.serverUrl(), here()), card: link.card };
+    },
+  };
+}
 
 /** The *Keep it open…* choices, as the select holds them. */
 export type KeepChoice = "live" | "1" | "7" | "30" | "forever";
@@ -97,6 +120,8 @@ export function sharedMapsList(ctx: Ctx, controls: ShareControls, opts: { onJoin
         } });
         buttons.append(how);
       }
+      const target = keptEmbedTarget(ctx, r);
+      if (target) buttons.append(w.button("Embed…", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: () => { openEmbedDialog(ctx, target); } }));
       buttons.append(w.button("End sharing", { danger: true, onClick: async () => {
         const text = r.kind === "kept"
           ? `End sharing “${r.name}”? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.`

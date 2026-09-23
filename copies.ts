@@ -9,6 +9,7 @@ import type { DialogHandle } from "@scm-js/plugin-api";
 import { describeError } from "./client";
 import { describeMeta, uploadOpenMap, type Link } from "./maps";
 import type { MapDetail, MapLinkView, MapResponse, PublicMapView } from "./protocol";
+import { openEmbedDialog } from "./share/embed";
 import { copyLink, copyTokenFrom } from "./share/link";
 import { ago, clear, formatDate, h, styled, type Ctx } from "./ui";
 
@@ -52,9 +53,14 @@ export function linksSection(ctx: Ctx, map: MapDetail, revision: number, update:
       try { await update(await client.deleteLink(map.id, link.token)); say("Link removed.", "ok"); }
       catch (err) { say(describeError(err), "error"); }
     } });
+    const card = link.card;
+    const embed = card ? w.button("Embed…", { ghost: true, title: "A picture of the map that opens this link, for a forum, a README or a website", onClick: () => {
+      openEmbedDialog(ctx, { name: map.name, copy: async () => ({ link: linkAddress(ctx, link.token), card }) });
+    } }) : null;
     box.append(h("div", { className: "sd-link-row" },
       linkField(ctx, linkAddress(ctx, link.token), say),
       h("span", { className: "sd-sub", title: `Made ${formatDate(link.createdAt)}` }, `${which(link)} · opened ${link.opens}×`),
+      embed ?? h("span", null),
       remove,
     ));
   }

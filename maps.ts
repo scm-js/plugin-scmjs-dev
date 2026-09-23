@@ -64,6 +64,38 @@ export async function thumbnailOf(ctx: Ctx): Promise<string | null> {
   }
 }
 
+/**
+ * The open map about 512 pixels across (as many pixels per tile as fit, 1 to 8), as a
+ * JPEG: what the map's card is drawn with, the one people embed and a pasted link shows.
+ * Null without the graphics, and from a server that takes no pictures (before 0.17.0,
+ * which refuses the extra part).
+ */
+export async function pictureOf(ctx: Ctx): Promise<Blob | null> {
+  if (!ctx.account.state().offers?.cards) return null;
+  const info = ctx.api.document.info();
+  if (!info) return null;
+  const perTile = Math.max(1, Math.min(8, Math.floor(512 / Math.max(info.width, info.height, 1))));
+  try {
+    const png = await ctx.api.document.renderImage({ pixelsPerTile: perTile, units: true, sprites: true, locations: false, locationNames: false, startLocations: true, fog: false, grid: 0 });
+    if (!png) return null;
+    const bitmap = await createImageBitmap(png);
+    const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale)), h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(w, h);
+    const g = canvas.getContext("2d");
+    if (!g) return null;
+    g.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    for (const quality of [0.86, 0.72, 0.55]) {
+      const jpeg = await canvas.convertToBlob({ type: "image/jpeg", quality });
+      if (jpeg.size <= 900_000) return jpeg;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Which stored map the open document came from or last went to, so Save offers the right one. */
 export interface Link { mapId: string; mapName: string; fileName: string | null }
 
@@ -80,7 +112,8 @@ export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; na
   if (!file) throw new Error("the map could not be packed.");
   const meta = metaOf(info, api.query.statistics(), api.settings.players());
   if (target.thumbnail) { const t = await thumbnailOf(ctx); if (t) meta.thumbnail = t; }
-  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta };
+  const picture = target.thumbnail ? await pictureOf(ctx) : null;
+  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta, picture };
   step("Uploading…");
   const response = target.mapId === null
     ? await account.client.createMap(file, { ...fields, name: target.name || undefined })

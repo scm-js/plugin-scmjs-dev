@@ -269,6 +269,7 @@ var ScmjsClient = class {
     if (fields.description !== void 0) fd.append("description", fields.description);
     if (fields.note !== void 0) fd.append("note", fields.note);
     if (fields.meta) fd.append("meta", JSON.stringify(fields.meta));
+    if (fields.picture) fd.append("picture", fields.picture, "picture.jpg");
     return fd;
   }
   /** `POST /v1/maps`: a new map whose first revision is this file. */
@@ -2122,8 +2123,8 @@ function compileShapes(shapes, ctx) {
         const pair = pairAround(cells, width, height, x, y, ctx, known);
         if (pair) forDiamond(x, y, 8, 4, (px, py) => {
           if (px < 0 || py < 0 || px >= width || py >= height) return;
-          const here = cells[py * width + px];
-          const h3 = known.get(here)?.height;
+          const here2 = cells[py * width + px];
+          const h3 = known.get(here2)?.height;
           if (h3 === known.get(pair.high).height) put(px, py, pair.high);
           else if (h3 === known.get(pair.low).height) put(px, py, pair.low);
         });
@@ -10678,7 +10679,116 @@ function forgetLinkOnPage() {
   history.replaceState(history.state, "", url.toString());
 }
 
+// share/embed.ts
+function embedSnippets(o) {
+  const image = o.small ? `${o.card}?w=600` : o.card;
+  const alt = `${o.name} \u2014 ${o.action === "edit" ? "edit together in scmJS" : "open a copy in scmJS"}`;
+  const [w, hgt] = o.small ? [300, 158] : [600, 315];
+  const attr = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const md = (s) => s.replace(/([\\\[\]])/g, "\\$1");
+  return {
+    image,
+    markdown: `[![${md(alt)}](${image})](${o.link})`,
+    bbcode: `[url=${o.link}][img]${image}[/img][/url]`,
+    html: `<a href="${attr(o.link)}"><img src="${attr(image)}" alt="${attr(alt)}" width="${w}" height="${hgt}"></a>`
+  };
+}
+var EMBED_STYLE = `
+.sd .sd-embed-pic { display: block; width: 100%; max-width: 480px; aspect-ratio: 1200 / 630; border-radius: 6px; border: 1px solid var(--border, #333); background: var(--bg-1, #14171d); }
+.sd .sd-snip { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: start; }
+.sd .sd-snip textarea { width: 100%; min-height: 44px; resize: vertical; font-family: var(--mono, monospace); font-size: 11px; }
+`;
+function openEmbedDialog(ctx, target) {
+  const { api } = ctx;
+  const w = api.ui.widgets;
+  return api.ui.dialog({
+    title: "Embed This Map",
+    size: "md",
+    mount(body) {
+      const root2 = styled2(body);
+      const style = document.createElement("style");
+      style.textContent = EMBED_STYLE;
+      body.prepend(style);
+      const status = w.statusLine({ text: "" });
+      const out = h2("div", null);
+      let copy = null;
+      const to = w.select([
+        { value: "copy", label: "A copy of the map: anyone can open their own" },
+        ...target.edit ? [{ value: "edit", label: "The shared map: anyone who sees it can join and edit" }] : []
+      ], { value: "copy", onChange: () => void render() });
+      const size = w.select([
+        { value: "large", label: "Large (1200 \xD7 630)" },
+        { value: "small", label: "Small (600 \xD7 315), for a signature" }
+      ], { value: "large", onChange: () => void render() });
+      const row = (label, text) => {
+        const area = document.createElement("textarea");
+        area.readOnly = true;
+        area.value = text;
+        const copyBtn = w.button("Copy", { onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            status.set(`${label} copied.`, "ok");
+          } catch {
+            area.select();
+            status.set("Select the text and copy it.", "warn");
+          }
+        } });
+        return h2("div", null, h2("div", { className: "sd-k" }, label), h2("div", { className: "sd-snip" }, area, copyBtn));
+      };
+      const render = async () => {
+        clear2(out);
+        const action = to.value === "edit" && target.edit ? "edit" : "copy";
+        if (action === "copy" && !copy) {
+          status.busy("Making a link\u2026");
+          try {
+            copy = await target.copy();
+            status.set("");
+          } catch (err) {
+            status.set(describeError(err), "error");
+            return;
+          }
+        }
+        const pick = action === "edit" ? target.edit : copy;
+        const s = embedSnippets({ name: target.name, link: pick.link, card: pick.card, action, small: size.value === "small" });
+        if (action === "edit") status.set("Anyone who sees this picture can follow it, join the map and edit it. Account \u25B8 Shared maps \u25B8 New link stops the old link working.", "warn");
+        else if (!status.textContent?.includes("copied")) status.set("");
+        out.append(
+          h2("img", { className: "sd-embed-pic", src: `${pick.card}?w=600`, alt: "" }),
+          row("Markdown \u2014 GitHub, Discourse, Reddit", s.markdown),
+          row("BBCode \u2014 forums", s.bbcode),
+          row("HTML \u2014 websites", s.html),
+          row("The picture on its own", s.image)
+        );
+      };
+      root2.append(
+        h2("div", { className: "sd-hint" }, `A picture of \u201C${target.name}\u201D that links to it, for a forum post or signature, a README or a website. The picture shows the map, its name, who shared it, its size and players.`),
+        w.form([{ label: "The picture opens", field: to }, { label: "Size", field: size }]),
+        out,
+        status
+      );
+      void render();
+    },
+    buttons: [{ label: "Close", primary: true }]
+  });
+}
+
 // share/kept.ts
+var here = () => typeof location !== "undefined" ? location : null;
+function keptEmbedTarget(ctx, view) {
+  if (view.kind !== "kept" || !view.card) return null;
+  const { account } = ctx;
+  return {
+    name: view.name,
+    edit: { link: inviteLink(view.invite, account.serverUrl(), here()), card: view.card },
+    copy: async () => {
+      const { map } = await account.client.map(view.id);
+      let link = map.linkList.find((l) => l.revision === null) ?? null;
+      if (!link) link = (await account.client.createLink(view.id, null)).link;
+      if (!link.card) throw new Error("this server has no pictures for links yet.");
+      return { link: copyLink(link.token, account.serverUrl(), here()), card: link.card };
+    }
+  };
+}
 var KEEP_CHOICES = [
   { value: "live", label: "Until everyone leaves" },
   { value: "1", label: "For a day" },
@@ -10771,6 +10881,10 @@ function sharedMapsList(ctx, controls, opts = {}) {
         } });
         buttons.append(how);
       }
+      const target = keptEmbedTarget(ctx, r);
+      if (target) buttons.append(w.button("Embed\u2026", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: () => {
+        openEmbedDialog(ctx, target);
+      } }));
       buttons.append(w.button("End sharing", { danger: true, onClick: async () => {
         const text = r.kind === "kept" ? `End sharing \u201C${r.name}\u201D? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.` : `End sharing \u201C${r.name}\u201D? Anyone in it is sent out; they keep their copy and can save it.`;
         if (!await api.ui.confirm(text, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
@@ -11070,6 +11184,31 @@ async function thumbnailOf(ctx) {
     return null;
   }
 }
+async function pictureOf(ctx) {
+  if (!ctx.account.state().offers?.cards) return null;
+  const info = ctx.api.document.info();
+  if (!info) return null;
+  const perTile = Math.max(1, Math.min(8, Math.floor(512 / Math.max(info.width, info.height, 1))));
+  try {
+    const png = await ctx.api.document.renderImage({ pixelsPerTile: perTile, units: true, sprites: true, locations: false, locationNames: false, startLocations: true, fog: false, grid: 0 });
+    if (!png) return null;
+    const bitmap = await createImageBitmap(png);
+    const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale)), h3 = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = new OffscreenCanvas(w, h3);
+    const g = canvas.getContext("2d");
+    if (!g) return null;
+    g.drawImage(bitmap, 0, 0, w, h3);
+    bitmap.close();
+    for (const quality of [0.86, 0.72, 0.55]) {
+      const jpeg = await canvas.convertToBlob({ type: "image/jpeg", quality });
+      if (jpeg.size <= 9e5) return jpeg;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 async function uploadOpenMap(ctx, target, step = () => {
 }) {
   const { api, account } = ctx;
@@ -11083,7 +11222,8 @@ async function uploadOpenMap(ctx, target, step = () => {
     const t = await thumbnailOf(ctx);
     if (t) meta.thumbnail = t;
   }
-  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta };
+  const picture = target.thumbnail ? await pictureOf(ctx) : null;
+  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta, picture };
   step("Uploading\u2026");
   const response = target.mapId === null ? await account.client.createMap(file, { ...fields, name: target.name || void 0 }) : await account.client.uploadRevision(target.mapId, file, fields);
   account.noteStorage(response.storage);
@@ -11498,11 +11638,16 @@ function linksSection(ctx, map, revision, update, say) {
         say(describeError(err), "error");
       }
     } });
+    const card = link.card;
+    const embed = card ? w.button("Embed\u2026", { ghost: true, title: "A picture of the map that opens this link, for a forum, a README or a website", onClick: () => {
+      openEmbedDialog(ctx, { name: map.name, copy: async () => ({ link: linkAddress(ctx, link.token), card }) });
+    } }) : null;
     box.append(h2(
       "div",
       { className: "sd-link-row" },
       linkField(ctx, linkAddress(ctx, link.token), say),
       h2("span", { className: "sd-sub", title: `Made ${formatDate(link.createdAt)}` }, `${which(link)} \xB7 opened ${link.opens}\xD7`),
+      embed ?? h2("span", null),
       remove
     ));
   }
@@ -12436,11 +12581,11 @@ var SharedChat = class {
   }
   /** The button shows only while the shared map is the one in front. */
   syncButton() {
-    const here = this.shared.documentId !== null && this.api.document.id() === this.shared.documentId;
-    if (here && !this.button) {
+    const here2 = this.shared.documentId !== null && this.api.document.id() === this.shared.documentId;
+    if (here2 && !this.button) {
       this.button = chatButton(this.api, () => this.toggle());
       this.paintButton();
-    } else if (!here && this.button) {
+    } else if (!here2 && this.button) {
       this.button.remove();
       this.button = null;
     }
@@ -12666,6 +12811,20 @@ function openShareDialog(ctx, controls) {
               }
             } });
             box.append(w.form([{ label: "Keep it open", field: how }]));
+            const embed = w.button("Embed\u2026", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: async () => {
+              embed.setBusy(true);
+              try {
+                const view = (await account.client.sharedMaps()).rooms.find((x) => x.id === room.id);
+                const target = view ? keptEmbedTarget(ctx, view) : null;
+                if (target) openEmbedDialog(ctx, target);
+                else status.set("This server has no pictures for shared maps yet.", "warn");
+              } catch (err) {
+                status.set(describeError(err), "error");
+              } finally {
+                embed.setBusy(false);
+              }
+            } });
+            box.append(h2("div", { className: "sd-btns" }, embed));
           }
         }
         const list2 = h2("div", { className: "sd-people" });
@@ -12867,9 +13026,18 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
       const info = api.document.info();
       const fileName = info?.fileName ?? `${name}.scx`;
       const meta = keepDays === void 0 || !info ? null : metaOf(info, api.query.statistics(), api.settings.players());
-      const thumbnail = meta ? await thumbnailOf({ ...opts, api, account: opts.account }) : null;
+      const ctxOf = { ...opts, api, account: opts.account };
+      const thumbnail = meta ? await thumbnailOf(ctxOf) : null;
       if (meta && thumbnail) meta.thumbnail = thumbnail;
-      const keep = keepDays === void 0 || !meta ? void 0 : { keepDays, mapId: opts.links.get()?.mapId, fileName, note: "When sharing started", meta };
+      const picture = meta ? await pictureOf(ctxOf) : null;
+      const keep = keepDays === void 0 || !meta ? void 0 : {
+        keepDays,
+        mapId: opts.links.get()?.mapId,
+        fileName,
+        note: "When sharing started",
+        meta,
+        ...picture ? { picture: toBase64(new Uint8Array(await picture.arrayBuffer())) } : {}
+      };
       const s = await SharedMap.share(deps, name, keep);
       if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });
       attach(s);

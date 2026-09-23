@@ -106,7 +106,12 @@ shows what is used.
   between sessions and across server restarts; each time everyone has left it saves a
   revision, and it ends that long after its last edit. Account ▸ Account… lists your shared
   maps (Join, Copy link, New link, how long, End sharing); My Maps marks them and can put a
-  revision back into one. Up to eight people per map, five shared maps per account. If the
+  revision back into one. Up to eight people per map, five shared maps per account.
+- **Embed…** (on a link in My Maps, on a kept map in the Account list and the Share
+  dialog) gives a picture of the map that links to it — Markdown, BBCode and HTML, large or
+  small. The picture is drawn by the server around a picture of the map the editor sends
+  when it saves; its address opens nothing. A kept map's embed can open a copy (the
+  default) or the shared map itself, with a warning. If the
   connection drops, the editor reconnects on its own for up to two minutes and keeps your
   changes meanwhile; if the map has moved on too far for it to catch up, the shared map
   opens again in a new tab and your copy stays open beside it.

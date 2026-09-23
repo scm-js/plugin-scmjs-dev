@@ -241,6 +241,12 @@ export interface AccountsInfo {
   rooms?: boolean;
   /** A shared map can be kept open between sessions, as a stored map (from 0.15.0). */
   keptRooms?: boolean;
+  /**
+   * Map links and kept maps have card images to embed, and uploads take a `picture` part (a
+   * PNG or JPEG of the map) for them to be drawn with (from 0.17.0). Before it, an upload
+   * with a second file part is refused.
+   */
+  cards?: boolean;
   /** A trial or a newly signed-in account may use the AI (the default role allows a recipe); absent from a server before 0.11.0, which always did. */
   ai?: boolean;
 }
@@ -314,6 +320,8 @@ export interface MapRevisionView {
   sha256: string;
   meta: MapMeta;
   createdAt: string;
+  /** It carries the bigger picture a card is drawn with (from 0.17.0). */
+  picture?: boolean;
 }
 
 export interface MapSummary {
@@ -350,6 +358,11 @@ export interface MapLinkView {
   /** How many times the file was fetched through the link. */
   opens: number;
   createdAt: string;
+  /**
+   * The link's card image (a PNG, `?w=600` for the small one), to embed wherever images go.
+   * Its address is the card's own id, which opens nothing. From 0.17.0.
+   */
+  card?: string;
 }
 
 /** `POST /v1/maps/:id/links`. */
@@ -378,6 +391,8 @@ export interface PublicMapView {
   meta: MapMeta;
   /** When that revision was saved. */
   savedAt: string;
+  /** The link's card image, by its own id. From 0.17.0. */
+  card?: string;
 }
 
 export interface PublicMapResponse {
@@ -547,6 +562,8 @@ export interface RoomCreateRequest {
   fileName?: string;
   note?: string;
   meta?: MapMeta;
+  /** Base64 of the bigger picture a card is drawn with (a PNG or JPEG). From 0.17.0. */
+  picture?: string;
 }
 
 /** `POST /v1/rooms` — the room and its invite, for the owner (and, kept open, the stored map it is). */
@@ -569,6 +586,8 @@ export interface SharedMapView {
   endsAt?: string;
   lastEditAt?: string;
   lastEditBy?: string | null;
+  /** A kept map's card image (`?w=600` for the small one), by an id that is not the invite. From 0.17.0. */
+  card?: string;
 }
 
 /** `GET /v1/rooms/mine`, and the answer to ending one. */

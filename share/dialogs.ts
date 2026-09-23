@@ -11,7 +11,8 @@ import type { SettingsStore } from "../account";
 import { clear, h, styled, type Ctx } from "../ui";
 import { inviteFrom, inviteLink } from "./link";
 import { doing, personColor } from "./presence";
-import { choiceOf, endsLine, KEEP_CHOICES, keepDaysOf, keepHint, lower, sharedMapsList } from "./kept";
+import { openEmbedDialog } from "./embed";
+import { choiceOf, endsLine, KEEP_CHOICES, keepDaysOf, keepHint, keptEmbedTarget, lower, sharedMapsList } from "./kept";
 import type { SharedMap } from "./shared";
 
 /** The dialogs' context: the plugin's, and the settings (the name last typed to join). */
@@ -141,6 +142,17 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
               catch (err) { status.set(describeError(err), "error"); }
             } });
             box.append(w.form([{ label: "Keep it open", field: how }]));
+            const embed = w.button("Embed…", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: async () => {
+              embed.setBusy(true);
+              try {
+                const view = (await account.client.sharedMaps()).rooms.find((x) => x.id === room.id);
+                const target = view ? keptEmbedTarget(ctx, view) : null;
+                if (target) openEmbedDialog(ctx, target);
+                else status.set("This server has no pictures for shared maps yet.", "warn");
+              } catch (err) { status.set(describeError(err), "error"); }
+              finally { embed.setBusy(false); }
+            } });
+            box.append(h("div", { className: "sd-btns" }, embed));
           }
         }
         const list = h("div", { className: "sd-people" });

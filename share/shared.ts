@@ -103,6 +103,8 @@ export interface KeepOptions {
   fileName?: string;
   meta?: MapMeta;
   note?: string;
+  /** Base64 of the map's bigger picture, for its card. */
+  picture?: string;
 }
 
 export class SharedMap {
