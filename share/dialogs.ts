@@ -11,7 +11,7 @@ import type { SettingsStore } from "../account";
 import { clear, h, styled, type Ctx } from "../ui";
 import { inviteFrom, inviteLink } from "./link";
 import { doing, personColor } from "./presence";
-import { choiceOf, endsLine, KEEP_CHOICES, keepDaysOf, keepHint, sharedMapsList } from "./kept";
+import { choiceOf, endsLine, KEEP_CHOICES, keepDaysOf, keepHint, lower, sharedMapsList } from "./kept";
 import type { SharedMap } from "./shared";
 
 /** The dialogs' context: the plugin's, and the settings (the name last typed to join). */
@@ -133,7 +133,7 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
           box.append(h("div", { className: "sd-hint" }, `You are editing “${room?.name ?? "a shared map"}” with others.`));
         }
         if (shared.kept && room) {
-          const line = h("div", { className: "sd-hint" }, `Kept open: ${endsLine(room).toLowerCase()}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
+          const line = h("div", { className: "sd-hint" }, `Kept open: ${lower(endsLine(room))}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
           box.append(line);
           if (shared.owner) {
             const how = w.select(KEEP_CHOICES.filter((c) => c.value !== "live"), { value: choiceOf(room.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {

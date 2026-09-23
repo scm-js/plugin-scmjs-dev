@@ -7,7 +7,7 @@
 import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
-import { metaOf, type Link } from "../maps";
+import { metaOf, thumbnailOf, type Link } from "../maps";
 import type { KeepDays } from "../protocol";
 import { SharedChat } from "./chat";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
@@ -110,10 +110,11 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
       if (shared && shared.phase !== "ended") return shared;
       const info = api.document.info();
       const fileName = info?.fileName ?? `${name}.scx`;
-      const keep = keepDays === undefined || !info ? undefined : {
-        keepDays, mapId: opts.links.get()?.mapId, fileName, note: "Shared",
-        meta: metaOf(info, api.query.statistics(), api.settings.players()),
-      };
+      const meta = keepDays === undefined || !info ? null : metaOf(info, api.query.statistics(), api.settings.players());
+      // Kept open, it is one of the account's maps: with a picture, as Save to scmjs.dev gives it (and the link's card shows).
+      const thumbnail = meta ? await thumbnailOf({ ...opts, api, account: opts.account }) : null;
+      if (meta && thumbnail) meta.thumbnail = thumbnail;
+      const keep = keepDays === undefined || !meta ? undefined : { keepDays, mapId: opts.links.get()?.mapId, fileName, note: "When sharing started", meta };
       const s = await SharedMap.share(deps, name, keep);
       // Kept: the map is on the account now, and Save to scmjs.dev offers it.
       if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });

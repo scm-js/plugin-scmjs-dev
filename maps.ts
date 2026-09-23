@@ -14,7 +14,7 @@ import { describeError, formatBytes, ScmjsError } from "./client";
 import { linksSection } from "./copies";
 import { storageBar } from "./dialogs";
 import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary, SharedMapView } from "./protocol";
-import { endsLine } from "./share/kept";
+import { endsLine, lower } from "./share/kept";
 import { ago, clear, formatDate, h, styled, textarea, type Ctx } from "./ui";
 
 /** Player slots the game would seat: humans, computers and rescuables (neutral and inactive are not players). */
@@ -54,7 +54,7 @@ async function dataUrlOf(blob: Blob): Promise<string> {
 }
 
 /** The open map at one pixel per tile, as the server's thumbnail; null without the graphics. */
-async function thumbnailOf(ctx: Ctx): Promise<string | null> {
+export async function thumbnailOf(ctx: Ctx): Promise<string | null> {
   try {
     const blob = await ctx.api.document.renderImage({ pixelsPerTile: 1, units: true, sprites: false, locations: false, locationNames: false, startLocations: true, fog: false, grid: 0 });
     if (!blob || blob.size > 150_000) return null;
@@ -91,8 +91,7 @@ export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; na
 
 /** "Shared · 2 editing" / "Shared · ends 3 Oct unless someone edits it". */
 function sharedLine(v: SharedMapView): string {
-  const ends = endsLine(v);
-  return v.people.length ? `Shared · ${v.people.length} editing` : `Shared · ${ends.charAt(0).toLowerCase()}${ends.slice(1)}`;
+  return v.people.length ? `Shared · ${v.people.length} editing` : `Shared · ${lower(endsLine(v))}`;
 }
 
 function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolean {

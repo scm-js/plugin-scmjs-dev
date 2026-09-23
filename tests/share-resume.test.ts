@@ -220,3 +220,14 @@ describe("chat lines missed", () => {
     expect(newLines([a], [line("x", "t2"), c])).toEqual([line("x", "t2"), c]);
   });
 });
+
+describe("how long a kept map is open, in words", () => {
+  it("keeps the date's capitals when the line goes on after something else", async () => {
+    const { endsLine, lower } = await import("../share/kept");
+    const line = endsLine({ keepDays: 7, endsAt: "2026-09-30T12:00:00Z" });
+    expect(line.startsWith("Ends ")).toBe(true);
+    expect(lower(line).startsWith("ends ")).toBe(true);
+    expect(lower(line).slice(5)).toBe(line.slice(5));
+    expect(lower(endsLine({ keepDays: null }))).toBe("until you end it");
+  });
+});

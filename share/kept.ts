@@ -48,7 +48,8 @@ export function endsLine(v: { keepDays?: KeepDays; endsAt?: string }): string {
   return v.endsAt ? `Ends ${shortDay(v.endsAt)} unless someone edits it` : "Kept open";
 }
 
-const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+/** The first letter lower-cased, for a line that goes on after something else (dates and names keep their capitals). */
+export const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
 /**
  * The account's shared maps with the owner's buttons. `onJoined` hears when Join put the

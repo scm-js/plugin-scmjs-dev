@@ -11090,8 +11090,7 @@ async function uploadOpenMap(ctx, target, step = () => {
   return { response, fileName: fields.fileName };
 }
 function sharedLine(v) {
-  const ends = endsLine(v);
-  return v.people.length ? `Shared \xB7 ${v.people.length} editing` : `Shared \xB7 ${ends.charAt(0).toLowerCase()}${ends.slice(1)}`;
+  return v.people.length ? `Shared \xB7 ${v.people.length} editing` : `Shared \xB7 ${lower(endsLine(v))}`;
 }
 function needsAccount(ctx, root2, dialog) {
   const s = ctx.account.state();
@@ -12655,7 +12654,7 @@ function openShareDialog(ctx, controls) {
           box.append(h2("div", { className: "sd-hint" }, `You are editing \u201C${room?.name ?? "a shared map"}\u201D with others.`));
         }
         if (shared.kept && room) {
-          const line = h2("div", { className: "sd-hint" }, `Kept open: ${endsLine(room).toLowerCase()}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
+          const line = h2("div", { className: "sd-hint" }, `Kept open: ${lower(endsLine(room))}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
           box.append(line);
           if (shared.owner) {
             const how = w.select(KEEP_CHOICES.filter((c2) => c2.value !== "live"), { value: choiceOf(room.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
@@ -12867,13 +12866,10 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
       if (shared && shared.phase !== "ended") return shared;
       const info = api.document.info();
       const fileName = info?.fileName ?? `${name}.scx`;
-      const keep = keepDays === void 0 || !info ? void 0 : {
-        keepDays,
-        mapId: opts.links.get()?.mapId,
-        fileName,
-        note: "Shared",
-        meta: metaOf(info, api.query.statistics(), api.settings.players())
-      };
+      const meta = keepDays === void 0 || !info ? null : metaOf(info, api.query.statistics(), api.settings.players());
+      const thumbnail = meta ? await thumbnailOf({ ...opts, api, account: opts.account }) : null;
+      if (meta && thumbnail) meta.thumbnail = thumbnail;
+      const keep = keepDays === void 0 || !meta ? void 0 : { keepDays, mapId: opts.links.get()?.mapId, fileName, note: "When sharing started", meta };
       const s = await SharedMap.share(deps, name, keep);
       if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });
       attach(s);
