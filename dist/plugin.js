@@ -11131,24 +11131,27 @@ function openSaveDialog(ctx, link) {
 }
 
 // share/link.ts
-var ROOM_QUERY = "scmjs-room";
 var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
 var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
+var SHARE_PATH = /^(.*\/)share\/([A-Za-z0-9_-]{16,64})\/?$/;
+function editorBase(pathname) {
+  const m = SHARE_PATH.exec(pathname);
+  if (m) return m[1];
+  return pathname.replace(/[^/]*$/, "") || "/";
+}
 function inviteLink(invite, serverUrl, where2) {
-  const base = where2 && (where2.protocol === "http:" || where2.protocol === "https:") ? `${where2.origin}${where2.pathname}` : WEB_EDITOR_URL;
-  const params = new URLSearchParams({ [ROOM_QUERY]: invite });
-  if (serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL) params.set(SERVER_QUERY, serverUrl);
-  return `${base}?${params.toString()}`;
+  const base = where2 && (where2.protocol === "http:" || where2.protocol === "https:") ? `${where2.origin}${editorBase(where2.pathname)}` : WEB_EDITOR_URL;
+  const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
+  return `${base}share/${invite}${query}`;
 }
 function inviteFrom(text) {
   const t = text.trim();
   if (INVITE.test(t)) return t;
-  const m = /[?&]scmjs-room=([A-Za-z0-9_-]{16,64})/.exec(t);
+  const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
   return m ? m[1] : null;
 }
-function inviteOnPage(search) {
-  const v = new URLSearchParams(search).get(ROOM_QUERY);
-  return v && INVITE.test(v) ? v : null;
+function inviteOnPage(pathname) {
+  return SHARE_PATH.exec(pathname)?.[2] ?? null;
 }
 
 // share/presence.ts
@@ -11851,12 +11854,12 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
   } }));
   disposables.push(api.menu.add("Account", { label: "Share this Map\u2026", icon: "plugin", command: "share", separator: true }));
   disposables.push(api.menu.add("Account", { label: "Join a Shared Map\u2026", icon: "plugin", command: "join" }));
-  const search = opts.search ?? (typeof location !== "undefined" ? location.search : "");
-  const invite = inviteOnPage(search);
+  const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
+  const invite = inviteOnPage(pathname);
   if (invite) {
     if (typeof history !== "undefined" && typeof location !== "undefined") {
       const url = new URL(location.href);
-      url.searchParams.delete(ROOM_QUERY);
+      url.pathname = editorBase(url.pathname);
       history.replaceState(history.state, "", url.toString());
     }
     openJoinDialog(ctx, controls, invite);

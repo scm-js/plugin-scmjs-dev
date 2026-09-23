@@ -2,13 +2,13 @@
  * Shared maps in the editor: Account ▸ Share this Map… and Join a Shared Map…, a cell in
  * the status bar while a map is shared (who is in; a click opens the Share dialog), the
  * other people's pointers and views over the map, and a link opened in the browser
- * (`?scmjs-room=`) putting the Join dialog up at start. One shared map at a time.
+ * (`share/<invite>`) putting the Join dialog up at start. One shared map at a time.
  */
 import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
-import { inviteOnPage, ROOM_QUERY } from "./link";
+import { editorBase, inviteOnPage } from "./link";
 import { doing, drawPeople } from "./presence";
 import { SharedMap, type SharedDeps } from "./shared";
 
@@ -22,8 +22,8 @@ export interface ShareOptions {
   saveToCloud: () => void;
   /** For the tests: the socket to use instead of the browser's WebSocket. */
   socket?: SharedDeps["socket"];
-  /** The page's query string; the browser's by default. */
-  search?: string;
+  /** The page's path; the browser's by default. */
+  pathname?: string;
 }
 
 export function installShare(opts: ShareOptions): () => void {
@@ -111,12 +111,13 @@ export function installShare(opts: ShareOptions): () => void {
   disposables.push(api.menu.add("Account", { label: "Join a Shared Map…", icon: "plugin", command: "join" }));
 
   // Opened from a link: the invite comes off the address (a reload must not join twice) and the Join dialog goes up.
-  const search = opts.search ?? (typeof location !== "undefined" ? location.search : "");
-  const invite = inviteOnPage(search);
+  // A `share/<invite>` path goes back to the editor's own, so a reload opens the editor and not the link again.
+  const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
+  const invite = inviteOnPage(pathname);
   if (invite) {
     if (typeof history !== "undefined" && typeof location !== "undefined") {
       const url = new URL(location.href);
-      url.searchParams.delete(ROOM_QUERY);
+      url.pathname = editorBase(url.pathname);
       history.replaceState(history.state, "", url.toString());
     }
     openJoinDialog(ctx, controls, invite);
