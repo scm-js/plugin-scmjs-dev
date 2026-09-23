@@ -1,7 +1,7 @@
 {
   "name": "scmjs.dev",
   "id": "scmjs-dev",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "description": "Your scmjs.dev account in the editor. Keep maps on your account with revisions and notes, and share the open map so others can edit it with you at the same time. Where the server offers them, AI tools can build, lay out and review a map with you.",
   "author": "Jeany",
   "homepage": "https://github.com/scm-js/plugin-scmjs-dev",

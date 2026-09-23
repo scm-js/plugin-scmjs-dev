@@ -272,10 +272,35 @@ var ScmjsClient = class {
     return this.request(`/v1/maps/${encodeURIComponent(id)}/revisions/${number}`, { method: "DELETE" });
   }
   /** `GET /v1/maps/:id/revisions/:n/file`: the bytes as they were uploaded. */
-  async revisionFile(id, number, signal) {
+  revisionFile(id, number, signal) {
+    return this.file(`/v1/maps/${encodeURIComponent(id)}/revisions/${number}/file`, this.headers(), signal);
+  }
+  /** `POST /v1/maps/:id/links`: a copy link to one revision, or (null) to whichever is newest. */
+  createLink(id, revision) {
+    return this.request(`/v1/maps/${encodeURIComponent(id)}/links`, { method: "POST", json: { revision } });
+  }
+  deleteLink(id, token) {
+    return this.request(`/v1/maps/${encodeURIComponent(id)}/links/${encodeURIComponent(token)}`, { method: "DELETE" });
+  }
+  /** `GET /v1/links/:token`: what a copy link opens. Needs no sign-in, and sends none. */
+  async linkedMap(token, signal) {
     let res;
     try {
-      res = await this.fetchImpl(`${this.base()}/v1/maps/${encodeURIComponent(id)}/revisions/${number}/file`, { headers: this.headers(), signal });
+      res = await this.fetchImpl(`${this.base()}/v1/links/${encodeURIComponent(token)}`, { signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) throw await errorOf(res);
+    return await res.json();
+  }
+  /** `GET /v1/links/:token/file`: the file a copy link opens. */
+  linkedFile(token, signal) {
+    return this.file(`/v1/links/${encodeURIComponent(token)}/file`, {}, signal);
+  }
+  async file(path, headers, signal) {
+    let res;
+    try {
+      res = await this.fetchImpl(`${this.base()}${path}`, { headers, signal });
     } catch (err) {
       throw toNetworkError(err);
     }
@@ -5491,9 +5516,9 @@ function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
   const groups = [...shapes.values()];
   const line = (g, width) => {
     const r = g.first;
-    const where2 = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
+    const where3 = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
     const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
-    return `${where2} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
+    return `${where3} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
   };
   const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
   for (const width of [400, 240, 160]) {
@@ -8893,7 +8918,7 @@ function openExplain(ctx) {
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const which = w.select([
+      const which2 = w.select([
         { value: "triggers", label: `Triggers (${list2.length})` },
         { value: "briefing", label: `Mission briefing (${briefingList.length})`, disabled: briefingList.length === 0 }
       ], { value: "triggers" });
@@ -8903,7 +8928,7 @@ function openExplain(ctx) {
       const out = h("div", null);
       let text = "";
       const ask = async () => {
-        const briefing = which.value === "briefing";
+        const briefing = which2.value === "briefing";
         const source = briefing ? briefingList : list2;
         if (source.length === 0) {
           runner.idle("There are no triggers to explain.");
@@ -8934,7 +8959,7 @@ function openExplain(ctx) {
         w.group(
           "Which",
           w.form([
-            { label: "List", field: which },
+            { label: "List", field: which2 },
             { label: "From \u2013 to", field: h("div", { className: "ai-btns" }, from, "\u2013", to) }
           ]),
           question,
@@ -10455,8 +10480,8 @@ function installAi(deps) {
     label: (c2) => c2.markedArea ? "Ask AI about this area\u2026" : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "Ask AI about the selection\u2026" : "Ask AI about this spot\u2026",
     enabled: open,
     run: (c2) => {
-      const where2 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
-      showAssistant().ask(`About ${where2}: `, false);
+      const where3 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
+      showAssistant().ask(`About ${where3}: `, false);
     }
   }));
   out.push(api.hotkeys.add("Ctrl+Shift+A", { command: "assistant" }));
@@ -10519,6 +10544,13 @@ var STYLE2 = `
 .sd .sd-thumb { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; background: var(--bg-0, #0f1115); border: 1px solid var(--border, #333); border-radius: 3px; overflow: hidden; }
 .sd .sd-thumb img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
 .sd .sd-thumb span { color: var(--text-faint, #6b7382); font-size: 10px; }
+.sd .sd-map.sd-card { cursor: default; border-bottom: none; padding: 0; }
+.sd .sd-link { display: flex; gap: 6px; align-items: center; }
+.sd .sd-link input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11px; }
+.sd .sd-links { display: flex; flex-direction: column; gap: 4px; }
+.sd .sd-link-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding-bottom: 4px; }
+.sd .sd-link-row > .sd-link { grid-column: 1 / -1; }
+.sd .sd-link-row .sd-sub { white-space: nowrap; color: var(--text-dim, #99a2b3); font-size: 11px; }
 .sd .sd-map .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
 .sd .sd-map .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
 .sd .sd-map .sd-when { color: var(--text-faint, #6b7382); font-size: 11px; text-align: right; }
@@ -10810,6 +10842,25 @@ async function thumbnailOf(ctx) {
     return null;
   }
 }
+async function uploadOpenMap(ctx, target, step = () => {
+}) {
+  const { api, account } = ctx;
+  const info = api.document.info();
+  if (!info) throw new Error("no map is open.");
+  step("Packing the map\u2026");
+  const file = await api.document.export();
+  if (!file) throw new Error("the map could not be packed.");
+  const meta = metaOf(info, api.query.statistics(), api.settings.players());
+  if (target.thumbnail) {
+    const t = await thumbnailOf(ctx);
+    if (t) meta.thumbnail = t;
+  }
+  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta };
+  step("Uploading\u2026");
+  const response = target.mapId === null ? await account.client.createMap(file, { ...fields, name: target.name || void 0 }) : await account.client.uploadRevision(target.mapId, file, fields);
+  account.noteStorage(response.storage);
+  return { response, fileName: fields.fileName };
+}
 function needsAccount(ctx, root2, dialog) {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
@@ -10866,7 +10917,7 @@ function openMapsDialog(ctx, link) {
               null,
               h2("div", { className: "sd-name" }, m.name),
               h2("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
-              h2("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.head.note ? ` \xB7 ${m.head.note.split("\n")[0]}` : ""}`)
+              h2("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` \xB7 ${m.head.note.split("\n")[0]}` : ""}`)
             ),
             h2("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt))
           );
@@ -10945,7 +10996,9 @@ function openMapsDialog(ctx, link) {
           }
         } });
         const delRev = w.button(`Delete #${rev.number}`, { danger: true, disabled: m.history.length <= 1, title: m.history.length <= 1 ? "A map keeps its last revision; delete the map to remove it." : void 0, onClick: async () => {
-          if (!await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.`, { title: "Delete revision", confirmLabel: "Delete", danger: true })) return;
+          const pinned = m.linkList.filter((l) => l.revision === rev.number).length;
+          const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
+          if (!await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true })) return;
           try {
             pickedRevision = null;
             await update(await client.deleteRevision(m.id, rev.number));
@@ -10955,7 +11008,7 @@ function openMapsDialog(ctx, link) {
           }
         } });
         const delMap = w.button("Delete map", { danger: true, onClick: async () => {
-          if (!await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?`, { title: "Delete map", confirmLabel: "Delete", danger: true })) return;
+          if (!await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true })) return;
           try {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
@@ -10980,7 +11033,8 @@ function openMapsDialog(ctx, link) {
           ),
           h2("div", { className: "sd-btns" }, open, download, note, rename),
           revs,
-          h2("div", { className: "sd-btns" }, delRev, delMap)
+          h2("div", { className: "sd-btns" }, delRev, delMap),
+          w.group("Links", linksSection(ctx, m, rev.number, update, say))
         );
       };
       const update = async (r) => {
@@ -10989,7 +11043,7 @@ function openMapsDialog(ctx, link) {
         account.noteStorage(r.storage);
         renderStorage(r.storage);
         const i = maps.findIndex((m) => m.id === r.map.id);
-        const summary = { id: r.map.id, name: r.map.name, description: r.map.description, createdAt: r.map.createdAt, updatedAt: r.map.updatedAt, revisions: r.map.revisions, head: r.map.head };
+        const summary = { id: r.map.id, name: r.map.name, description: r.map.description, createdAt: r.map.createdAt, updatedAt: r.map.updatedAt, revisions: r.map.revisions, head: r.map.head, links: r.map.links };
         if (i >= 0) maps[i] = summary;
         else maps.unshift(summary);
         maps.sort((a2, b) => b.updatedAt.localeCompare(a2.updatedAt));
@@ -11081,19 +11135,13 @@ function openSaveDialog(ctx, link) {
         save.setBusy(true);
         dialog.setBusy("Saving\u2026");
         try {
-          status.busy("Packing the map\u2026");
-          const file = await api.document.export();
-          if (!file) throw new Error("the map could not be packed.");
-          const meta = metaOf(info, api.query.statistics(), api.settings.players());
-          if (thumbBox.input.checked) {
-            const t = await thumbnailOf(ctx);
-            if (t) meta.thumbnail = t;
-          }
-          const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: noteField.value.trim(), meta };
-          status.busy("Uploading\u2026");
-          const r = target.value === NEW ? await client.createMap(file, { ...fields, name: nameField.value.trim() || void 0 }) : await client.uploadRevision(target.value, file, fields);
-          account.noteStorage(r.storage);
-          link.set({ mapId: r.map.id, mapName: r.map.name, fileName: fields.fileName });
+          const { response: r, fileName } = await uploadOpenMap(ctx, {
+            mapId: target.value === NEW ? null : target.value,
+            name: nameField.value.trim(),
+            note: noteField.value.trim(),
+            thumbnail: thumbBox.input.checked
+          }, (text) => status.busy(text));
+          link.set({ mapId: r.map.id, mapName: r.map.name, fileName });
           api.ui.toast({ kind: "ok", title: `Saved to scmjs.dev: ${r.map.name} #${r.map.head.number}`, detail: `${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.` });
           dialog.close();
         } catch (err) {
@@ -11133,16 +11181,22 @@ function openSaveDialog(ctx, link) {
 // share/link.ts
 var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
 var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
-var SHARE_PATH = /^(.*\/)share\/([A-Za-z0-9_-]{16,64})\/?$/;
+var LINK_PATH = /^(.*\/)(share|map)\/([A-Za-z0-9_-]{16,64})\/?$/;
 function editorBase(pathname) {
-  const m = SHARE_PATH.exec(pathname);
+  const m = LINK_PATH.exec(pathname);
   if (m) return m[1];
   return pathname.replace(/[^/]*$/, "") || "/";
 }
-function inviteLink(invite, serverUrl, where2) {
-  const base = where2 && (where2.protocol === "http:" || where2.protocol === "https:") ? `${where2.origin}${editorBase(where2.pathname)}` : WEB_EDITOR_URL;
+function linkTo(kind, token, serverUrl, where3) {
+  const base = where3 && (where3.protocol === "http:" || where3.protocol === "https:") ? `${where3.origin}${editorBase(where3.pathname)}` : WEB_EDITOR_URL;
   const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
-  return `${base}share/${invite}${query}`;
+  return `${base}${kind}/${token}${query}`;
+}
+function inviteLink(invite, serverUrl, where3) {
+  return linkTo("share", invite, serverUrl, where3);
+}
+function copyLink(token, serverUrl, where3) {
+  return linkTo("map", token, serverUrl, where3);
 }
 function inviteFrom(text) {
   const t = text.trim();
@@ -11150,8 +11204,256 @@ function inviteFrom(text) {
   const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
   return m ? m[1] : null;
 }
+function copyTokenFrom(text) {
+  const t = text.trim();
+  if (INVITE.test(t)) return t;
+  const m = /\/map\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
+  return m ? m[1] : null;
+}
 function inviteOnPage(pathname) {
-  return SHARE_PATH.exec(pathname)?.[2] ?? null;
+  const m = LINK_PATH.exec(pathname);
+  return m?.[2] === "share" ? m[3] : null;
+}
+function copyTokenOnPage(pathname) {
+  const m = LINK_PATH.exec(pathname);
+  return m?.[2] === "map" ? m[3] : null;
+}
+function forgetLinkOnPage() {
+  if (typeof history === "undefined" || typeof location === "undefined") return;
+  const url = new URL(location.href);
+  url.pathname = editorBase(url.pathname);
+  history.replaceState(history.state, "", url.toString());
+}
+
+// copies.ts
+var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+function linkAddress(ctx, token) {
+  return copyLink(token, ctx.account.serverUrl(), where());
+}
+function linkField(ctx, address, say) {
+  const w = ctx.api.ui.widgets;
+  const field = w.text({ value: address });
+  field.readOnly = true;
+  const copy = w.button("Copy", { onClick: async () => {
+    try {
+      await navigator.clipboard.writeText(field.value);
+      say("The link is on the clipboard.", "ok");
+    } catch {
+      field.select();
+      say("Select the link and copy it.", "warn");
+    }
+  } });
+  return h2("div", { className: "sd-link" }, field, copy);
+}
+function which(link) {
+  return link.revision === null ? "the newest save" : `revision #${link.revision}`;
+}
+function linksSection(ctx, map, revision, update, say) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  const client = account.client;
+  const box = h2("div", { className: "sd-links" });
+  for (const link of map.linkList) {
+    const remove = w.button("Remove", { ghost: true, onClick: async () => {
+      if (!await api.ui.confirm(`Remove this link to ${map.name}? Anyone who has it can no longer open the map. The map stays on your account.`, { title: "Remove link", confirmLabel: "Remove", danger: true })) return;
+      try {
+        await update(await client.deleteLink(map.id, link.token));
+        say("Link removed.", "ok");
+      } catch (err) {
+        say(describeError(err), "error");
+      }
+    } });
+    box.append(h2(
+      "div",
+      { className: "sd-link-row" },
+      linkField(ctx, linkAddress(ctx, link.token), say),
+      h2("span", { className: "sd-sub", title: `Made ${formatDate(link.createdAt)}` }, `${which(link)} \xB7 opened ${link.opens}\xD7`),
+      remove
+    ));
+  }
+  const make = (pin) => async () => {
+    try {
+      const r = await client.createLink(map.id, pin);
+      await update({ map: r.map, storage: await client.storage().then((s) => s.storage) });
+      try {
+        await navigator.clipboard.writeText(linkAddress(ctx, r.link.token));
+        say(`Link to ${which(r.link)} made and copied.`, "ok");
+      } catch {
+        say(`Link to ${which(r.link)} made.`, "ok");
+      }
+    } catch (err) {
+      say(describeError(err), "error");
+    }
+  };
+  return h2(
+    "div",
+    null,
+    h2("div", { className: "sd-hint" }, map.linkList.length ? "Anyone with one of these links can open a copy of this map in their editor, without signing in. The copy is theirs; nothing they do changes yours." : "No links. A link lets anyone open a copy of this map in their editor, without signing in."),
+    box,
+    h2(
+      "div",
+      { className: "sd-btns" },
+      w.button(`Link to #${revision}`, { onClick: make(revision), title: "The link always opens this revision." }),
+      w.button("Link to the newest", { onClick: make(null), title: "The link opens whichever revision is newest when it is opened." })
+    )
+  );
+}
+function openCopyLinkDialog(ctx, links) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  return api.ui.dialog({
+    title: "Copy Link to This Map",
+    mount(body, dialog) {
+      const root2 = styled2(body);
+      const status = w.statusLine({ text: "" });
+      const say = (text, kind) => status.set(text, kind);
+      const info = api.document.info();
+      if (!info) {
+        root2.append(h2("div", { className: "sd-hint" }, "Open a map first."));
+        return;
+      }
+      if (account.kind() !== "account") {
+        root2.append(
+          h2("div", { className: "sd-hint" }, "A link opens a map kept on your scmjs.dev account, so making one takes an account. The people who open it need only the link."),
+          h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
+            dialog.close();
+            ctx.openAccount();
+          } }))
+        );
+        return;
+      }
+      const stored = links.get();
+      const follow = w.checkbox("Let the link follow my later saves to this map", { value: false });
+      const make = w.button("Save and make the link", { primary: true, onClick: async () => {
+        make.setBusy(true);
+        dialog.setBusy("Saving\u2026");
+        try {
+          const { response, fileName } = await uploadOpenMap(ctx, { mapId: stored?.mapId ?? null, note: "Shared with a link", thumbnail: true }, (text) => status.busy(text));
+          links.set({ mapId: response.map.id, mapName: response.map.name, fileName });
+          status.busy("Making the link\u2026");
+          const { link } = await account.client.createLink(response.map.id, follow.input.checked ? null : response.map.head.number);
+          clear2(root2);
+          root2.append(
+            h2("div", { className: "sd-hint" }, `Saved as ${response.map.name} #${response.map.head.number}. Anyone with this link can open a copy of it in their editor, without signing in:`),
+            linkField(ctx, linkAddress(ctx, link.token), say),
+            h2("div", { className: "sd-hint" }, "Account \u25B8 My Maps\u2026 lists the map's links, how often each was opened, and removes them."),
+            status
+          );
+          try {
+            await navigator.clipboard.writeText(linkAddress(ctx, link.token));
+            say("The link is on the clipboard.", "ok");
+          } catch {
+            say("");
+          }
+        } catch (err) {
+          say(describeError(err), "error");
+        } finally {
+          make.setBusy(false);
+          dialog.setBusy(false);
+        }
+      } });
+      root2.append(
+        h2("div", { className: "sd-hint" }, stored ? `The open map is saved to your account as a new revision of ${stored.mapName}, and you get a link anyone can open a copy of it with, without signing in.` : "The open map is saved to your account as a new map, and you get a link anyone can open a copy of it with, without signing in."),
+        follow,
+        h2("div", { className: "sd-hint" }, "The people who open it get their own copy. Nothing they change reaches yours; to edit it together, use Share this Map\u2026 instead."),
+        h2("div", { className: "sd-btns" }, make),
+        status
+      );
+    },
+    buttons: [{ label: "Close" }]
+  });
+}
+function openCopyDialog(ctx, given, onOpened = () => {
+}) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  return api.ui.dialog({
+    title: "Open a Copy",
+    mount(body, dialog) {
+      const root2 = styled2(body);
+      const status = w.statusLine({ text: "" });
+      const say = (text, kind) => status.set(text, kind);
+      const about = h2("div", null);
+      let found = null;
+      let looking = null;
+      const field = w.text({ value: given ?? "", placeholder: "Paste the link you were sent" });
+      const renderAbout = () => {
+        clear2(about);
+        const m = found;
+        if (!m) return;
+        const line = describeMeta(m.meta);
+        about.append(h2(
+          "div",
+          { className: "sd-map sd-card" },
+          h2("div", { className: "sd-thumb" }, m.meta.thumbnail ? h2("img", { src: m.meta.thumbnail, alt: "" }) : h2("span", null, "map")),
+          h2(
+            "div",
+            null,
+            h2("div", { className: "sd-name" }, m.name),
+            m.owner ? h2("div", { className: "sd-sub" }, `Shared by ${m.owner}`) : null,
+            line ? h2("div", { className: "sd-sub" }, line) : null,
+            h2("div", { className: "sd-sub", title: formatDate(m.savedAt) }, `Revision #${m.revision}, saved ${ago(m.savedAt)}`)
+          )
+        ));
+        if (m.description) about.append(h2("div", { className: "sd-hint" }, m.description));
+      };
+      const lookUp = async () => {
+        looking?.abort();
+        found = null;
+        renderAbout();
+        open.disabled = true;
+        const token = copyTokenFrom(field.value);
+        if (!token) {
+          say(field.value.trim() ? "That is not a map link." : "");
+          return;
+        }
+        const ctl = new AbortController();
+        looking = ctl;
+        status.busy("Looking it up\u2026");
+        try {
+          found = (await account.client.linkedMap(token, ctl.signal)).map;
+          renderAbout();
+          open.disabled = false;
+          say("");
+        } catch (err) {
+          if (!ctl.signal.aborted) say(describeError(err), "error");
+        }
+      };
+      const open = w.button("Open a copy", { primary: true, onClick: async () => {
+        const token = copyTokenFrom(field.value);
+        if (!token) {
+          say("That is not a map link.", "error");
+          return;
+        }
+        open.setBusy(true);
+        try {
+          status.busy("Downloading\u2026");
+          const { bytes, fileName } = await account.client.linkedFile(token);
+          const opened = await api.document.open(bytes, found?.fileName ?? fileName);
+          if (opened) {
+            onOpened(token);
+            dialog.close();
+            api.ui.toast({ kind: "ok", title: `Opened a copy of ${found?.name ?? fileName}`, detail: "It is yours: File \u25B8 Save asks where to keep it." });
+          } else say("Not opened.");
+        } catch (err) {
+          say(describeError(err), "error");
+        } finally {
+          open.setBusy(false);
+        }
+      } });
+      field.addEventListener("input", () => void lookUp());
+      root2.append(
+        given ? h2("div", null) : w.form([{ label: "Link", field }]),
+        about,
+        h2("div", { className: "sd-hint" }, "The map opens as a new file in your editor. It is your own copy: nothing you change reaches the person who shared it."),
+        h2("div", { className: "sd-btns" }, open),
+        status
+      );
+      if (given) void lookUp();
+      return () => looking?.abort();
+    },
+    buttons: [{ label: "Cancel" }]
+  });
 }
 
 // share/presence.ts
@@ -11180,7 +11482,8 @@ var DIALOG_NAMES = {
   replaceTerrain: "Replace Terrain",
   autoStarts: "Auto-place Start Locations",
   importTriggers: "Import Triggers",
-  importStrings: "Import Strings"
+  importStrings: "Import Strings",
+  gameData: "Game Data (getting the game's graphics)"
 };
 function doing(p) {
   if (!p?.dialog) return "";
@@ -11235,8 +11538,6 @@ function luminance(hex2) {
 
 // share/dialogs.ts
 var SHARE_STYLE = `
-.sd .sd-link { display: flex; gap: 6px; align-items: center; }
-.sd .sd-link input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11px; }
 .sd .sd-people { display: flex; flex-direction: column; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
 .sd .sd-person { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border, #222); }
 .sd .sd-person:last-child { border-bottom: none; }
@@ -11250,7 +11551,7 @@ function root(body) {
   body.prepend(style);
   return r;
 }
-var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+var where2 = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
 function openShareDialog(ctx, controls) {
   const { api, account } = ctx;
   const w = api.ui.widgets;
@@ -11307,7 +11608,7 @@ function openShareDialog(ctx, controls) {
           return;
         }
         if (invite) {
-          const link = w.text({ value: inviteLink(invite, account.serverUrl(), where()) });
+          const link = w.text({ value: inviteLink(invite, account.serverUrl(), where2()) });
           link.readOnly = true;
           const copy = w.button("Copy", { onClick: async () => {
             try {
@@ -11771,8 +12072,10 @@ function installShare(opts) {
   let status = null;
   let overlay = null;
   let unhook = [];
+  let pageInvite = null;
   const ctx = { api, account: opts.account, store: opts.store, openAccount: opts.openAccount, openMaps: opts.openMaps, saveToCloud: opts.saveToCloud };
   const deps = { api, client, socket: opts.socket };
+  const onSharedMap = () => shared !== null && shared.documentId !== null && api.document.id() === shared.documentId;
   const others = () => shared ? [...shared.people.values()].filter((p) => p.id !== shared.you?.id) : [];
   const syncStatus = () => {
     if (!shared || shared.phase === "ended") {
@@ -11806,11 +12109,12 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
     overlay = api.ui.overlay({
       name: "People on the shared map",
       above: "everything",
+      // Only over the shared map: with several open, the others' pointers mean nothing on the rest.
       draw: (c2, view) => {
-        if (shared) drawPeople(c2, view, others(), shared.presence);
+        if (shared && onSharedMap()) drawPeople(c2, view, others(), shared.presence);
       },
       onHover: (p) => {
-        shared?.setPresence(p && p.inMap ? { px: p.px, py: p.py } : { px: null, py: null });
+        shared?.setPresence(p && p.inMap && onSharedMap() ? { px: p.px, py: p.py } : { px: null, py: null });
       }
     });
     for (const event of ["view", "layer", "dialogs"]) {
@@ -11838,9 +12142,10 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
       attach(s);
       return s;
     },
-    join: async (invite2, name) => {
+    join: async (invite, name) => {
       shared?.leave(false);
-      const s = await SharedMap.join(deps, invite2, name);
+      const s = await SharedMap.join(deps, invite, name);
+      if (invite === pageInvite) pageInvite = null;
       attach(s);
       api.ui.toast({ kind: "ok", title: `Joined \u201C${s.room?.name ?? "the shared map"}\u201D`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
       return s;
@@ -11850,19 +12155,15 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting", onCl
     openShareDialog(ctx, controls);
   } }));
   disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map\u2026", run: () => {
-    openJoinDialog(ctx, controls);
+    openJoinDialog(ctx, controls, pageInvite);
   } }));
   disposables.push(api.menu.add("Account", { label: "Share this Map\u2026", icon: "plugin", command: "share", separator: true }));
   disposables.push(api.menu.add("Account", { label: "Join a Shared Map\u2026", icon: "plugin", command: "join" }));
   const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
-  const invite = inviteOnPage(pathname);
-  if (invite) {
-    if (typeof history !== "undefined" && typeof location !== "undefined") {
-      const url = new URL(location.href);
-      url.pathname = editorBase(url.pathname);
-      history.replaceState(history.state, "", url.toString());
-    }
-    openJoinDialog(ctx, controls, invite);
+  pageInvite = inviteOnPage(pathname);
+  if (pageInvite) {
+    forgetLinkOnPage();
+    openJoinDialog(ctx, controls, pageInvite);
   }
   return () => {
     shared?.leave(false);
@@ -11921,14 +12222,31 @@ function activate(api) {
   } });
   api.commands.register({ id: "maps", title: "My Maps on scmjs.dev\u2026", run: ctx.openMaps });
   api.commands.register({ id: "save", title: "Save to scmjs.dev\u2026", enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
+  api.commands.register({ id: "copy-link", title: "Copy Link to This Map\u2026", enabled: () => api.document.isOpen(), run: () => {
+    openCopyLinkDialog(ctx, links);
+  } });
+  let pageCopy = null;
+  const openCopy = (token) => openCopyDialog(ctx, token, (used) => {
+    if (used === pageCopy) pageCopy = null;
+  });
+  api.commands.register({ id: "open-link", title: "Open a Map Link\u2026", run: () => {
+    openCopy(pageCopy);
+  } });
   api.menu.add("Account", { label: "Sign in to scmjs.dev\u2026", icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
   api.menu.add("Account", { label: "Account\u2026", icon: "plugin", command: "account" });
   api.menu.add("Account", { label: "My Maps\u2026", icon: "plugin", command: "maps", separator: true });
   api.menu.add("Account", { label: "Save to scmjs.dev\u2026", icon: "plugin", command: "save" });
+  api.menu.add("Account", { label: "Copy Link to This Map\u2026", icon: "plugin", command: "copy-link" });
+  api.menu.add("Account", { label: "Open a Map Link\u2026", icon: "plugin", command: "open-link" });
   api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
   api.menu.add("File", { label: "Open from scmjs.dev\u2026", icon: "plugin", after: "Open Recent", command: "maps" });
   api.menu.add("File", { label: "Save to scmjs.dev\u2026", icon: "plugin", after: "Save Copy As\u2026", command: "save" });
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
+  pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
+  if (pageCopy) {
+    forgetLinkOnPage();
+    openCopy(pageCopy);
+  }
   let status = null;
   const statusText = () => {
     switch (account.kind()) {

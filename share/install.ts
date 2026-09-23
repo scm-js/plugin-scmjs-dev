@@ -8,7 +8,7 @@ import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@sc
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
-import { editorBase, inviteOnPage } from "./link";
+import { forgetLinkOnPage, inviteOnPage } from "./link";
 import { doing, drawPeople } from "./presence";
 import { SharedMap, type SharedDeps } from "./shared";
 
@@ -33,10 +33,13 @@ export function installShare(opts: ShareOptions): () => void {
   let status: StatusItemHandle | null = null;
   let overlay: OverlayHandle | null = null;
   let unhook: (() => void)[] = [];
+  /** The invite the page was opened with, until someone joins with it. */
+  let pageInvite: string | null = null;
 
   const ctx: ShareCtx = { api, account: opts.account, store: opts.store, openAccount: opts.openAccount, openMaps: opts.openMaps, saveToCloud: opts.saveToCloud };
   const deps: SharedDeps = { api, client, socket: opts.socket };
 
+  const onSharedMap = () => shared !== null && shared.documentId !== null && api.document.id() === shared.documentId;
   const others = () => (shared ? [...shared.people.values()].filter((p) => p.id !== shared!.you?.id) : []);
 
   const syncStatus = () => {
@@ -66,8 +69,9 @@ export function installShare(opts: ShareOptions): () => void {
     overlay = api.ui.overlay({
       name: "People on the shared map",
       above: "everything",
-      draw: (c, view) => { if (shared) drawPeople(c, view, others(), shared.presence); },
-      onHover: (p) => { shared?.setPresence(p && p.inMap ? { px: p.px, py: p.py } : { px: null, py: null }); },
+      // Only over the shared map: with several open, the others' pointers mean nothing on the rest.
+      draw: (c, view) => { if (shared && onSharedMap()) drawPeople(c, view, others(), shared.presence); },
+      onHover: (p) => { shared?.setPresence(p && p.inMap && onSharedMap() ? { px: p.px, py: p.py } : { px: null, py: null }); },
     });
     for (const event of ["view", "layer", "dialogs"] as const) {
       const d = api.events.on(event, tell);
@@ -99,6 +103,7 @@ export function installShare(opts: ShareOptions): () => void {
     join: async (invite, name) => {
       shared?.leave(false);
       const s = await SharedMap.join(deps, invite, name);
+      if (invite === pageInvite) pageInvite = null;
       attach(s);
       api.ui.toast({ kind: "ok", title: `Joined “${s.room?.name ?? "the shared map"}”`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
       return s;
@@ -106,21 +111,18 @@ export function installShare(opts: ShareOptions): () => void {
   };
 
   disposables.push(api.commands.register({ id: "share", title: "Share this Map…", enabled: () => api.document.isOpen() || !!shared, run: () => { openShareDialog(ctx, controls); } }));
-  disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map…", run: () => { openJoinDialog(ctx, controls); } }));
+  disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map…", run: () => { openJoinDialog(ctx, controls, pageInvite); } }));
   disposables.push(api.menu.add("Account", { label: "Share this Map…", icon: "plugin", command: "share", separator: true }));
   disposables.push(api.menu.add("Account", { label: "Join a Shared Map…", icon: "plugin", command: "join" }));
 
   // Opened from a link: the invite comes off the address (a reload must not join twice) and the Join dialog goes up.
   // A `share/<invite>` path goes back to the editor's own, so a reload opens the editor and not the link again.
   const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
-  const invite = inviteOnPage(pathname);
-  if (invite) {
-    if (typeof history !== "undefined" && typeof location !== "undefined") {
-      const url = new URL(location.href);
-      url.pathname = editorBase(url.pathname);
-      history.replaceState(history.state, "", url.toString());
-    }
-    openJoinDialog(ctx, controls, invite);
+  // The invite is kept until it is used, so closing the dialog does not lose it: Join a Shared Map… offers it again.
+  pageInvite = inviteOnPage(pathname);
+  if (pageInvite) {
+    forgetLinkOnPage();
+    openJoinDialog(ctx, controls, pageInvite);
   }
 
   return () => {

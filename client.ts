@@ -9,7 +9,7 @@
  * without a network, and nothing is sent until a method is called.
  */
 import type {
-  AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, MapListResponse, MapMeta, MapPatch, MapResponse,
+  AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, MapLinkResponse, MapListResponse, MapMeta, MapPatch, MapResponse, PublicMapResponse,
   RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateResponse, RoomLookupResponse,
   StorageResponse, TrialResponse, Usage,
 } from "./protocol";
@@ -356,10 +356,40 @@ export class ScmjsClient {
   }
 
   /** `GET /v1/maps/:id/revisions/:n/file`: the bytes as they were uploaded. */
-  async revisionFile(id: string, number: number, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+  revisionFile(id: string, number: number, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+    return this.file(`/v1/maps/${encodeURIComponent(id)}/revisions/${number}/file`, this.headers(), signal);
+  }
+
+  /** `POST /v1/maps/:id/links`: a copy link to one revision, or (null) to whichever is newest. */
+  createLink(id: string, revision: number | null): Promise<MapLinkResponse> {
+    return this.request<MapLinkResponse>(`/v1/maps/${encodeURIComponent(id)}/links`, { method: "POST", json: { revision } });
+  }
+
+  deleteLink(id: string, token: string): Promise<MapResponse> {
+    return this.request<MapResponse>(`/v1/maps/${encodeURIComponent(id)}/links/${encodeURIComponent(token)}`, { method: "DELETE" });
+  }
+
+  /** `GET /v1/links/:token`: what a copy link opens. Needs no sign-in, and sends none. */
+  async linkedMap(token: string, signal?: AbortSignal): Promise<PublicMapResponse> {
     let res: Response;
     try {
-      res = await this.fetchImpl(`${this.base()}/v1/maps/${encodeURIComponent(id)}/revisions/${number}/file`, { headers: this.headers(), signal });
+      res = await this.fetchImpl(`${this.base()}/v1/links/${encodeURIComponent(token)}`, { signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) throw await errorOf(res);
+    return (await res.json()) as PublicMapResponse;
+  }
+
+  /** `GET /v1/links/:token/file`: the file a copy link opens. */
+  linkedFile(token: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+    return this.file(`/v1/links/${encodeURIComponent(token)}/file`, {}, signal);
+  }
+
+  private async file(path: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.base()}${path}`, { headers, signal });
     } catch (err) {
       throw toNetworkError(err);
     }

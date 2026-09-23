@@ -38,7 +38,7 @@ into Manage Plugins and press **Add**. To pin a version, add a ref:
 ## The account
 
 - **An Account menu**, before Help: *Sign in to scmjs.dev…*, *Account…*, *My Maps…*,
-  *Save to scmjs.dev…*, *Sign out*. The two map items are under File as well, next to
+  *Save to scmjs.dev…*, *Copy Link to This Map…*, *Open a Map Link…*, *Sign out*. The two map items are under File as well, next to
   Open Recent and Save Copy As.
 - **A cell in the status bar**: "Sign in to scmjs.dev" until you do, then your name and
   balance. Click it for the Account dialog. A tick in the dialog's settings takes it
@@ -53,12 +53,21 @@ into Manage Plugins and press **Add**. To pin a version, add a ref:
   tileset, size, players and revision count. Pick one for its revisions — number, note,
   file name, size, when — and open any of them in the editor, download it, edit its
   note, rename the map, or delete a revision or the map. A map keeps its last revision;
-  delete the map to remove it.
+  delete the map to remove it. Under *Links*: the map's copy links with how often each was
+  opened, a button to remove each, and buttons for a new link to the revision in view or
+  to whichever is newest.
 - **Save to scmjs.dev.** The open map as a new map or as the next revision of one you
   pick (the one it was opened from, or last saved to, is picked for you), with a note and
   a picture for the list. The file is what File ▸ Save would write, with the save options
   you last used. Saving the same bytes again costs no storage — only the note is new —
   so a note on its own is free.
+- **Copy links.** `<editor>/map/<token>` opens a copy of a stored map for anyone who has
+  the link, signed in or not: the *Open a Copy* dialog shows the map and opens it as a
+  new file, which File ▸ Save then asks where to keep. *Copy Link to This Map…* saves the
+  open map (as the next revision of the one it came from, or a new map) and makes the
+  link in one step; the link stays on that version unless you let it follow later saves.
+  *Open a Map Link…* takes a pasted link, for the desktop editor. A link to a revision
+  goes with the revision, and every link goes with its map.
 
 Maps are kept on a signed-in account; a trial cannot store them. What an account may
 keep is the server's cap (250 MB on scmjs.dev, and a role can have more); the dialog
@@ -314,7 +323,8 @@ api.services.watch<ScmjsAccountService>("scmjs-dev.account", (account) => {
 In this browser (Preferences ▸ Browser storage, under the plugin): the session, a random
 device id the one free trial is keyed by, the ticks and the AI options, and the name you
 last joined a shared map under. On the server: your provider id and display name, a ledger
-of what your calls cost, and the maps you stored — and, only while a map is shared, a copy
+of what your calls cost, the maps you stored and their links (a map behind a link can be
+downloaded by anyone who has the link) — and, only while a map is shared, a copy
 of it and the changes since in the server's memory. Nothing else — never a prompt, never a card. The account page on scmjs.dev
 deletes all of it.
 

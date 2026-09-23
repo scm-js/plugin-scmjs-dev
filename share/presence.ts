@@ -19,6 +19,7 @@ const DIALOG_NAMES: Record<string, string> = {
   soundEditor: "the Sound Editor", switches: "Switches", locationList: "the location list", unitProperties: "Unit Properties", locationProperties: "Location Properties",
   spriteProperties: "Sprite Properties", triggerEditor: "the Trigger Editor", missionBriefing: "Mission Briefing", cuwpEditor: "Unit Properties Slots",
   replaceTerrain: "Replace Terrain", autoStarts: "Auto-place Start Locations", importTriggers: "Import Triggers", importStrings: "Import Strings",
+  gameData: "Game Data (getting the game's graphics)",
 };
 
 /** What a person is doing, in a few words, or "". */

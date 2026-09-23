@@ -25,8 +25,6 @@ export interface ShareControls {
 }
 
 const SHARE_STYLE = `
-.sd .sd-link { display: flex; gap: 6px; align-items: center; }
-.sd .sd-link input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11px; }
 .sd .sd-people { display: flex; flex-direction: column; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
 .sd .sd-person { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--border, #222); }
 .sd .sd-person:last-child { border-bottom: none; }

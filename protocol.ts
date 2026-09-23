@@ -323,11 +323,63 @@ export interface MapSummary {
   revisions: number;
   /** The newest revision. */
   head: MapRevisionView;
+  /** Copy links the map has. */
+  links: number;
 }
 
 export interface MapDetail extends MapSummary {
   /** Newest first. */
   history: MapRevisionView[];
+  /** The map's copy links, oldest first. A link to a revision goes when the revision does. */
+  linkList: MapLinkView[];
+}
+
+/* ── Copy links ─────────────────────────────────────────── */
+
+/**
+ * A copy link: `<editor>/map/<token>` opens a copy of the map for anyone who has the
+ * link, no sign-in. The token is not the map's id, so a link can go without the map.
+ */
+export interface MapLinkView {
+  token: string;
+  mapId: string;
+  /** The revision the link always opens, or null for whichever is newest. */
+  revision: number | null;
+  /** How many times the file was fetched through the link. */
+  opens: number;
+  createdAt: string;
+}
+
+/** `POST /v1/maps/:id/links`. */
+export interface MapLinkCreate {
+  /** A revision number to pin, or null / absent for the newest. */
+  revision?: number | null;
+}
+
+/** `POST /v1/maps/:id/links`. */
+export interface MapLinkResponse {
+  link: MapLinkView;
+  map: MapDetail;
+}
+
+/** `GET /v1/links/:token` — what a copy link opens, for anyone. */
+export interface PublicMapView {
+  token: string;
+  name: string;
+  description: string;
+  /** The owner's display name, when the account has one. */
+  owner: string | null;
+  /** The revision the file is: the pinned one, or the newest now. */
+  revision: number;
+  fileName: string;
+  sizeBytes: number;
+  meta: MapMeta;
+  /** When that revision was saved. */
+  savedAt: string;
+}
+
+export interface PublicMapResponse {
+  map: PublicMapView;
 }
 
 /** `GET /v1/maps` — newest change first. */

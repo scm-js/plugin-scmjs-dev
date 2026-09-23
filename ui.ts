@@ -69,6 +69,13 @@ export const STYLE = `
 .sd .sd-thumb { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; background: var(--bg-0, #0f1115); border: 1px solid var(--border, #333); border-radius: 3px; overflow: hidden; }
 .sd .sd-thumb img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
 .sd .sd-thumb span { color: var(--text-faint, #6b7382); font-size: 10px; }
+.sd .sd-map.sd-card { cursor: default; border-bottom: none; padding: 0; }
+.sd .sd-link { display: flex; gap: 6px; align-items: center; }
+.sd .sd-link input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); font-size: 11px; }
+.sd .sd-links { display: flex; flex-direction: column; gap: 4px; }
+.sd .sd-link-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding-bottom: 4px; }
+.sd .sd-link-row > .sd-link { grid-column: 1 / -1; }
+.sd .sd-link-row .sd-sub { white-space: nowrap; color: var(--text-dim, #99a2b3); font-size: 11px; }
 .sd .sd-map .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
 .sd .sd-map .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
 .sd .sd-map .sd-when { color: var(--text-faint, #6b7382); font-size: 11px; text-align: right; }

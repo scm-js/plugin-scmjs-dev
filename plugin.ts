@@ -38,9 +38,11 @@ import { AccountManager, settingsStore } from "./account";
 import { installAi } from "./ai/install";
 import { registerOptionsPage } from "./ai/options";
 import { formatUsd, ScmjsClient } from "./client";
+import { openCopyDialog, openCopyLinkDialog } from "./copies";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
 import { installShare } from "./share/install";
+import { copyTokenOnPage, forgetLinkOnPage } from "./share/link";
 import type { Ctx } from "./ui";
 
 export const SERVICE_NAME = "account";
@@ -88,18 +90,32 @@ export function activate(api: PluginApi) {
   } });
   api.commands.register({ id: "maps", title: "My Maps on scmjs.dev…", run: ctx.openMaps });
   api.commands.register({ id: "save", title: "Save to scmjs.dev…", enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
+  api.commands.register({ id: "copy-link", title: "Copy Link to This Map…", enabled: () => api.document.isOpen(), run: () => { openCopyLinkDialog(ctx, links); } });
+  /** The copy link the page was opened with, until it is used: closing its dialog does not lose it. */
+  let pageCopy: string | null = null;
+  const openCopy = (token: string | null) => openCopyDialog(ctx, token, (used) => { if (used === pageCopy) pageCopy = null; });
+  api.commands.register({ id: "open-link", title: "Open a Map Link…", run: () => { openCopy(pageCopy); } });
 
   /* The Account menu, and the two map items under File too. */
   api.menu.add("Account", { label: "Sign in to scmjs.dev…", icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
   api.menu.add("Account", { label: "Account…", icon: "plugin", command: "account" });
   api.menu.add("Account", { label: "My Maps…", icon: "plugin", command: "maps", separator: true });
   api.menu.add("Account", { label: "Save to scmjs.dev…", icon: "plugin", command: "save" });
+  api.menu.add("Account", { label: "Copy Link to This Map…", icon: "plugin", command: "copy-link" });
+  api.menu.add("Account", { label: "Open a Map Link…", icon: "plugin", command: "open-link" });
   api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
   api.menu.add("File", { label: "Open from scmjs.dev…", icon: "plugin", after: "Open Recent", command: "maps" });
   api.menu.add("File", { label: "Save to scmjs.dev…", icon: "plugin", after: "Save Copy As…", command: "save" });
 
   /* Shared maps: two items at the end of the Account menu, the status cell and the pointers while one is shared. */
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
+
+  /* Opened from a copy link (`map/<token>`): the address goes back to the editor's own and the Open a Copy dialog goes up. */
+  pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
+  if (pageCopy) {
+    forgetLinkOnPage();
+    openCopy(pageCopy);
+  }
 
   /* The status bar cell. */
   let status: StatusItemHandle | null = null;

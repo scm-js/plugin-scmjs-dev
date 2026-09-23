@@ -11,8 +11,9 @@
  */
 import type { DialogHandle, DocumentInfo, MapStatistics, PlayerSlotView } from "@scm-js/plugin-api";
 import { describeError, formatBytes, ScmjsError } from "./client";
+import { linksSection } from "./copies";
 import { storageBar } from "./dialogs";
-import type { MapDetail, MapMeta, MapRevisionView, MapSummary } from "./protocol";
+import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary } from "./protocol";
 import { ago, clear, formatDate, h, styled, textarea, type Ctx } from "./ui";
 
 /** Player slots the game would seat: humans, computers and rescuables (neutral and inactive are not players). */
@@ -65,6 +66,28 @@ async function thumbnailOf(ctx: Ctx): Promise<string | null> {
 /** Which stored map the open document came from or last went to, so Save offers the right one. */
 export interface Link { mapId: string; mapName: string; fileName: string | null }
 
+/**
+ * The open map to the account: a new map (`mapId` null) or a new revision of one. The
+ * bytes are what File ▸ Save would write. `step` hears what it is doing, for a status line.
+ */
+export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; name?: string; note: string; thumbnail: boolean }, step: (text: string) => void = () => {}): Promise<{ response: MapResponse; fileName: string }> {
+  const { api, account } = ctx;
+  const info = api.document.info();
+  if (!info) throw new Error("no map is open.");
+  step("Packing the map…");
+  const file = await api.document.export();
+  if (!file) throw new Error("the map could not be packed.");
+  const meta = metaOf(info, api.query.statistics(), api.settings.players());
+  if (target.thumbnail) { const t = await thumbnailOf(ctx); if (t) meta.thumbnail = t; }
+  const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta };
+  step("Uploading…");
+  const response = target.mapId === null
+    ? await account.client.createMap(file, { ...fields, name: target.name || undefined })
+    : await account.client.uploadRevision(target.mapId, file, fields);
+  account.noteStorage(response.storage);
+  return { response, fileName: fields.fileName };
+}
+
 function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolean {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
@@ -114,7 +137,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
             h("div", null,
               h("div", { className: "sd-name" }, m.name),
               h("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
-              h("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.head.note ? ` · ${m.head.note.split("\n")[0]}` : ""}`),
+              h("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.links ? ` · ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` · ${m.head.note.split("\n")[0]}` : ""}`),
             ),
             h("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt)),
           );
@@ -169,12 +192,14 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           catch (err) { say(describeError(err), "error"); }
         } });
         const delRev = w.button(`Delete #${rev.number}`, { danger: true, disabled: m.history.length <= 1, title: m.history.length <= 1 ? "A map keeps its last revision; delete the map to remove it." : undefined, onClick: async () => {
-          if (!(await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.`, { title: "Delete revision", confirmLabel: "Delete", danger: true }))) return;
+          const pinned = m.linkList.filter((l) => l.revision === rev.number).length;
+          const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
+          if (!(await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true }))) return;
           try { pickedRevision = null; await update(await client.deleteRevision(m.id, rev.number)); say(`Revision #${rev.number} deleted.`, "ok"); }
           catch (err) { say(describeError(err), "error"); }
         } });
         const delMap = w.button("Delete map", { danger: true, onClick: async () => {
-          if (!(await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?`, { title: "Delete map", confirmLabel: "Delete", danger: true }))) return;
+          if (!(await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true }))) return;
           try {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
@@ -193,6 +218,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           h("div", { className: "sd-btns" }, open, download, note, rename),
           revs,
           h("div", { className: "sd-btns" }, delRev, delMap),
+          w.group("Links", linksSection(ctx, m, rev.number, update, say)),
         );
       };
 
@@ -202,7 +228,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         account.noteStorage(r.storage);
         renderStorage(r.storage);
         const i = maps.findIndex((m) => m.id === r.map.id);
-        const summary: MapSummary = { id: r.map.id, name: r.map.name, description: r.map.description, createdAt: r.map.createdAt, updatedAt: r.map.updatedAt, revisions: r.map.revisions, head: r.map.head };
+        const summary: MapSummary = { id: r.map.id, name: r.map.name, description: r.map.description, createdAt: r.map.createdAt, updatedAt: r.map.updatedAt, revisions: r.map.revisions, head: r.map.head, links: r.map.links };
         if (i >= 0) maps[i] = summary; else maps.unshift(summary);
         maps.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
         renderList();
@@ -286,18 +312,10 @@ export function openSaveDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         save.setBusy(true);
         dialog.setBusy("Saving…");
         try {
-          status.busy("Packing the map…");
-          const file = await api.document.export();
-          if (!file) throw new Error("the map could not be packed.");
-          const meta = metaOf(info, api.query.statistics(), api.settings.players());
-          if (thumbBox.input.checked) { const t = await thumbnailOf(ctx); if (t) meta.thumbnail = t; }
-          const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: noteField.value.trim(), meta };
-          status.busy("Uploading…");
-          const r = target.value === NEW
-            ? await client.createMap(file, { ...fields, name: nameField.value.trim() || undefined })
-            : await client.uploadRevision(target.value, file, fields);
-          account.noteStorage(r.storage);
-          link.set({ mapId: r.map.id, mapName: r.map.name, fileName: fields.fileName });
+          const { response: r, fileName } = await uploadOpenMap(ctx, {
+            mapId: target.value === NEW ? null : target.value, name: nameField.value.trim(), note: noteField.value.trim(), thumbnail: thumbBox.input.checked,
+          }, (text) => status.busy(text));
+          link.set({ mapId: r.map.id, mapName: r.map.name, fileName });
           api.ui.toast({ kind: "ok", title: `Saved to scmjs.dev: ${r.map.name} #${r.map.head.number}`, detail: `${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.` });
           dialog.close();
         } catch (err) {
