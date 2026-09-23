@@ -8,6 +8,7 @@
 import type { DialogHandle } from "@scm-js/plugin-api";
 import { SERVER_QUERY, SITE_URL } from "./account";
 import { describeError, formatBytes, formatUsd, signInGives } from "./client";
+import { sharedMapsList } from "./share/kept";
 import { append, clear, h, shortDay, styled, type Ctx } from "./ui";
 
 /** A used-of-cap bar with its caption. */
@@ -34,6 +35,9 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
       const storageBox = h("div", null);
       const ledgerBox = h("div", null);
       const featuresBox = h("div", null);
+      // The account's shared maps, loaded the first time the section shows.
+      const sharedBox = h("div", null);
+      let sharedList: ReturnType<typeof sharedMapsList> | null = null;
 
       const render = () => {
         const s = account.state();
@@ -119,6 +123,14 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
           else if (s.offers && !s.offers.maps) storageBox.append(w.group("Map storage", h("div", { className: "sd-hint" }, "This server keeps no maps.")));
         }
 
+        // Shared maps.
+        const sharing = s.kind === "account" && !!s.offers?.rooms && !!ctx.shares;
+        sharedBox.style.display = sharing ? "" : "none";
+        if (sharing && !sharedList) {
+          sharedList = sharedMapsList(ctx, ctx.shares!, { onJoined: () => dialog.close() });
+          sharedBox.append(w.group("Shared maps", sharedList.el));
+        }
+
         // Ledger.
         const ledger = account.ledger();
         if (s.kind === "account" && ledger.length) {
@@ -151,7 +163,7 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         ),
       );
 
-      root.append(head, buttons, featuresBox, storageBox, ledgerBox, settingsFold, status,
+      root.append(head, buttons, featuresBox, storageBox, sharedBox, ledgerBox, settingsFold, status,
         h("div", { className: "sd-hint" }, `scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else, never a prompt or a card. Delete all of it from the account page at ${SITE_URL}.`));
 
       render();

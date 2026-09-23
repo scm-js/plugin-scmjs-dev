@@ -239,6 +239,8 @@ export interface AccountsInfo {
   maps: boolean;
   /** Shared maps (`/v1/rooms`) are on: a signed-in account can share a map for others to edit with it. */
   rooms?: boolean;
+  /** A shared map can be kept open between sessions, as a stored map (from 0.15.0). */
+  keptRooms?: boolean;
   /** A trial or a newly signed-in account may use the AI (the default role allows a recipe); absent from a server before 0.11.0, which always did. */
   ai?: boolean;
 }
@@ -498,7 +500,18 @@ export interface CheckoutResponse {
  * as confirmations). When the ops it missed are no longer kept, the answer is an ordinary
  * `welcome` instead — a fresh copy. A server before 0.14.0 ignores `resume` and always
  * answers `welcome`.
+ *
+ * A room can also be *kept open* (`keepDays`, from 0.15.0): it is then one of the owner's
+ * stored maps, and outlives the people in it. Its changes are written to the database as
+ * they come; when the last person leaves it writes a new revision of the map from its
+ * latest copy and leaves memory, and the next person to open the link picks up where it
+ * was. It ends when it has gone `keepDays` without an edit (a year when `keepDays` is
+ * null), or when the owner ends it; the map and its revisions stay on the account. A
+ * server restart does not end it: editors reconnect and resume.
  */
+
+/** How long a kept-open map stays shared after its last edit, in days; null until the owner ends it (or a year untouched). */
+export type KeepDays = 1 | 7 | 30 | null;
 
 /** Bumped when a message changes shape in a way the other side would misread. */
 export const ROOM_PROTOCOL = 1;
@@ -513,17 +526,61 @@ export interface RoomInfo {
   people: number;
   maxPeople: number;
   createdAt: string;
+  /** Only on a kept-open map: how long it stays open after its last edit. */
+  keepDays?: KeepDays;
+  /** Only on a kept-open map: when it ends unless someone edits it. */
+  endsAt?: string;
+  lastEditAt?: string;
 }
 
 /** `POST /v1/rooms` — the map as base64 (a whole `.scx` / `.scm`), and a name for it. */
 export interface RoomCreateRequest {
   name: string;
   map: string;
+  /**
+   * Keep it open (from 0.15.0): the map is stored on the account — as a new revision of
+   * `mapId`, or as a new map — and the room is kept with it. Omitted: the room ends when
+   * everyone has left.
+   */
+  keepDays?: KeepDays;
+  mapId?: string;
+  fileName?: string;
+  note?: string;
+  meta?: MapMeta;
 }
 
-/** `POST /v1/rooms` — the room and its invite, for the owner. */
+/** `POST /v1/rooms` — the room and its invite, for the owner (and, kept open, the stored map it is). */
 export interface RoomCreateResponse {
-  room: RoomInfo & { invite: string };
+  room: RoomInfo & { invite: string; mapId?: string };
+  storage?: StorageView;
+}
+
+/** One of the account's shared maps, for the owner's list (`GET /v1/rooms/mine`). */
+export interface SharedMapView {
+  /** The room's id; for a kept-open map, the stored map's id. */
+  id: string;
+  kind: "live" | "kept";
+  name: string;
+  invite: string;
+  /** Names of the people in it now. */
+  people: string[];
+  createdAt: string;
+  keepDays?: KeepDays;
+  endsAt?: string;
+  lastEditAt?: string;
+  lastEditBy?: string | null;
+}
+
+/** `GET /v1/rooms/mine`, and the answer to ending one. */
+export interface SharedMapsResponse {
+  rooms: SharedMapView[];
+  /** How many the account may share at once. */
+  limit: number;
+}
+
+/** `PATCH /v1/rooms/mine/:id { keepDays }` and `POST /v1/rooms/mine/:id/relink`. */
+export interface SharedMapResponse {
+  room: SharedMapView;
 }
 
 /** `GET /v1/rooms/:invite` — what a link leads to, before joining. */
@@ -581,10 +638,16 @@ export type RoomClientMessage =
   | { type: "end" }
   /** A line for the room's chat; everyone in the room is sent it, the writer too. */
   | { type: "chat"; text: string }
+  /**
+   * Leaving on purpose, with a copy of the map as this editor has it (after op `seq`,
+   * nothing of its own unconfirmed) so a kept-open map's revision is up to date. From
+   * 0.15.0; closing the socket is leaving too.
+   */
+  | { type: "leave"; snapshot?: { seq: number; map: string } }
   | { type: "ping" };
 
 export type RoomLeaveReason = "left" | "removed" | "lost";
-export type RoomEndReason = "owner" | "removed" | "idle" | "server";
+export type RoomEndReason = "owner" | "removed" | "idle" | "server" | "expired";
 
 export type RoomServerMessage =
   | {
@@ -663,6 +726,8 @@ export interface AdminRole {
   models?: string[];
   /** Map storage cap for the role's accounts; the server's `maps.capMb` when absent. */
   storageMb?: number;
+  /** Maps the role's accounts may share at once; the server's `rooms.perAccount` when absent. */
+  sharedMaps?: number;
 }
 
 export interface AdminUser {

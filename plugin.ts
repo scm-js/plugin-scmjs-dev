@@ -108,7 +108,8 @@ export function activate(api: PluginApi) {
   api.menu.add("File", { label: "Save to scmjs.dev…", icon: "plugin", after: "Save Copy As…", command: "save" });
 
   /* Shared maps: two items at the end of the Account menu, the status cell and the pointers while one is shared. */
-  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
+  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
+  ctx.shares = share.controls;
 
   /* Opened from a copy link (`map/<token>`): the address goes back to the editor's own and the Open a Copy dialog goes up. */
   pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
@@ -175,5 +176,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { ai?.(); optionsPage?.dispose(); share(); status?.remove(); provided.dispose(); };
+  return () => { ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); };
 }

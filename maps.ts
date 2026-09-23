@@ -13,7 +13,8 @@ import type { DialogHandle, DocumentInfo, MapStatistics, PlayerSlotView } from "
 import { describeError, formatBytes, ScmjsError } from "./client";
 import { linksSection } from "./copies";
 import { storageBar } from "./dialogs";
-import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary } from "./protocol";
+import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary, SharedMapView } from "./protocol";
+import { endsLine } from "./share/kept";
 import { ago, clear, formatDate, h, styled, textarea, type Ctx } from "./ui";
 
 /** Player slots the game would seat: humans, computers and rescuables (neutral and inactive are not players). */
@@ -88,6 +89,12 @@ export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; na
   return { response, fileName: fields.fileName };
 }
 
+/** "Shared · 2 editing" / "Shared · ends 3 Oct unless someone edits it". */
+function sharedLine(v: SharedMapView): string {
+  const ends = endsLine(v);
+  return v.people.length ? `Shared · ${v.people.length} editing` : `Shared · ${ends.charAt(0).toLowerCase()}${ends.slice(1)}`;
+}
+
 function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolean {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
@@ -122,6 +129,8 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
       const listBox = h("div", { className: "sd-scroll sd-maps" });
       const detailBox = h("div", null);
       let maps: MapSummary[] = [];
+      /** The account's maps kept open, by map id (a server without them: none). */
+      let shares = new Map<string, SharedMapView>();
       let picked: MapDetail | null = null;
       let pickedRevision: MapRevisionView | null = null;
       let loading: AbortController | null = null;
@@ -138,6 +147,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
               h("div", { className: "sd-name" }, m.name),
               h("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
               h("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.links ? ` · ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` · ${m.head.note.split("\n")[0]}` : ""}`),
+              shares.has(m.id) ? h("div", { className: "sd-sub sd-ok" }, sharedLine(shares.get(m.id)!)) : null,
             ),
             h("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt)),
           );
@@ -159,7 +169,40 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
             h("span", { className: "sd-sub" }, `${r.fileName} · ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` · "${r.meta.scenarioName}"` : ""}`),
           ));
         }
-        const open = w.button(`Open #${rev.number}`, { primary: true, onClick: async () => {
+        const kept = shares.get(m.id) ?? null;
+        const current = ctx.shares?.current() ?? null;
+        const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
+        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: async () => {
+          join!.setBusy(true);
+          try { await ctx.shares!.join(kept.invite, account.current()?.name ?? "Owner"); dialog.close(); }
+          catch (err) { say(describeError(err), "error"); }
+          finally { join!.setBusy(false); }
+        } }) : null;
+        // The owner, in the shared map: a revision can be put back into it, for everyone.
+        const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
+          if (!(await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true }))) return;
+          restore!.setBusy(true);
+          try {
+            status.busy(`Downloading #${rev.number}…`);
+            const { bytes } = await client.revisionFile(m.id, rev.number);
+            const chk = await api.document.sections.chkOf(bytes);
+            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
+            api.document.sections.replaceFile(chk);
+            dialog.close();
+            api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
+          } catch (err) { say(describeError(err), "error"); }
+          finally { restore!.setBusy(false); }
+        } }) : null;
+        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
+          if (!(await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true }))) return;
+          try {
+            const r = await client.endSharedMap(m.id);
+            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+            renderList(); renderDetail();
+            say("Sharing ended.", "ok");
+          } catch (err) { say(describeError(err), "error"); }
+        } }) : null;
+        const open = w.button(`Open #${rev.number}`, { primary: !join, title: kept ? "Open this revision on its own, apart from the shared map" : undefined, onClick: async () => {
           open.setBusy(true);
           try {
             status.busy(`Downloading #${rev.number}…`);
@@ -215,9 +258,10 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
             ...(m.description ? [h("span", { className: "sd-k" }, "About"), h("span", { className: "sd-v" }, m.description)] : []),
             h("span", { className: "sd-k" }, "Created"), h("span", { className: "sd-v" }, formatDate(m.createdAt)),
           ),
-          h("div", { className: "sd-btns" }, open, download, note, rename),
+          ...(kept ? [h("div", { className: "sd-hint" }, `${sharedLine(kept)}. ${inIt ? "You are in it." : "Join it to edit with whoever is there; Open gives you a copy of a revision on its own."}`)] : []),
+          h("div", { className: "sd-btns" }, join, open, restore, download, note, rename),
           revs,
-          h("div", { className: "sd-btns" }, delRev, delMap),
+          h("div", { className: "sd-btns" }, delRev, delMap, endSharing),
           w.group("Links", linksSection(ctx, m, rev.number, update, say)),
         );
       };
@@ -254,8 +298,13 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         listBox.append(w.skeleton({ lines: 4, block: true }));
         status.busy("Loading your maps…");
         try {
-          const r = await client.listMaps(loading.signal);
+          const signal = loading.signal;
+          const [r, shared] = await Promise.all([
+            client.listMaps(signal),
+            account.state().offers?.keptRooms ? client.sharedMaps(signal).catch(() => null) : Promise.resolve(null),
+          ]);
           maps = r.maps;
+          shares = new Map((shared?.rooms ?? []).filter((x) => x.kind === "kept").map((x) => [x.id, x]));
           account.noteStorage(r.storage);
           renderStorage(r.storage);
           renderList();

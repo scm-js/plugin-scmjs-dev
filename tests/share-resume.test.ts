@@ -191,6 +191,26 @@ describe("a shared map whose connection drops", () => {
   });
 });
 
+describe("leaving a map kept open", () => {
+  it("sends the map as this editor has it, so the revision it writes is up to date", async () => {
+    const { shared, sockets } = await joined({ room: { ...ROOM, keepDays: 7, endsAt: "2026-09-30T00:00:00Z" } });
+    expect(shared.kept).toBe(true);
+    sockets[0]!.hear({ type: "op", seq: 3, from: "ann", op: { n: 1 } });
+    await shared.leave();
+    const leave = sockets[0]!.sent.find((m) => m.type === "leave") as Extract<RoomClientMessage, { type: "leave" }>;
+    expect(leave.snapshot).toEqual({ seq: 3, map: "AQ==" });
+    expect(shared.phase).toBe("ended");
+    expect(sockets[0]!.closedWith).toBe(1000);
+  });
+
+  it("just closes a map that is not kept", async () => {
+    const { shared, sockets } = await joined();
+    await shared.leave();
+    expect(sockets[0]!.sent.some((m) => m.type === "leave")).toBe(false);
+    expect(sockets[0]!.closedWith).toBe(1000);
+  });
+});
+
 describe("chat lines missed", () => {
   it("are the ones after the last line this editor has", () => {
     const a = line("a", "t1"), b = line("b", "t2"), c = line("c", "t3");

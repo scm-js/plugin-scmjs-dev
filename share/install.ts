@@ -7,6 +7,8 @@
 import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@scm-js/plugin-api";
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
+import { metaOf, type Link } from "../maps";
+import type { KeepDays } from "../protocol";
 import { SharedChat } from "./chat";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
 import { forgetLinkOnPage, inviteOnPage } from "./link";
@@ -21,13 +23,15 @@ export interface ShareOptions {
   openAccount: () => void;
   openMaps: () => void;
   saveToCloud: () => void;
+  /** The stored map the open document is linked to: a kept map becomes a revision of it, and is linked after. */
+  links: { get(): Link | null; set(link: Link | null): void };
   /** For the tests: the socket to use instead of the browser's WebSocket. */
   socket?: SharedDeps["socket"];
   /** The page's path; the browser's by default. */
   pathname?: string;
 }
 
-export function installShare(opts: ShareOptions): () => void {
+export function installShare(opts: ShareOptions): { dispose: () => void; controls: ShareControls } {
   const { api, client } = opts;
   const disposables: Disposable[] = [];
   let shared: SharedMap | null = null;
@@ -102,16 +106,26 @@ export function installShare(opts: ShareOptions): () => void {
 
   const controls: ShareControls = {
     current: () => shared,
-    share: async (name) => {
+    share: async (name, keepDays?: KeepDays) => {
       if (shared && shared.phase !== "ended") return shared;
-      const s = await SharedMap.share(deps, name);
+      const info = api.document.info();
+      const fileName = info?.fileName ?? `${name}.scx`;
+      const keep = keepDays === undefined || !info ? undefined : {
+        keepDays, mapId: opts.links.get()?.mapId, fileName, note: "Shared",
+        meta: metaOf(info, api.query.statistics(), api.settings.players()),
+      };
+      const s = await SharedMap.share(deps, name, keep);
+      // Kept: the map is on the account now, and Save to scmjs.dev offers it.
+      if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });
       attach(s);
       return s;
     },
     join: async (invite, name) => {
-      shared?.leave(false);
+      await shared?.leave(false);
       const s = await SharedMap.join(deps, invite, name);
       if (invite === pageInvite) pageInvite = null;
+      // The owner's own kept map (its room id is the stored map's): Save to scmjs.dev adds to it.
+      if (s.kept && s.owner && s.room) opts.links.set({ mapId: s.room.id, mapName: s.room.name, fileName: `${s.room.name}.scx` });
       attach(s);
       api.ui.toast({ kind: "ok", title: `Joined “${s.room?.name ?? "the shared map"}”`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
       return s;
@@ -133,8 +147,11 @@ export function installShare(opts: ShareOptions): () => void {
     openJoinDialog(ctx, controls, pageInvite);
   }
 
-  return () => {
-    shared?.leave(false);
-    for (const d of disposables) d.dispose();
+  return {
+    controls,
+    dispose: () => {
+      void shared?.leave(false);
+      for (const d of disposables) d.dispose();
+    },
   };
 }

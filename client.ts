@@ -10,7 +10,7 @@
  */
 import type {
   AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, MapLinkResponse, MapListResponse, MapMeta, MapPatch, MapResponse, PublicMapResponse,
-  RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateResponse, RoomLookupResponse,
+  RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateRequest, RoomCreateResponse, RoomLookupResponse, SharedMapResponse, SharedMapsResponse, KeepDays,
   StorageResponse, TrialResponse, Usage,
 } from "./protocol";
 import { PROTOCOL_VERSION } from "./protocol";
@@ -283,9 +283,33 @@ export class ScmjsClient {
 
   /* ── Shared maps ──────────────────────────────────────── */
 
-  /** `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and its invite. */
-  createRoom(name: string, map: string): Promise<RoomCreateResponse> {
-    return this.request<RoomCreateResponse>("/v1/rooms", { method: "POST", json: { name, map } });
+  /**
+   * `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and
+   * its invite. With `keep`, the map is stored on the account (a new revision of
+   * `keep.mapId`, or a new map) and kept open with it.
+   */
+  createRoom(name: string, map: string, keep?: Omit<RoomCreateRequest, "name" | "map">): Promise<RoomCreateResponse> {
+    return this.request<RoomCreateResponse>("/v1/rooms", { method: "POST", json: { name, map, ...(keep ?? {}) } });
+  }
+
+  /** `GET /v1/rooms/mine`: the account's shared maps, both kinds. */
+  sharedMaps(signal?: AbortSignal): Promise<SharedMapsResponse> {
+    return this.request<SharedMapsResponse>("/v1/rooms/mine", { signal });
+  }
+
+  /** End one of the account's shared maps; answers the list as it is now. */
+  endSharedMap(id: string): Promise<SharedMapsResponse> {
+    return this.request<SharedMapsResponse>(`/v1/rooms/mine/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  /** How long a kept map stays open after its last edit. */
+  keepSharedMap(id: string, keepDays: KeepDays): Promise<SharedMapResponse> {
+    return this.request<SharedMapResponse>(`/v1/rooms/mine/${encodeURIComponent(id)}`, { method: "PATCH", json: { keepDays } });
+  }
+
+  /** A new link for one of the account's shared maps. */
+  relinkSharedMap(id: string): Promise<SharedMapResponse> {
+    return this.request<SharedMapResponse>(`/v1/rooms/mine/${encodeURIComponent(id)}/relink`, { method: "POST", json: {} });
   }
 
   /** `GET /v1/rooms/:invite`: what an invite leads to. */

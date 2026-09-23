@@ -25,7 +25,7 @@
 import type { PluginApi, Rect, SyncOp, SyncSession } from "@scm-js/plugin-api";
 import type { ScmjsClient } from "../client";
 import { describeError } from "../client";
-import type { RoomChatLine, RoomClientMessage, RoomEndReason, RoomInfo, RoomPerson, RoomServerMessage } from "../protocol";
+import type { KeepDays, MapMeta, RoomChatLine, RoomClientMessage, RoomEndReason, RoomInfo, RoomPerson, RoomServerMessage } from "../protocol";
 import { ROOM_PROTOCOL } from "../protocol";
 
 /** What a person tells the room about themselves; relayed as it is. */
@@ -92,11 +92,22 @@ const ENDINGS: Record<RoomEndReason, string> = {
   removed: "You were removed from the shared map.",
   idle: "The shared map closed after nobody used it for a while.",
   server: "The server restarted, which ends every shared map.",
+  expired: "The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps.",
 };
+
+/** How long to keep a shared map open: a stored map, and where it goes. */
+export interface KeepOptions {
+  keepDays: KeepDays;
+  /** The stored map this is (a new revision of it); a new map when absent. */
+  mapId?: string;
+  fileName?: string;
+  meta?: MapMeta;
+  note?: string;
+}
 
 export class SharedMap {
   phase: SharedPhase = "connecting";
-  room: (RoomInfo & { invite?: string }) | null = null;
+  room: (RoomInfo & { invite?: string; mapId?: string }) | null = null;
   you: RoomPerson | null = null;
   readonly people = new Map<string, RoomPerson>();
   readonly presence = new Map<string, Presence>();
@@ -175,6 +186,11 @@ export class SharedMap {
     return this.you?.owner === true;
   }
 
+  /** Kept open between sessions, as one of the owner's stored maps. */
+  get kept(): boolean {
+    return this.room?.keepDays !== undefined;
+  }
+
   /** Changes this editor made that the server has not confirmed yet. */
   pending(): number {
     return this.session?.pending() ?? 0;
@@ -186,8 +202,11 @@ export class SharedMap {
 
   /* ── Starting ───────────────────────────────────────────── */
 
-  /** Share the map in front under `name`. Needs a signed-in session on the client. */
-  static async share(deps: SharedDeps, name: string): Promise<SharedMap> {
+  /**
+   * Share the map in front under `name`. Needs a signed-in session on the client. With
+   * `keep`, it is stored on the account and kept open between sessions.
+   */
+  static async share(deps: SharedDeps, name: string, keep?: KeepOptions): Promise<SharedMap> {
     const s = new SharedMap(deps);
     s.sharing = true;
     const session = deps.api.sync.start(s.syncOptions());
@@ -199,7 +218,7 @@ export class SharedMap {
     try {
       const bytes = await copy;
       if (!bytes) throw new Error("The map could not be copied.");
-      const { room } = await deps.client.createRoom(name, toBase64(bytes));
+      const { room } = await deps.client.createRoom(name, toBase64(bytes), keep);
       s.room = room;
       s.invite = room.invite;
       await s.connect();
@@ -591,10 +610,30 @@ export class SharedMap {
   kick(personId: string) { this.send({ type: "kick", person: personId }); }
   relink() { this.send({ type: "relink" }); }
 
-  /** Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays open. */
-  leave(forEveryone = false) {
-    if (forEveryone && this.owner) this.send({ type: "end" });
+  /**
+   * Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays
+   * open. Leaving a kept map sends it as this editor has it, so the revision it writes
+   * when everyone has gone is up to date.
+   */
+  async leave(forEveryone = false): Promise<void> {
+    if (forEveryone && this.owner) { this.send({ type: "end" }); this.end(null); return; }
+    const session = this.session;
+    if (!this.kept || !session || this.phase !== "live") { this.end(null); return; }
+    const seq = this.lastSeq;
+    // Taken now, before any await: the copy is the map after op `seq`.
+    try {
+      const bytes = await session.snapshot();
+      this.send({ type: "leave", ...(bytes ? { snapshot: { seq, map: toBase64(bytes) } } : {}) });
+    } catch { /* leave without it: the server keeps the changes, only the revision lags */ }
     this.end(null);
+  }
+
+  /** Owner: how long the kept map stays open after its last edit. */
+  async keepFor(keepDays: KeepDays): Promise<void> {
+    if (!this.room || !this.kept) return;
+    const { room } = await this.deps.client.keepSharedMap(this.room.id, keepDays);
+    this.room = { ...this.room, keepDays: room.keepDays, endsAt: room.endsAt };
+    this.emit();
   }
 
   private end(message: string | null) {

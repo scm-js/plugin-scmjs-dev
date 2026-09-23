@@ -5,12 +5,13 @@
  * name the person types.
  */
 import type { DialogHandle } from "@scm-js/plugin-api";
-import { describeError } from "../client";
-import type { RoomInfo } from "../protocol";
+import { describeError, ScmjsError } from "../client";
+import type { KeepDays, RoomInfo } from "../protocol";
 import type { SettingsStore } from "../account";
 import { clear, h, styled, type Ctx } from "../ui";
 import { inviteFrom, inviteLink } from "./link";
 import { doing, personColor } from "./presence";
+import { choiceOf, endsLine, KEEP_CHOICES, keepDaysOf, keepHint, sharedMapsList } from "./kept";
 import type { SharedMap } from "./shared";
 
 /** The dialogs' context: the plugin's, and the settings (the name last typed to join). */
@@ -20,7 +21,8 @@ export interface ShareCtx extends Ctx {
 
 export interface ShareControls {
   current(): SharedMap | null;
-  share(name: string): Promise<SharedMap>;
+  /** Share the map in front; with `keepDays` (a number, or null for until ended), kept open as a stored map. */
+  share(name: string, keepDays?: KeepDays): Promise<SharedMap>;
   join(invite: string, name: string): Promise<SharedMap>;
 }
 
@@ -65,25 +67,38 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
           return;
         }
         const name = w.text({ value: api.document.info()?.name ?? "" });
+        // Keeping it open needs a server that can (0.15.0, with map storage).
+        const canKeep = !!account.state().offers?.keptRooms;
+        const hint = h("div", { className: "sd-hint" }, keepHint("live"));
+        const keep = w.select(KEEP_CHOICES, { value: canKeep ? "7" : "live", onChange: (v) => { hint.textContent = keepHint(v); } });
+        hint.textContent = keepHint(keep.value);
+        const full = h("div", null);
         const start = w.button("Start sharing", { primary: true, onClick: async () => {
           start.setBusy(true);
-          status.busy("Copying the map to scmjs.dev…");
+          const keepDays = canKeep ? keepDaysOf(keep.value) : undefined;
+          status.busy(keepDays === undefined ? "Copying the map to scmjs.dev…" : "Saving the map to My Maps…");
+          clear(full);
           try {
-            await controls.share(name.value.trim() || "Untitled map");
+            await controls.share(name.value.trim() || "Untitled map", keepDays);
             status.set("");
             render();
           } catch (err) {
             status.set(describeError(err), "error");
+            // At the limit: the maps being shared, each with End, so one can make way.
+            if (err instanceof ScmjsError && err.code === "room_full" && /sharing/.test(err.message)) {
+              full.append(w.group("Your shared maps", sharedMapsList(ctx, controls, { onJoined: () => dialog.close() }).el));
+            }
           } finally {
             start.setBusy(false);
           }
         } });
         box.append(
           h("div", { className: "sd-hint" }, "Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map."),
-          w.form([{ label: "Name", field: name }]),
-          h("div", { className: "sd-hint" }, "The map stays on scmjs.dev only while it is shared: it ends when you stop sharing, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it."),
+          w.form([{ label: "Name", field: name }, ...(canKeep ? [{ label: "Keep it open", field: keep }] : [])]),
+          hint,
           h("div", { className: "sd-btns" }, start),
           status,
+          full,
         );
       };
 
@@ -117,6 +132,17 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
         } else {
           box.append(h("div", { className: "sd-hint" }, `You are editing “${room?.name ?? "a shared map"}” with others.`));
         }
+        if (shared.kept && room) {
+          const line = h("div", { className: "sd-hint" }, `Kept open: ${endsLine(room).toLowerCase()}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
+          box.append(line);
+          if (shared.owner) {
+            const how = w.select(KEEP_CHOICES.filter((c) => c.value !== "live"), { value: choiceOf(room.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
+              try { await shared.keepFor(keepDaysOf(v) ?? null); status.set(`${endsLine(shared.room ?? {})}.`, "ok"); }
+              catch (err) { status.set(describeError(err), "error"); }
+            } });
+            box.append(w.form([{ label: "Keep it open", field: how }]));
+          }
+        }
         const list = h("div", { className: "sd-people" });
         for (const person of shared.people.values()) {
           const me = person.id === shared.you?.id;
@@ -127,13 +153,20 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
             shared.owner && !me ? w.button("Remove", { ghost: true, onClick: () => shared.kick(person.id) }) : h("span", null),
           ));
         }
+        const leave = w.button("Leave", { onClick: () => void shared.leave(false), title: shared.kept ? "The map stays open for the others and at its link." : undefined });
         const stop = shared.owner
-          ? w.button("Stop sharing", { danger: true, onClick: async () => {
-            if (!(await api.ui.confirm("Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it."))) return;
-            shared.leave(true);
+          ? w.button(shared.kept ? "End sharing" : "Stop sharing", { danger: true, onClick: async () => {
+            const text = shared.kept
+              ? "End sharing this map? Everyone is sent out of it and the link stops working. The map and its revisions stay in My Maps."
+              : "Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.";
+            if (!(await api.ui.confirm(text))) return;
+            void shared.leave(true);
           } })
-          : w.button("Leave", { onClick: () => shared.leave(false) });
-        box.append(h("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list, h("div", { className: "sd-btns" }, stop), status);
+          : null;
+        const buttons = h("div", { className: "sd-btns" });
+        if (!shared.owner || shared.kept) buttons.append(leave);
+        if (stop) buttons.append(stop);
+        box.append(h("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list, buttons, status);
       };
 
       const render = () => {

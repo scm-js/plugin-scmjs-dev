@@ -99,9 +99,14 @@ shows what is used.
   while you hold the mouse on the map or have a map dialog open, the later change to a tile
   wins, a change to a unit someone deleted is dropped, and Ctrl+Z undoes your own changes
   only. The server orders and relays the changes and never opens the map.
-- A room lives in the server's memory. It ends when the person who shared it stops, half an
-  hour after the last person leaves, or when the server restarts — everyone keeps the map
-  and can save it. Up to eight people per map, three shared maps per account. If the
+- *Keep it open…* picks how long. *Until everyone leaves*: the room lives in the server's
+  memory and ends when the person who shared it stops, half an hour after the last person
+  leaves, or when the server restarts — everyone keeps the map and can save it. *A day / a
+  week / a month / until I end it*: the map is saved to My Maps and stays open at its link
+  between sessions and across server restarts; each time everyone has left it saves a
+  revision, and it ends that long after its last edit. Account ▸ Account… lists your shared
+  maps (Join, Copy link, New link, how long, End sharing); My Maps marks them and can put a
+  revision back into one. Up to eight people per map, five shared maps per account. If the
   connection drops, the editor reconnects on its own for up to two minutes and keeps your
   changes meanwhile; if the map has moved on too far for it to catch up, the shared map
   opens again in a new tab and your copy stays open beside it.

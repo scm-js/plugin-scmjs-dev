@@ -214,9 +214,29 @@ var ScmjsClient = class {
     return this.request("/v1/billing/checkout", { method: "POST", json: { pack } });
   }
   /* ── Shared maps ──────────────────────────────────────── */
-  /** `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and its invite. */
-  createRoom(name, map) {
-    return this.request("/v1/rooms", { method: "POST", json: { name, map } });
+  /**
+   * `POST /v1/rooms`: share `map` (base64 of the file) under `name`; answers the room and
+   * its invite. With `keep`, the map is stored on the account (a new revision of
+   * `keep.mapId`, or a new map) and kept open with it.
+   */
+  createRoom(name, map, keep) {
+    return this.request("/v1/rooms", { method: "POST", json: { name, map, ...keep ?? {} } });
+  }
+  /** `GET /v1/rooms/mine`: the account's shared maps, both kinds. */
+  sharedMaps(signal) {
+    return this.request("/v1/rooms/mine", { signal });
+  }
+  /** End one of the account's shared maps; answers the list as it is now. */
+  endSharedMap(id) {
+    return this.request(`/v1/rooms/mine/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  /** How long a kept map stays open after its last edit. */
+  keepSharedMap(id, keepDays) {
+    return this.request(`/v1/rooms/mine/${encodeURIComponent(id)}`, { method: "PATCH", json: { keepDays } });
+  }
+  /** A new link for one of the account's shared maps. */
+  relinkSharedMap(id) {
+    return this.request(`/v1/rooms/mine/${encodeURIComponent(id)}/relink`, { method: "POST", json: {} });
   }
   /** `GET /v1/rooms/:invite`: what an invite leads to. */
   lookupRoom(invite, signal) {
@@ -10553,6 +10573,12 @@ var STYLE2 = `
 .sd .sd-link-row .sd-sub { white-space: nowrap; color: var(--text-dim, #99a2b3); font-size: 11px; }
 .sd .sd-map .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
 .sd .sd-map .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-shared { display: flex; flex-direction: column; gap: 6px; }
+.sd .sd-shared-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
+.sd .sd-shared-row .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
+.sd .sd-shared-row .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-shared-row .sd-btns { margin-top: 4px; }
+.sd .sd-shared-row .sd-btns select { width: auto; }
 .sd .sd-map .sd-when { color: var(--text-faint, #6b7382); font-size: 11px; text-align: right; }
 .sd .sd-revs { display: flex; flex-direction: column; }
 .sd .sd-rev { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; padding: 5px 8px; border-bottom: 1px solid var(--border, #222); align-items: baseline; }
@@ -10605,6 +10631,199 @@ function ago(iso, now = Date.now()) {
   return `${y} year${y === 1 ? "" : "s"} ago`;
 }
 
+// share/link.ts
+var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
+var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
+var LINK_PATH = /^(.*\/)(share|map)\/([A-Za-z0-9_-]{16,64})\/?$/;
+function editorBase(pathname) {
+  const m = LINK_PATH.exec(pathname);
+  if (m) return m[1];
+  return pathname.replace(/[^/]*$/, "") || "/";
+}
+function linkTo(kind, token, serverUrl, where3) {
+  const base = where3 && (where3.protocol === "http:" || where3.protocol === "https:") ? `${where3.origin}${editorBase(where3.pathname)}` : WEB_EDITOR_URL;
+  const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
+  return `${base}${kind}/${token}${query}`;
+}
+function inviteLink(invite, serverUrl, where3) {
+  return linkTo("share", invite, serverUrl, where3);
+}
+function copyLink(token, serverUrl, where3) {
+  return linkTo("map", token, serverUrl, where3);
+}
+function inviteFrom(text) {
+  const t = text.trim();
+  if (INVITE.test(t)) return t;
+  const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
+  return m ? m[1] : null;
+}
+function copyTokenFrom(text) {
+  const t = text.trim();
+  if (INVITE.test(t)) return t;
+  const m = /\/map\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
+  return m ? m[1] : null;
+}
+function inviteOnPage(pathname) {
+  const m = LINK_PATH.exec(pathname);
+  return m?.[2] === "share" ? m[3] : null;
+}
+function copyTokenOnPage(pathname) {
+  const m = LINK_PATH.exec(pathname);
+  return m?.[2] === "map" ? m[3] : null;
+}
+function forgetLinkOnPage() {
+  if (typeof history === "undefined" || typeof location === "undefined") return;
+  const url = new URL(location.href);
+  url.pathname = editorBase(url.pathname);
+  history.replaceState(history.state, "", url.toString());
+}
+
+// share/kept.ts
+var KEEP_CHOICES = [
+  { value: "live", label: "Until everyone leaves" },
+  { value: "1", label: "For a day" },
+  { value: "7", label: "For a week" },
+  { value: "30", label: "For a month" },
+  { value: "forever", label: "Until I end it" }
+];
+function keepDaysOf(choice) {
+  if (choice === "live") return void 0;
+  if (choice === "forever") return null;
+  const n2 = Number(choice);
+  return n2 === 1 || n2 === 7 || n2 === 30 ? n2 : 7;
+}
+function choiceOf(keepDays) {
+  if (keepDays === void 0) return "live";
+  if (keepDays === null) return "forever";
+  return String(keepDays);
+}
+function keepHint(choice) {
+  if (choice === "live") return "The map is on scmjs.dev only while it is shared: sharing ends when you stop it, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it.";
+  const span = choice === "1" ? "a day" : choice === "30" ? "a month" : "a week";
+  return `The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. ${choice === "forever" ? "It stays open until you end it (or after a year with no edits)" : `It ends after ${span} with no edits`}, and the map stays in My Maps.`;
+}
+function endsLine(v) {
+  if (v.keepDays === void 0) return "Until everyone leaves";
+  if (v.keepDays === null) return "Until you end it";
+  return v.endsAt ? `Ends ${shortDay2(v.endsAt)} unless someone edits it` : "Kept open";
+}
+var lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+function sharedMapsList(ctx, controls, opts = {}) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  const el = h2("div", { className: "sd-shared" });
+  const status = w.statusLine({ text: "" });
+  let rooms = [];
+  let limit = 0;
+  const render = () => {
+    clear2(el);
+    if (!rooms.length) {
+      el.append(h2("div", { className: "sd-hint" }, "You are not sharing any maps."), status);
+      return;
+    }
+    el.append(h2("div", { className: "sd-hint" }, `${rooms.length} of ${limit} shared maps.`));
+    for (const r of rooms) {
+      const inIt = controls.current()?.room?.id === r.id && controls.current()?.phase !== "ended";
+      const lines = [
+        r.kind === "kept" ? `Kept open \xB7 ${lower(endsLine(r))}` : "Open until everyone leaves",
+        r.people.length ? `In it now: ${r.people.join(", ")}` : "Nobody in it now",
+        r.kind === "kept" && r.lastEditAt ? `Last edit ${ago(r.lastEditAt)}${r.lastEditBy ? ` by ${r.lastEditBy}` : ""}` : ""
+      ].filter(Boolean);
+      const buttons = h2("div", { className: "sd-btns" });
+      if (!inIt) {
+        buttons.append(w.button("Join", { onClick: async () => {
+          status.busy(`Joining ${r.name}\u2026`);
+          try {
+            await controls.join(r.invite, account.current()?.name ?? "Owner");
+            status.set("");
+            opts.onJoined?.();
+          } catch (err) {
+            status.set(describeError(err), "error");
+          }
+        } }));
+      }
+      buttons.append(w.button("Copy link", { onClick: async () => {
+        try {
+          await navigator.clipboard.writeText(inviteLink(r.invite, account.serverUrl(), typeof location !== "undefined" ? location : null));
+          status.set("The link is on the clipboard.", "ok");
+        } catch {
+          status.set("The clipboard is not available here.", "warn");
+        }
+      } }));
+      buttons.append(w.button("New link", { onClick: async () => {
+        try {
+          const { room } = await account.client.relinkSharedMap(r.id);
+          replace(room);
+          status.set("The old link no longer works. Nobody in the map was sent out.", "ok");
+        } catch (err) {
+          status.set(describeError(err), "error");
+        }
+      } }));
+      if (r.kind === "kept") {
+        const how = w.select(KEEP_CHOICES.filter((c2) => c2.value !== "live"), { value: choiceOf(r.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
+          try {
+            const { room } = await account.client.keepSharedMap(r.id, keepDaysOf(v) ?? null);
+            replace(room);
+            status.set(endsLine(room) + ".", "ok");
+          } catch (err) {
+            status.set(describeError(err), "error");
+          }
+        } });
+        buttons.append(how);
+      }
+      buttons.append(w.button("End sharing", { danger: true, onClick: async () => {
+        const text = r.kind === "kept" ? `End sharing \u201C${r.name}\u201D? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.` : `End sharing \u201C${r.name}\u201D? Anyone in it is sent out; they keep their copy and can save it.`;
+        if (!await api.ui.confirm(text, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
+        try {
+          const res = await account.client.endSharedMap(r.id);
+          rooms = res.rooms;
+          limit = res.limit;
+          render();
+          opts.onChange?.(rooms);
+          status.set("Sharing ended.", "ok");
+        } catch (err) {
+          status.set(describeError(err), "error");
+        }
+      } }));
+      el.append(h2(
+        "div",
+        { className: "sd-shared-row" },
+        h2("div", { className: "sd-name" }, r.name, inIt ? h2("span", { className: "sd-sub" }, " \xB7 you are in it") : null),
+        ...lines.map((l) => h2("div", { className: "sd-sub" }, l)),
+        h2("div", { className: "sd-sub", title: formatDate(r.createdAt) }, `Shared ${ago(r.createdAt)}`),
+        buttons
+      ));
+    }
+    el.append(status);
+  };
+  const replace = (room) => {
+    rooms = rooms.map((r) => r.id === room.id ? room : r);
+    render();
+    opts.onChange?.(rooms);
+  };
+  const reload = async () => {
+    status.busy("Loading your shared maps\u2026");
+    if (!el.contains(status)) {
+      clear2(el);
+      el.append(status);
+    }
+    try {
+      const res = await account.client.sharedMaps();
+      rooms = res.rooms;
+      limit = res.limit;
+      status.set("");
+      render();
+      opts.onChange?.(rooms);
+    } catch (err) {
+      clear2(el);
+      el.append(status);
+      status.set(describeError(err), "error");
+    }
+  };
+  void reload();
+  return { el, reload };
+}
+
 // dialogs.ts
 function storageBar(used, cap) {
   const share = cap > 0 ? Math.min(1, used / cap) : 0;
@@ -10627,6 +10846,8 @@ function openAccountDialog(ctx) {
       const storageBox = h2("div", null);
       const ledgerBox = h2("div", null);
       const featuresBox = h2("div", null);
+      const sharedBox = h2("div", null);
+      let sharedList = null;
       const render = () => {
         const s = account.state();
         const v = s.account;
@@ -10727,6 +10948,12 @@ function openAccountDialog(ctx) {
           if (s.storage) storageBox.append(w.group("Map storage", storageBar(s.storage.usedBytes, s.storage.capBytes), h2("div", { className: "sd-hint" }, `${s.storage.maps} map${s.storage.maps === 1 ? "" : "s"}, ${s.storage.revisions} revision${s.storage.revisions === 1 ? "" : "s"}. Account \u25B8 My Maps\u2026 lists them; Account \u25B8 Save to scmjs.dev\u2026 adds one.`)));
           else if (s.offers && !s.offers.maps) storageBox.append(w.group("Map storage", h2("div", { className: "sd-hint" }, "This server keeps no maps.")));
         }
+        const sharing = s.kind === "account" && !!s.offers?.rooms && !!ctx.shares;
+        sharedBox.style.display = sharing ? "" : "none";
+        if (sharing && !sharedList) {
+          sharedList = sharedMapsList(ctx, ctx.shares, { onJoined: () => dialog.close() });
+          sharedBox.append(w.group("Shared maps", sharedList.el));
+        }
         const ledger = account.ledger();
         if (s.kind === "account" && ledger.length) {
           const table = h2(
@@ -10775,6 +11002,7 @@ function openAccountDialog(ctx) {
         buttons,
         featuresBox,
         storageBox,
+        sharedBox,
         ledgerBox,
         settingsFold,
         status,
@@ -10861,6 +11089,10 @@ async function uploadOpenMap(ctx, target, step = () => {
   account.noteStorage(response.storage);
   return { response, fileName: fields.fileName };
 }
+function sharedLine(v) {
+  const ends = endsLine(v);
+  return v.people.length ? `Shared \xB7 ${v.people.length} editing` : `Shared \xB7 ${ends.charAt(0).toLowerCase()}${ends.slice(1)}`;
+}
 function needsAccount(ctx, root2, dialog) {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
@@ -10894,6 +11126,7 @@ function openMapsDialog(ctx, link) {
       const listBox = h2("div", { className: "sd-scroll sd-maps" });
       const detailBox = h2("div", null);
       let maps = [];
+      let shares = /* @__PURE__ */ new Map();
       let picked = null;
       let pickedRevision = null;
       let loading = null;
@@ -10917,7 +11150,8 @@ function openMapsDialog(ctx, link) {
               null,
               h2("div", { className: "sd-name" }, m.name),
               h2("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
-              h2("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` \xB7 ${m.head.note.split("\n")[0]}` : ""}`)
+              h2("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` \xB7 ${m.head.note.split("\n")[0]}` : ""}`),
+              shares.has(m.id) ? h2("div", { className: "sd-sub sd-ok" }, sharedLine(shares.get(m.id))) : null
             ),
             h2("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt))
           );
@@ -10946,7 +11180,50 @@ function openMapsDialog(ctx, link) {
             h2("span", { className: "sd-sub" }, `${r.fileName} \xB7 ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` \xB7 "${r.meta.scenarioName}"` : ""}`)
           ));
         }
-        const open = w.button(`Open #${rev.number}`, { primary: true, onClick: async () => {
+        const kept = shares.get(m.id) ?? null;
+        const current = ctx.shares?.current() ?? null;
+        const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
+        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: async () => {
+          join.setBusy(true);
+          try {
+            await ctx.shares.join(kept.invite, account.current()?.name ?? "Owner");
+            dialog.close();
+          } catch (err) {
+            say(describeError(err), "error");
+          } finally {
+            join.setBusy(false);
+          }
+        } }) : null;
+        const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
+          if (!await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true })) return;
+          restore.setBusy(true);
+          try {
+            status.busy(`Downloading #${rev.number}\u2026`);
+            const { bytes } = await client.revisionFile(m.id, rev.number);
+            const chk = await api.document.sections.chkOf(bytes);
+            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
+            api.document.sections.replaceFile(chk);
+            dialog.close();
+            api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
+          } catch (err) {
+            say(describeError(err), "error");
+          } finally {
+            restore.setBusy(false);
+          }
+        } }) : null;
+        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
+          if (!await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
+          try {
+            const r = await client.endSharedMap(m.id);
+            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+            renderList();
+            renderDetail();
+            say("Sharing ended.", "ok");
+          } catch (err) {
+            say(describeError(err), "error");
+          }
+        } }) : null;
+        const open = w.button(`Open #${rev.number}`, { primary: !join, title: kept ? "Open this revision on its own, apart from the shared map" : void 0, onClick: async () => {
           open.setBusy(true);
           try {
             status.busy(`Downloading #${rev.number}\u2026`);
@@ -11031,9 +11308,10 @@ function openMapsDialog(ctx, link) {
             h2("span", { className: "sd-k" }, "Created"),
             h2("span", { className: "sd-v" }, formatDate(m.createdAt))
           ),
-          h2("div", { className: "sd-btns" }, open, download, note, rename),
+          ...kept ? [h2("div", { className: "sd-hint" }, `${sharedLine(kept)}. ${inIt ? "You are in it." : "Join it to edit with whoever is there; Open gives you a copy of a revision on its own."}`)] : [],
+          h2("div", { className: "sd-btns" }, join, open, restore, download, note, rename),
           revs,
-          h2("div", { className: "sd-btns" }, delRev, delMap),
+          h2("div", { className: "sd-btns" }, delRev, delMap, endSharing),
           w.group("Links", linksSection(ctx, m, rev.number, update, say))
         );
       };
@@ -11071,8 +11349,13 @@ function openMapsDialog(ctx, link) {
         listBox.append(w.skeleton({ lines: 4, block: true }));
         status.busy("Loading your maps\u2026");
         try {
-          const r = await client.listMaps(loading.signal);
+          const signal = loading.signal;
+          const [r, shared] = await Promise.all([
+            client.listMaps(signal),
+            account.state().offers?.keptRooms ? client.sharedMaps(signal).catch(() => null) : Promise.resolve(null)
+          ]);
           maps = r.maps;
+          shares = new Map((shared?.rooms ?? []).filter((x) => x.kind === "kept").map((x) => [x.id, x]));
           account.noteStorage(r.storage);
           renderStorage(r.storage);
           renderList();
@@ -11176,53 +11459,6 @@ function openSaveDialog(ctx, link) {
     },
     buttons: [{ label: "Cancel" }]
   });
-}
-
-// share/link.ts
-var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
-var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
-var LINK_PATH = /^(.*\/)(share|map)\/([A-Za-z0-9_-]{16,64})\/?$/;
-function editorBase(pathname) {
-  const m = LINK_PATH.exec(pathname);
-  if (m) return m[1];
-  return pathname.replace(/[^/]*$/, "") || "/";
-}
-function linkTo(kind, token, serverUrl, where3) {
-  const base = where3 && (where3.protocol === "http:" || where3.protocol === "https:") ? `${where3.origin}${editorBase(where3.pathname)}` : WEB_EDITOR_URL;
-  const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
-  return `${base}${kind}/${token}${query}`;
-}
-function inviteLink(invite, serverUrl, where3) {
-  return linkTo("share", invite, serverUrl, where3);
-}
-function copyLink(token, serverUrl, where3) {
-  return linkTo("map", token, serverUrl, where3);
-}
-function inviteFrom(text) {
-  const t = text.trim();
-  if (INVITE.test(t)) return t;
-  const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
-  return m ? m[1] : null;
-}
-function copyTokenFrom(text) {
-  const t = text.trim();
-  if (INVITE.test(t)) return t;
-  const m = /\/map\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
-  return m ? m[1] : null;
-}
-function inviteOnPage(pathname) {
-  const m = LINK_PATH.exec(pathname);
-  return m?.[2] === "share" ? m[3] : null;
-}
-function copyTokenOnPage(pathname) {
-  const m = LINK_PATH.exec(pathname);
-  return m?.[2] === "map" ? m[3] : null;
-}
-function forgetLinkOnPage() {
-  if (typeof history === "undefined" || typeof location === "undefined") return;
-  const url = new URL(location.href);
-  url.pathname = editorBase(url.pathname);
-  history.replaceState(history.state, "", url.toString());
 }
 
 // copies.ts
@@ -11560,7 +11796,8 @@ var ENDINGS = {
   owner: "The person who shared the map ended the session.",
   removed: "You were removed from the shared map.",
   idle: "The shared map closed after nobody used it for a while.",
-  server: "The server restarted, which ends every shared map."
+  server: "The server restarted, which ends every shared map.",
+  expired: "The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps."
 };
 var SharedMap = class _SharedMap {
   phase = "connecting";
@@ -11640,6 +11877,10 @@ var SharedMap = class _SharedMap {
   get owner() {
     return this.you?.owner === true;
   }
+  /** Kept open between sessions, as one of the owner's stored maps. */
+  get kept() {
+    return this.room?.keepDays !== void 0;
+  }
   /** Changes this editor made that the server has not confirmed yet. */
   pending() {
     return this.session?.pending() ?? 0;
@@ -11648,8 +11889,11 @@ var SharedMap = class _SharedMap {
     return this.session?.holding() ?? null;
   }
   /* ── Starting ───────────────────────────────────────────── */
-  /** Share the map in front under `name`. Needs a signed-in session on the client. */
-  static async share(deps, name) {
+  /**
+   * Share the map in front under `name`. Needs a signed-in session on the client. With
+   * `keep`, it is stored on the account and kept open between sessions.
+   */
+  static async share(deps, name, keep) {
     const s = new _SharedMap(deps);
     s.sharing = true;
     const session = deps.api.sync.start(s.syncOptions());
@@ -11660,7 +11904,7 @@ var SharedMap = class _SharedMap {
     try {
       const bytes = await copy;
       if (!bytes) throw new Error("The map could not be copied.");
-      const { room } = await deps.client.createRoom(name, toBase64(bytes));
+      const { room } = await deps.client.createRoom(name, toBase64(bytes), keep);
       s.room = room;
       s.invite = room.invite;
       await s.connect();
@@ -12078,10 +12322,36 @@ var SharedMap = class _SharedMap {
   relink() {
     this.send({ type: "relink" });
   }
-  /** Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays open. */
-  leave(forEveryone = false) {
-    if (forEveryone && this.owner) this.send({ type: "end" });
+  /**
+   * Leave — or, for the owner with `forEveryone`, end the room for everyone. The map stays
+   * open. Leaving a kept map sends it as this editor has it, so the revision it writes
+   * when everyone has gone is up to date.
+   */
+  async leave(forEveryone = false) {
+    if (forEveryone && this.owner) {
+      this.send({ type: "end" });
+      this.end(null);
+      return;
+    }
+    const session = this.session;
+    if (!this.kept || !session || this.phase !== "live") {
+      this.end(null);
+      return;
+    }
+    const seq = this.lastSeq;
+    try {
+      const bytes = await session.snapshot();
+      this.send({ type: "leave", ...bytes ? { snapshot: { seq, map: toBase64(bytes) } } : {} });
+    } catch {
+    }
     this.end(null);
+  }
+  /** Owner: how long the kept map stays open after its last edit. */
+  async keepFor(keepDays) {
+    if (!this.room || !this.kept) return;
+    const { room } = await this.deps.client.keepSharedMap(this.room.id, keepDays);
+    this.room = { ...this.room, keepDays: room.keepDays, endsAt: room.endsAt };
+    this.emit();
   }
   end(message) {
     if (this.phase === "ended") return;
@@ -12309,25 +12579,38 @@ function openShareDialog(ctx, controls) {
           return;
         }
         const name = w.text({ value: api.document.info()?.name ?? "" });
+        const canKeep = !!account.state().offers?.keptRooms;
+        const hint = h2("div", { className: "sd-hint" }, keepHint("live"));
+        const keep = w.select(KEEP_CHOICES, { value: canKeep ? "7" : "live", onChange: (v) => {
+          hint.textContent = keepHint(v);
+        } });
+        hint.textContent = keepHint(keep.value);
+        const full = h2("div", null);
         const start2 = w.button("Start sharing", { primary: true, onClick: async () => {
           start2.setBusy(true);
-          status.busy("Copying the map to scmjs.dev\u2026");
+          const keepDays = canKeep ? keepDaysOf(keep.value) : void 0;
+          status.busy(keepDays === void 0 ? "Copying the map to scmjs.dev\u2026" : "Saving the map to My Maps\u2026");
+          clear2(full);
           try {
-            await controls.share(name.value.trim() || "Untitled map");
+            await controls.share(name.value.trim() || "Untitled map", keepDays);
             status.set("");
             render();
           } catch (err) {
             status.set(describeError(err), "error");
+            if (err instanceof ScmjsError && err.code === "room_full" && /sharing/.test(err.message)) {
+              full.append(w.group("Your shared maps", sharedMapsList(ctx, controls, { onJoined: () => dialog.close() }).el));
+            }
           } finally {
             start2.setBusy(false);
           }
         } });
         box.append(
           h2("div", { className: "sd-hint" }, "Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map."),
-          w.form([{ label: "Name", field: name }]),
-          h2("div", { className: "sd-hint" }, "The map stays on scmjs.dev only while it is shared: it ends when you stop sharing, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it."),
+          w.form([{ label: "Name", field: name }, ...canKeep ? [{ label: "Keep it open", field: keep }] : []]),
+          hint,
           h2("div", { className: "sd-btns" }, start2),
-          status
+          status,
+          full
         );
       };
       const renderLive = (shared) => {
@@ -12371,6 +12654,21 @@ function openShareDialog(ctx, controls) {
         } else {
           box.append(h2("div", { className: "sd-hint" }, `You are editing \u201C${room?.name ?? "a shared map"}\u201D with others.`));
         }
+        if (shared.kept && room) {
+          const line = h2("div", { className: "sd-hint" }, `Kept open: ${endsLine(room).toLowerCase()}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
+          box.append(line);
+          if (shared.owner) {
+            const how = w.select(KEEP_CHOICES.filter((c2) => c2.value !== "live"), { value: choiceOf(room.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
+              try {
+                await shared.keepFor(keepDaysOf(v) ?? null);
+                status.set(`${endsLine(shared.room ?? {})}.`, "ok");
+              } catch (err) {
+                status.set(describeError(err), "error");
+              }
+            } });
+            box.append(w.form([{ label: "Keep it open", field: how }]));
+          }
+        }
         const list2 = h2("div", { className: "sd-people" });
         for (const person of shared.people.values()) {
           const me = person.id === shared.you?.id;
@@ -12383,11 +12681,16 @@ function openShareDialog(ctx, controls) {
             shared.owner && !me ? w.button("Remove", { ghost: true, onClick: () => shared.kick(person.id) }) : h2("span", null)
           ));
         }
-        const stop = shared.owner ? w.button("Stop sharing", { danger: true, onClick: async () => {
-          if (!await api.ui.confirm("Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.")) return;
-          shared.leave(true);
-        } }) : w.button("Leave", { onClick: () => shared.leave(false) });
-        box.append(h2("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list2, h2("div", { className: "sd-btns" }, stop), status);
+        const leave = w.button("Leave", { onClick: () => void shared.leave(false), title: shared.kept ? "The map stays open for the others and at its link." : void 0 });
+        const stop = shared.owner ? w.button(shared.kept ? "End sharing" : "Stop sharing", { danger: true, onClick: async () => {
+          const text = shared.kept ? "End sharing this map? Everyone is sent out of it and the link stops working. The map and its revisions stay in My Maps." : "Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.";
+          if (!await api.ui.confirm(text)) return;
+          void shared.leave(true);
+        } }) : null;
+        const buttons = h2("div", { className: "sd-btns" });
+        if (!shared.owner || shared.kept) buttons.append(leave);
+        if (stop) buttons.append(stop);
+        box.append(h2("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list2, buttons, status);
       };
       const render = () => {
         unsubscribe?.();
@@ -12560,16 +12863,27 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
   };
   const controls = {
     current: () => shared,
-    share: async (name) => {
+    share: async (name, keepDays) => {
       if (shared && shared.phase !== "ended") return shared;
-      const s = await SharedMap.share(deps, name);
+      const info = api.document.info();
+      const fileName = info?.fileName ?? `${name}.scx`;
+      const keep = keepDays === void 0 || !info ? void 0 : {
+        keepDays,
+        mapId: opts.links.get()?.mapId,
+        fileName,
+        note: "Shared",
+        meta: metaOf(info, api.query.statistics(), api.settings.players())
+      };
+      const s = await SharedMap.share(deps, name, keep);
+      if (s.room?.mapId) opts.links.set({ mapId: s.room.mapId, mapName: s.room.name, fileName });
       attach(s);
       return s;
     },
     join: async (invite, name) => {
-      shared?.leave(false);
+      await shared?.leave(false);
       const s = await SharedMap.join(deps, invite, name);
       if (invite === pageInvite) pageInvite = null;
+      if (s.kept && s.owner && s.room) opts.links.set({ mapId: s.room.id, mapName: s.room.name, fileName: `${s.room.name}.scx` });
       attach(s);
       api.ui.toast({ kind: "ok", title: `Joined \u201C${s.room?.name ?? "the shared map"}\u201D`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
       return s;
@@ -12589,9 +12903,12 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
     forgetLinkOnPage();
     openJoinDialog(ctx, controls, pageInvite);
   }
-  return () => {
-    shared?.leave(false);
-    for (const d of disposables) d.dispose();
+  return {
+    controls,
+    dispose: () => {
+      void shared?.leave(false);
+      for (const d of disposables) d.dispose();
+    }
   };
 }
 
@@ -12665,7 +12982,8 @@ function activate(api) {
   api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
   api.menu.add("File", { label: "Open from scmjs.dev\u2026", icon: "plugin", after: "Open Recent", command: "maps" });
   api.menu.add("File", { label: "Save to scmjs.dev\u2026", icon: "plugin", after: "Save Copy As\u2026", command: "save" });
-  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud });
+  const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
+  ctx.shares = share.controls;
   pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
   if (pageCopy) {
     forgetLinkOnPage();
@@ -12740,7 +13058,7 @@ function activate(api) {
   return () => {
     ai?.();
     optionsPage?.dispose();
-    share();
+    share.dispose();
     status?.remove();
     provided.dispose();
   };

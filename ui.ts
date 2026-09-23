@@ -8,6 +8,7 @@
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { AccountManager } from "./account";
+import type { ShareControls } from "./share/dialogs";
 
 export interface Ctx {
   api: PluginApi;
@@ -15,6 +16,8 @@ export interface Ctx {
   openAccount: () => void;
   openMaps: () => void;
   saveToCloud: () => void;
+  /** Shared maps: what is shared now, and sharing / joining — once the share part is installed. */
+  shares?: ShareControls;
 }
 
 export type Child = Node | string | number | null | undefined | false;
@@ -78,6 +81,12 @@ export const STYLE = `
 .sd .sd-link-row .sd-sub { white-space: nowrap; color: var(--text-dim, #99a2b3); font-size: 11px; }
 .sd .sd-map .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
 .sd .sd-map .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-shared { display: flex; flex-direction: column; gap: 6px; }
+.sd .sd-shared-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); }
+.sd .sd-shared-row .sd-name { color: var(--text, #e6e9ef); font-weight: 600; }
+.sd .sd-shared-row .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-shared-row .sd-btns { margin-top: 4px; }
+.sd .sd-shared-row .sd-btns select { width: auto; }
 .sd .sd-map .sd-when { color: var(--text-faint, #6b7382); font-size: 11px; text-align: right; }
 .sd .sd-revs { display: flex; flex-direction: column; }
 .sd .sd-rev { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; padding: 5px 8px; border-bottom: 1px solid var(--border, #222); align-items: baseline; }
