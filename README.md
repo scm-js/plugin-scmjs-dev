@@ -50,9 +50,12 @@ into Manage Plugins and press **Add**. To pin a version, add a ref:
   manage the account on scmjs.dev (link another provider, delete everything), open My
   Maps, and sign out. Under *Settings*: the AI tick and the status-bar tick.
 - **My Maps.** The maps on your account, newest change first, each with its picture,
-  tileset, size, players and revision count. Pick one for its revisions — number, note,
-  file name, size, when — and open any of them in the editor, download it, edit its
-  note, rename the map, or delete a revision or the map. A map keeps its last revision;
+  tileset, size, players and revision count, and a search box over the names, tilesets,
+  file names and notes. The map you last opened or saved is picked when the list arrives
+  (the newest one otherwise); Up and Down move through the list and Enter opens the pick.
+  Beside the list: the picked map's picture and details, and its revisions — number, note,
+  file name, size, when. Open or download the newest or any revision you pick, add or edit
+  its note, rename the map, or delete a revision or the map. A map keeps its last revision;
   delete the map to remove it. Under *Links*: the map's copy links with how often each was
   opened, a button to remove each, and buttons for a new link to the revision in view or
   to whichever is newest.

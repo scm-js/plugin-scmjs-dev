@@ -10591,7 +10591,49 @@ var STYLE2 = `
 .sd .sd-rev .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; grid-column: 2; }
 .sd textarea { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font: inherit; background: var(--bg-0, #0f1115); color: var(--text, #e6e9ef); border: 1px solid var(--border, #333); border-radius: 4px; padding: 6px; }
 .sd .sd-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-.sd .sd-empty-list { padding: 18px 8px; text-align: center; color: var(--text-faint, #6b7382); }
+.sd .sd-empty-list { padding: 18px 8px; text-align: center; color: var(--text-faint, #6b7382); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sd .sd-grow { flex: 1; min-width: 0; }
+
+/* My Maps: a toolbar, then the list and the picked map side by side, each scrolling on its own and filling the dialog. */
+.sd.sd-fill { flex: 1; min-height: 0; }
+.sd .sd-toolbar { display: flex; align-items: center; gap: 10px; }
+.sd .sd-toolbar .sd-search { flex: 1; min-width: 0; max-width: 320px; }
+.sd .sd-meter { margin-left: auto; }
+.sd .sd-meter > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; }
+.sd .sd-meter .sd-bar { width: 120px; }
+.sd .sd-meter .sd-hint { white-space: nowrap; }
+.sd.sd-fill > .sd-split { flex: 1; min-height: 0; grid-template-columns: minmax(260px, 340px) 1fr; align-items: stretch; }
+.sd .sd-pane { min-height: 0; overflow: auto; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); position: relative; }
+.sd .sd-pane:focus { outline: none; }
+.sd .busy-box > .sd-pane { flex: 1; }
+.sd.sd-fill > .sd-split.sd-none { grid-template-columns: 1fr; }
+.sd .sd-split.sd-none > :last-child { display: none; }
+.sd .sd-pane.sd-maps:focus-visible { outline: 1px solid var(--teal, #4fd1c5); outline-offset: -1px; }
+.sd .sd-maps .sd-map { grid-template-columns: 56px 1fr; gap: 10px; padding: 8px 10px; align-items: start; }
+.sd .sd-maps .sd-map.sd-ghost { cursor: default; }
+.sd .sd-maps .sd-map.sd-ghost:hover { background: none; }
+.sd .sd-maps .sd-thumb { width: 56px; height: 56px; }
+.sd .sd-maps .sd-map.sd-picked { background: color-mix(in srgb, var(--teal, #4fd1c5) 10%, var(--bg-2, #1b1f27)); outline: none; box-shadow: inset 3px 0 0 var(--teal, #4fd1c5); }
+.sd .sd-map-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sd .sd-name-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sd .sd-name-row .sd-name, .sd .sd-name-row .sd-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd .sd-name-row .sd-when { flex: none; }
+.sd .sd-maps .sd-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd .sd-badge { align-self: flex-start; margin-top: 3px; padding: 1px 6px; border-radius: 8px; font-size: 10px; color: var(--teal, #4fd1c5); background: color-mix(in srgb, var(--teal, #4fd1c5) 14%, transparent); }
+.sd .sd-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center; }
+.sd .sd-empty-title { font-size: 14px; color: var(--text, #e6e9ef); font-weight: 600; }
+.sd .sd-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.sd .sd-hero { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
+.sd .sd-thumb.sd-thumb-big { width: 112px; height: 112px; }
+.sd .sd-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sd .sd-hero-text .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-title { font-size: 16px; font-weight: 600; color: var(--gold, #e6b95c); }
+.sd .sd-about { color: var(--text, #e6e9ef); line-height: 1.45; margin-top: 4px; white-space: pre-wrap; }
+.sd .sd-section { margin-top: 6px; padding-bottom: 3px; border-bottom: 1px solid var(--border, #333); color: var(--text-dim, #99a2b3); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.sd .sd-detail .sd-revs { border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-0, #0f1115); }
+.sd .sd-detail .sd-rev:last-child { border-bottom: none; }
+.sd .sd-rev.sd-picked { background: color-mix(in srgb, var(--teal, #4fd1c5) 10%, var(--bg-2, #1b1f27)); outline: none; box-shadow: inset 3px 0 0 var(--teal, #4fd1c5); cursor: default; }
+.sd .sd-rev-btns { grid-column: 2 / -1; display: flex; gap: 6px; margin-top: 2px; }
 `;
 function styled2(body) {
   const style = document.createElement("style");
@@ -11245,8 +11287,46 @@ function needsAccount(ctx, root2, dialog) {
   );
   return true;
 }
-function thumb(m) {
-  return h2("div", { className: "sd-thumb" }, m.thumbnail ? h2("img", { src: m.thumbnail, alt: "" }) : h2("span", null, m.width && m.height ? `${m.width}\xD7${m.height}` : "map"));
+function thumb(m, big = false) {
+  return h2("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h2("img", { src: m.thumbnail, alt: "" }) : h2("span", null, m.width && m.height ? `${m.width}\xD7${m.height}` : "map"));
+}
+function sizeLine(m) {
+  return `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}`;
+}
+function matchesSearch(m, query) {
+  const q2 = query.trim().toLowerCase();
+  if (!q2) return true;
+  return [m.name, m.head.meta.scenarioName, m.head.meta.tileset, m.head.fileName, m.head.note].some((s) => !!s && s.toLowerCase().includes(q2));
+}
+function listSkeleton(ctx, rows) {
+  const w = ctx.api.ui.widgets;
+  return Array.from({ length: rows }, () => h2(
+    "div",
+    { className: "sd-map sd-ghost" },
+    w.skeleton({ block: true, width: "56px", height: 56 }),
+    h2("div", null, w.skeleton({ lines: 3 }))
+  ));
+}
+function detailSkeleton(ctx, m) {
+  const w = ctx.api.ui.widgets;
+  return h2(
+    "div",
+    { className: "sd-detail" },
+    h2(
+      "div",
+      { className: "sd-hero" },
+      m ? thumb(m.head.meta, true) : w.skeleton({ block: true, width: "112px", height: 112 }),
+      h2(
+        "div",
+        { className: "sd-hero-text" },
+        m ? h2("div", { className: "sd-title" }, m.name) : w.skeleton({ width: "60%", height: 16 }),
+        w.skeleton({ lines: 2 })
+      )
+    ),
+    w.skeleton({ width: "40%", height: 24 }),
+    h2("div", { className: "sd-section" }, "Revisions"),
+    w.skeleton({ lines: 4 })
+  );
 }
 function openMapsDialog(ctx, link) {
   const { api, account } = ctx;
@@ -11254,118 +11334,142 @@ function openMapsDialog(ctx, link) {
   const client = account.client;
   return api.ui.dialog({
     title: "My Maps on scmjs.dev",
-    size: "lg",
+    size: "xl",
     tall: true,
     mount(body, dialog) {
       const root2 = styled2(body);
       if (needsAccount(ctx, root2, dialog)) return;
+      root2.classList.add("sd-fill");
       const status = w.statusLine({ text: "" });
       const say = (text, kind) => status.set(text, kind);
-      const storageBox = h2("div", null);
-      const listBox = h2("div", { className: "sd-scroll sd-maps" });
-      const detailBox = h2("div", null);
+      const storageBox = h2("div", { className: "sd-meter" });
+      const listBox = h2("div", { className: "sd-pane sd-maps", tabIndex: 0 });
+      const detailBox = h2("div", { className: "sd-pane sd-detail-pane" });
+      const search = w.text({ placeholder: "Search maps" });
+      search.classList.add("sd-search");
+      const split = h2("div", { className: "sd-split" }, listBox, detailBox);
       let maps = [];
       let shares = /* @__PURE__ */ new Map();
+      const details = /* @__PURE__ */ new Map();
+      let pickedId = null;
       let picked = null;
       let pickedRevision = null;
       let loading = null;
+      let picking = null;
       const renderStorage = (s) => {
         clear2(storageBox);
         if (s) storageBox.append(storageBar(s.usedBytes, s.capBytes));
       };
+      const covered = async (label, work) => {
+        const cover = w.busy(detailBox, label);
+        try {
+          await work();
+        } catch (err) {
+          say(describeError(err), "error");
+        } finally {
+          cover.done();
+        }
+      };
+      const visible = () => maps.filter((m) => matchesSearch(m, search.value));
       const renderList = () => {
         clear2(listBox);
+        split.classList.toggle("sd-none", !maps.length);
+        saveHere.hidden = !maps.length;
         if (!maps.length) {
-          listBox.append(h2("div", { className: "sd-empty-list" }, "No maps yet. Account \u25B8 Save to scmjs.dev\u2026 puts the open map here."));
+          listBox.append(h2(
+            "div",
+            { className: "sd-empty-state" },
+            h2("div", { className: "sd-empty-title" }, "No maps yet"),
+            h2("div", { className: "sd-hint" }, "Maps you save to scmjs.dev show up here, with every revision and its note."),
+            api.document.isOpen() ? w.button("Save the open map here\u2026", { primary: true, onClick: () => {
+              dialog.close();
+              ctx.saveToCloud();
+            } }) : null
+          ));
           return;
         }
-        for (const m of maps) {
-          const row = h2(
+        const shown = visible();
+        if (!shown.length) {
+          listBox.append(h2("div", { className: "sd-empty-list" }, `No map matches "${search.value.trim()}".`));
+          return;
+        }
+        for (const m of shown) {
+          const kept = shares.get(m.id);
+          listBox.append(h2(
             "div",
-            { className: `sd-map${picked?.id === m.id ? " sd-picked" : ""}`, onClick: () => void pick(m.id) },
+            { className: `sd-map${pickedId === m.id ? " sd-picked" : ""}`, "data-id": m.id, onClick: () => void pick(m.id) },
             thumb(m.head.meta),
             h2(
               "div",
-              null,
-              h2("div", { className: "sd-name" }, m.name),
+              { className: "sd-map-text" },
+              h2(
+                "div",
+                { className: "sd-name-row" },
+                h2("span", { className: "sd-name", title: m.name }, m.name),
+                h2("span", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt))
+              ),
               h2("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
-              h2("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` \xB7 ${m.head.note.split("\n")[0]}` : ""}`),
-              shares.has(m.id) ? h2("div", { className: "sd-sub sd-ok" }, sharedLine(shares.get(m.id))) : null
-            ),
-            h2("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt))
-          );
-          listBox.append(row);
+              h2("div", { className: "sd-sub" }, sizeLine(m)),
+              kept ? h2("div", { className: "sd-badge" }, sharedLine(kept)) : null
+            )
+          ));
         }
       };
+      listBox.addEventListener("keydown", (e) => {
+        const shown = visible();
+        if (!shown.length) return;
+        const at = shown.findIndex((m) => m.id === pickedId);
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const next = shown[Math.max(0, Math.min(shown.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))];
+          void pick(next.id);
+          listBox.querySelector(`[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter" && picked && picked.id === pickedId) {
+          e.preventDefault();
+          detailBox.querySelector(".sd-open")?.click();
+        }
+      });
+      search.addEventListener("input", () => renderList());
+      search.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          const first = visible()[0];
+          if (first) {
+            void pick(first.id);
+            listBox.focus();
+          }
+        }
+      });
       const renderDetail = () => {
         clear2(detailBox);
         const m = picked;
         if (!m) {
-          detailBox.append(h2("div", { className: "sd-empty-list" }, maps.length ? "Pick a map to see its revisions." : ""));
+          if (maps.length) detailBox.append(h2("div", { className: "sd-empty-list" }, "Pick a map to see its revisions."));
           return;
         }
         const rev = pickedRevision ?? m.head;
-        const revs = h2("div", { className: "sd-scroll sd-revs" });
-        for (const r of m.history) {
-          revs.append(h2(
-            "div",
-            { className: `sd-rev${r.number === rev.number ? " sd-picked" : ""}`, onClick: () => {
-              pickedRevision = r;
-              renderDetail();
-            } },
-            h2("span", { className: "sd-n" }, `#${r.number}`),
-            h2("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "no note"),
-            h2("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
-            h2("span", { className: "sd-sub" }, `${r.fileName} \xB7 ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` \xB7 "${r.meta.scenarioName}"` : ""}`)
-          ));
-        }
+        const isHead = rev.number === m.head.number;
         const kept = shares.get(m.id) ?? null;
         const current = ctx.shares?.current() ?? null;
         const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
-        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: async () => {
-          join.setBusy(true);
-          try {
-            await ctx.shares.join(kept.invite, account.current()?.name ?? "Owner");
-            dialog.close();
-          } catch (err) {
-            say(describeError(err), "error");
-          } finally {
-            join.setBusy(false);
-          }
-        } }) : null;
+        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: () => void covered("Joining\u2026", async () => {
+          await ctx.shares.join(kept.invite, account.current()?.name ?? "Owner");
+          dialog.close();
+        }) }) : null;
         const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
           if (!await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true })) return;
-          restore.setBusy(true);
-          try {
-            status.busy(`Downloading #${rev.number}\u2026`);
+          await covered(`Downloading #${rev.number}\u2026`, async () => {
             const { bytes } = await client.revisionFile(m.id, rev.number);
             const chk = await api.document.sections.chkOf(bytes);
             if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
             api.document.sections.replaceFile(chk);
             dialog.close();
             api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
-          } catch (err) {
-            say(describeError(err), "error");
-          } finally {
-            restore.setBusy(false);
-          }
+          });
         } }) : null;
-        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
-          if (!await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
-          try {
-            const r = await client.endSharedMap(m.id);
-            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
-            renderList();
-            renderDetail();
-            say("Sharing ended.", "ok");
-          } catch (err) {
-            say(describeError(err), "error");
-          }
-        } }) : null;
-        const open = w.button(`Open #${rev.number}`, { primary: !join, title: kept ? "Open this revision on its own, apart from the shared map" : void 0, onClick: async () => {
+        const open = w.button(isHead ? "Open" : `Open #${rev.number}`, { primary: !join, className: "sd-open", title: kept ? "Open this revision on its own, apart from the shared map" : `Open revision #${rev.number} in the editor`, onClick: () => void covered(`Downloading #${rev.number}\u2026`, async () => {
           open.setBusy(true);
           try {
-            status.busy(`Downloading #${rev.number}\u2026`);
             const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
             const opened = await api.document.open(bytes, fileName || rev.fileName);
             if (opened) {
@@ -11373,90 +11477,125 @@ function openMapsDialog(ctx, link) {
               dialog.close();
               api.ui.toast({ kind: "ok", title: `Opened ${m.name} #${rev.number}`, detail: rev.note || void 0 });
             } else say("Not opened.");
-          } catch (err) {
-            say(describeError(err), "error");
           } finally {
             open.setBusy(false);
           }
-        } });
-        const download = w.button("Download", { onClick: async () => {
-          download.setBusy(true);
-          try {
-            const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
-            const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
-            say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : void 0);
-          } catch (err) {
-            say(describeError(err), "error");
-          } finally {
-            download.setBusy(false);
-          }
-        } });
-        const note = w.button("Edit note\u2026", { onClick: async () => {
-          const text = await api.ui.prompt(`Note for revision #${rev.number} of ${m.name}:`, { title: "Revision note", value: rev.note, multiline: true, confirmLabel: "Save" });
-          if (text === null) return;
-          try {
-            await update(await client.patchRevision(m.id, rev.number, { note: text }));
-            say("Note saved.", "ok");
-          } catch (err) {
-            say(describeError(err), "error");
-          }
-        } });
-        const rename = w.button("Rename\u2026", { onClick: async () => {
+        }) });
+        const download = w.button("Download", { title: `Save revision #${rev.number} as a file`, onClick: () => void covered(`Downloading #${rev.number}\u2026`, async () => {
+          const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
+          const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
+          say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : void 0);
+        }) });
+        const rename = w.button("Rename\u2026", { ghost: true, onClick: async () => {
           const name = await api.ui.prompt("Name for this map:", { title: "Rename map", value: m.name, confirmLabel: "Rename" });
-          if (name === null || !name.trim()) return;
-          try {
+          if (name === null || !name.trim() || name.trim() === m.name) return;
+          await covered("Renaming\u2026", async () => {
             await update(await client.patchMap(m.id, { name: name.trim() }));
             say("Renamed.", "ok");
-          } catch (err) {
-            say(describeError(err), "error");
-          }
+          });
         } });
-        const delRev = w.button(`Delete #${rev.number}`, { danger: true, disabled: m.history.length <= 1, title: m.history.length <= 1 ? "A map keeps its last revision; delete the map to remove it." : void 0, onClick: async () => {
-          const pinned = m.linkList.filter((l) => l.revision === rev.number).length;
-          const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
-          if (!await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true })) return;
-          try {
-            pickedRevision = null;
-            await update(await client.deleteRevision(m.id, rev.number));
-            say(`Revision #${rev.number} deleted.`, "ok");
-          } catch (err) {
-            say(describeError(err), "error");
+        const revs = h2("div", { className: "sd-revs" });
+        for (const r of m.history) {
+          const on = r.number === rev.number;
+          const row = h2(
+            "div",
+            { className: `sd-rev${on ? " sd-picked" : ""}`, onClick: () => {
+              if (!on) {
+                pickedRevision = r;
+                renderDetail();
+              }
+            } },
+            h2("span", { className: "sd-n" }, `#${r.number}`),
+            h2("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "No note"),
+            h2("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
+            h2("span", { className: "sd-sub" }, `${r.number === m.head.number ? "Newest \xB7 " : ""}${r.fileName} \xB7 ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` \xB7 "${r.meta.scenarioName}"` : ""}`)
+          );
+          if (on) {
+            const note = w.button(r.note ? "Edit note\u2026" : "Add a note\u2026", { ghost: true, onClick: async (e) => {
+              e.stopPropagation();
+              const text = await api.ui.prompt(`Note for revision #${r.number} of ${m.name}:`, { title: "Revision note", value: r.note, multiline: true, confirmLabel: "Save" });
+              if (text === null) return;
+              await covered("Saving the note\u2026", async () => {
+                await update(await client.patchRevision(m.id, r.number, { note: text }));
+                say("Note saved.", "ok");
+              });
+            } });
+            const last = m.history.length <= 1;
+            const del = w.button("Delete", { ghost: true, danger: true, disabled: last, title: last ? "A map keeps its last revision; delete the map to remove it." : `Delete revision #${r.number}`, onClick: async (e) => {
+              e.stopPropagation();
+              const pinned = m.linkList.filter((l) => l.revision === r.number).length;
+              const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
+              if (!await api.ui.confirm(`Delete revision #${r.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true })) return;
+              await covered("Deleting\u2026", async () => {
+                pickedRevision = null;
+                await update(await client.deleteRevision(m.id, r.number));
+                say(`Revision #${r.number} deleted.`, "ok");
+              });
+            } });
+            row.append(h2("div", { className: "sd-rev-btns" }, note, del));
           }
-        } });
-        const delMap = w.button("Delete map", { danger: true, onClick: async () => {
+          revs.append(row);
+        }
+        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
+          if (!await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
+          await covered("Ending sharing\u2026", async () => {
+            const r = await client.endSharedMap(m.id);
+            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+            renderList();
+            renderDetail();
+            say("Sharing ended.", "ok");
+          });
+        } }) : null;
+        const delMap = w.button("Delete map\u2026", { danger: true, onClick: async () => {
           if (!await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true })) return;
-          try {
+          await covered("Deleting\u2026", async () => {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
             if (link.get()?.mapId === m.id) link.set(null);
+            details.delete(m.id);
+            maps = maps.filter((x) => x.id !== m.id);
+            pickedId = null;
             picked = null;
             pickedRevision = null;
-            await load();
+            renderStorage(r.storage);
+            renderList();
+            renderDetail();
             say("Map deleted.", "ok");
-          } catch (err) {
-            say(describeError(err), "error");
-          }
+          });
         } });
-        detailBox.append(
+        detailBox.append(h2(
+          "div",
+          { className: "sd-detail" },
           h2(
             "div",
-            { className: "sd-head" },
-            h2("span", { className: "sd-k" }, "Map"),
-            h2("span", { className: "sd-v sd-big" }, m.name),
-            ...m.description ? [h2("span", { className: "sd-k" }, "About"), h2("span", { className: "sd-v" }, m.description)] : [],
-            h2("span", { className: "sd-k" }, "Created"),
-            h2("span", { className: "sd-v" }, formatDate(m.createdAt))
+            { className: "sd-hero" },
+            thumb(rev.meta.thumbnail ? rev.meta : m.head.meta, true),
+            h2(
+              "div",
+              { className: "sd-hero-text" },
+              h2("div", { className: "sd-name-row" }, h2("span", { className: "sd-title", title: m.name }, m.name), rename),
+              h2("div", { className: "sd-sub" }, describeMeta(rev.meta) || rev.fileName),
+              h2("div", { className: "sd-sub" }, `${sizeLine(m)} \xB7 created ${formatDate(m.createdAt)}`),
+              m.description ? h2("div", { className: "sd-about" }, m.description) : null,
+              kept ? h2("div", { className: "sd-badge" }, `${sharedLine(kept)}${inIt ? " \xB7 you are in it" : ""}`) : null
+            )
           ),
-          ...kept ? [h2("div", { className: "sd-hint" }, `${sharedLine(kept)}. ${inIt ? "You are in it." : "Join it to edit with whoever is there; Open gives you a copy of a revision on its own."}`)] : [],
-          h2("div", { className: "sd-btns" }, join, open, restore, download, note, rename),
+          kept && !inIt ? h2("div", { className: "sd-hint" }, "Join it to edit with whoever is there; Open gives you a copy of a revision on its own.") : null,
+          h2("div", { className: "sd-btns" }, join, open, download, restore),
+          h2("div", { className: "sd-section" }, `Revisions (${m.history.length})`),
           revs,
-          h2("div", { className: "sd-btns" }, delRev, delMap, endSharing),
-          w.group("Links", linksSection(ctx, m, rev.number, update, say))
-        );
+          h2("div", { className: "sd-section" }, "Links"),
+          linksSection(ctx, m, rev.number, update, say),
+          h2("div", { className: "sd-section" }, "Manage"),
+          h2("div", { className: "sd-btns" }, delMap, endSharing)
+        ));
       };
       const update = async (r) => {
         picked = r.map;
+        pickedId = r.map.id;
+        details.set(r.map.id, r.map);
         if (pickedRevision && !r.map.history.some((x) => x.number === pickedRevision.number)) pickedRevision = null;
+        else if (pickedRevision) pickedRevision = r.map.history.find((x) => x.number === pickedRevision.number) ?? null;
         account.noteStorage(r.storage);
         renderStorage(r.storage);
         const i = maps.findIndex((m) => m.id === r.map.id);
@@ -11468,59 +11607,99 @@ function openMapsDialog(ctx, link) {
         renderDetail();
       };
       const pick = async (id) => {
-        if (picked?.id === id) return;
+        if (pickedId === id && picked?.id === id) return;
+        picking?.abort();
+        pickedId = id;
         pickedRevision = null;
-        try {
-          status.busy("Loading\u2026");
-          const r = await client.map(id);
-          picked = r.map;
-          renderList();
+        renderList();
+        const cached2 = details.get(id);
+        if (cached2) {
+          picked = cached2;
           renderDetail();
-          say("");
+          return;
+        }
+        picked = null;
+        clear2(detailBox);
+        detailBox.append(detailSkeleton(ctx, maps.find((m) => m.id === id)));
+        const ac = picking = new AbortController();
+        try {
+          const r = await client.map(id, ac.signal);
+          details.set(id, r.map);
+          if (pickedId !== id) return;
+          picked = r.map;
+          renderDetail();
         } catch (err) {
-          say(describeError(err), "error");
+          if (err instanceof ScmjsError && err.code === "aborted") return;
+          if (pickedId !== id) return;
+          clear2(detailBox);
+          detailBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => {
+            pickedId = null;
+            void pick(id);
+          } })));
         }
       };
       const load = async () => {
         loading?.abort();
-        loading = new AbortController();
-        clear2(listBox);
-        listBox.append(w.skeleton({ lines: 4, block: true }));
-        status.busy("Loading your maps\u2026");
+        const ac = loading = new AbortController();
+        const first = !maps.length;
+        const cover = first ? null : w.busy(listBox, "Refreshing\u2026");
+        if (first) {
+          clear2(listBox);
+          listBox.append(...listSkeleton(ctx, 5));
+          clear2(detailBox);
+          detailBox.append(detailSkeleton(ctx, void 0));
+        }
+        dialog.setBusy("Loading your maps\u2026");
+        refresh.setBusy(true);
         try {
-          const signal = loading.signal;
           const [r, shared] = await Promise.all([
-            client.listMaps(signal),
-            account.state().offers?.keptRooms ? client.sharedMaps(signal).catch(() => null) : Promise.resolve(null)
+            client.listMaps(ac.signal),
+            account.state().offers?.keptRooms ? client.sharedMaps(ac.signal).catch(() => null) : Promise.resolve(null)
           ]);
           maps = r.maps;
           shares = new Map((shared?.rooms ?? []).filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+          details.clear();
           account.noteStorage(r.storage);
           renderStorage(r.storage);
+          say("");
+          const want = link.get()?.mapId;
+          const next = (pickedId && maps.some((m) => m.id === pickedId) ? pickedId : null) ?? (want && maps.some((m) => m.id === want) ? want : null) ?? maps[0]?.id ?? null;
+          pickedId = null;
+          picked = null;
           renderList();
           renderDetail();
-          say(maps.length ? `${maps.length} map${maps.length === 1 ? "" : "s"}.` : "");
-          const current = link.get();
-          if (current && maps.some((m) => m.id === current.mapId)) void pick(current.mapId);
+          if (next) void pick(next);
         } catch (err) {
           if (err instanceof ScmjsError && err.code === "aborted") return;
-          clear2(listBox);
+          if (first) {
+            clear2(listBox);
+            clear2(detailBox);
+            listBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => void load() })));
+          }
           say(describeError(err), "error");
+        } finally {
+          cover?.done();
+          if (loading === ac) {
+            dialog.setBusy(false);
+            refresh.setBusy(false);
+          }
         }
       };
+      const refresh = w.button("Refresh", { ghost: true, title: "Load the list again", onClick: () => void load() });
       const saveHere = w.button("Save the open map here\u2026", { disabled: !api.document.isOpen(), onClick: () => {
         dialog.close();
         ctx.saveToCloud();
       } });
       root2.append(
-        storageBox,
-        h2("div", { className: "sd-split" }, listBox, detailBox),
-        h2("div", { className: "sd-btns" }, saveHere, w.button("Refresh", { onClick: () => void load() })),
-        status
+        h2("div", { className: "sd-toolbar" }, search, storageBox, refresh),
+        split,
+        h2("div", { className: "sd-btns" }, saveHere, h2("div", { className: "sd-grow" }, status))
       );
       void load();
+      queueMicrotask(() => search.focus());
       return () => {
         loading?.abort();
+        picking?.abort();
       };
     },
     buttons: [{ label: "Close", primary: true }]
@@ -11584,6 +11763,7 @@ function openSaveDialog(ctx, link) {
       );
       void (async () => {
         status.busy("Loading your maps\u2026");
+        target.disabled = true;
         try {
           const r = await client.listMaps();
           account.noteStorage(r.storage);
@@ -11593,6 +11773,8 @@ function openSaveDialog(ctx, link) {
           say(`${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.`);
         } catch (err) {
           say(describeError(err), "error");
+        } finally {
+          target.disabled = false;
         }
       })();
     },

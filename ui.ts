@@ -98,7 +98,49 @@ export const STYLE = `
 .sd .sd-rev .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; grid-column: 2; }
 .sd textarea { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font: inherit; background: var(--bg-0, #0f1115); color: var(--text, #e6e9ef); border: 1px solid var(--border, #333); border-radius: 4px; padding: 6px; }
 .sd .sd-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-.sd .sd-empty-list { padding: 18px 8px; text-align: center; color: var(--text-faint, #6b7382); }
+.sd .sd-empty-list { padding: 18px 8px; text-align: center; color: var(--text-faint, #6b7382); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sd .sd-grow { flex: 1; min-width: 0; }
+
+/* My Maps: a toolbar, then the list and the picked map side by side, each scrolling on its own and filling the dialog. */
+.sd.sd-fill { flex: 1; min-height: 0; }
+.sd .sd-toolbar { display: flex; align-items: center; gap: 10px; }
+.sd .sd-toolbar .sd-search { flex: 1; min-width: 0; max-width: 320px; }
+.sd .sd-meter { margin-left: auto; }
+.sd .sd-meter > div { display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; }
+.sd .sd-meter .sd-bar { width: 120px; }
+.sd .sd-meter .sd-hint { white-space: nowrap; }
+.sd.sd-fill > .sd-split { flex: 1; min-height: 0; grid-template-columns: minmax(260px, 340px) 1fr; align-items: stretch; }
+.sd .sd-pane { min-height: 0; overflow: auto; border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-1, #14171d); position: relative; }
+.sd .sd-pane:focus { outline: none; }
+.sd .busy-box > .sd-pane { flex: 1; }
+.sd.sd-fill > .sd-split.sd-none { grid-template-columns: 1fr; }
+.sd .sd-split.sd-none > :last-child { display: none; }
+.sd .sd-pane.sd-maps:focus-visible { outline: 1px solid var(--teal, #4fd1c5); outline-offset: -1px; }
+.sd .sd-maps .sd-map { grid-template-columns: 56px 1fr; gap: 10px; padding: 8px 10px; align-items: start; }
+.sd .sd-maps .sd-map.sd-ghost { cursor: default; }
+.sd .sd-maps .sd-map.sd-ghost:hover { background: none; }
+.sd .sd-maps .sd-thumb { width: 56px; height: 56px; }
+.sd .sd-maps .sd-map.sd-picked { background: color-mix(in srgb, var(--teal, #4fd1c5) 10%, var(--bg-2, #1b1f27)); outline: none; box-shadow: inset 3px 0 0 var(--teal, #4fd1c5); }
+.sd .sd-map-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sd .sd-name-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sd .sd-name-row .sd-name, .sd .sd-name-row .sd-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd .sd-name-row .sd-when { flex: none; }
+.sd .sd-maps .sd-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd .sd-badge { align-self: flex-start; margin-top: 3px; padding: 1px 6px; border-radius: 8px; font-size: 10px; color: var(--teal, #4fd1c5); background: color-mix(in srgb, var(--teal, #4fd1c5) 14%, transparent); }
+.sd .sd-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center; }
+.sd .sd-empty-title { font-size: 14px; color: var(--text, #e6e9ef); font-weight: 600; }
+.sd .sd-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.sd .sd-hero { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
+.sd .sd-thumb.sd-thumb-big { width: 112px; height: 112px; }
+.sd .sd-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sd .sd-hero-text .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
+.sd .sd-title { font-size: 16px; font-weight: 600; color: var(--gold, #e6b95c); }
+.sd .sd-about { color: var(--text, #e6e9ef); line-height: 1.45; margin-top: 4px; white-space: pre-wrap; }
+.sd .sd-section { margin-top: 6px; padding-bottom: 3px; border-bottom: 1px solid var(--border, #333); color: var(--text-dim, #99a2b3); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.sd .sd-detail .sd-revs { border: 1px solid var(--border, #333); border-radius: 4px; background: var(--bg-0, #0f1115); }
+.sd .sd-detail .sd-rev:last-child { border-bottom: none; }
+.sd .sd-rev.sd-picked { background: color-mix(in srgb, var(--teal, #4fd1c5) 10%, var(--bg-2, #1b1f27)); outline: none; box-shadow: inset 3px 0 0 var(--teal, #4fd1c5); cursor: default; }
+.sd .sd-rev-btns { grid-column: 2 / -1; display: flex; gap: 6px; margin-top: 2px; }
 `;
 
 /** The dialog's root: a `.sd` box with the stylesheet, appended to the body once. */

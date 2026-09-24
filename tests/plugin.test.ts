@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AccountManager, memoryStore } from "../account";
 import { describeError, fileNameFrom, formatBytes, ScmjsClient, ScmjsError } from "../client";
-import { describeMeta, metaOf } from "../maps";
+import { describeMeta, matchesSearch, metaOf } from "../maps";
 import type { AccountView, MapResponse } from "../protocol";
 import { ago } from "../ui";
 
@@ -248,6 +248,12 @@ describe("what the plugin says about a map", () => {
     expect(describeMeta(meta)).toBe("jungle · 128 × 96 · 4 players (2 human) · 7 triggers");
     expect(describeMeta({})).toBe("");
     expect(metaOf({ ...info, description: "" }, null, [])).toEqual({ scenarioName: "Ridge", tileset: "jungle", width: 128, height: 96, players: 0, humanPlayers: 0 });
+  });
+  it("finds a map in My Maps by its name, scenario, tileset, file or newest note", () => {
+    const map = { id: "m1", name: "Ridge", description: "", createdAt: "", updatedAt: "", revisions: 1, links: 0,
+      head: { id: "r1", number: 1, note: "Moved the naturals", fileName: "(4)Ridge v2.scx", sizeBytes: 1, sha256: "", createdAt: "", meta: { scenarioName: "High Ridge", tileset: "jungle" } } };
+    for (const q of ["", "  ", "ridge", "HIGH", "jung", "v2.scx", "naturals"]) expect(matchesSearch(map, q)).toBe(true);
+    expect(matchesSearch(map, "desert")).toBe(false);
   });
 
   it("says how long ago", () => {

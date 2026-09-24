@@ -138,8 +138,46 @@ function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolea
   return true;
 }
 
-function thumb(m: MapMeta): HTMLElement {
-  return h("div", { className: "sd-thumb" }, m.thumbnail ? h("img", { src: m.thumbnail, alt: "" }) : h("span", null, m.width && m.height ? `${m.width}×${m.height}` : "map"));
+function thumb(m: MapMeta, big = false): HTMLElement {
+  return h("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h("img", { src: m.thumbnail, alt: "" }) : h("span", null, m.width && m.height ? `${m.width}×${m.height}` : "map"));
+}
+
+/** `2 revisions · 55 KB` — the second line of a map, in the list and over its revisions. */
+function sizeLine(m: MapSummary): string {
+  return `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.links ? ` · ${m.links} link${m.links === 1 ? "" : "s"}` : ""}`;
+}
+
+/** Whether a map answers the search box: its name, the scenario's name, the tileset, the file. */
+export function matchesSearch(m: MapSummary, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [m.name, m.head.meta.scenarioName, m.head.meta.tileset, m.head.fileName, m.head.note].some((s) => !!s && s.toLowerCase().includes(q));
+}
+
+/** Grey rows in the shape of the map list, while it is on its way. */
+function listSkeleton(ctx: Ctx, rows: number): HTMLElement[] {
+  const w = ctx.api.ui.widgets;
+  return Array.from({ length: rows }, () => h("div", { className: "sd-map sd-ghost" },
+    w.skeleton({ block: true, width: "56px", height: 56 }),
+    h("div", null, w.skeleton({ lines: 3 })),
+  ));
+}
+
+/** Grey stand-ins for the detail pane, while a map's revisions are on their way. */
+function detailSkeleton(ctx: Ctx, m: MapSummary | undefined): HTMLElement {
+  const w = ctx.api.ui.widgets;
+  return h("div", { className: "sd-detail" },
+    h("div", { className: "sd-hero" },
+      m ? thumb(m.head.meta, true) : w.skeleton({ block: true, width: "112px", height: 112 }),
+      h("div", { className: "sd-hero-text" },
+        m ? h("div", { className: "sd-title" }, m.name) : w.skeleton({ width: "60%", height: 16 }),
+        w.skeleton({ lines: 2 }),
+      ),
+    ),
+    w.skeleton({ width: "40%", height: 24 }),
+    h("div", { className: "sd-section" }, "Revisions"),
+    w.skeleton({ lines: 4 }),
+  );
 }
 
 /* ── My Maps ──────────────────────────────────────────────── */
@@ -150,157 +188,222 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
   const client = account.client;
   return api.ui.dialog({
     title: "My Maps on scmjs.dev",
-    size: "lg",
+    size: "xl",
     tall: true,
     mount(body, dialog) {
       const root = styled(body);
       if (needsAccount(ctx, root, dialog)) return;
+      root.classList.add("sd-fill");
       const status = w.statusLine({ text: "" });
       const say = (text: string, kind?: "ok" | "warn" | "error") => status.set(text, kind);
-      const storageBox = h("div", null);
-      const listBox = h("div", { className: "sd-scroll sd-maps" });
-      const detailBox = h("div", null);
+      const storageBox = h("div", { className: "sd-meter" });
+      const listBox = h("div", { className: "sd-pane sd-maps", tabIndex: 0 });
+      const detailBox = h("div", { className: "sd-pane sd-detail-pane" });
+      const search = w.text({ placeholder: "Search maps" });
+      search.classList.add("sd-search");
+      const split = h("div", { className: "sd-split" }, listBox, detailBox);
       let maps: MapSummary[] = [];
       /** The account's maps kept open, by map id (a server without them: none). */
       let shares = new Map<string, SharedMapView>();
+      /** Maps already fetched in this dialog, so going back to one is instant. */
+      const details = new Map<string, MapDetail>();
+      let pickedId: string | null = null;
       let picked: MapDetail | null = null;
       let pickedRevision: MapRevisionView | null = null;
       let loading: AbortController | null = null;
+      let picking: AbortController | null = null;
 
       const renderStorage = (s: { usedBytes: number; capBytes: number } | null) => { clear(storageBox); if (s) storageBox.append(storageBar(s.usedBytes, s.capBytes)); };
 
+      /** Cover the detail pane while `work` runs, with `label` over it. */
+      const covered = async (label: string, work: () => Promise<void>) => {
+        const cover = w.busy(detailBox, label);
+        try { await work(); } catch (err) { say(describeError(err), "error"); } finally { cover.done(); }
+      };
+
+      const visible = () => maps.filter((m) => matchesSearch(m, search.value));
+
       const renderList = () => {
         clear(listBox);
-        if (!maps.length) { listBox.append(h("div", { className: "sd-empty-list" }, "No maps yet. Account ▸ Save to scmjs.dev… puts the open map here.")); return; }
-        for (const m of maps) {
-          const row = h("div", { className: `sd-map${picked?.id === m.id ? " sd-picked" : ""}`, onClick: () => void pick(m.id) },
+        // With nothing stored, the list's own "save" invitation is the whole dialog.
+        split.classList.toggle("sd-none", !maps.length);
+        saveHere.hidden = !maps.length;
+        if (!maps.length) {
+          listBox.append(h("div", { className: "sd-empty-state" },
+            h("div", { className: "sd-empty-title" }, "No maps yet"),
+            h("div", { className: "sd-hint" }, "Maps you save to scmjs.dev show up here, with every revision and its note."),
+            api.document.isOpen() ? w.button("Save the open map here…", { primary: true, onClick: () => { dialog.close(); ctx.saveToCloud(); } }) : null,
+          ));
+          return;
+        }
+        const shown = visible();
+        if (!shown.length) { listBox.append(h("div", { className: "sd-empty-list" }, `No map matches "${search.value.trim()}".`)); return; }
+        for (const m of shown) {
+          const kept = shares.get(m.id);
+          listBox.append(h("div", { className: `sd-map${pickedId === m.id ? " sd-picked" : ""}`, "data-id": m.id, onClick: () => void pick(m.id) },
             thumb(m.head.meta),
-            h("div", null,
-              h("div", { className: "sd-name" }, m.name),
+            h("div", { className: "sd-map-text" },
+              h("div", { className: "sd-name-row" },
+                h("span", { className: "sd-name", title: m.name }, m.name),
+                h("span", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt)),
+              ),
               h("div", { className: "sd-sub" }, describeMeta(m.head.meta) || m.head.fileName),
-              h("div", { className: "sd-sub" }, `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.links ? ` · ${m.links} link${m.links === 1 ? "" : "s"}` : ""}${m.head.note ? ` · ${m.head.note.split("\n")[0]}` : ""}`),
-              shares.has(m.id) ? h("div", { className: "sd-sub sd-ok" }, sharedLine(shares.get(m.id)!)) : null,
+              h("div", { className: "sd-sub" }, sizeLine(m)),
+              kept ? h("div", { className: "sd-badge" }, sharedLine(kept)) : null,
             ),
-            h("div", { className: "sd-when", title: formatDate(m.updatedAt) }, ago(m.updatedAt)),
-          );
-          listBox.append(row);
+          ));
         }
       };
+
+      /** Up and Down move through the list, Enter opens the newest revision. */
+      listBox.addEventListener("keydown", (e) => {
+        const shown = visible();
+        if (!shown.length) return;
+        const at = shown.findIndex((m) => m.id === pickedId);
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const next = shown[Math.max(0, Math.min(shown.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))]!;
+          void pick(next.id);
+          listBox.querySelector(`[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter" && picked && picked.id === pickedId) {
+          e.preventDefault();
+          (detailBox.querySelector(".sd-open") as HTMLButtonElement | null)?.click();
+        }
+      });
+      search.addEventListener("input", () => renderList());
+      search.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") { e.preventDefault(); const first = visible()[0]; if (first) { void pick(first.id); listBox.focus(); } }
+      });
 
       const renderDetail = () => {
         clear(detailBox);
         const m = picked;
-        if (!m) { detailBox.append(h("div", { className: "sd-empty-list" }, maps.length ? "Pick a map to see its revisions." : "")); return; }
-        const rev = pickedRevision ?? m.head;
-        const revs = h("div", { className: "sd-scroll sd-revs" });
-        for (const r of m.history) {
-          revs.append(h("div", { className: `sd-rev${r.number === rev.number ? " sd-picked" : ""}`, onClick: () => { pickedRevision = r; renderDetail(); } },
-            h("span", { className: "sd-n" }, `#${r.number}`),
-            h("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "no note"),
-            h("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
-            h("span", { className: "sd-sub" }, `${r.fileName} · ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` · "${r.meta.scenarioName}"` : ""}`),
-          ));
+        if (!m) {
+          if (maps.length) detailBox.append(h("div", { className: "sd-empty-list" }, "Pick a map to see its revisions."));
+          return;
         }
+        const rev = pickedRevision ?? m.head;
+        const isHead = rev.number === m.head.number;
         const kept = shares.get(m.id) ?? null;
         const current = ctx.shares?.current() ?? null;
         const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
-        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: async () => {
-          join!.setBusy(true);
-          try { await ctx.shares!.join(kept.invite, account.current()?.name ?? "Owner"); dialog.close(); }
-          catch (err) { say(describeError(err), "error"); }
-          finally { join!.setBusy(false); }
-        } }) : null;
+
+        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: () => void covered("Joining…", async () => {
+          await ctx.shares!.join(kept.invite, account.current()?.name ?? "Owner");
+          dialog.close();
+        }) }) : null;
         // The owner, in the shared map: a revision can be put back into it, for everyone.
         const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
           if (!(await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true }))) return;
-          restore!.setBusy(true);
-          try {
-            status.busy(`Downloading #${rev.number}…`);
+          await covered(`Downloading #${rev.number}…`, async () => {
             const { bytes } = await client.revisionFile(m.id, rev.number);
             const chk = await api.document.sections.chkOf(bytes);
             if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
             api.document.sections.replaceFile(chk);
             dialog.close();
             api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
-          } catch (err) { say(describeError(err), "error"); }
-          finally { restore!.setBusy(false); }
+          });
         } }) : null;
-        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
-          if (!(await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true }))) return;
-          try {
-            const r = await client.endSharedMap(m.id);
-            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
-            renderList(); renderDetail();
-            say("Sharing ended.", "ok");
-          } catch (err) { say(describeError(err), "error"); }
-        } }) : null;
-        const open = w.button(`Open #${rev.number}`, { primary: !join, title: kept ? "Open this revision on its own, apart from the shared map" : undefined, onClick: async () => {
+        const open = w.button(isHead ? "Open" : `Open #${rev.number}`, { primary: !join, className: "sd-open", title: kept ? "Open this revision on its own, apart from the shared map" : `Open revision #${rev.number} in the editor`, onClick: () => void covered(`Downloading #${rev.number}…`, async () => {
           open.setBusy(true);
           try {
-            status.busy(`Downloading #${rev.number}…`);
             const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
             const opened = await api.document.open(bytes, fileName || rev.fileName);
             if (opened) { link.set({ mapId: m.id, mapName: m.name, fileName: fileName || rev.fileName }); dialog.close(); api.ui.toast({ kind: "ok", title: `Opened ${m.name} #${rev.number}`, detail: rev.note || undefined }); }
             else say("Not opened.");
-          } catch (err) { say(describeError(err), "error"); }
-          finally { open.setBusy(false); }
-        } });
-        const download = w.button("Download", { onClick: async () => {
-          download.setBusy(true);
-          try {
-            const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
-            const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
-            say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : undefined);
-          } catch (err) { say(describeError(err), "error"); }
-          finally { download.setBusy(false); }
-        } });
-        const note = w.button("Edit note…", { onClick: async () => {
-          const text = await api.ui.prompt(`Note for revision #${rev.number} of ${m.name}:`, { title: "Revision note", value: rev.note, multiline: true, confirmLabel: "Save" });
-          if (text === null) return;
-          try { await update(await client.patchRevision(m.id, rev.number, { note: text })); say("Note saved.", "ok"); }
-          catch (err) { say(describeError(err), "error"); }
-        } });
-        const rename = w.button("Rename…", { onClick: async () => {
+          } finally { open.setBusy(false); }
+        }) });
+        const download = w.button("Download", { title: `Save revision #${rev.number} as a file`, onClick: () => void covered(`Downloading #${rev.number}…`, async () => {
+          const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
+          const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
+          say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : undefined);
+        }) });
+        const rename = w.button("Rename…", { ghost: true, onClick: async () => {
           const name = await api.ui.prompt("Name for this map:", { title: "Rename map", value: m.name, confirmLabel: "Rename" });
-          if (name === null || !name.trim()) return;
-          try { await update(await client.patchMap(m.id, { name: name.trim() })); say("Renamed.", "ok"); }
-          catch (err) { say(describeError(err), "error"); }
+          if (name === null || !name.trim() || name.trim() === m.name) return;
+          await covered("Renaming…", async () => { await update(await client.patchMap(m.id, { name: name.trim() })); say("Renamed.", "ok"); });
         } });
-        const delRev = w.button(`Delete #${rev.number}`, { danger: true, disabled: m.history.length <= 1, title: m.history.length <= 1 ? "A map keeps its last revision; delete the map to remove it." : undefined, onClick: async () => {
-          const pinned = m.linkList.filter((l) => l.revision === rev.number).length;
-          const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
-          if (!(await api.ui.confirm(`Delete revision #${rev.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true }))) return;
-          try { pickedRevision = null; await update(await client.deleteRevision(m.id, rev.number)); say(`Revision #${rev.number} deleted.`, "ok"); }
-          catch (err) { say(describeError(err), "error"); }
-        } });
-        const delMap = w.button("Delete map", { danger: true, onClick: async () => {
+
+        const revs = h("div", { className: "sd-revs" });
+        for (const r of m.history) {
+          const on = r.number === rev.number;
+          const row = h("div", { className: `sd-rev${on ? " sd-picked" : ""}`, onClick: () => { if (!on) { pickedRevision = r; renderDetail(); } } },
+            h("span", { className: "sd-n" }, `#${r.number}`),
+            h("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "No note"),
+            h("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
+            h("span", { className: "sd-sub" }, `${r.number === m.head.number ? "Newest · " : ""}${r.fileName} · ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` · "${r.meta.scenarioName}"` : ""}`),
+          );
+          if (on) {
+            const note = w.button(r.note ? "Edit note…" : "Add a note…", { ghost: true, onClick: async (e) => {
+              e.stopPropagation();
+              const text = await api.ui.prompt(`Note for revision #${r.number} of ${m.name}:`, { title: "Revision note", value: r.note, multiline: true, confirmLabel: "Save" });
+              if (text === null) return;
+              await covered("Saving the note…", async () => { await update(await client.patchRevision(m.id, r.number, { note: text })); say("Note saved.", "ok"); });
+            } });
+            const last = m.history.length <= 1;
+            const del = w.button("Delete", { ghost: true, danger: true, disabled: last, title: last ? "A map keeps its last revision; delete the map to remove it." : `Delete revision #${r.number}`, onClick: async (e) => {
+              e.stopPropagation();
+              const pinned = m.linkList.filter((l) => l.revision === r.number).length;
+              const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
+              if (!(await api.ui.confirm(`Delete revision #${r.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true }))) return;
+              await covered("Deleting…", async () => { pickedRevision = null; await update(await client.deleteRevision(m.id, r.number)); say(`Revision #${r.number} deleted.`, "ok"); });
+            } });
+            row.append(h("div", { className: "sd-rev-btns" }, note, del));
+          }
+          revs.append(row);
+        }
+
+        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
+          if (!(await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true }))) return;
+          await covered("Ending sharing…", async () => {
+            const r = await client.endSharedMap(m.id);
+            shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+            renderList(); renderDetail();
+            say("Sharing ended.", "ok");
+          });
+        } }) : null;
+        const delMap = w.button("Delete map…", { danger: true, onClick: async () => {
           if (!(await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true }))) return;
-          try {
+          await covered("Deleting…", async () => {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
             if (link.get()?.mapId === m.id) link.set(null);
-            picked = null; pickedRevision = null;
-            await load();
+            details.delete(m.id);
+            maps = maps.filter((x) => x.id !== m.id);
+            pickedId = null; picked = null; pickedRevision = null;
+            renderStorage(r.storage); renderList(); renderDetail();
             say("Map deleted.", "ok");
-          } catch (err) { say(describeError(err), "error"); }
+          });
         } });
-        detailBox.append(
-          h("div", { className: "sd-head" },
-            h("span", { className: "sd-k" }, "Map"), h("span", { className: "sd-v sd-big" }, m.name),
-            ...(m.description ? [h("span", { className: "sd-k" }, "About"), h("span", { className: "sd-v" }, m.description)] : []),
-            h("span", { className: "sd-k" }, "Created"), h("span", { className: "sd-v" }, formatDate(m.createdAt)),
+
+        detailBox.append(h("div", { className: "sd-detail" },
+          h("div", { className: "sd-hero" },
+            thumb(rev.meta.thumbnail ? rev.meta : m.head.meta, true),
+            h("div", { className: "sd-hero-text" },
+              h("div", { className: "sd-name-row" }, h("span", { className: "sd-title", title: m.name }, m.name), rename),
+              h("div", { className: "sd-sub" }, describeMeta(rev.meta) || rev.fileName),
+              h("div", { className: "sd-sub" }, `${sizeLine(m)} · created ${formatDate(m.createdAt)}`),
+              m.description ? h("div", { className: "sd-about" }, m.description) : null,
+              kept ? h("div", { className: "sd-badge" }, `${sharedLine(kept)}${inIt ? " · you are in it" : ""}`) : null,
+            ),
           ),
-          ...(kept ? [h("div", { className: "sd-hint" }, `${sharedLine(kept)}. ${inIt ? "You are in it." : "Join it to edit with whoever is there; Open gives you a copy of a revision on its own."}`)] : []),
-          h("div", { className: "sd-btns" }, join, open, restore, download, note, rename),
+          kept && !inIt ? h("div", { className: "sd-hint" }, "Join it to edit with whoever is there; Open gives you a copy of a revision on its own.") : null,
+          h("div", { className: "sd-btns" }, join, open, download, restore),
+          h("div", { className: "sd-section" }, `Revisions (${m.history.length})`),
           revs,
-          h("div", { className: "sd-btns" }, delRev, delMap, endSharing),
-          w.group("Links", linksSection(ctx, m, rev.number, update, say)),
-        );
+          h("div", { className: "sd-section" }, "Links"),
+          linksSection(ctx, m, rev.number, update, say),
+          h("div", { className: "sd-section" }, "Manage"),
+          h("div", { className: "sd-btns" }, delMap, endSharing),
+        ));
       };
 
       const update = async (r: { map: MapDetail; storage: { usedBytes: number; capBytes: number; maps: number; revisions: number } }) => {
         picked = r.map;
+        pickedId = r.map.id;
+        details.set(r.map.id, r.map);
         if (pickedRevision && !r.map.history.some((x) => x.number === pickedRevision!.number)) pickedRevision = null;
+        else if (pickedRevision) pickedRevision = r.map.history.find((x) => x.number === pickedRevision!.number) ?? null;
         account.noteStorage(r.storage);
         renderStorage(r.storage);
         const i = maps.findIndex((m) => m.id === r.map.id);
@@ -312,54 +415,80 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
       };
 
       const pick = async (id: string) => {
-        if (picked?.id === id) return;
+        if (pickedId === id && picked?.id === id) return;
+        picking?.abort();
+        pickedId = id;
         pickedRevision = null;
+        renderList();
+        const cached = details.get(id);
+        if (cached) { picked = cached; renderDetail(); return; }
+        picked = null;
+        clear(detailBox);
+        detailBox.append(detailSkeleton(ctx, maps.find((m) => m.id === id)));
+        const ac = picking = new AbortController();
         try {
-          status.busy("Loading…");
-          const r = await client.map(id);
+          const r = await client.map(id, ac.signal);
+          details.set(id, r.map);
+          if (pickedId !== id) return;
           picked = r.map;
-          renderList(); renderDetail();
-          say("");
-        } catch (err) { say(describeError(err), "error"); }
+          renderDetail();
+        } catch (err) {
+          if (err instanceof ScmjsError && err.code === "aborted") return;
+          if (pickedId !== id) return;
+          clear(detailBox);
+          detailBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => { pickedId = null; void pick(id); } })));
+        }
       };
 
       const load = async () => {
         loading?.abort();
-        loading = new AbortController();
-        clear(listBox);
-        listBox.append(w.skeleton({ lines: 4, block: true }));
-        status.busy("Loading your maps…");
+        const ac = loading = new AbortController();
+        const first = !maps.length;
+        const cover = first ? null : w.busy(listBox, "Refreshing…");
+        if (first) { clear(listBox); listBox.append(...listSkeleton(ctx, 5)); clear(detailBox); detailBox.append(detailSkeleton(ctx, undefined)); }
+        dialog.setBusy("Loading your maps…");
+        refresh.setBusy(true);
         try {
-          const signal = loading.signal;
           const [r, shared] = await Promise.all([
-            client.listMaps(signal),
-            account.state().offers?.keptRooms ? client.sharedMaps(signal).catch(() => null) : Promise.resolve(null),
+            client.listMaps(ac.signal),
+            account.state().offers?.keptRooms ? client.sharedMaps(ac.signal).catch(() => null) : Promise.resolve(null),
           ]);
           maps = r.maps;
           shares = new Map((shared?.rooms ?? []).filter((x) => x.kind === "kept").map((x) => [x.id, x]));
+          details.clear();
           account.noteStorage(r.storage);
           renderStorage(r.storage);
+          say("");
+          // The map the open document came from, else the newest.
+          const want = link.get()?.mapId;
+          const next = (pickedId && maps.some((m) => m.id === pickedId) ? pickedId : null) ?? (want && maps.some((m) => m.id === want) ? want : null) ?? maps[0]?.id ?? null;
+          pickedId = null; picked = null;
           renderList();
           renderDetail();
-          say(maps.length ? `${maps.length} map${maps.length === 1 ? "" : "s"}.` : "");
-          const current = link.get();
-          if (current && maps.some((m) => m.id === current.mapId)) void pick(current.mapId);
+          if (next) void pick(next);
         } catch (err) {
           if (err instanceof ScmjsError && err.code === "aborted") return;
-          clear(listBox);
+          if (first) {
+            clear(listBox); clear(detailBox);
+            listBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => void load() })));
+          }
           say(describeError(err), "error");
+        } finally {
+          cover?.done();
+          if (loading === ac) { dialog.setBusy(false); refresh.setBusy(false); }
         }
       };
 
+      const refresh = w.button("Refresh", { ghost: true, title: "Load the list again", onClick: () => void load() });
       const saveHere = w.button("Save the open map here…", { disabled: !api.document.isOpen(), onClick: () => { dialog.close(); ctx.saveToCloud(); } });
       root.append(
-        storageBox,
-        h("div", { className: "sd-split" }, listBox, detailBox),
-        h("div", { className: "sd-btns" }, saveHere, w.button("Refresh", { onClick: () => void load() })),
-        status,
+        h("div", { className: "sd-toolbar" }, search, storageBox, refresh),
+        split,
+        h("div", { className: "sd-btns" }, saveHere, h("div", { className: "sd-grow" }, status)),
       );
       void load();
-      return () => { loading?.abort(); };
+      queueMicrotask(() => search.focus());
+      return () => { loading?.abort(); picking?.abort(); };
     },
     buttons: [{ label: "Close", primary: true }],
   });
@@ -418,6 +547,7 @@ export function openSaveDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
       // The list of maps to add a revision to, with the linked one picked.
       void (async () => {
         status.busy("Loading your maps…");
+        target.disabled = true;
         try {
           const r = await client.listMaps();
           account.noteStorage(r.storage);
@@ -426,6 +556,7 @@ export function openSaveDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           sync();
           say(`${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.`);
         } catch (err) { say(describeError(err), "error"); }
+        finally { target.disabled = false; }
       })();
     },
     buttons: [{ label: "Cancel" }],
