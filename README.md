@@ -1,6 +1,6 @@
 # scmjs.dev plugin
 
-A plugin for [scmJS](https://github.com/jeany55/scm-js), the browser-based StarCraft 1 /
+A plugin for [scmJS](https://github.com/scm-js/scm-js), the browser-based StarCraft 1 /
 Brood War map editor, and one the editor ships with. It puts your
 [scmjs.dev](https://scmjs.dev) account in the editor — sign in from the **Account** menu
 or the status bar, see your balance, keep maps on your account with numbered revisions
