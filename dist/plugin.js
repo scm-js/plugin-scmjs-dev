@@ -12907,7 +12907,7 @@ function openShareDialog(ctx, controls) {
         const name = w.text({ value: api.document.info()?.name ?? "" });
         const canKeep = !!account.state().offers?.keptRooms;
         const hint = h2("div", { className: "sd-hint" }, keepHint("live"));
-        const keep = w.select(KEEP_CHOICES, { value: canKeep ? "7" : "live", onChange: (v) => {
+        const keep = w.select(KEEP_CHOICES, { value: "live", onChange: (v) => {
           hint.textContent = keepHint(v);
         } });
         hint.textContent = keepHint(keep.value);

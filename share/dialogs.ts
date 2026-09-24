@@ -71,7 +71,7 @@ export function openShareDialog(ctx: ShareCtx, controls: ShareControls): DialogH
         // Keeping it open needs a server that can (0.15.0, with map storage).
         const canKeep = !!account.state().offers?.keptRooms;
         const hint = h("div", { className: "sd-hint" }, keepHint("live"));
-        const keep = w.select(KEEP_CHOICES, { value: canKeep ? "7" : "live", onChange: (v) => { hint.textContent = keepHint(v); } });
+        const keep = w.select(KEEP_CHOICES, { value: "live", onChange: (v) => { hint.textContent = keepHint(v); } });
         hint.textContent = keepHint(keep.value);
         const full = h("div", null);
         const start = w.button("Start sharing", { primary: true, onClick: async () => {
