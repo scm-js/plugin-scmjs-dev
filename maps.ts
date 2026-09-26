@@ -15,6 +15,7 @@ import { linksSection } from "./copies";
 import { storageBar } from "./dialogs";
 import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary, SharedMapView } from "./protocol";
 import { endsLine, lower } from "./share/kept";
+import { t } from "./i18n";
 import { ago, clear, formatDate, h, styled, textarea, type Ctx } from "./ui";
 
 /** Player slots the game would seat: humans, computers and rescuables (neutral and inactive are not players). */
@@ -39,8 +40,10 @@ export function describeMeta(m: MapMeta): string {
   const parts: string[] = [];
   if (m.tileset) parts.push(m.tileset);
   if (m.width && m.height) parts.push(`${m.width} × ${m.height}`);
-  if (m.players !== undefined) parts.push(`${m.players} player${m.players === 1 ? "" : "s"}${m.humanPlayers !== undefined && m.humanPlayers !== m.players ? ` (${m.humanPlayers} human)` : ""}`);
-  if (m.triggers) parts.push(`${m.triggers} trigger${m.triggers === 1 ? "" : "s"}`);
+  if (m.players !== undefined) parts.push(m.humanPlayers !== undefined && m.humanPlayers !== m.players
+    ? t("{players, plural, one {# player} other {# players}} ({humans} human)", { players: m.players, humans: m.humanPlayers })
+    : t("{players, plural, one {# player} other {# players}}", { players: m.players }));
+  if (m.triggers) parts.push(t("{n, plural, one {# trigger} other {# triggers}}", { n: m.triggers }));
   return parts.join(" · ");
 }
 
@@ -106,15 +109,15 @@ export interface Link { mapId: string; mapName: string; fileName: string | null 
 export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; name?: string; note: string; thumbnail: boolean }, step: (text: string) => void = () => {}): Promise<{ response: MapResponse; fileName: string }> {
   const { api, account } = ctx;
   const info = api.document.info();
-  if (!info) throw new Error("no map is open.");
-  step("Packing the map…");
+  if (!info) throw new Error(t("no map is open."));
+  step(t("Packing the map…"));
   const file = await api.document.export();
-  if (!file) throw new Error("the map could not be packed.");
+  if (!file) throw new Error(t("the map could not be packed."));
   const meta = metaOf(info, api.query.statistics(), api.settings.players());
-  if (target.thumbnail) { const t = await thumbnailOf(ctx); if (t) meta.thumbnail = t; }
+  if (target.thumbnail) { const pic = await thumbnailOf(ctx); if (pic) meta.thumbnail = pic; }
   const picture = target.thumbnail ? await pictureOf(ctx) : null;
   const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta, picture };
-  step("Uploading…");
+  step(t("Uploading…"));
   const response = target.mapId === null
     ? await account.client.createMap(file, { ...fields, name: target.name || undefined })
     : await account.client.uploadRevision(target.mapId, file, fields);
@@ -124,7 +127,7 @@ export async function uploadOpenMap(ctx: Ctx, target: { mapId: string | null; na
 
 /** "Shared · 2 editing" / "Shared · ends 3 Oct unless someone edits it". */
 function sharedLine(v: SharedMapView): string {
-  return v.people.length ? `Shared · ${v.people.length} editing` : `Shared · ${lower(endsLine(v))}`;
+  return v.people.length ? t("Shared · {n} editing", { n: v.people.length }) : t("Shared · {ends}", { ends: lower(endsLine(v)) });
 }
 
 function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolean {
@@ -132,19 +135,21 @@ function needsAccount(ctx: Ctx, root: HTMLElement, dialog: DialogHandle): boolea
   if (s.kind === "account") return false;
   const w = ctx.api.ui.widgets;
   root.append(
-    h("div", { className: "sd-hint" }, s.kind === "trial" ? "Maps are kept on a signed-in account; a trial cannot store them." : "Sign in to scmjs.dev to keep maps on your account."),
-    h("div", { className: "sd-btns" }, w.button("Sign in…", { primary: true, onClick: () => { dialog.close(); ctx.openAccount(); } })),
+    h("div", { className: "sd-hint" }, s.kind === "trial" ? t("Maps are kept on a signed-in account; a trial cannot store them.") : t("Sign in to scmjs.dev to keep maps on your account.")),
+    h("div", { className: "sd-btns" }, w.button(t("Sign in…"), { primary: true, onClick: () => { dialog.close(); ctx.openAccount(); } })),
   );
   return true;
 }
 
 function thumb(m: MapMeta, big = false): HTMLElement {
-  return h("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h("img", { src: m.thumbnail, alt: "" }) : h("span", null, m.width && m.height ? `${m.width}×${m.height}` : "map"));
+  return h("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h("img", { src: m.thumbnail, alt: "" }) : h("span", null, m.width && m.height ? `${m.width}×${m.height}` : t("map")));
 }
 
 /** `2 revisions · 55 KB` — the second line of a map, in the list and over its revisions. */
 function sizeLine(m: MapSummary): string {
-  return `${m.revisions} revision${m.revisions === 1 ? "" : "s"} · ${formatBytes(m.head.sizeBytes)}${m.links ? ` · ${m.links} link${m.links === 1 ? "" : "s"}` : ""}`;
+  return m.links
+    ? t("{revisions, plural, one {# revision} other {# revisions}} · {size} · {links, plural, one {# link} other {# links}}", { revisions: m.revisions, size: formatBytes(m.head.sizeBytes), links: m.links })
+    : t("{revisions, plural, one {# revision} other {# revisions}} · {size}", { revisions: m.revisions, size: formatBytes(m.head.sizeBytes) });
 }
 
 /** Whether a map answers the search box: its name, the scenario's name, the tileset, the file. */
@@ -175,7 +180,7 @@ function detailSkeleton(ctx: Ctx, m: MapSummary | undefined): HTMLElement {
       ),
     ),
     w.skeleton({ width: "40%", height: 24 }),
-    h("div", { className: "sd-section" }, "Revisions"),
+    h("div", { className: "sd-section" }, t("Revisions")),
     w.skeleton({ lines: 4 }),
   );
 }
@@ -187,7 +192,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
   const w = api.ui.widgets;
   const client = account.client;
   return api.ui.dialog({
-    title: "My Maps on scmjs.dev",
+    title: t("My Maps on scmjs.dev"),
     size: "xl",
     tall: true,
     mount(body, dialog) {
@@ -199,7 +204,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
       const storageBox = h("div", { className: "sd-meter" });
       const listBox = h("div", { className: "sd-pane sd-maps", tabIndex: 0 });
       const detailBox = h("div", { className: "sd-pane sd-detail-pane" });
-      const search = w.text({ placeholder: "Search maps" });
+      const search = w.text({ placeholder: t("Search maps") });
       search.classList.add("sd-search");
       const split = h("div", { className: "sd-split" }, listBox, detailBox);
       let maps: MapSummary[] = [];
@@ -230,14 +235,14 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         saveHere.hidden = !maps.length;
         if (!maps.length) {
           listBox.append(h("div", { className: "sd-empty-state" },
-            h("div", { className: "sd-empty-title" }, "No maps yet"),
-            h("div", { className: "sd-hint" }, "Maps you save to scmjs.dev show up here, with every revision and its note."),
-            api.document.isOpen() ? w.button("Save the open map here…", { primary: true, onClick: () => { dialog.close(); ctx.saveToCloud(); } }) : null,
+            h("div", { className: "sd-empty-title" }, t("No maps yet")),
+            h("div", { className: "sd-hint" }, t("Maps you save to scmjs.dev show up here, with every revision and its note.")),
+            api.document.isOpen() ? w.button(t("Save the open map here…"), { primary: true, onClick: () => { dialog.close(); ctx.saveToCloud(); } }) : null,
           ));
           return;
         }
         const shown = visible();
-        if (!shown.length) { listBox.append(h("div", { className: "sd-empty-list" }, `No map matches "${search.value.trim()}".`)); return; }
+        if (!shown.length) { listBox.append(h("div", { className: "sd-empty-list" }, t("No map matches \"{query}\".", { query: search.value.trim() }))); return; }
         for (const m of shown) {
           const kept = shares.get(m.id);
           listBox.append(h("div", { className: `sd-map${pickedId === m.id ? " sd-picked" : ""}`, "data-id": m.id, onClick: () => void pick(m.id) },
@@ -279,7 +284,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         clear(detailBox);
         const m = picked;
         if (!m) {
-          if (maps.length) detailBox.append(h("div", { className: "sd-empty-list" }, "Pick a map to see its revisions."));
+          if (maps.length) detailBox.append(h("div", { className: "sd-empty-list" }, t("Pick a map to see its revisions.")));
           return;
         }
         const rev = pickedRevision ?? m.head;
@@ -288,40 +293,40 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         const current = ctx.shares?.current() ?? null;
         const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
 
-        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: () => void covered("Joining…", async () => {
+        const join = kept && !inIt && ctx.shares ? w.button(t("Join"), { primary: true, title: t("Open the shared map and edit it with whoever is in it"), onClick: () => void covered(t("Joining…"), async () => {
           await ctx.shares!.join(kept.invite, account.current()?.name ?? "Owner");
           dialog.close();
         }) }) : null;
         // The owner, in the shared map: a revision can be put back into it, for everyone.
-        const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
-          if (!(await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true }))) return;
-          await covered(`Downloading #${rev.number}…`, async () => {
+        const restore = inIt && current?.owner && current.documentId !== null ? w.button(t("Put #{n} into the shared map", { n: rev.number }), { title: t("Replace the shared map with this revision, for everyone in it"), onClick: async () => {
+          if (!(await api.ui.confirm(t("Replace the shared map with revision #{n}? Everyone in it gets #{n} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.", { n: rev.number }), { title: t("Put a revision into the shared map"), confirmLabel: t("Put #{n} in", { n: rev.number }), danger: true }))) return;
+          await covered(t("Downloading #{n}…", { n: rev.number }), async () => {
             const { bytes } = await client.revisionFile(m.id, rev.number);
             const chk = await api.document.sections.chkOf(bytes);
-            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
+            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error(t("the shared map is not open."));
             api.document.sections.replaceFile(chk);
             dialog.close();
-            api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
+            api.ui.toast({ kind: "ok", title: t("Put #{n} into the shared map", { n: rev.number }) });
           });
         } }) : null;
-        const open = w.button(isHead ? "Open" : `Open #${rev.number}`, { primary: !join, className: "sd-open", title: kept ? "Open this revision on its own, apart from the shared map" : `Open revision #${rev.number} in the editor`, onClick: () => void covered(`Downloading #${rev.number}…`, async () => {
+        const open = w.button(isHead ? t("Open") : t("Open #{n}", { n: rev.number }), { primary: !join, className: "sd-open", title: kept ? t("Open this revision on its own, apart from the shared map") : t("Open revision #{n} in the editor", { n: rev.number }), onClick: () => void covered(t("Downloading #{n}…", { n: rev.number }), async () => {
           open.setBusy(true);
           try {
             const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
             const opened = await api.document.open(bytes, fileName || rev.fileName);
-            if (opened) { link.set({ mapId: m.id, mapName: m.name, fileName: fileName || rev.fileName }); dialog.close(); api.ui.toast({ kind: "ok", title: `Opened ${m.name} #${rev.number}`, detail: rev.note || undefined }); }
-            else say("Not opened.");
+            if (opened) { link.set({ mapId: m.id, mapName: m.name, fileName: fileName || rev.fileName }); dialog.close(); api.ui.toast({ kind: "ok", title: t("Opened {name} #{n}", { name: m.name, n: rev.number }), detail: rev.note || undefined }); }
+            else say(t("Not opened."));
           } finally { open.setBusy(false); }
         }) });
-        const download = w.button("Download", { title: `Save revision #${rev.number} as a file`, onClick: () => void covered(`Downloading #${rev.number}…`, async () => {
+        const download = w.button(t("Download"), { title: t("Save revision #{n} as a file", { n: rev.number }), onClick: () => void covered(t("Downloading #{n}…", { n: rev.number }), async () => {
           const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
           const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
-          say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : undefined);
+          say(out ? t("Saved {name}.", { name: out.fileName }) : t("Not saved."), out ? "ok" : undefined);
         }) });
-        const rename = w.button("Rename…", { ghost: true, onClick: async () => {
-          const name = await api.ui.prompt("Name for this map:", { title: "Rename map", value: m.name, confirmLabel: "Rename" });
+        const rename = w.button(t("Rename…"), { ghost: true, onClick: async () => {
+          const name = await api.ui.prompt(t("Name for this map:"), { title: t("Rename map"), value: m.name, confirmLabel: t("Rename") });
           if (name === null || !name.trim() || name.trim() === m.name) return;
-          await covered("Renaming…", async () => { await update(await client.patchMap(m.id, { name: name.trim() })); say("Renamed.", "ok"); });
+          await covered(t("Renaming…"), async () => { await update(await client.patchMap(m.id, { name: name.trim() })); say(t("Renamed."), "ok"); });
         } });
 
         const revs = h("div", { className: "sd-revs" });
@@ -329,42 +334,47 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           const on = r.number === rev.number;
           const row = h("div", { className: `sd-rev${on ? " sd-picked" : ""}`, onClick: () => { if (!on) { pickedRevision = r; renderDetail(); } } },
             h("span", { className: "sd-n" }, `#${r.number}`),
-            h("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "No note"),
+            h("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || t("No note")),
             h("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
-            h("span", { className: "sd-sub" }, `${r.number === m.head.number ? "Newest · " : ""}${r.fileName} · ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` · "${r.meta.scenarioName}"` : ""}`),
+            h("span", { className: "sd-sub" }, `${r.number === m.head.number ? `${t("Newest")} · ` : ""}${r.fileName} · ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` · "${r.meta.scenarioName}"` : ""}`),
           );
           if (on) {
-            const note = w.button(r.note ? "Edit note…" : "Add a note…", { ghost: true, onClick: async (e) => {
+            const note = w.button(r.note ? t("Edit note…") : t("Add a note…"), { ghost: true, onClick: async (e) => {
               e.stopPropagation();
-              const text = await api.ui.prompt(`Note for revision #${r.number} of ${m.name}:`, { title: "Revision note", value: r.note, multiline: true, confirmLabel: "Save" });
+              const text = await api.ui.prompt(t("Note for revision #{n} of {name}:", { n: r.number, name: m.name }), { title: t("Revision note"), value: r.note, multiline: true, confirmLabel: t("Save") });
               if (text === null) return;
-              await covered("Saving the note…", async () => { await update(await client.patchRevision(m.id, r.number, { note: text })); say("Note saved.", "ok"); });
+              await covered(t("Saving the note…"), async () => { await update(await client.patchRevision(m.id, r.number, { note: text })); say(t("Note saved."), "ok"); });
             } });
             const last = m.history.length <= 1;
-            const del = w.button("Delete", { ghost: true, danger: true, disabled: last, title: last ? "A map keeps its last revision; delete the map to remove it." : `Delete revision #${r.number}`, onClick: async (e) => {
+            const del = w.button(t("Delete"), { ghost: true, danger: true, disabled: last, title: last ? t("A map keeps its last revision; delete the map to remove it.") : t("Delete revision #{n}", { n: r.number }), onClick: async (e) => {
               e.stopPropagation();
               const pinned = m.linkList.filter((l) => l.revision === r.number).length;
-              const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
-              if (!(await api.ui.confirm(`Delete revision #${r.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true }))) return;
-              await covered("Deleting…", async () => { pickedRevision = null; await update(await client.deleteRevision(m.id, r.number)); say(`Revision #${r.number} deleted.`, "ok"); });
+              const question = pinned
+                ? t("Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it. {links, plural, one {The link to it stops} other {The # links to it stop}} working too.", { n: r.number, name: m.name, links: pinned })
+                : t("Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it.", { n: r.number, name: m.name });
+              if (!(await api.ui.confirm(question, { title: t("Delete revision"), confirmLabel: t("Delete"), danger: true }))) return;
+              await covered(t("Deleting…"), async () => { pickedRevision = null; await update(await client.deleteRevision(m.id, r.number)); say(t("Revision #{n} deleted.", { n: r.number }), "ok"); });
             } });
             row.append(h("div", { className: "sd-rev-btns" }, note, del));
           }
           revs.append(row);
         }
 
-        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
-          if (!(await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true }))) return;
-          await covered("Ending sharing…", async () => {
+        const endSharing = kept ? w.button(t("End sharing"), { danger: true, onClick: async () => {
+          if (!(await api.ui.confirm(t("End sharing {name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.", { name: m.name }), { title: t("End sharing"), confirmLabel: t("End sharing"), danger: true }))) return;
+          await covered(t("Ending sharing…"), async () => {
             const r = await client.endSharedMap(m.id);
             shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
             renderList(); renderDetail();
-            say("Sharing ended.", "ok");
+            say(t("Sharing ended."), "ok");
           });
         } }) : null;
-        const delMap = w.button("Delete map…", { danger: true, onClick: async () => {
-          if (!(await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true }))) return;
-          await covered("Deleting…", async () => {
+        const delMap = w.button(t("Delete map…"), { danger: true, onClick: async () => {
+          const question = m.links
+            ? t("Delete {name} and all {revisions} of its revisions from the account? {links, plural, one {Its link stops} other {Its # links stop}} working too.", { name: m.name, revisions: m.revisions, links: m.links })
+            : t("Delete {name} and all {revisions} of its revisions from the account?", { name: m.name, revisions: m.revisions });
+          if (!(await api.ui.confirm(question, { title: t("Delete map"), confirmLabel: t("Delete"), danger: true }))) return;
+          await covered(t("Deleting…"), async () => {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
             if (link.get()?.mapId === m.id) link.set(null);
@@ -372,7 +382,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
             maps = maps.filter((x) => x.id !== m.id);
             pickedId = null; picked = null; pickedRevision = null;
             renderStorage(r.storage); renderList(); renderDetail();
-            say("Map deleted.", "ok");
+            say(t("Map deleted."), "ok");
           });
         } });
 
@@ -382,18 +392,18 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
             h("div", { className: "sd-hero-text" },
               h("div", { className: "sd-name-row" }, h("span", { className: "sd-title", title: m.name }, m.name), rename),
               h("div", { className: "sd-sub" }, describeMeta(rev.meta) || rev.fileName),
-              h("div", { className: "sd-sub" }, `${sizeLine(m)} · created ${formatDate(m.createdAt)}`),
+              h("div", { className: "sd-sub" }, t("{size} · created {date}", { size: sizeLine(m), date: formatDate(m.createdAt) })),
               m.description ? h("div", { className: "sd-about" }, m.description) : null,
-              kept ? h("div", { className: "sd-badge" }, `${sharedLine(kept)}${inIt ? " · you are in it" : ""}`) : null,
+              kept ? h("div", { className: "sd-badge" }, inIt ? t("{shared} · you are in it", { shared: sharedLine(kept) }) : sharedLine(kept)) : null,
             ),
           ),
-          kept && !inIt ? h("div", { className: "sd-hint" }, "Join it to edit with whoever is there; Open gives you a copy of a revision on its own.") : null,
+          kept && !inIt ? h("div", { className: "sd-hint" }, t("Join it to edit with whoever is there; Open gives you a copy of a revision on its own.")) : null,
           h("div", { className: "sd-btns" }, join, open, download, restore),
-          h("div", { className: "sd-section" }, `Revisions (${m.history.length})`),
+          h("div", { className: "sd-section" }, t("Revisions ({n})", { n: m.history.length })),
           revs,
-          h("div", { className: "sd-section" }, "Links"),
+          h("div", { className: "sd-section" }, t("Links")),
           linksSection(ctx, m, rev.number, update, say),
-          h("div", { className: "sd-section" }, "Manage"),
+          h("div", { className: "sd-section" }, t("Manage")),
           h("div", { className: "sd-btns" }, delMap, endSharing),
         ));
       };
@@ -436,7 +446,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           if (err instanceof ScmjsError && err.code === "aborted") return;
           if (pickedId !== id) return;
           clear(detailBox);
-          detailBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => { pickedId = null; void pick(id); } })));
+          detailBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button(t("Try again"), { onClick: () => { pickedId = null; void pick(id); } })));
         }
       };
 
@@ -444,9 +454,9 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         loading?.abort();
         const ac = loading = new AbortController();
         const first = !maps.length;
-        const cover = first ? null : w.busy(listBox, "Refreshing…");
+        const cover = first ? null : w.busy(listBox, t("Refreshing…"));
         if (first) { clear(listBox); listBox.append(...listSkeleton(ctx, 5)); clear(detailBox); detailBox.append(detailSkeleton(ctx, undefined)); }
-        dialog.setBusy("Loading your maps…");
+        dialog.setBusy(t("Loading your maps…"));
         refresh.setBusy(true);
         try {
           const [r, shared] = await Promise.all([
@@ -470,7 +480,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
           if (err instanceof ScmjsError && err.code === "aborted") return;
           if (first) {
             clear(listBox); clear(detailBox);
-            listBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => void load() })));
+            listBox.append(h("div", { className: "sd-empty-list" }, h("div", { className: "sd-bad" }, describeError(err)), w.button(t("Try again"), { onClick: () => void load() })));
           }
           say(describeError(err), "error");
         } finally {
@@ -479,8 +489,8 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         }
       };
 
-      const refresh = w.button("Refresh", { ghost: true, title: "Load the list again", onClick: () => void load() });
-      const saveHere = w.button("Save the open map here…", { disabled: !api.document.isOpen(), onClick: () => { dialog.close(); ctx.saveToCloud(); } });
+      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void load() });
+      const saveHere = w.button(t("Save the open map here…"), { disabled: !api.document.isOpen(), onClick: () => { dialog.close(); ctx.saveToCloud(); } });
       root.append(
         h("div", { className: "sd-toolbar" }, search, storageBox, refresh),
         split,
@@ -490,7 +500,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
       queueMicrotask(() => search.focus());
       return () => { loading?.abort(); picking?.abort(); };
     },
-    buttons: [{ label: "Close", primary: true }],
+    buttons: [{ label: t("Close"), primary: true }],
   });
 }
 
@@ -501,32 +511,32 @@ export function openSaveDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
   const w = api.ui.widgets;
   const client = account.client;
   return api.ui.dialog({
-    title: "Save to scmjs.dev",
+    title: t("Save to scmjs.dev"),
     size: "md",
     mount(body, dialog) {
       const root = styled(body);
       if (needsAccount(ctx, root, dialog)) return;
       const info = api.document.info();
-      if (!info) { root.append(h("div", { className: "sd-hint" }, "No map is open.")); return; }
+      if (!info) { root.append(h("div", { className: "sd-hint" }, t("No map is open."))); return; }
       const status = w.statusLine({ text: "" });
       const say = (text: string, kind?: "ok" | "warn" | "error") => status.set(text, kind);
       const NEW = "__new__";
       const current = link.get();
-      const target = w.select([{ value: NEW, label: "A new map" }], { value: NEW, onChange: () => sync() });
-      const nameField = w.text({ value: info.name || (info.fileName ?? "").replace(/\.(scm|scx|chk)$/i, ""), placeholder: "Name in the list" });
-      const noteField = textarea({ placeholder: "What changed, or what this version is for (optional)", rows: 3 });
-      const thumbBox = w.checkbox("Include a picture of the map in the list (one pixel per tile)", { value: true });
-      const nameRow = w.form([{ label: "Name", field: nameField }]);
+      const target = w.select([{ value: NEW, label: t("A new map") }], { value: NEW, onChange: () => sync() });
+      const nameField = w.text({ value: info.name || (info.fileName ?? "").replace(/\.(scm|scx|chk)$/i, ""), placeholder: t("Name in the list") });
+      const noteField = textarea({ placeholder: t("What changed, or what this version is for (optional)"), rows: 3 });
+      const thumbBox = w.checkbox(t("Include a picture of the map in the list (one pixel per tile)"), { value: true });
+      const nameRow = w.form([{ label: t("Name"), field: nameField }]);
       const sync = () => { nameRow.hidden = target.value !== NEW; };
-      const save = w.button("Save", { primary: true, onClick: async () => {
+      const save = w.button(t("Save"), { primary: true, onClick: async () => {
         save.setBusy(true);
-        dialog.setBusy("Saving…");
+        dialog.setBusy(t("Saving…"));
         try {
           const { response: r, fileName } = await uploadOpenMap(ctx, {
             mapId: target.value === NEW ? null : target.value, name: nameField.value.trim(), note: noteField.value.trim(), thumbnail: thumbBox.input.checked,
           }, (text) => status.busy(text));
           link.set({ mapId: r.map.id, mapName: r.map.name, fileName });
-          api.ui.toast({ kind: "ok", title: `Saved to scmjs.dev: ${r.map.name} #${r.map.head.number}`, detail: `${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.` });
+          api.ui.toast({ kind: "ok", title: t("Saved to scmjs.dev: {name} #{n}", { name: r.map.name, n: r.map.head.number }), detail: t("{used} of {cap} used.", { used: formatBytes(r.storage.usedBytes), cap: formatBytes(r.storage.capBytes) }) });
           dialog.close();
         } catch (err) {
           say(describeError(err), "error");
@@ -536,29 +546,29 @@ export function openSaveDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         }
       } });
       root.append(
-        w.form([{ label: "Save as", field: target }]),
+        w.form([{ label: t("Save as"), field: target }]),
         nameRow,
-        h("div", null, h("div", { className: "sd-hint", style: "margin-bottom: 4px" }, "Note for this revision"), noteField),
+        h("div", null, h("div", { className: "sd-hint", style: "margin-bottom: 4px" }, t("Note for this revision")), noteField),
         thumbBox,
-        h("div", { className: "sd-hint" }, "The file is what File ▸ Save would write, with the options you last saved with. Saving the same bytes again costs no storage; only the note is new."),
+        h("div", { className: "sd-hint" }, t("The file is what File ▸ Save would write, with the options you last saved with. Saving the same bytes again costs no storage; only the note is new.")),
         h("div", { className: "sd-btns" }, save),
         status,
       );
       // The list of maps to add a revision to, with the linked one picked.
       void (async () => {
-        status.busy("Loading your maps…");
+        status.busy(t("Loading your maps…"));
         target.disabled = true;
         try {
           const r = await client.listMaps();
           account.noteStorage(r.storage);
-          for (const m of r.maps) target.add(new Option(`${m.name} — new revision #${m.head.number + 1}`, m.id));
+          for (const m of r.maps) target.add(new Option(t("{name} — new revision #{n}", { name: m.name, n: m.head.number + 1 }), m.id));
           if (current && r.maps.some((m) => m.id === current.mapId)) target.value = current.mapId;
           sync();
-          say(`${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.`);
+          say(t("{used} of {cap} used.", { used: formatBytes(r.storage.usedBytes), cap: formatBytes(r.storage.capBytes) }));
         } catch (err) { say(describeError(err), "error"); }
         finally { target.disabled = false; }
       })();
     },
-    buttons: [{ label: "Cancel" }],
+    buttons: [{ label: t("Cancel") }],
   });
 }

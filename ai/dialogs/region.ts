@@ -5,6 +5,7 @@
  * just that rectangle, which Apply renders in place — terrain and objects inside the
  * area replaced, one undo step.
  */
+import { t } from "../../i18n";
 import type { Rect } from "@scm-js/plugin-api";
 import type { LayoutPlan, RegionPlanInput } from "../../protocol";
 import { doodadCategoryNames, imageInput, terrainVocab, unitNames } from "../facts";
@@ -37,27 +38,27 @@ export async function openRegion(ctx: Ctx, preset?: Rect | null) {
   if (!info) return;
   let rect = preset ?? api.selection.markedArea();
   if (!rect) {
-    rect = await api.ui.pickArea({ prompt: "Drag over the area to redo" });
+    rect = await api.ui.pickArea({ prompt: t("Drag over the area to redo") });
     if (!rect) return;
   }
   rect = { x0: Math.max(0, Math.min(rect.x0, rect.x1)), y0: Math.max(0, Math.min(rect.y0, rect.y1)), x1: Math.min(info.width, Math.max(rect.x0, rect.x1)), y1: Math.min(info.height, Math.max(rect.y0, rect.y1)) };
-  if (rect.x1 - rect.x0 < 2 || rect.y1 - rect.y0 < 2) { api.ui.status("AI: the area is too small to redo."); return; }
+  if (rect.x1 - rect.x0 < 2 || rect.y1 - rect.y0 < 2) { api.ui.status(t("AI: the area is too small to redo.")); return; }
   const area: Rect = rect;
   const state = { prompt: "", plan: null as LayoutPlan | null, applied: false };
 
   api.ui.dialog({
-    title: `Redo Area ${area.x0},${area.y0} – ${area.x1},${area.y1}`,
+    title: t("Redo Area {x0},{y0} – {x1},{y1}", { x0: area.x0, y0: area.y0, x1: area.x1, y1: area.y1 }),
     size: "lg",
     tall: true,
     mount(body) {
       const root = styled(body);
       const runner = new Runner(ctx);
-      const promptField = textarea({ placeholder: "What should this area become? (\"a lake with a bridge\", \"a plateau with one ramp to the south\", \"a forest with a path through it\")", rows: 3 });
+      const promptField = textarea({ placeholder: t("What should this area become? (\"a lake with a bridge\", \"a plateau with one ramp to the south\", \"a forest with a path through it\")"), rows: 3 });
       promptField.addEventListener("input", () => { state.prompt = promptField.value; });
-      const keepUnits = w.checkbox("Keep the units, sprites and doodads that are there now", { value: false });
+      const keepUnits = w.checkbox(t("Keep the units, sprites and doodads that are there now"), { value: false });
       const preview = h("div", null);
-      const applyButton = w.button("Apply", { primary: true, onClick: () => apply() });
-      const afterwards = h("div", { className: "ai-btns", hidden: true }, applyButton, h("span", { className: "ai-hint" }, "One undo step."));
+      const applyButton = w.button(t("Apply"), { primary: true, onClick: () => apply() });
+      const afterwards = h("div", { className: "ai-btns", hidden: true }, applyButton, h("span", { className: "ai-hint" }, t("One undo step.")));
       const cellSize = regionCellSize(area);
 
       const showPlan = (plan: LayoutPlan, findings: string[] = []) => {
@@ -72,18 +73,18 @@ export async function openRegion(ctx: Ctx, preset?: Rect | null) {
           grid.append(line);
         }
         const terrains = api.terrain.types();
-        const legendRow = h("div", { className: "ai-legend" }, ...Object.entries(plan.legend).map(([ch, id]) => h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 0x444444)}` }), `${ch} ${terrains.find((t) => t.id === id)?.name ?? id}`)));
-        preview.append(w.group("The plan",
+        const legendRow = h("div", { className: "ai-legend" }, ...Object.entries(plan.legend).map(([ch, id]) => h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 0x444444)}` }), `${ch} ${terrains.find((ty) => ty.id === id)?.name ?? id}`)));
+        preview.append(w.group(t("The plan"),
           grid, legendRow,
           plan.notes.length ? noteList(plan.notes) : null,
-          h("div", { className: "ai-hint" }, `${plan.bases.length} bases, ${plan.ramps.length} ramps, ${plan.doodads.length} decoration rules, ${plan.units.length} units, ${plan.locations.length} locations.`),
-          findings.length ? h("details", { open: true }, h("summary", null, `${findings.length} thing${findings.length === 1 ? "" : "s"} to know`), h("div", { className: "ai-body" }, noteList(findings))) : null,
+          h("div", { className: "ai-hint" }, t("{bases, plural, one {# base} other {# bases}}, {ramps, plural, one {# ramp} other {# ramps}}, {rules, plural, one {# decoration rule} other {# decoration rules}}, {units, plural, one {# unit} other {# units}}, {locations, plural, one {# location} other {# locations}}.", { bases: plan.bases.length, ramps: plan.ramps.length, rules: plan.doodads.length, units: plan.units.length, locations: plan.locations.length })),
+          findings.length ? h("details", { open: true }, h("summary", null, t("{n, plural, one {# thing} other {# things}} to know", { n: findings.length })), h("div", { className: "ai-body" }, noteList(findings))) : null,
         ));
         afterwards.hidden = false;
       };
 
       const generate = async () => {
-        if (!state.prompt.trim()) { promptField.focus(); runner.idle("Say what the area should become first."); return; }
+        if (!state.prompt.trim()) { promptField.focus(); runner.idle(t("Say what the area should become first.")); return; }
         await api.tileset.load();
         const margin = { x0: Math.max(0, area.x0 - MARGIN), y0: Math.max(0, area.y0 - MARGIN), x1: Math.min(info.width, area.x1 + MARGIN), y1: Math.min(info.height, area.y1 + MARGIN) };
         const current = sampleGrid(terrainAtTile(ctx), margin, cellSize);
@@ -111,26 +112,26 @@ export async function openRegion(ctx: Ctx, preset?: Rect | null) {
       const apply = () => {
         if (!state.plan) return;
         if (state.applied) api.document.undo();
-        const rendered = renderPlan(api, state.plan, { originX: area.x0, originY: area.y0, label: "AI: redo area", clearArea: !keepUnits.input.checked });
+        const rendered = renderPlan(api, state.plan, { originX: area.x0, originY: area.y0, label: t("AI: redo area"), clearArea: !keepUnits.input.checked });
         if (!rendered) return;
         state.applied = true;
         showPlan(state.plan, rendered.findings);
-        runner.idle(`Applied: ${summarizeRender(rendered)}. Edit ▸ Undo takes it back.`);
-        api.ui.status(`AI: ${summarizeRender(rendered)}`);
+        runner.idle(t("Applied: {summary}. Edit ▸ Undo takes it back.", { summary: summarizeRender(rendered) }));
+        api.ui.status(t("AI: {summary}", { summary: summarizeRender(rendered) }));
       };
 
       root.append(
-        w.group("What to make of it",
+        w.group(t("What to make of it"),
           promptField,
           keepUnits,
-          h("div", { className: "ai-hint" }, `${area.x1 - area.x0} × ${area.y1 - area.y0} tiles, ${cellSize} tile${cellSize === 1 ? "" : "s"} per cell. The model is shown the area with ${MARGIN} tiles of margin so the edges join.`),
-          h("div", { className: "ai-btns" }, w.button("Generate", { primary: true, onClick: () => void generate() })),
+          h("div", { className: "ai-hint" }, t("{w} × {h} tiles, {cell, plural, one {# tile} other {# tiles}} per cell. The model is shown the area with {margin} tiles of margin so the edges join.", { w: area.x1 - area.x0, h: area.y1 - area.y0, cell: cellSize, margin: MARGIN })),
+          h("div", { className: "ai-btns" }, w.button(t("Generate"), { primary: true, onClick: () => void generate() })),
         ),
         runner.el, preview, afterwards, ledgerLine(ctx),
       );
       promptField.focus();
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }],
+    buttons: [{ label: t("Close") }],
   });
 }

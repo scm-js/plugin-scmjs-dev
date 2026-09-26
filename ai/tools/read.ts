@@ -4,7 +4,8 @@ import { scriptBridge } from "../script";
 import { imageInput, shrinkImageScaled, type ShrunkImage } from "../facts";
 import { REFERENCE_PARTS, REFERENCE_SECTIONS, referenceDetailFor, type ReferenceSection } from "../reference";
 import { terrainAtTile } from "../dialogs/region";
-import { byName, capResult, fail, hasRect, indexList, ints, jsonOf, noSuchTech, noSuchUnit, noSuchUpgrade, num, obj, ownerName, ownerOf, paged, pageReport, pageSchema, plural, rectOf, rectSchema, rectText, str, TILE, unitIdByName, type Tool } from "./common";
+import { t } from "../../i18n";
+import { byName, capResult, fail, hasRect, indexList, ints, jsonOf, noSuchTech, noSuchUnit, noSuchUpgrade, num, obj, ownerLabel, ownerName, ownerOf, paged, pageReport, pageSchema, rectOf, rectSchema, rectText, str, TILE, unitIdByName, type Tool } from "./common";
 
 /**
  * What a screenshot says about its own scale: the pixels per tile the picture *has*, which
@@ -68,8 +69,17 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. `group` (owner, name or both) answers with a count and resource total per group instead of rows — for counting or totals, ask that way. Pages of up to 200 (fewer when rows are long); `next` is where the next page starts.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } }, group: { type: "string", enum: ["owner", "name", "both"] } }) },
-      describe: (input) => `List ${input.owner !== undefined ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}${str(input.group) ? ` by ${str(input.group) === "both" ? "owner and name" : str(input.group)}` : ""}`,
-      report: (result) => { const r = jsonOf(result); return r?.groups !== undefined ? `${plural(num(r.count), "group")} of ${plural(num(r.matched), "unit")}` : pageReport(result); },
+      describe: (input) => {
+        const head = input.owner !== undefined ? t("List {owner}'s units", { owner: ownerLabel(ownerOf(input.owner)) }) : t("List units");
+        const filters = [
+          str(input.name) && t("named \"{name}\"", { name: str(input.name) }),
+          hasRect(input) && t("in {rect}", { rect: rectText(input) }),
+          Array.isArray(input.indices) && indexList(ints(input.indices)),
+          str(input.group) && (str(input.group) === "both" ? t("by owner and name") : str(input.group) === "owner" ? t("by owner") : str(input.group) === "name" ? t("by name") : t("by {group}", { group: str(input.group) })),
+        ].filter(Boolean).join(" ");
+        return filters ? t("{list} {filters}", { list: head, filters }) : head;
+      },
+      report: (result) => { const r = jsonOf(result); return r?.groups !== undefined ? t("{groups, plural, one {# group} other {# groups}} of {n, plural, one {# unit} other {# units}}", { groups: num(r.count), n: num(r.matched) }) : pageReport(result); },
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -203,7 +213,7 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "list_triggers_text", description: "Triggers in the text format from `from` to `to` (1-based, inclusive; default the first 20); briefing=true for the mission briefing.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
-      describe: (input) => `Read ${input.briefing === true ? "the briefing" : "the triggers"}${input.from !== undefined ? ` from #${num(input.from)}` : ""}${input.to !== undefined ? ` to #${num(input.to)}` : ""} as text`,
+      describe: (input) => { const range = [input.from !== undefined && t("from #{n}", { n: num(input.from) }), input.to !== undefined && t("to #{n}", { n: num(input.to) })].filter(Boolean).join(" "); return t("Read {what, select, briefing {the briefing} other {the triggers}}{range} as text", { what: input.briefing === true ? "briefing" : "triggers", range: range ? ` ${range}` : "" }); },
       writes: false,
       run: (input, { api }) => {
         const briefing = input.briefing === true;
@@ -218,20 +228,20 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "find", description: "Search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
-      describe: (input) => `Find "${str(input.text)}" in the ${str(input.kind)}`,
+      describe: (input) => findLine(str(input.text), str(input.kind)),
       writes: false,
       run: (input, { api }) => capResult(api.query.find({ kind: str(input.kind, "strings") as "strings", query: str(input.text), limit: 100 })),
     },
     {
       def: { name: "validate", description: "Check Map: the problems the editor finds.", inputSchema: obj({}) },
-      describe: () => "Check the map",
-      report: (result) => { const r = jsonOf(result); return Array.isArray(r) ? (r.length ? plural(r.length, "finding") : "clean") : ""; },
+      describe: () => t("Check the map"),
+      report: (result) => { const r = jsonOf(result); return Array.isArray(r) ? (r.length ? t("{n, plural, one {# finding} other {# findings}}", { n: r.length }) : t("clean")) : ""; },
       writes: false,
       run: (_i, { api }) => { const issues = api.query.validate(); return issues.length ? capResult(issues.map((i) => ({ level: i.level, text: i.text, where: i.where, target: i.target }))) : "Check Map finds nothing wrong."; },
     },
     {
       def: { name: "terrain_at", description: "What is under a tile (terrain, height, buildable, walkable, doodad), or a coarse grid of a rect in cells of `cellSize` tiles.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
-      describe: (input) => hasRect(input) ? `Read the terrain over ${rectText(input)}` : `Read the terrain at ${num(input.x)},${num(input.y)}`,
+      describe: (input) => hasRect(input) ? t("Read the terrain over {rect}", { rect: rectText(input) }) : t("Read the terrain at {x},{y}", { x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, ctx) => {
         const { api } = ctx;
@@ -252,7 +262,7 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "fog_at", description: "Fog of war over a rect for a 1-based player, as a coarse grid (`#` starts unexplored, `.` explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
-      describe: (input) => `Read Player ${num(input.player)}'s fog${hasRect(input) ? ` over ${rectText(input)}` : ""}`,
+      describe: (input) => hasRect(input) ? t("Read Player {player}'s fog over {rect}", { player: num(input.player), rect: rectText(input) }) : t("Read Player {player}'s fog", { player: num(input.player) }),
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -276,7 +286,7 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "placement_ok", description: "Whether a unit could be placed centred at a tile: the editor's own check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
-      describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
+      describe: (input) => t("Can {unit} go at {x},{y}?", { unit: str(input.unit), x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, { api }) => {
         const id = unitIdByName(api, str(input.unit));
@@ -288,8 +298,8 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
-      describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
-      report: (result) => { const m = /at ([\d.]+) px per tile/.exec(typeof result === "string" ? result : result.text ?? ""); return m ? `${m[1]} px per tile` : "picture"; },
+      describe: (input) => hasRect(input) ? t("Screenshot of {rect}", { rect: rectText(input) }) : t("Screenshot of the whole map"),
+      report: (result) => { const m = /at ([\d.]+) px per tile/.exec(typeof result === "string" ? result : result.text ?? ""); return m ? t("{px} px per tile", { px: m[1]! }) : t("picture"); },
       writes: false,
       run: async (input, { api }) => {
         const info = api.document.info();
@@ -306,7 +316,7 @@ export function readTools(): Tool[] {
     },
     {
       def: { name: "lookup", description: "A name in the game data: kind unit (id, size, cost, hp, weapons, the map's settings), doodad, sprite, upgrade, tech, weapon, ai_script, condition or action; `query` is a name or part of one.", inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
-      describe: (input) => `Look up the ${str(input.kind)} "${str(input.query)}"`,
+      describe: (input) => lookupLine(str(input.kind), str(input.query)),
       writes: false,
       run: (input, { api }) => {
         const kind = str(input.kind), q = str(input.query).toLowerCase();
@@ -344,4 +354,31 @@ export function readTools(): Tool[] {
       run: (input, { api }) => { const hit = byName(api.names.techs(), str(input.tech)); if (!hit) return noSuchTech(api, str(input.tech)); const t = api.settings.tech(hit.value); return t ? capResult({ ...t, state: { defaultAvailable: t.state.defaultAvailable, defaultResearched: t.state.defaultResearched, players: Object.fromEntries(t.state.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open."; },
     },
   ];
+}
+
+/** The find tool's step line, the kind in words. */
+function findLine(text: string, kind: string): string {
+  switch (kind) {
+    case "units": return t("Find \"{text}\" in the units", { text });
+    case "locations": return t("Find \"{text}\" in the locations", { text });
+    case "sprites": return t("Find \"{text}\" in the sprites", { text });
+    case "triggers": return t("Find \"{text}\" in the triggers", { text });
+    default: return t("Find \"{text}\" in the strings", { text });
+  }
+}
+
+/** The lookup tool's step line, the kind in words. */
+function lookupLine(kind: string, query: string): string {
+  switch (kind) {
+    case "unit": return t("Look up the unit \"{query}\"", { query });
+    case "doodad": return t("Look up the doodad \"{query}\"", { query });
+    case "sprite": return t("Look up the sprite \"{query}\"", { query });
+    case "upgrade": return t("Look up the upgrade \"{query}\"", { query });
+    case "tech": return t("Look up the tech \"{query}\"", { query });
+    case "weapon": return t("Look up the weapon \"{query}\"", { query });
+    case "ai_script": return t("Look up the AI script \"{query}\"", { query });
+    case "condition": return t("Look up the condition \"{query}\"", { query });
+    case "action": return t("Look up the action \"{query}\"", { query });
+    default: return t("Look up the {kind} \"{query}\"", { kind, query });
+  }
 }

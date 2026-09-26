@@ -1,12 +1,13 @@
 /** Trigger, string and switch writes: settings-style transactions (not in the undo model). */
 import { bool, capResult, indexList, ints, num, obj, plural, str, type Tool } from "./common";
 import { NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
+import { t } from "../../i18n";
 
 export function triggerTools(): Tool[] {
   return [
     {
       def: { name: "add_triggers_text", description: "Append triggers in the text format (grammar in the reference); on a parse error nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
-      describe: (input) => { const n = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length; return `Add ${n ? plural(n, input.briefing === true ? "briefing trigger" : "trigger") : "triggers"} from text`; },
+      describe: (input) => { const n = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length; return !n ? t("Add triggers from text") : input.briefing === true ? t("Add {n, plural, one {# briefing trigger} other {# briefing triggers}} from text", { n }) : t("Add {n, plural, one {# trigger} other {# triggers}} from text", { n }); },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -23,7 +24,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "replace_trigger", description: "Replace one trigger (1-based, as list_triggers_text numbers them) with text-format text. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
-      describe: (input) => `Replace trigger #${num(input.index)}`,
+      describe: (input) => t("Replace trigger #{n}", { n: num(input.index) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -42,7 +43,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "remove_triggers", description: "Remove triggers by 1-based index. Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "trigger")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# trigger} other {# triggers}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -55,7 +56,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "move_trigger", description: "Move a trigger from one 1-based position to another (triggers run in list order). Not undoable.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }, ["from", "to"]) },
-      describe: (input) => `Move trigger #${num(input.from)} to #${num(input.to)}`,
+      describe: (input) => t("Move trigger #{from} to #{to}", { from: num(input.from), to: num(input.to) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -67,7 +68,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "set_trigger_flags", description: "Preserve Trigger on or off for triggers by 1-based index (to disable one line, replace the trigger with a `;` before it). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
-      describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints(input.indices).length, "trigger")}`,
+      describe: (input) => bool(input.preserved) === false ? t("Stop preserving {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }) : t("Preserve {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -88,7 +89,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "set_string", description: "Overwrite a string by index (everything pointing at it changes), or index 0 to add one and get its index. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
-      describe: (input) => `${num(input.index) > 0 ? `Set string ${num(input.index)}` : "Add a string"}: "${str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}…` : str(input.text)}"`,
+      describe: (input) => { const text = str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}…` : str(input.text); return num(input.index) > 0 ? t("Set string {index}: \"{text}\"", { index: num(input.index), text }) : t("Add a string: \"{text}\"", { text }); },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -101,14 +102,14 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "name_switch", description: "Name a switch (0-based index; \"\" clears the name). Not undoable.", inputSchema: obj({ index: { type: "integer" }, name: { type: "string" } }, ["index", "name"]) },
-      describe: (input) => `Name switch ${num(input.index)} "${str(input.name)}"`,
+      describe: (input) => t("Name switch {index} \"{name}\"", { index: num(input.index), name: str(input.name) }),
       writes: true,
       settings: true,
       run: (input, { api }) => { const r = api.document.update("AI: switch name", (tx) => { tx.switches.setName(Math.round(num(input.index)), str(input.name)); }); return r.changed ? "Named." : `Nothing changed.${r.notes.length ? ` ${r.notes.join(" ")}` : ""}`; },
     },
     {
       def: { name: "set_properties", description: "Set the scenario's name and/or description (Map Properties). Not undoable.", inputSchema: obj({ name: { type: "string" }, description: { type: "string" } }) },
-      describe: (input) => `Set the map's ${[input.name !== undefined && "name", input.description !== undefined && "description"].filter(Boolean).join(" and ") || "properties"}`,
+      describe: (input) => input.name !== undefined && input.description !== undefined ? t("Set the map's name and description") : input.name !== undefined ? t("Set the map's name") : input.description !== undefined ? t("Set the map's description") : t("Set the map's properties"),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -121,7 +122,7 @@ export function triggerTools(): Tool[] {
     },
     {
       def: { name: "simulate_triggers", description: "Run the triggers in TrigScript's cycle interpreter for `cycles` (Deaths, Switches, Always and Never modelled) and report the actions fired and switches set. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
-      describe: (input) => `Simulate the triggers for ${plural(num(input.cycles, 30), "cycle")}`,
+      describe: (input) => t("Simulate the triggers for {n, plural, one {# cycle} other {# cycles}}", { n: num(input.cycles, 30) }),
       writes: false,
       run: (input, { api }) => { const script = scriptBridge(api); if (!script) return NO_SCRIPT_PLUGIN; const s = script.simulate(api.triggers.list(), Math.max(1, Math.min(200, Math.round(num(input.cycles, 30)))), input.player !== undefined ? { player: Math.round(num(input.player)) - 1 } : undefined); return capResult({ cycles: s.cycles, events: s.events.slice(0, 200), switchesSet: s.switches }); },
     },

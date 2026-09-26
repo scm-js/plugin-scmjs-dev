@@ -8,6 +8,7 @@
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { MapPlan, Shape } from "../../protocol";
+import { t } from "../../i18n";
 import { doodadCategoryNames, terrainVocab, unitIdByName } from "../facts";
 import { buildPreset, presetById, presetsText, presetSpecs, PresetError } from "../presets";
 import { bridgeFootprints, bridgePairOf, bridgesOf, fitDoodad, fitRamp, rampPairsOf, rampsOf, VERIFIED_RAMPS } from "../ramps";
@@ -20,7 +21,7 @@ import { centreOf, DEFAULT_GAS, DEFAULT_MINERALS, GEYSER, HALL, inMap, MINERAL_F
 import { angleDirection, directionAngle, DIRECTIONS } from "../plan";
 import { KEEPERS } from "../scenarioBuild";
 import { hasHyperTriggers, mapTempo } from "./ums";
-import { capResult, fail, jsonOf, list, noSuchUnit, num, obj, ownerOf, plural, str, tally, TILE, type Tool } from "./common";
+import { capResult, compassLabel, fail, jsonOf, list, noSuchUnit, num, obj, ownerOf, str, tally, TILE, type Tool } from "./common";
 
 /** Human and computer slots, 1-based, from the settings. */
 function slots(api: PluginApi): { humans: number[]; computers: number[] } {
@@ -73,8 +74,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "layout_preset", description: "Lay a preset over the whole map: terrain with fitting ramps and bridges, named locations, a start per human, decoration. Replaces the terrain and clears objects; triggers and settings stay. `params` as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
-      describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`; },
-      report: (result) => { const r = jsonOf(result); return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${plural(r.locations.length, "location")}` : ""}` : ""; },
+      describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return p ? t("Lay out the {preset} preset: {params}", { preset: str(input.preset), params: p }) : t("Lay out the {preset} preset", { preset: str(input.preset) }); },
+      report: (result) => { const r = jsonOf(result); return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${t("{n, plural, one {# location} other {# locations}}", { n: r.locations.length })}` : ""}` : ""; },
       writes: true,
       run: (input, { api }) => {
         const id = str(input.preset);
@@ -110,7 +111,7 @@ export function layoutTools(): Tool[] {
           units: { type: "array", items: { type: "object", additionalProperties: true } },
         }, ["shapes"]),
       },
-      describe: (input) => { const ops = list(input.shapes).map((sh) => str(sh.op)).filter(Boolean); return ops.length ? `Paint ${plural(ops.length, "shape")}: ${tally(ops)}` : "Paint shapes"; },
+      describe: (input) => { const ops = list(input.shapes).map((sh) => str(sh.op)).filter(Boolean); return ops.length ? t("Paint {n, plural, one {# shape} other {# shapes}}: {list}", { n: ops.length, list: tally(ops) }) : t("Paint shapes"); },
       report: (result) => { const r = jsonOf(result); return r ? String(r.painted) : ""; },
       writes: true,
       run: (input, { api }) => {
@@ -132,7 +133,7 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already there, near a tile, going down sw or se (the only ways ramps go). Needs a straight diagonal cliff run; a plateau shape makes one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
-      describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
+      describe: (input) => str(input.side) === "se" ? t("Fit a ramp near {x},{y} facing south-east", { x: num(input.x), y: num(input.y) }) : t("Fit a ramp near {x},{y} facing south-west", { x: num(input.x), y: num(input.y) }),
       report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
       run: (input, { api }) => {
@@ -152,7 +153,7 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "place_bridge", description: "Fit one of the tileset's bridges over a diagonal water channel already there, near a tile. Where the tileset has no bridge the editor can place (Badlands, Installation, Ash World) leave a gap of ground instead. A stroke with `bridges` in paint_shapes does channel and bridge in one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
-      describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
+      describe: (input) => t("Fit a bridge near {x},{y}", { x: num(input.x), y: num(input.y) }),
       report: (result) => { const r = jsonOf(result); return r ? String(r.placed) : ""; },
       writes: true,
       run: (input, { api }) => {
@@ -182,8 +183,8 @@ export function layoutTools(): Tool[] {
           hall: { type: "string" },
         }),
       },
-      describe: (input) => `Lay a base${input.player !== undefined ? ` for Player ${num(input.player)}` : ""}${input.x !== undefined ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
-      report: (result) => { const r = jsonOf(result); if (!r) return ""; const p = (r.placed ?? {}) as Record<string, number>; const parts = [`${plural(num(p.minerals), "patch").replace("patchs", "patches")}, ${plural(num(p.geysers), "geyser")} to the ${String(r.direction)}`]; if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0])); return parts.join("; "); },
+      describe: (input) => `${t("Lay a base")}${input.player !== undefined ? ` ${t("for Player {player}", { player: num(input.player) })}` : ""}${input.x !== undefined ? ` ${t("at {x},{y}", { x: num(input.x), y: num(input.y) })}` : ""}${str(input.direction) ? `, ${t("line to the {direction}", { direction: compassLabel(str(input.direction)) })}` : ""}`,
+      report: (result) => { const r = jsonOf(result); if (!r) return ""; const p = (r.placed ?? {}) as Record<string, number>; const parts = [t("{minerals, plural, one {# patch} other {# patches}}, {geysers, plural, one {# geyser} other {# geysers}} to the {direction}", { minerals: num(p.minerals), geysers: num(p.geysers), direction: compassLabel(String(r.direction)) })]; if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0])); return parts.join("; "); },
       writes: true,
       run: (input, { api }) => {
         const info = api.document.info();
@@ -262,8 +263,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "bases", description: "Every base in one call: per start location the player, hall footprint, mineral line (positions, amounts), geysers, the line's side and the open side, the nearest other start; then the expansions with no start. Read this before working on bases.", inputSchema: obj({}) },
-      describe: () => "Read the map's bases",
-      report: (result) => { const r = jsonOf(result); return r ? `${plural(list(r.bases).length, "base")}, ${plural(list(r.expansions).length, "expansion")}` : ""; },
+      describe: () => t("Read the map's bases"),
+      report: (result) => { const r = jsonOf(result); return r ? t("{bases, plural, one {# base} other {# bases}}, {expansions, plural, one {# expansion} other {# expansions}}", { bases: list(r.bases).length, expansions: list(r.expansions).length }) : ""; },
       writes: false,
       run: (_input, { api }) => {
         const info = api.document.info();
@@ -305,8 +306,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "find_site", description: "The nearest blocks of `w` × `h` flat ground to a point (default the centre; `radius` 40). `purpose` building (buildable, walkable, one height; about 14 × 11 for a base — the answer gives the hall for place_base) or terrain (one height to paint over; doodads do not count). Reachable from every start unless anyStart is false. Up to five, a block apart.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean" } }, ["w", "h"]) },
-      describe: (input) => `Find ${num(input.w)} × ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== undefined ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
-      report: (result) => { const r = jsonOf(result); return r ? plural(list(r.sites).length, "site") : ""; },
+      describe: (input) => { const p = { w: num(input.w), h: num(input.h), x: num(input.x), y: num(input.y) }; const flat = str(input.purpose) === "terrain"; return input.x !== undefined ? (flat ? t("Find {w} × {h} of flat ground near {x},{y}", p) : t("Find {w} × {h} of open ground near {x},{y}", p)) : (flat ? t("Find {w} × {h} of flat ground near the centre", p) : t("Find {w} × {h} of open ground near the centre", p)); },
+      report: (result) => { const r = jsonOf(result); return r ? t("{n, plural, one {# site} other {# sites}}", { n: list(r.sites).length }) : ""; },
       writes: false,
       run: (input, { api }) => {
         const info = api.document.info();
@@ -355,8 +356,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "reachable", description: "Whether a ground unit can walk between two ends (a location by name or a tile), by flood fill; says how many tiles the start reaches and the nearest walkable tile when an end is not walkable. To prove a bridge is the only crossing, ask again with ignoreBridges true and expect no.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
-      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}${input.ignoreBridges === true ? " without the bridges" : ""}?`,
-      report: (result) => { const r = jsonOf(result); return r ? (r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}`) : ""; },
+      describe: (input) => { const p = { from: str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`, to: str(input.toLocation) || `${num(input.toX)},${num(input.toY)}` }; return input.ignoreBridges === true ? t("Can units walk from {from} to {to} without the bridges?", p) : t("Can units walk from {from} to {to}?", p); },
+      report: (result) => { const r = jsonOf(result); return r ? (r.reachable ? t("yes, {n, plural, one {# tile} other {# tiles}} reached", { n: num(r.tilesReachedFromStart) }) : t("no: {reason}", { reason: String(r.to) })) : ""; },
       writes: false,
       run: (input, { api }) => {
         const ignoreBridges = input.ignoreBridges === true;
@@ -389,8 +390,8 @@ export function layoutTools(): Tool[] {
     },
     {
       def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers, hyper triggers beside a program. fix: true gives an ownerless computer a flier no trigger names.", inputSchema: obj({ fix: { type: "boolean" } }) },
-      describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
-      report: (result) => { const r = jsonOf(result); if (!r) return ""; const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : []; const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0; return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems"; },
+      describe: (input) => input.fix === true ? t("Check the game's rules and fix what fails") : t("Check the game's rules"),
+      report: (result) => { const r = jsonOf(result); if (!r) return ""; const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : []; const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0; return problems.length ? (fixed ? t("{n, plural, one {# problem} other {# problems}}, {fixed} fixed", { n: problems.length, fixed }) : t("{n, plural, one {# problem} other {# problems}}", { n: problems.length })) : fixed ? t("{fixed} fixed", { fixed }) : t("no problems"); },
       writes: true,
       writesWhen: (input) => input.fix === true,
       run: (input, { api }) => {

@@ -9,13 +9,14 @@ import type { DialogHandle } from "@scm-js/plugin-api";
 import { SERVER_QUERY, SITE_URL } from "./account";
 import { describeError, formatBytes, formatUsd, signInGives } from "./client";
 import { sharedMapsList } from "./share/kept";
+import { t, tc } from "./i18n";
 import { append, clear, h, shortDay, styled, type Ctx } from "./ui";
 
 /** A used-of-cap bar with its caption. */
 export function storageBar(used: number, cap: number): HTMLElement {
   const share = cap > 0 ? Math.min(1, used / cap) : 0;
   const bar = h("div", { className: `sd-bar${share >= 0.95 ? " sd-full" : ""}` }, h("i", { style: `width:${(share * 100).toFixed(1)}%` }));
-  const caption = h("div", { className: "sd-hint" }, `${formatBytes(used)} of ${formatBytes(cap)} used`);
+  const caption = h("div", { className: "sd-hint" }, t("{used} of {cap} used", { used: formatBytes(used), cap: formatBytes(cap) }));
   return h("div", null, bar, caption);
 }
 
@@ -23,7 +24,7 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
   const { api, account } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "scmjs.dev Account",
+    title: t("scmjs.dev Account"),
     size: "md",
     mount(body, dialog) {
       const root = styled(body);
@@ -46,21 +47,21 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows: [string, Node | string][] = [];
         if (s.kind === "guest") {
-          rows.push(["Status", h("span", { className: "sd-big" }, "Not signed in")]);
-          if (s.offers) rows.push(["", h("span", { className: "sd-hint" }, `${s.offers.trial ? `A free trial of ${formatUsd(s.offers.trialUsd)} needs no sign-in. ` : ""}Signing in ${signInGives(s.offers)}, and room to keep maps on your account.`)]);
+          rows.push([t("Status"), h("span", { className: "sd-big" }, t("Not signed in"))]);
+          if (s.offers) rows.push(["", h("span", { className: "sd-hint" }, (s.offers.trial ? t("A free trial of {amount} needs no sign-in.", { amount: formatUsd(s.offers.trialUsd) }) + " " : "") + t("Signing in {gives}, and room to keep maps on your account.", { gives: signInGives(s.offers) }))]);
         } else if (s.kind === "trial") {
-          rows.push(["Status", h("span", { className: "sd-big" }, "Free trial")]);
-          if (v) rows.push(["Balance", `${formatUsd(v.balanceUsd)} left`]);
-          rows.push(["", h("span", { className: "sd-hint" }, "A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps.")]);
+          rows.push([t("Status"), h("span", { className: "sd-big" }, t("Free trial"))]);
+          if (v) rows.push([tc("account", "Balance"), t("{balance} left", { balance: formatUsd(v.balanceUsd) })]);
+          rows.push(["", h("span", { className: "sd-hint" }, t("A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps."))]);
         } else {
-          rows.push(["Signed in as", h("span", { className: "sd-big" }, v?.name ?? "you")]);
+          rows.push([t("Signed in as"), h("span", { className: "sd-big" }, v?.name ?? t("you"))]);
           if (v) {
-            rows.push(["Role", `${v.role}${v.unlimited ? " · no balance is kept" : ""}`]);
+            rows.push([t("Role"), v.unlimited ? t("{role} · no balance is kept", { role: v.role }) : v.role]);
             if (!v.unlimited) {
-              rows.push(["Balance", `${formatUsd(v.balanceUsd)}${v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.weeklyUsd)} weekly + ${formatUsd(v.creditUsd)} credit)` : ""}`]);
-              if (v.resetsAt) rows.push(["Refills", `${shortDay(v.resetsAt)}, to ${formatUsd(Math.max(v.weeklyUsd, s.offers?.weeklyUsd ?? 0))}`]);
+              rows.push([tc("account", "Balance"), v.creditUsd > 0 && v.weeklyUsd > 0 ? t("{balance} ({weekly} weekly + {credit} credit)", { balance: formatUsd(v.balanceUsd), weekly: formatUsd(v.weeklyUsd), credit: formatUsd(v.creditUsd) }) : formatUsd(v.balanceUsd)]);
+              if (v.resetsAt) rows.push([t("Refills"), t("{day}, to {amount}", { day: shortDay(v.resetsAt), amount: formatUsd(Math.max(v.weeklyUsd, s.offers?.weeklyUsd ?? 0)) })]);
             }
-            if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
+            if (v.providers.length) rows.push([t("Sign-in"), v.providers.join(", ")]);
           }
         }
         append(head, [h("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h("span", { className: "sd-k" }, k), h("span", { className: "sd-v" }, val)]))]);
@@ -68,47 +69,47 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         // Buttons for the state.
         if (s.kind !== "account") {
           const providers = s.offers?.providers ?? [];
-          if (!providers.length) buttons.append(h("span", { className: "sd-hint" }, s.offers ? "This server offers no sign-in." : "Waiting for the server…"));
+          if (!providers.length) buttons.append(h("span", { className: "sd-hint" }, s.offers ? t("This server offers no sign-in.") : t("Waiting for the server…")));
           for (const p of providers) {
-            buttons.append(w.button(`Sign in with ${p.name}`, { primary: true, onClick: async () => {
-              say(`Waiting for ${p.name}…`);
+            buttons.append(w.button(t("Sign in with {provider}", { provider: p.name }), { primary: true, onClick: async () => {
+              say(t("Waiting for {provider}…", { provider: p.name }));
               try {
                 const view = await account.signIn(p.id);
-                say(`Signed in as ${view.name ?? "you"}.`, "ok");
+                say(view.name ? t("Signed in as {name}.", { name: view.name }) : t("Signed in."), "ok");
               } catch (err) { say(describeError(err), "error"); }
             } }));
           }
           if (s.kind === "guest" && s.offers?.trial) {
-            buttons.append(w.button("Start the free trial", { onClick: async () => {
-              try { await account.ensureSession(); say(`Trial started: ${formatUsd(account.current()?.balanceUsd ?? 0)} to spend.`, "ok"); }
+            buttons.append(w.button(t("Start the free trial"), { onClick: async () => {
+              try { await account.ensureSession(); say(t("Trial started: {amount} to spend.", { amount: formatUsd(account.current()?.balanceUsd ?? 0) }), "ok"); }
               catch (err) { say(describeError(err), "error"); }
             } }));
           }
         } else {
           const packs = s.offers?.packs ?? [];
           if (packs.length && !v?.unlimited) {
-            const packSelect = w.select(packs.map((p) => ({ value: p.id, label: `${formatUsd(p.priceUsd)} for ${formatUsd(p.creditUsd)} of credit` })), { value: packs[0]!.id });
-            buttons.append(packSelect, w.button("Top up…", { onClick: async () => {
-              try { await account.topUp(packSelect.value); say("The payment page opened in a new tab. The credit lands once it is paid."); }
+            const packSelect = w.select(packs.map((p) => ({ value: p.id, label: t("{price} for {credit} of credit", { price: formatUsd(p.priceUsd), credit: formatUsd(p.creditUsd) }) })), { value: packs[0]!.id });
+            buttons.append(packSelect, w.button(t("Top up…"), { onClick: async () => {
+              try { await account.topUp(packSelect.value); say(t("The payment page opened in a new tab. The credit lands once it is paid.")); }
               catch (err) { say(describeError(err), "error"); }
             } }));
           }
-          buttons.append(w.button("Manage on scmjs.dev", { onClick: () => window.open(account.accountPageUrl(), "_blank", "noopener") }));
-          buttons.append(w.button("My Maps…", { onClick: () => { dialog.close(); ctx.openMaps(); } }));
-          buttons.append(w.button("Sign out", { onClick: async () => { await account.signOut(); say("Signed out."); } }));
+          buttons.append(w.button(t("Manage on scmjs.dev"), { onClick: () => window.open(account.accountPageUrl(), "_blank", "noopener") }));
+          buttons.append(w.button(t("My Maps…"), { onClick: () => { dialog.close(); ctx.openMaps(); } }));
+          buttons.append(w.button(t("Sign out"), { onClick: async () => { await account.signOut(); say(t("Signed out.")); } }));
         }
 
         // What the server offers this person, once it has answered: so nobody is left looking for a feature that is off.
         if (s.offers) {
           const signedIn = s.kind === "account";
           const state = (on: boolean, off: string, needsSignIn: boolean): [string, string, string] =>
-            !on ? ["Off", "sd-bad", off] : needsSignIn && !signedIn ? ["Sign in to use", "", ""] : ["On", "sd-ok", ""];
+            !on ? [t("Off"), "sd-bad", off] : needsSignIn && !signedIn ? [t("Sign in to use"), "", ""] : [t("On"), "sd-ok", ""];
           const features: [string, [string, string, string]][] = [
-            ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
-            ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
-            ["Shared editing", state(!!s.offers.rooms, "This server has no shared map editing.", true)],
+            [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
+            [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
+            [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)],
           ];
-          featuresBox.append(w.group("Status", h("table", { className: "sd-ledger" },
+          featuresBox.append(w.group(t("Status"), h("table", { className: "sd-ledger" },
             h("tbody", null, ...features.map(([name, [text, cls, note]]) => h("tr", null,
               h("td", { style: "width: 1%" }, name),
               h("td", { className: cls, style: "width: 1%" }, text),
@@ -119,8 +120,8 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
 
         // Storage.
         if (s.kind === "account") {
-          if (s.storage) storageBox.append(w.group("Map storage", storageBar(s.storage.usedBytes, s.storage.capBytes), h("div", { className: "sd-hint" }, `${s.storage.maps} map${s.storage.maps === 1 ? "" : "s"}, ${s.storage.revisions} revision${s.storage.revisions === 1 ? "" : "s"}. Account ▸ My Maps… lists them; Account ▸ Save to scmjs.dev… adds one.`)));
-          else if (s.offers && !s.offers.maps) storageBox.append(w.group("Map storage", h("div", { className: "sd-hint" }, "This server keeps no maps.")));
+          if (s.storage) storageBox.append(w.group(t("Map storage"), storageBar(s.storage.usedBytes, s.storage.capBytes), h("div", { className: "sd-hint" }, t("{maps, plural, one {# map} other {# maps}}, {revisions, plural, one {# revision} other {# revisions}}. Account ▸ My Maps… lists them; Account ▸ Save to scmjs.dev… adds one.", { maps: s.storage.maps, revisions: s.storage.revisions }))));
+          else if (s.offers && !s.offers.maps) storageBox.append(w.group(t("Map storage"), h("div", { className: "sd-hint" }, t("This server keeps no maps."))));
         }
 
         // Shared maps.
@@ -128,14 +129,14 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         sharedBox.style.display = sharing ? "" : "none";
         if (sharing && !sharedList) {
           sharedList = sharedMapsList(ctx, ctx.shares!, { onJoined: () => dialog.close() });
-          sharedBox.append(w.group("Shared maps", sharedList.el));
+          sharedBox.append(w.group(t("Shared maps"), sharedList.el));
         }
 
         // Ledger.
         const ledger = account.ledger();
         if (s.kind === "account" && ledger.length) {
           const table = h("table", { className: "sd-ledger" },
-            h("thead", null, h("tr", null, h("th", null, "When"), h("th", null, "What"), h("th", { style: "text-align:right" }, "Amount"), h("th", null, "Note"))),
+            h("thead", null, h("tr", null, h("th", null, t("When")), h("th", null, t("What")), h("th", { style: "text-align:right" }, t("Amount")), h("th", null, t("Note")))),
             h("tbody", null, ...ledger.map((e) => h("tr", null,
               h("td", null, shortDay(e.at)),
               h("td", null, e.kind),
@@ -143,28 +144,28 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
               h("td", { className: "sd-note" }, e.note),
             ))),
           );
-          ledgerBox.append(w.group("Recent activity", h("div", { className: "sd-scroll" }, table)));
+          ledgerBox.append(w.group(t("Recent activity"), h("div", { className: "sd-scroll" }, table)));
         }
       };
 
       /* Settings. */
       const settings = account.store.get();
-      const aiBox = w.checkbox("Use the AI features (Tools ▸ AI, the assistant, the AI buttons in the editor's dialogs)", { value: settings.ai, onChange: (v) => { account.store.set({ ai: v }); } });
+      const aiBox = w.checkbox(t("Use the AI features (Tools ▸ AI, the assistant, the AI buttons in the editor's dialogs)"), { value: settings.ai, onChange: (v) => { account.store.set({ ai: v }); } });
       // Only while the server offers this person the AI; render keeps it in step.
       const aiRow = h("div", { style: "display: flex; flex-direction: column; gap: 8px" }, aiBox,
-        h("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools ▸ AI ▸ Options… has the quality and the assistant's settings."));
-      const statusBox = w.checkbox("Show my status in the status bar", { value: settings.statusItem, onChange: (v) => { account.store.set({ statusItem: v }); } });
+        h("div", { className: "sd-hint" }, t("Off leaves your account and the maps stored on it; Tools ▸ AI ▸ Options… has the quality and the assistant's settings.")));
+      const statusBox = w.checkbox(t("Show my status in the status bar"), { value: settings.statusItem, onChange: (v) => { account.store.set({ statusItem: v }); } });
       const settingsFold = h("details", null,
-        h("summary", null, "Settings"),
+        h("summary", null, t("Settings")),
         h("div", { style: "padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px" },
           aiRow,
           statusBox,
-          account.overridden() ? h("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} — a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null,
+          account.overridden() ? h("div", { className: "sd-hint sd-bad" }, t("Talking to {server} — a development server named by ?{query}= on the editor's address. Open the editor with ?{query}= (empty) to go back to scmjs.dev.", { server: account.serverUrl(), query: SERVER_QUERY })) : null,
         ),
       );
 
       root.append(head, buttons, featuresBox, storageBox, sharedBox, ledgerBox, settingsFold, status,
-        h("div", { className: "sd-hint" }, `scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else, never a prompt or a card. Delete all of it from the account page at ${SITE_URL}.`));
+        h("div", { className: "sd-hint" }, t("scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store — nothing else, never a prompt or a card. Delete all of it from the account page at {site}.", { site: SITE_URL })));
 
       render();
       const off = account.onChange(render);
@@ -177,6 +178,6 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
       })();
       return () => { off(); };
     },
-    buttons: [{ label: "Close", primary: true }],
+    buttons: [{ label: t("Close"), primary: true }],
   });
 }

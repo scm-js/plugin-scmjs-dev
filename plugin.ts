@@ -44,11 +44,13 @@ import { openMapsDialog, openSaveDialog, type Link } from "./maps";
 import { installShare } from "./share/install";
 import { copyTokenOnPage, forgetLinkOnPage } from "./share/link";
 import type { Ctx } from "./ui";
+import { bindI18n, msg, t } from "./i18n";
 
 export const SERVICE_NAME = "account";
 export const CONTRACT_VERSION = 1;
 
 export function activate(api: PluginApi) {
+  const unbindI18n = bindI18n(api);
   const store = settingsStore(api);
   const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session }));
   const account = new AccountManager(store, client);
@@ -71,41 +73,41 @@ export function activate(api: PluginApi) {
 
 
   /* Commands: the menu items, the status bar and other plugins all reach the same ones. */
-  api.commands.register({ id: "account", title: "scmjs.dev Account…", run: ctx.openAccount });
-  api.commands.register({ id: "sign-in", title: "Sign in to scmjs.dev…", run: async () => {
+  api.commands.register({ id: "account", title: msg("scmjs.dev Account…"), run: ctx.openAccount });
+  api.commands.register({ id: "sign-in", title: msg("Sign in to scmjs.dev…"), run: async () => {
     if (account.kind() === "account") { ctx.openAccount(); return; }
     try {
       if (!account.offers()) await account.connect();
       const providers = account.offers()?.providers ?? [];
-      if (providers.length === 1) { await account.signIn(providers[0]!.id); api.ui.toast({ kind: "ok", title: `Signed in to scmjs.dev as ${account.current()?.name ?? "you"}` }); }
+      if (providers.length === 1) { await account.signIn(providers[0]!.id); api.ui.toast({ kind: "ok", title: account.current()?.name ? t("Signed in to scmjs.dev as {name}", { name: account.current()!.name! }) : t("Signed in to scmjs.dev") }); }
       else ctx.openAccount();
     } catch (err) {
       // A closed popup is not news; anything else is said in the dialog, which has the details.
       if ((err as { code?: string }).code !== "aborted") ctx.openAccount();
     }
   } });
-  api.commands.register({ id: "sign-out", title: "Sign out of scmjs.dev", enabled: () => account.kind() !== "guest", run: async () => {
+  api.commands.register({ id: "sign-out", title: msg("Sign out of scmjs.dev"), enabled: () => account.kind() !== "guest", run: async () => {
     await account.signOut();
-    api.ui.toast({ kind: "info", title: "Signed out of scmjs.dev" });
+    api.ui.toast({ kind: "info", title: t("Signed out of scmjs.dev") });
   } });
-  api.commands.register({ id: "maps", title: "My Maps on scmjs.dev…", run: ctx.openMaps });
-  api.commands.register({ id: "save", title: "Save to scmjs.dev…", enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
-  api.commands.register({ id: "copy-link", title: "Copy Link to This Map…", enabled: () => api.document.isOpen(), run: () => { openCopyLinkDialog(ctx, links); } });
+  api.commands.register({ id: "maps", title: msg("My Maps on scmjs.dev…"), run: ctx.openMaps });
+  api.commands.register({ id: "save", title: msg("Save to scmjs.dev…"), enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
+  api.commands.register({ id: "copy-link", title: msg("Copy Link to This Map…"), enabled: () => api.document.isOpen(), run: () => { openCopyLinkDialog(ctx, links); } });
   /** The copy link the page was opened with, until it is used: closing its dialog does not lose it. */
   let pageCopy: string | null = null;
   const openCopy = (token: string | null) => openCopyDialog(ctx, token, (used) => { if (used === pageCopy) pageCopy = null; });
-  api.commands.register({ id: "open-link", title: "Open a Map Link…", run: () => { openCopy(pageCopy); } });
+  api.commands.register({ id: "open-link", title: msg("Open a Map Link…"), run: () => { openCopy(pageCopy); } });
 
   /* The Account menu, and the two map items under File too. */
-  api.menu.add("Account", { label: "Sign in to scmjs.dev…", icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
-  api.menu.add("Account", { label: "Account…", icon: "plugin", command: "account" });
-  api.menu.add("Account", { label: "My Maps…", icon: "plugin", command: "maps", separator: true });
-  api.menu.add("Account", { label: "Save to scmjs.dev…", icon: "plugin", command: "save" });
-  api.menu.add("Account", { label: "Copy Link to This Map…", icon: "plugin", command: "copy-link" });
-  api.menu.add("Account", { label: "Open a Map Link…", icon: "plugin", command: "open-link" });
-  api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
-  api.menu.add("File", { label: "Open from scmjs.dev…", icon: "plugin", after: "Open Recent", command: "maps" });
-  api.menu.add("File", { label: "Save to scmjs.dev…", icon: "plugin", after: "Save Copy As…", command: "save" });
+  api.menu.add(msg("Account"), { label: msg("Sign in to scmjs.dev…"), icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
+  api.menu.add(msg("Account"), { label: msg("Account…"), icon: "plugin", command: "account" });
+  api.menu.add(msg("Account"), { label: msg("My Maps…"), icon: "plugin", command: "maps", separator: true });
+  api.menu.add(msg("Account"), { label: msg("Save to scmjs.dev…"), icon: "plugin", command: "save" });
+  api.menu.add(msg("Account"), { label: msg("Copy Link to This Map…"), icon: "plugin", command: "copy-link" });
+  api.menu.add(msg("Account"), { label: msg("Open a Map Link…"), icon: "plugin", command: "open-link" });
+  api.menu.add(msg("Account"), { label: msg("Sign out"), icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
+  api.menu.add("File", { label: msg("Open from scmjs.dev…"), icon: "plugin", after: "Open Recent", command: "maps" });
+  api.menu.add("File", { label: msg("Save to scmjs.dev…"), icon: "plugin", after: "Save Copy As…", command: "save" });
 
   /* Shared maps: two items at the end of the Account menu, the status cell and the pointers while one is shared. */
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
@@ -122,19 +124,19 @@ export function activate(api: PluginApi) {
   let status: StatusItemHandle | null = null;
   const statusText = () => {
     switch (account.kind()) {
-      case "guest": return "Sign in to scmjs.dev";
-      case "trial": { const v = account.current(); return v ? `scmjs.dev trial · ${formatUsd(v.balanceUsd)}` : "scmjs.dev trial"; }
+      case "guest": return t("Sign in to scmjs.dev");
+      case "trial": { const v = account.current(); return v ? t("scmjs.dev trial · {balance}", { balance: formatUsd(v.balanceUsd) }) : t("scmjs.dev trial"); }
       default: { const v = account.current(); return v ? `${v.name ?? "scmjs.dev"}${v.unlimited ? "" : ` · ${formatUsd(v.balanceUsd)}`}` : "scmjs.dev"; }
     }
   };
   const statusTitle = () => {
     const s = account.state();
-    if (s.kind === "guest") return "Not signed in to scmjs.dev. Click to sign in.";
+    if (s.kind === "guest") return t("Not signed in to scmjs.dev. Click to sign in.");
     const v = s.account;
     const lines = [account.summary()];
-    if (v?.resetsAt) lines.push(`Refills ${new Date(v.resetsAt).toLocaleDateString()}`);
-    if (s.storage) lines.push(`${Math.round(s.storage.usedBytes / 1048576)} MB of ${Math.round(s.storage.capBytes / 1048576)} MB of map storage used`);
-    lines.push("Click for your account.");
+    if (v?.resetsAt) lines.push(t("Refills {date}", { date: new Date(v.resetsAt).toLocaleDateString() }));
+    if (s.storage) lines.push(t("{used} MB of {cap} MB of map storage used", { used: Math.round(s.storage.usedBytes / 1048576), cap: Math.round(s.storage.capBytes / 1048576) }));
+    lines.push(t("Click for your account."));
     return lines.join("\n");
   };
   const syncStatus = () => {
@@ -144,6 +146,7 @@ export function activate(api: PluginApi) {
   };
   syncStatus();
   account.onChange(syncStatus);
+  api.events.on("language", syncStatus);
 
   /* The service for other plugins. */
   const provided: Disposable = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
@@ -176,5 +179,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); };
+  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); };
 }

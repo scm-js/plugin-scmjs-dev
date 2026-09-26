@@ -23,13 +23,14 @@
 import type { EditorLayer, FoldElement, OverlayHandle, PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent, AgentMessage, ImageInput } from "../protocol";
 import { ScmjsError, describeError, formatUsd } from "../client";
-import { executeCalls, MAP_CHANGED, type ExecuteHooks } from "./execute";
+import { executeCalls, mapChangedMessage, type ExecuteHooks } from "./execute";
 import { imageInput, mapFacts, selectionLines, shrinkImage } from "./facts";
 import { followBox, footprintEmpty, footprintOf, type Footprint } from "./intent";
 import { renderMarkdown } from "./markdown";
 import { referenceFor } from "./reference";
-import { describeCall, describeStep, didWrite, mayWrite, plural, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
+import { describeCall, describeStep, didWrite, mayWrite, prettyName, reportStep, summarizeResult, tools, type Tool, type ToolResult } from "./tools";
 import { append, h, recipeOptions, styled, taskFor, type Ctx } from "./ui";
+import { msg, t, translate } from "../i18n";
 
 /** Past this many messages the history is trimmed… */
 export const KEEP_MESSAGES = 60;
@@ -144,19 +145,19 @@ export function pruneImages(messages: AgentMessage[], keepLast: number): AgentMe
 /** The prompts offered as chips above the input, by what the person is doing. */
 export function chipsFor(layer: EditorLayer | string, selected: number, triggers: number): { label: string; text: string }[] {
   const chips: { label: string; text: string }[] = [
-    { label: "Describe", text: "Describe this map: what kind of map it is, its layout, players and what the triggers do. Look at a screenshot first." },
-    { label: "Check", text: "Check the map for problems: run the checker, look at the picture, the players and the triggers, and list what you would fix, most important first. Do not change anything yet." },
+    { label: msg("Describe"), text: "Describe this map: what kind of map it is, its layout, players and what the triggers do. Look at a screenshot first." },
+    { label: msg("Check"), text: "Check the map for problems: run the checker, look at the picture, the players and the triggers, and list what you would fix, most important first. Do not change anything yet." },
   ];
-  if (selected > 0) chips.push({ label: "Selection", text: "Tell me about what I have selected." });
+  if (selected > 0) chips.push({ label: msg("Selection"), text: "Tell me about what I have selected." });
   switch (layer) {
-    case "terrain": chips.push({ label: "Terrain", text: "Look at the terrain in view: heights, chokes, dead ends, and what you would change." }); break;
-    case "units": chips.push(selected > 0 ? { label: "Balance", text: "Is this melee map fair? Compare every start location's resources, distances and chokes and say what is uneven." } : { label: "Bases", text: "List the bases: each start location with its mineral count, geysers and the nearest expansion." }); break;
-    case "locations": chips.push({ label: "Locations", text: "List the locations and which triggers use each; point out any that nothing uses." }); break;
-    case "fog": chips.push({ label: "Fog", text: "Which players start with which parts of the map explored? Is it even?" }); break;
+    case "terrain": chips.push({ label: msg("Terrain"), text: "Look at the terrain in view: heights, chokes, dead ends, and what you would change." }); break;
+    case "units": chips.push(selected > 0 ? { label: msg("Balance"), text: "Is this melee map fair? Compare every start location's resources, distances and chokes and say what is uneven." } : { label: msg("Bases"), text: "List the bases: each start location with its mineral count, geysers and the nearest expansion." }); break;
+    case "locations": chips.push({ label: msg("Locations"), text: "List the locations and which triggers use each; point out any that nothing uses." }); break;
+    case "fog": chips.push({ label: msg("Fog"), text: "Which players start with which parts of the map explored? Is it even?" }); break;
     default: break;
   }
-  if (triggers > 0) chips.push({ label: "Triggers", text: "Explain what the triggers do, in play order, briefly." });
-  else chips.push({ label: "Scenario", text: "I want to turn this into a scenario. Read the guide for the genre I name, then propose the players, locations and systems before changing anything." });
+  if (triggers > 0) chips.push({ label: msg("Triggers"), text: "Explain what the triggers do, in play order, briefly." });
+  else chips.push({ label: msg("Scenario"), text: "I want to turn this into a scenario. Read the guide for the genre I name, then propose the players, locations and systems before changing anything." });
   return chips;
 }
 
@@ -268,7 +269,7 @@ export function groupTurns(messages: AgentMessage[]): ReplayTurn[] {
 
 type Phase = "idle" | "waiting" | "thinking" | "writing" | "tools" | "stopped" | "failed";
 
-const PHASE_LABELS: Record<Phase, string> = { idle: "Ready", waiting: "Waiting for the model", thinking: "Thinking", writing: "Writing", tools: "Working on the map", stopped: "Stopped", failed: "Failed" };
+const PHASE_LABELS: Record<Phase, string> = { idle: msg("Ready"), waiting: msg("Waiting for the model"), thinking: msg("Thinking"), writing: msg("Writing"), tools: msg("Working on the map"), stopped: msg("Stopped"), failed: msg("Failed") };
 
 /** Whether a message content item is a turn's own text (not tool traffic). */
 const isText = (c: AgentContent): c is Extract<AgentContent, { type: "text" }> => c.type === "text";
@@ -277,7 +278,7 @@ const isText = (c: AgentContent): c is Extract<AgentContent, { type: "text" }> =
 function intentOverlay(api: PluginApi): { handle: OverlayHandle; show(f: Footprint | null): void } {
   let footprint: Footprint | null = null;
   const handle = api.ui.overlay({
-    name: "AI activity",
+    name: msg("AI activity"),
     above: "objects",
     visible: true,
     draw(ctx, view) {
@@ -307,16 +308,16 @@ function intentOverlay(api: PluginApi): { handle: OverlayHandle; show(f: Footpri
 
 /** The panel's title: which map the conversation is about. */
 export function panelTitle(info: { name: string; fileName: string | null } | null): string {
-  if (!info) return "AI Assistant";
-  const name = info.name.trim() || info.fileName || "untitled map";
-  return `AI Assistant · ${name}`;
+  if (!info) return t("AI Assistant");
+  const name = info.name.trim() || info.fileName || t("untitled map");
+  return t("AI Assistant · {name}", { name });
 }
 
 export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
   const { api } = ctx;
   const w = api.ui.widgets;
   const toolList = tools();
-  const byName = new Map(toolList.map((t) => [t.def.name, t]));
+  const byName = new Map(toolList.map((tool) => [tool.def.name, tool]));
   let running: AbortController | null = null;
   /** The turn under way, to wait for before the panel changes over to another map. */
   let turnUnderWay: Promise<void> | null = null;
@@ -337,25 +338,25 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       const intent = intentOverlay(api);
 
       /* ── the state strip ── */
-      const phaseLabel = h("span", { className: "ai-phase" }, "Ready");
+      const phaseLabel = h("span", { className: "ai-phase" }, translate(PHASE_LABELS.idle));
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
       const clock = h("span", { className: "ai-dim ai-mono" }, "");
-      const cost = h("span", { className: "ai-pill", title: "What this panel has cost · what the session has cost" }, "");
+      const cost = h("span", { className: "ai-pill", title: t("What this panel has cost · what the session has cost") }, "");
       const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock, cost));
       let phase: Phase = "idle";
       let startedAt = 0;
       let clockTimer: number | null = null;
-      const setCost = () => { cost.textContent = state.spent ? `${formatUsd(state.spent)} here · ${formatUsd(ctx.ledger.totals.costUsd)} session` : ctx.ledger.totals.calls ? `${formatUsd(ctx.ledger.totals.costUsd)} session` : ""; };
-      const tickClock = () => { clock.textContent = startedAt ? `${Math.round((Date.now() - startedAt) / 1000)} s` : ""; };
+      const setCost = () => { cost.textContent = state.spent ? t("{here} here · {session} session", { here: formatUsd(state.spent), session: formatUsd(ctx.ledger.totals.costUsd) }) : ctx.ledger.totals.calls ? t("{session} session", { session: formatUsd(ctx.ledger.totals.costUsd) }) : ""; };
+      const tickClock = () => { clock.textContent = startedAt ? t("{s} s", { s: Math.round((Date.now() - startedAt) / 1000) }) : ""; };
       const setPhase = (next: Phase, detail = "") => {
         phase = next;
         strip.className = `ai-state is-${next}`;
-        phaseLabel.textContent = PHASE_LABELS[next];
+        phaseLabel.textContent = translate(PHASE_LABELS[next]);
         phaseDetail.textContent = detail;
         const busy = next === "waiting" || next === "thinking" || next === "writing" || next === "tools";
         if (busy && clockTimer === null) { tickClock(); clockTimer = window.setInterval(tickClock, 1000); }
         if (!busy && clockTimer !== null) { window.clearInterval(clockTimer); clockTimer = null; clock.textContent = ""; }
-        ctx.presence?.set({ text: busy ? `AI · ${PHASE_LABELS[next].toLowerCase()}${detail ? ` · ${detail}` : ""}` : state.spent ? `AI · ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
+        ctx.presence?.set({ text: busy ? (detail ? t("AI · {phase} · {detail}", { phase: translate(PHASE_LABELS[next]).toLowerCase(), detail }) : t("AI · {phase}", { phase: translate(PHASE_LABELS[next]).toLowerCase() })) : state.spent ? `AI · ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
         setCost();
       };
       setCost();
@@ -365,7 +366,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       // put, with a button back to the latest.
       const chat = h("div", { className: "ai-chat" });
       let pinned = true;
-      const jump = w.button("Jump to latest", { ghost: true, onClick: () => { pinned = true; chat.scrollTop = chat.scrollHeight; jump.hidden = true; } });
+      const jump = w.button(t("Jump to latest"), { ghost: true, onClick: () => { pinned = true; chat.scrollTop = chat.scrollHeight; jump.hidden = true; } });
       jump.classList.add("ai-jump");
       jump.hidden = true;
       chat.addEventListener("scroll", () => { pinned = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 24; jump.hidden = pinned; });
@@ -380,7 +381,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
        * — steps, edits, failures, seconds, cost, an Undo — when the turn ends.
        */
       const activity = () => {
-        const block = w.fold({ open: true, busy: true, text: "Working…" });
+        const block = w.fold({ open: true, busy: true, text: t("Working…") });
         block.classList.add("ai-act");
         const steps = w.steps({ tail: 3 });
         steps.running(true);
@@ -397,10 +398,10 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           const start = (input: Record<string, unknown>) => {
             const text = describeStep(tool, name, input, ctx);
             row.set(text, describeCall(name, input));
-            live(`Step ${n} · ${text}`);
+            live(t("Step {n} · {text}", { n, text }));
             return text;
           };
-          live(`Step ${n} · ${row.element.querySelector(".step-label")?.textContent ?? ""}`);
+          live(t("Step {n} · {text}", { n, text: row.element.querySelector(".step-label")?.textContent ?? "" }));
           scroll();
           return {
             row, start,
@@ -409,14 +410,14 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
               row.done(rep ? `→ ${rep}` : "");
               row.element.title += `\n→ ${summarizeResult(out)}`;
               if (typeof out !== "string" && out.image) {
-                const shot = h("button", { type: "button", className: "ai-act-shot", title: "Click to enlarge" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" }));
+                const shot = h("button", { type: "button", className: "ai-act-shot", title: t("Click to enlarge") }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: t("screenshot") }));
                 shot.addEventListener("click", () => shot.classList.toggle("is-open"));
                 row.append(shot);
               }
               scroll();
             },
             fail(message: string) { failed++; row.fail(`✗ ${message}`); row.element.title += `\n✗ ${message}`; scroll(); },
-            skip(reason = "not called") { row.skip(reason); row.element.title = reason === "not called" ? "The model named this tool but did not call it." : reason; },
+            skip(reason?: string) { row.skip(reason ?? t("not called")); row.element.title = reason ?? t("The model named this tool but did not call it."); },
           };
         };
         return {
@@ -430,7 +431,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           /** Reasoning, streamed into one fold for the whole turn (never its signature). */
           think(text: string) {
             if (!text || !ctx.settings().showThinking) return;
-            if (!think) { think = w.fold({ text: "Reasoning" }); think.classList.add("ai-act-think"); block.body.insertBefore(think, steps); }
+            if (!think) { think = w.fold({ text: t("Reasoning") }); think.classList.add("ai-act-think"); block.body.insertBefore(think, steps); }
             think.body.append(document.createTextNode(text));
             scroll();
           },
@@ -441,13 +442,13 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             block.open = false;
             if (steps.size() === 0 && !think) { block.remove(); return; }
             const parts: (string | HTMLElement)[] = [];
-            if (o.stopped) parts.push("Stopped");
+            if (o.stopped) parts.push(t("Stopped"));
             const count = steps.count();
-            if (count) parts.push(plural(count, "step")); else if (think) parts.push("Thought");
-            if (o.edits) parts.push(plural(o.edits, "edit"));
-            if (o.settings) parts.push(`${plural(o.settings, "settings change")} (not undoable)`);
-            if (failed) parts.push(h("span", { className: "error" }, `${failed} failed`));
-            if (o.secs !== undefined) parts.push(`${o.secs} s`);
+            if (count) parts.push(t("{n, plural, one {# step} other {# steps}}", { n: count })); else if (think) parts.push(t("Thought"));
+            if (o.edits) parts.push(t("{n, plural, one {# edit} other {# edits}}", { n: o.edits }));
+            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}} (not undoable)", { n: o.settings }));
+            if (failed) parts.push(h("span", { className: "error" }, t("{n} failed", { n: failed })));
+            if (o.secs !== undefined) parts.push(t("{s} s", { s: o.secs }));
             if (o.cost) parts.push(formatUsd(o.cost));
             block.mark(failed ? "✗" : "✓", failed ? "error" : "ok");
             block.set(...parts.flatMap((p, i) => (i ? [" · ", p] : [p])));
@@ -461,13 +462,14 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       /* ── what the model sees, and the chips ── */
       const context = h("div", { className: "ai-context" });
       const chipRow = h("div", { className: "ai-chips" });
-      const input = h("textarea", { rows: 3, placeholder: "Ask about the map, or say what to change. Enter sends, Shift+Enter for a new line, Esc stops." });
+      const placeholder = () => t("Ask about the map, or say what to change. Enter sends, Shift+Enter for a new line, Esc stops.");
+      const input = h("textarea", { rows: 3, placeholder: placeholder() });
       const refreshContext = () => {
         const open = api.document.isOpen();
         const lines = open ? selectionLines(api) : [];
-        context.replaceChildren(h("span", { className: "ai-dim" }, lines.length ? `The model sees: ${lines.join(" · ")}` : "The model sees the map's state, your selection and the view with every message."));
+        context.replaceChildren(h("span", { className: "ai-dim" }, lines.length ? t("The model sees: {list}", { list: lines.join(" · ") }) : t("The model sees the map's state, your selection and the view with every message.")));
         const selected = open ? api.selection.units().length + api.selection.locations().length + api.selection.sprites().length + api.selection.doodads().length + (api.selection.markedArea() ? 1 : 0) : 0;
-        chipRow.replaceChildren(...chipsFor(open ? api.selection.layer() : "terrain", selected, open ? api.triggers.list().length : 0).map((q) => h("button", { type: "button", className: "ai-chip", title: q.text, onClick: () => { input.value = q.text; input.focus(); } }, q.label)));
+        chipRow.replaceChildren(...chipsFor(open ? api.selection.layer() : "terrain", selected, open ? api.triggers.list().length : 0).map((q) => h("button", { type: "button", className: "ai-chip", title: q.text, onClick: () => { input.value = q.text; input.focus(); } }, translate(q.label))));
       };
       refreshContext();
       // Following: the view glides to each call's spot while a turn runs, unless the user
@@ -477,11 +479,11 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       // Each turn's Undo button, with the history as the turn left it: a button whose
       // history has moved on (an edit, an undo) would undo the wrong thing, so it goes grey.
       const undoButtons: { button: HTMLButtonElement; after: ReturnType<PluginApi["document"]["history"]> }[] = [];
-      const STALE_UNDO = "Other edits came after this turn's; undo them first, from the Edit menu.";
+      const staleUndo = () => t("Other edits came after this turn's; undo them first, from the Edit menu.");
       const refreshUndo = () => {
         if (!api.document.isOpen()) return;
         const now = api.document.history();
-        for (const u of undoButtons) if (!u.button.disabled && !undoStillApplies(u.after, now)) { u.button.disabled = true; u.button.title = STALE_UNDO; }
+        for (const u of undoButtons) if (!u.button.disabled && !undoStillApplies(u.after, now)) { u.button.disabled = true; u.button.title = staleUndo(); }
       };
       /**
        * Another map came in front (or the one shown closed): the panel changes over to
@@ -505,49 +507,49 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           replay();
           setPhase("idle");
           handle.setTitle(panelTitle(api.document.info()));
-          if (state.prefill) { const t = state.prefill; state.prefill = undefined; askLater?.(t); }
+          if (state.prefill) { const text = state.prefill; state.prefill = undefined; askLater?.(text); }
         });
       };
       const offs = [api.events.on("selection", refreshContext), api.events.on("clipboard", refreshContext), api.events.on("document", () => { refreshContext(); refreshUndo(); changeOver(); }), api.events.on("layer", refreshContext), api.events.on("triggers", refreshContext),
         api.events.on("view", () => { if (following && !revealing && !toolRunning) following = false; })];
 
       /* ── buttons ── */
-      const send = w.button("Send", { primary: true, onClick: () => void submit() });
-      const stop = w.button("Stop", { ghost: true, onClick: () => running?.abort() });
+      const send = w.button(t("Send"), { primary: true, onClick: () => void submit() });
+      const stop = w.button(t("Stop"), { ghost: true, onClick: () => running?.abort() });
       stop.hidden = true;
-      const more = w.button("Continue", { onClick: () => void submit("Continue.") });
+      const more = w.button(t("Continue"), { onClick: () => void submit("Continue.") });
       more.hidden = true;
-      const clearButton = w.button("Clear", { ghost: true, title: "Forget the conversation", onClick: () => { state.messages = []; state.conversation = undefined; state.turn = 0; state.continueOffered = false; chat.replaceChildren(); more.hidden = true; setPhase("idle"); } });
-      const copyButton = w.button("Copy", { ghost: true, title: "Copy the transcript as text", onClick: () => { void navigator.clipboard?.writeText(transcript()).then(() => { phaseDetail.textContent = "Transcript copied."; }); } });
-      const attach = w.checkbox("Picture", { value: ctx.settings().attachView, title: "Send a picture of the visible area with the message" });
+      const clearButton = w.button(t("Clear"), { ghost: true, title: t("Forget the conversation"), onClick: () => { state.messages = []; state.conversation = undefined; state.turn = 0; state.continueOffered = false; chat.replaceChildren(); more.hidden = true; setPhase("idle"); } });
+      const copyButton = w.button(t("Copy"), { ghost: true, title: t("Copy the transcript as text"), onClick: () => { void navigator.clipboard?.writeText(transcript()).then(() => { phaseDetail.textContent = t("Transcript copied."); }); } });
+      const attach = w.checkbox(t("Picture"), { value: ctx.settings().attachView, title: t("Send a picture of the visible area with the message") });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void submit(); }
         if (e.key === "Escape" && running) { e.preventDefault(); running.abort(); }
       });
       root.addEventListener("keydown", (e) => { if (e.key === "Escape" && running && e.target !== input) { e.preventDefault(); running.abort(); } });
 
-      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c) => `${m.role === "user" ? "You" : "Assistant"}: ${c.text}`).join("\n")).filter(Boolean).join("\n\n");
+      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c) => (m.role === "user" ? t("You: {text}", { text: c.text }) : t("Assistant: {text}", { text: c.text }))).join("\n")).filter(Boolean).join("\n\n");
 
       // Replay what the conversation holds, a block per turn.
       const replay = () => {
         chat.replaceChildren();
         pinned = true;
-        for (const t of groupTurns(state.messages)) {
-          for (const u of t.user) addUser(u);
+        for (const turn of groupTurns(state.messages)) {
+          for (const u of turn.user) addUser(u);
           const act = activity();
           let edits = 0, settingsWrites = 0;
-          for (const s of t.steps) {
+          for (const s of turn.steps) {
             if (s.kind === "thinking") act.think(s.text);
             else if (s.kind === "narration") act.note(s.text);
             else {
               const tool = byName.get(s.name);
               const row = act.step(tool, s.name, s.input);
-              if (s.failed) row.fail(s.result ?? "failed");
-              else { row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done."); if (didWrite(tool, s.input, s.result ?? "")) { if (tool?.settings) settingsWrites++; else edits++; } }
+              if (s.failed) row.fail(s.result ?? t("failed"));
+              else { row.done(s.image ? { text: s.result, image: s.image } : s.result ?? t("Done.")); if (didWrite(tool, s.input, s.result ?? "")) { if (tool?.settings) settingsWrites++; else edits++; } }
             }
           }
           act.finish({ edits, settings: settingsWrites });
-          if (t.answer) addAssistant(t.answer);
+          if (turn.answer) addAssistant(turn.answer);
         }
         setCost();
       };
@@ -613,7 +615,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       const runTurn = async (preset?: string) => {
         const text = (preset ?? input.value).trim();
         if (!text || running) return;
-        if (!api.document.isOpen()) { setPhase("failed", "Open a map first."); return; }
+        if (!api.document.isOpen()) { setPhase("failed", t("Open a map first.")); return; }
         // The conversation this turn belongs to, whatever map the panel shows by the time it ends.
         const conv = state;
         if (!preset) input.value = "";
@@ -638,7 +640,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             send.setBusy(false);
             stop.hidden = true;
             if (api.document.id() === turnDoc) input.value = text; else conv.prefill = text;
-            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? "Stopped before anything was sent." : MAP_CHANGED));
+            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? t("Stopped before anything was sent.") : mapChangedMessage()));
             return;
           }
           if (picture) {
@@ -665,13 +667,13 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
           const secs = Math.round((Date.now() - startedAt) / 1000);
           const after = api.document.history();
           const undoSteps = api.document.id() === turnDoc ? Math.max(0, after.undoDepth - historyBefore) : 0;
-          const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+          const undo = undoSteps > 0 ? w.button(t("{n, plural, one {Undo it} other {Undo these #}}", { n: undoSteps }), { ghost: true, title: t("Undo the edits this turn made, newest first"), onClick: (e) => {
             const button = e.currentTarget as HTMLButtonElement;
-            if (!undoStillApplies(after, api.document.history())) { button.disabled = true; button.title = STALE_UNDO; phaseDetail.textContent = STALE_UNDO; return; }
+            if (!undoStillApplies(after, api.document.history())) { button.disabled = true; button.title = staleUndo(); phaseDetail.textContent = staleUndo(); return; }
             let count = 0;
             for (let i = 0; i < undoSteps; i++) { const label = api.document.history().undo; if (!label || !label.startsWith("AI:")) break; if (!api.document.undo()) break; count++; }
             button.disabled = true;
-            phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+            phaseDetail.textContent = t("{n, plural, one {Undid # edit.} other {Undid # edits.}}", { n: count });
             refreshUndo();
           } }) : null;
           refreshUndo();
@@ -680,8 +682,8 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
         };
         try {
           for (let round = 0; round < maxRounds; round++) {
-            setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
-            if (round > 0) act.live(`${plural(act.count(), "step")} so far · ${task ? `${formatUsd(turnCost)} of ${formatUsd(task.ceilingUsd)}` : formatUsd(turnCost)} · waiting for the model`);
+            setPhase("waiting", round === 0 ? "" : t("round {n}", { n: round + 1 }));
+            if (round > 0) act.live(t("{n, plural, one {# step} other {# steps}} so far · {cost} · waiting for the model", { n: act.count(), cost: task ? t("{spent} of {ceiling}", { spent: formatUsd(turnCost), ceiling: formatUsd(task.ceilingUsd) }) : formatUsd(turnCost) }));
             // What streams in: the words into a message that grows, the reasoning into the
             // turn's fold, tool starts into pending steps. The words are the answer until the
             // round turns out to call tools, when they become a note in the block instead.
@@ -698,15 +700,15 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             conv.turn = turn + 1;
             const r = await ctx.client.run("agent", {
               messages: conv.messages,
-              tools: toolList.map((t) => t.def),
+              tools: toolList.map((tool) => tool.def),
               facts: mapFacts(api, { triggers: false, assistant: true }),
               reference: referenceFor(api),
             }, {
               signal: running.signal,
-              onThinking: (t) => { if (phase === "waiting") setPhase("thinking"); act.think(t); },
-              onDelta: (t) => {
+              onThinking: (x) => { if (phase === "waiting") setPhase("thinking"); act.think(x); },
+              onDelta: (x) => {
                 if (phase !== "writing") setPhase("writing");
-                streamed += t;
+                streamed += x;
                 if (!stream.el) { stream.el = h("div", { className: "ai-msg is-assistant" }); chat.append(stream.el); }
                 if (!renderQueued) { renderQueued = true; requestAnimationFrame(paint); }
               },
@@ -727,7 +729,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             if (continues) { stream.el?.remove(); if (finalText) act.note(finalText, roundStart); }
             else if (stream.el) { if (finalText) stream.el.replaceChildren(renderMarkdown(finalText)); else stream.el.remove(); }
             else if (finalText) addAssistant(finalText);
-            if (r.output.stopReason === "refusal") { setPhase("failed", "The model declined."); break; }
+            if (r.output.stopReason === "refusal") { setPhase("failed", t("The model declined.")); break; }
             // The answer hit the output limit: what is there stands, but it is not the end of the work.
             if (r.output.stopReason === "max_tokens" && !continues) { cutOff = true; break; }
             if (!continues) break;
@@ -740,19 +742,19 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             settingsWrites.push(...batch.settingsWrites);
             conv.messages.push({ role: "user", content: batch.results });
             if (batch.stopped) throw new ScmjsError("aborted", "Stopped.");
-            if (batch.mapChanged) throw new Error(MAP_CHANGED);
+            if (batch.mapChanged) throw new Error(mapChangedMessage());
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1000);
-          if (stoppedAtLimit) { setPhase("stopped", `after ${maxRounds} rounds of tool calls; Tools ▸ AI ▸ Options… sets the limit`); more.hidden = false; conv.continueOffered = true; }
-          else if (cutOff) { setPhase("stopped", "the answer was cut off at the output limit; Continue picks it up"); more.hidden = false; conv.continueOffered = true; }
-          else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
+          if (stoppedAtLimit) { setPhase("stopped", t("after {n} rounds of tool calls; Tools ▸ AI ▸ Options… sets the limit", { n: maxRounds })); more.hidden = false; conv.continueOffered = true; }
+          else if (cutOff) { setPhase("stopped", t("the answer was cut off at the output limit; Continue picks it up")); more.hidden = false; conv.continueOffered = true; }
+          else if (phase !== "failed") setPhase("idle", t("Done in {s} s", { s: secs }));
           finishActivity(stoppedAtLimit || cutOff);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           // The ceiling is a stop like the round limit, not a failure: the edits stand and Continue grants as much again.
           stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
-          if (stoppedAtCeiling) { setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); Tools ▸ AI ▸ Options… sets it`); more.hidden = false; conv.continueOffered = true; }
+          if (stoppedAtCeiling) { setPhase("stopped", t("at the {ceiling} ceiling for one message ({spent} spent); Tools ▸ AI ▸ Options… sets it", { ceiling: formatUsd(task?.ceilingUsd ?? 0), spent: formatUsd(turnCost) })); more.hidden = false; conv.continueOffered = true; }
           else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
           // A tab switch stopped the turn before the model had answered: the question is
           // not lost with the unanswered brief — it waits in the input for when the map
@@ -781,8 +783,30 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
         h("div", { className: "ai-btns" }, send, stop, more, attach, h("span", { style: "flex: 1" }), copyButton, clearButton),
       ]);
       more.hidden = !state.continueOffered;
+      /* A change of language: the panel's own words again; the conversation stays as it was written. */
+      const setLabel = (el: HTMLElement, text: string) => { const node = [...el.childNodes].reverse().find((n) => n.nodeType === Node.TEXT_NODE); if (node) node.textContent = text; else el.append(text); };
+      const relabel = () => {
+        handle.setTitle(panelTitle(api.document.info()));
+        setPhase(phase, phaseDetail.textContent ?? "");
+        cost.title = t("What this panel has cost · what the session has cost");
+        input.placeholder = placeholder();
+        refreshContext();
+        setLabel(jump, t("Jump to latest"));
+        setLabel(send, t("Send"));
+        setLabel(stop, t("Stop"));
+        setLabel(more, t("Continue"));
+        setLabel(clearButton, t("Clear"));
+        clearButton.title = t("Forget the conversation");
+        setLabel(copyButton, t("Copy"));
+        copyButton.title = t("Copy the transcript as text");
+        const box = attach.querySelector("span");
+        if (box) box.textContent = t("Picture");
+        attach.title = t("Send a picture of the visible area with the message");
+        for (const u of undoButtons) if (u.button.disabled) u.button.title = staleUndo();
+      };
+      offs.push(api.events.on("language", relabel));
       askLater = (text, sendNow) => { input.value = text; input.focus(); if (sendNow) void submit(); };
-      if (state.prefill) { const t = state.prefill; state.prefill = undefined; askLater(t); }
+      if (state.prefill) { const text = state.prefill; state.prefill = undefined; askLater(text); }
       else input.focus();
       return () => {
         running?.abort();

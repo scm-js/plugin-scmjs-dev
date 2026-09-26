@@ -10,6 +10,7 @@ import type { PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent } from "../protocol";
 import { didWrite, isFailure, toContent, type Tool, type ToolResult } from "./tools/common";
 import type { Ctx } from "./ui";
+import { t } from "../i18n";
 
 export type ToolCall = Extract<AgentContent, { type: "tool_use" }>;
 
@@ -48,6 +49,8 @@ export interface ExecuteOutcome {
 
 /** What a tool call answers when another map came in front during the turn. */
 export const MAP_CHANGED = "the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on";
+/** `MAP_CHANGED` for the screen, in the editor's language; the constant stays English for the model. */
+export const mapChangedMessage = () => t("the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on");
 export const STOPPED = "Not run: the turn was stopped.";
 
 export async function executeCalls(calls: ToolCall[], deps: ExecuteDeps, hooks: ExecuteHooks = {}): Promise<ExecuteOutcome> {

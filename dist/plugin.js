@@ -6,6 +6,1090 @@ var ROOM_PROTOCOL = 1;
 var MAP_PLAN_PROMPT_MAX = 12e3;
 var SYMMETRY_MODES = ["none", "mirror-x", "mirror-y", "rot180", "rot90", "diag", "antidiag", "quad", "octo"];
 
+// ko.ts
+var KO = {
+  " \xB7 you are in it": " \xB7 \uCC38\uC5EC \uC911",
+  "(no description)": "(\uC124\uBA85 \uC5C6\uC74C)",
+  "(picture)": "(\uADF8\uB9BC)",
+  "({credit} of it credit)": "(\uC774 \uC911 \uD06C\uB808\uB527 {credit})",
+  "A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one.": "\uB3C4\uAD6C \uB77C\uC6B4\uB4DC\uB97C \uD3EC\uD568\uD55C \uBA54\uC2DC\uC9C0 \uD558\uB098, \uADF8\uB9AC\uACE0 \uC124\uACC4\uB098 \uBE4C\uB4DC \uD558\uB098\uC5D0 \uAC70\uB294 \uD55C\uB3C4\uC785\uB2C8\uB2E4. \uD55C\uB3C4\uC5D0 \uB2FF\uC73C\uBA74 \uADF8\uB54C\uAE4C\uC9C0 \uD3B8\uC9D1\uD55C \uB9F5 \uADF8\uB300\uB85C \uC791\uC5C5\uC774 \uBA48\uCD94\uACE0, \uC5B4\uC2DC\uC2A4\uD134\uD2B8\uB294 \uAC19\uC740 \uAE08\uC561\uB9CC\uD07C \uB354 \uACC4\uC18D\uD560\uC9C0 \uBB3B\uACE0, \uBE4C\uB4DC\uB294 \uC5B4\uB290 \uB2E8\uACC4\uC5D0\uC11C \uBA48\uCDC4\uB294\uC9C0 \uC54C\uB824 \uC90D\uB2C8\uB2E4. 0\uC774\uBA74 \uD55C\uB3C4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA54\uC2DC\uC9C0 \uD558\uB098\uB294 \uBCF4\uD1B5 $0.10\u20130.30, \uBE4C\uB4DC \uD558\uB098\uB294 $0.50\u20131.00\uC774 \uB4ED\uB2C8\uB2E4. \uD55C\uB3C4\uB294 \uC11C\uBC84\uAC00 \uC9C0\uD0A4\uBBC0\uB85C \uB9C8\uC9C0\uB9C9 \uD638\uCD9C\uC774 \uD55C\uB3C4\uB97C \uC870\uAE08 \uB118\uC744 \uC218\uB294 \uC788\uC9C0\uB9CC \uD638\uCD9C \uD558\uB098\uAC00 \uD1B5\uC9F8\uB85C \uB354 \uBD99\uC9C0\uB294 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "A change could not be shared ({message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.": "\uBCC0\uACBD\uC744 \uACF5\uC720\uD558\uC9C0 \uBABB\uD574 ({message}) \uC774 \uC0AC\uBCF8\uC774 \uB2E4\uB978 \uC0AC\uB78C\uB4E4\uC758 \uAC83\uACFC \uB354 \uC774\uC0C1 \uAC19\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "A copy of the map: anyone can open their own": "\uB9F5 \uC0AC\uBCF8: \uB204\uAD6C\uB098 \uC790\uAE30 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC74C",
+  "A free trial of {amount} needs no sign-in.": "{amount} \uBB34\uB8CC \uCCB4\uD5D8\uC740 \uB85C\uADF8\uC778\uC774 \uD544\uC694 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "A link opens a map kept on your scmjs.dev account, so making one takes an account. The people who open it need only the link.": "\uB9C1\uD06C\uB294 scmjs.dev \uACC4\uC815\uC5D0 \uBCF4\uAD00\uB41C \uB9F5\uC744 \uC5EC\uB294 \uAC83\uC774\uB77C \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uB824\uBA74 \uACC4\uC815\uC774 \uC788\uC5B4\uC57C \uD569\uB2C8\uB2E4. \uB9C1\uD06C\uB97C \uC5EC\uB294 \uC0AC\uB78C\uC740 \uB9C1\uD06C\uB9CC \uC788\uC73C\uBA74 \uB429\uB2C8\uB2E4.",
+  "A map is being shared already, or no map is open.": "\uC774\uBBF8 \uACF5\uC720 \uC911\uC778 \uB9F5\uC774 \uC788\uAC70\uB098 \uC5F4\uB9B0 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "A map keeps its last revision; delete the map to remove it.": "\uB9F5\uC5D0\uB294 \uB9C8\uC9C0\uB9C9 \uBC84\uC804\uC774 \uB0A8\uC544 \uC788\uC5B4\uC57C \uD569\uB2C8\uB2E4. \uC9C0\uC6B0\uB824\uBA74 \uB9F5\uC744 \uC0AD\uC81C\uD558\uC138\uC694.",
+  "A new blank map of this size and tileset is made first, so the model can be told which terrains it has. An open map with unsaved changes asks before it goes.": "\uBAA8\uB378\uC5D0\uAC8C \uC5B4\uB5A4 \uC9C0\uD615\uC774 \uC788\uB294\uC9C0 \uC54C\uB824 \uC904 \uC218 \uC788\uB3C4\uB85D \uC774 \uD06C\uAE30\uC640 \uD0C0\uC77C\uC14B\uC758 \uBE48 \uB9F5\uC744 \uBA3C\uC800 \uB9CC\uB4ED\uB2C8\uB2E4. \uC800\uC7A5\uD558\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC774 \uC788\uB294 \uC5F4\uB9B0 \uB9F5\uC740 \uB2EB\uAE30 \uC804\uC5D0 \uBB3B\uC2B5\uB2C8\uB2E4.",
+  "A new blank map of this size and tileset is made first. An open map with unsaved changes asks before it goes.": "\uC774 \uD06C\uAE30\uC640 \uD0C0\uC77C\uC14B\uC758 \uBE48 \uB9F5\uC744 \uBA3C\uC800 \uB9CC\uB4ED\uB2C8\uB2E4. \uC800\uC7A5\uD558\uC9C0 \uC54A\uC740 \uBCC0\uACBD\uC774 \uC788\uB294 \uC5F4\uB9B0 \uB9F5\uC740 \uB2EB\uAE30 \uC804\uC5D0 \uBB3B\uC2B5\uB2C8\uB2E4.",
+  "A new map": "\uC0C8 \uB9F5",
+  "A picture of the map that links to it, for a forum, a README or a website": "\uB9F5\uC73C\uB85C \uC5F0\uACB0\uB418\uB294 \uB9F5 \uADF8\uB9BC. \uD3EC\uB7FC, README, \uC6F9\uC0AC\uC774\uD2B8\uC5D0 \uBD99\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4",
+  "A picture of the map that opens this link, for a forum, a README or a website": "\uC774 \uB9C1\uD06C\uB97C \uC5EC\uB294 \uB9F5 \uADF8\uB9BC \u2014 \uD3EC\uB7FC, README, \uC6F9\uC0AC\uC774\uD2B8\uC6A9",
+  "A picture of \u201C{name}\u201D that links to it, for a forum post or signature, a README or a website. The picture shows the map, its name, who shared it, its size and players.": "\u201C{name}\u201D \uB9F5\uC73C\uB85C \uC5F0\uACB0\uB418\uB294 \uADF8\uB9BC\uC785\uB2C8\uB2E4. \uD3EC\uB7FC \uAE00\uC774\uB098 \uC11C\uBA85, README, \uC6F9\uC0AC\uC774\uD2B8\uC5D0 \uBD99\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uADF8\uB9BC\uC5D0\uB294 \uB9F5\uACFC \uC774\uB984, \uACF5\uC720\uD55C \uC0AC\uB78C, \uD06C\uAE30\uC640 \uD50C\uB808\uC774\uC5B4 \uC218\uAC00 \uB098\uC635\uB2C8\uB2E4.",
+  "A question, or leave empty for a walkthrough of what happens in play.": "\uC9C8\uBB38\uC744 \uC801\uAC70\uB098, \uBE44\uC6CC \uB450\uBA74 \uAC8C\uC784\uC5D0\uC11C \uC77C\uC5B4\uB098\uB294 \uC77C\uC744 \uCC28\uB840\uB85C \uC124\uBA85\uD569\uB2C8\uB2E4.",
+  "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens.": "\uB77C\uC6B4\uB4DC\uB294 \uBAA8\uB378\uC758 \uB2F5 \uD558\uB098\uC640 \uADF8 \uB2F5\uC774 \uC694\uCCAD\uD55C \uB3C4\uAD6C \uD638\uCD9C\uC785\uB2C8\uB2E4. \uC5B4\uC2DC\uC2A4\uD134\uD2B8\uB294 \uD55C\uB3C4\uC5D0\uC11C \uBA48\uCD94\uACE0 \uACC4\uC18D\uD560\uC9C0 \uBB3B\uC2B5\uB2C8\uB2E4. \uADF8\uB9BC\uC740 \uBCF4\uB0BC \uB54C\uB9C8\uB2E4 \uD14D\uC2A4\uD2B8 \uD55C \uCABD \uC815\uB3C4\uC758 \uBE44\uC6A9\uC774 \uB4ED\uB2C8\uB2E4. \uB530\uB77C\uAC00\uAE30\uB294 \uD654\uBA74\uC744 \uAC01 \uD638\uCD9C\uC758 \uC704\uCE58\uB85C \uC62E\uAE30\uACE0, \uADF8 \uC704\uCE58\uAC00 \uD654\uBA74\uBCF4\uB2E4 \uD06C\uBA74 \uCD95\uC18C\uD569\uB2C8\uB2E4(\uD655\uB300\uB294 \uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4). \uCC28\uB840 \uB3C4\uC911\uC5D0 \uC9C1\uC811 \uC2A4\uD06C\uB864\uD558\uAC70\uB098 \uD655\uB300/\uCD95\uC18C\uD558\uBA74 \uB2E4\uC74C \uCC28\uB840\uAE4C\uC9C0 \uB530\uB77C\uAC00\uAE30\uAC00 \uBA48\uCDA5\uB2C8\uB2E4. \uB3C4\uD0B9 \uC124\uC815\uC740 \uB2E4\uC74C\uC5D0 \uC5B4\uC2DC\uC2A4\uD134\uD2B8\uB97C \uC5F4 \uB54C \uC801\uC6A9\uB429\uB2C8\uB2E4.",
+  "A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps.": "\uCCB4\uD5D8\uC740 \uBE0C\uB77C\uC6B0\uC800 \uD558\uB098\uC5D0\uC11C \uD55C \uBC88\uB9CC \uB429\uB2C8\uB2E4. \uB85C\uADF8\uC778\uD558\uBA74 \uB0A8\uC740 \uC794\uC561\uC744 \uC720\uC9C0\uD558\uACE0, \uB85C\uADF8\uC778 \uD06C\uB808\uB527\uC744 \uBC1B\uACE0, \uB9F5\uC744 \uBCF4\uAD00\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "AI Assistant": "AI \uC5B4\uC2DC\uC2A4\uD134\uD2B8",
+  "AI Assistant (Ctrl+Shift+A)": "AI \uC5B4\uC2DC\uC2A4\uD134\uD2B8 (Ctrl+Shift+A)",
+  "AI Assistant \xB7 {name}": "AI \uC5B4\uC2DC\uC2A4\uD134\uD2B8 \xB7 {name}",
+  "AI activity": "AI \uC791\uC5C5",
+  "AI features": "AI \uAE30\uB2A5",
+  "AI \xB7 {phase}": "AI \xB7 {phase}",
+  "AI \xB7 {phase} \xB7 {detail}": "AI \xB7 {phase} \xB7 {detail}",
+  "AI: Ask about this": "AI: \uC774\uAC83\uC5D0 \uB300\uD574 \uBB3B\uAE30",
+  "AI: Assistant": "AI: \uC5B4\uC2DC\uC2A4\uD134\uD2B8",
+  "AI: Generate Map": "AI: \uB9F5 \uC0DD\uC131",
+  "AI: Make Scenario": "AI: \uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30",
+  "AI: Options": "AI: \uC635\uC158",
+  "AI: built {n, plural, one {# trigger} other {# triggers}} from the script.": "AI: \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C\uB97C}} \uBE4C\uB4DC\uD588\uC2B5\uB2C8\uB2E4.",
+  "AI: keeper for player {slot}": "AI: \uD50C\uB808\uC774\uC5B4 {slot} \uC720\uC9C0 \uC720\uB2DB",
+  "AI: mission briefing": "AI: \uC784\uBB34 \uBE0C\uB9AC\uD551",
+  "AI: name and description": "AI: \uC774\uB984\uACFC \uC124\uBA85",
+  "AI: objectives": "AI: \uBAA9\uD45C",
+  "AI: players and forces": "AI: \uD50C\uB808\uC774\uC5B4\uC640 \uC138\uB825",
+  "AI: redo area": "AI: \uC601\uC5ED \uB2E4\uC2DC \uB9CC\uB4E4\uAE30",
+  "AI: rewrite strings": "AI: \uBB38\uC790\uC5F4 \uB2E4\uC2DC \uC4F0\uAE30",
+  "AI: start locations": "AI: \uC2DC\uC791 \uC704\uCE58",
+  "AI: the area is too small to redo.": "AI: \uB2E4\uC2DC \uB9CC\uB4E4\uAE30\uC5D0\uB294 \uC601\uC5ED\uC774 \uB108\uBB34 \uC791\uC2B5\uB2C8\uB2E4.",
+  "AI: {name}": "AI: {name}",
+  "AI: {name} terrain": "AI: {name} \uC9C0\uD615",
+  "AI: {summary}": "AI: {summary}",
+  "About the mission briefing: ": "\uC784\uBB34 \uBE0C\uB9AC\uD551\uC5D0 \uB300\uD574: ",
+  "About the triggers: ": "\uD2B8\uB9AC\uAC70\uC5D0 \uB300\uD574: ",
+  "Account": "\uACC4\uC815",
+  "Account \u25B8 My Maps\u2026 lists the map's links, how often each was opened, and removes them.": "\uACC4\uC815 \u25B8 \uB0B4 \uB9F5\u2026\uC5D0\uC11C \uB9F5\uC758 \uB9C1\uD06C\uC640 \uAC01 \uB9C1\uD06C\uAC00 \uC5F4\uB9B0 \uD69F\uC218\uB97C \uBCF4\uACE0 \uB9C1\uD06C\uB97C \uC81C\uAC70\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Account\u2026": "\uACC4\uC815\u2026",
+  "Add a note\u2026": "\uBA54\uBAA8 \uCD94\uAC00\u2026",
+  'Add a string: "{text}"': '\uBB38\uC790\uC5F4 \uCD94\uAC00: "{text}"',
+  'Add location "{name}" at {rect}': '\uB85C\uCF00\uC774\uC158 "{name}" \uCD94\uAC00 ({rect})',
+  "Add the sound {path}": "\uC0AC\uC6B4\uB4DC {path} \uCD94\uAC00",
+  "Add triggers from text": "\uD14D\uC2A4\uD2B8\uC5D0\uC11C \uD2B8\uB9AC\uAC70 \uCD94\uAC00",
+  "Add {n, plural, one {# briefing trigger} other {# briefing triggers}} from text": "\uD14D\uC2A4\uD2B8\uC5D0\uC11C \uBE0C\uB9AC\uD551 \uD2B8\uB9AC\uAC70 {n}\uAC1C \uCD94\uAC00",
+  "Add {n, plural, one {# trigger} other {# triggers}} from text": "\uD14D\uC2A4\uD2B8\uC5D0\uC11C \uD2B8\uB9AC\uAC70 {n}\uAC1C \uCD94\uAC00",
+  "After": "\uC774\uD6C4",
+  "Amount": "\uAE08\uC561",
+  "Another map is being shared from this editor already.": "\uC774 \uC5D0\uB514\uD130\uC5D0\uC11C \uC774\uBBF8 \uB2E4\uB978 \uB9F5\uC744 \uACF5\uC720\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Anyone who sees this picture can follow it, join the map and edit it. Account \u25B8 Shared maps \u25B8 New link stops the old link working.": "\uC774 \uADF8\uB9BC\uC744 \uBCF4\uB294 \uC0AC\uB78C\uC740 \uB204\uAD6C\uB098 \uB9C1\uD06C\uB97C \uB530\uB77C \uB9F5\uC5D0 \uCC38\uC5EC\uD574 \uD3B8\uC9D1\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uACC4\uC815 \u25B8 \uACF5\uC720 \uB9F5 \u25B8 \uC0C8 \uB9C1\uD06C\uB85C \uC774\uC804 \uB9C1\uD06C\uB97C \uB04A\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Anyone with one of these links can open a copy of this map in their editor, without signing in. The copy is theirs; nothing they do changes yours.": "\uC774 \uB9C1\uD06C \uC911 \uD558\uB098\uB9CC \uC788\uC73C\uBA74 \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0\uC11C \uC774 \uB9F5\uC758 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uC0AC\uBCF8\uC740 \uADF8 \uC0AC\uB78C\uC758 \uAC83\uC774\uBA70, \uADF8 \uC0AC\uB78C\uC774 \uBB34\uC5C7\uC744 \uD558\uB4E0 \uB0B4 \uB9F5\uC740 \uBC14\uB00C\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map.": "\uB9C1\uD06C\uAC00 \uC788\uB294 \uC0AC\uB78C\uC740 \uB204\uAD6C\uB098 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0\uC11C \uC774 \uB9F5\uC744 \uC5F4\uC5B4 \uB3D9\uC2DC\uC5D0 \uD568\uAED8 \uACE0\uCE60 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB2E4\uB978 \uC0AC\uB78C\uC758 \uBCC0\uACBD\uC744 \uBC14\uB85C \uBCF4\uACE0, \uB9F5 \uC704\uC758 \uD3EC\uC778\uD130\uB3C4 \uBD05\uB2C8\uB2E4.",
+  "Applied: {summary}. Edit \u25B8 Undo takes it back.": "\uC801\uC6A9\uD588\uC2B5\uB2C8\uB2E4: {summary}. \uD3B8\uC9D1 \u25B8 \uC2E4\uD589 \uCDE8\uC18C\uB85C \uB418\uB3CC\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Apply": "\uC801\uC6A9",
+  "Apply on top": "\uC704\uC5D0 \uC801\uC6A9",
+  "Apply ticked": "\uCCB4\uD06C\uD55C \uD56D\uBAA9 \uC801\uC6A9",
+  "Ashworld": "\uC560\uC26C\uC6D4\uB4DC",
+  "Ask": "\uC9C8\uBB38",
+  "Ask AI about the selection\u2026": "\uC120\uD0DD\uD55C \uAC83\uC5D0 \uB300\uD574 AI\uC5D0\uAC8C \uBB3B\uAE30\u2026",
+  "Ask AI about this area\u2026": "\uC774 \uC601\uC5ED\uC5D0 \uB300\uD574 AI\uC5D0\uAC8C \uBB3B\uAE30\u2026",
+  "Ask AI about this spot\u2026": "\uC774 \uC9C0\uC810\uC5D0 \uB300\uD574 AI\uC5D0\uAC8C \uBB3B\uAE30\u2026",
+  "Ask about the map, or say what to change. Enter sends, Shift+Enter for a new line, Esc stops.": "\uB9F5\uC5D0 \uB300\uD574 \uBB3B\uAC70\uB098 \uBC14\uAFC0 \uB0B4\uC6A9\uC744 \uB9D0\uD558\uC138\uC694. Enter\uB85C \uBCF4\uB0B4\uACE0, Shift+Enter\uB85C \uC904\uC744 \uBC14\uAFB8\uACE0, Esc\uB85C \uBA48\uCDA5\uB2C8\uB2E4.",
+  "Ask the AI for a name and description from what is on the map; fills the fields, OK writes them": "\uB9F5\uC5D0 \uC788\uB294 \uAC83\uC744 \uBCF4\uACE0 AI\uC5D0\uAC8C \uC774\uB984\uACFC \uC124\uBA85\uC744 \uBC1B\uC2B5\uB2C8\uB2E4. \uCE78\uC744 \uCC44\uC6B0\uAE30\uB9CC \uD558\uACE0, \uD655\uC778\uC744 \uB20C\uB7EC\uC57C \uC800\uC7A5\uB429\uB2C8\uB2E4",
+  "Ask the assistant about the triggers": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8\uC5D0\uAC8C \uD2B8\uB9AC\uAC70\uC5D0 \uB300\uD574 \uBB3B\uC2B5\uB2C8\uB2E4",
+  "Asking scmjs.dev": "scmjs.dev\uC5D0 \uC694\uCCAD\uD558\uB294 \uC911",
+  "Asking\u2026": "\uBB3B\uB294 \uC911\u2026",
+  "Assistant": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8",
+  "Assistant: {text}": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8: {text}",
+  "Auto-place Start Locations": "\uC2DC\uC791 \uC704\uCE58 \uC790\uB3D9 \uBC30\uCE58",
+  "BBCode \u2014 forums": "BBCode \u2014 \uD3EC\uB7FC",
+  "Badlands": "\uBC30\uB4DC\uB79C\uB4DC",
+  "Balance": "\uBC38\uB7F0\uC2A4",
+  "Bases": "\uAE30\uC9C0",
+  "Before": "\uC774\uC804",
+  "Build": "\uBE4C\uB4DC",
+  "Build the script ({n, plural, one {# line} other {# lines}})": "\uC2A4\uD06C\uB9BD\uD2B8 \uBE4C\uB4DC ({n}\uC904)",
+  "Build the script ({n, plural, one {# line} other {# lines}}), replacing every trigger": "\uC2A4\uD06C\uB9BD\uD2B8 \uBE4C\uB4DC ({n}\uC904), \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70 \uB300\uCCB4",
+  "Build the waiting systems": "\uAE30\uB2E4\uB9AC\uB294 \uC2DC\uC2A4\uD15C \uBE4C\uB4DC",
+  "Build {kind}": "{kind} \uB9CC\uB4E4\uAE30",
+  "Build {kind}: {params}": "{kind} \uB9CC\uB4E4\uAE30: {params}",
+  "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.": "\uC774 \uC124\uACC4\uB85C \uB9F5\uC744 \uBE4C\uB4DC\uD569\uB2C8\uB2E4. \uBA3C\uC800 \uC9C0\uD615(\uC624\uB798 \uAC78\uB9AC\uB294 \uB2E8\uACC4), \uADF8\uB2E4\uC74C \uD50C\uB808\uC774\uC5B4, \uC2DC\uC2A4\uD15C, \uD14D\uC2A4\uD2B8 \uC21C\uC785\uB2C8\uB2E4.",
+  "Built {n, plural, one {# trigger} other {# triggers}} into the map (#{first}\u2013#{last}). The source is kept with the map; TrigScript shows it.": "\uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C\uB97C}} \uB9F5\uC5D0 \uBE4C\uB4DC\uD588\uC2B5\uB2C8\uB2E4 (#{first}\u2013#{last}). \uC18C\uC2A4\uB294 \uB9F5\uACFC \uD568\uAED8 \uBCF4\uAD00\uB418\uBA70 TrigScript\uC5D0\uC11C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Built {name} with {parts}.": "{name|\uC744} \uBE4C\uB4DC\uD588\uC2B5\uB2C8\uB2E4({parts}).",
+  "Built {name}, {n} waiting for locations.": "{name|\uC744} \uBE4C\uB4DC\uD588\uC2B5\uB2C8\uB2E4. {n}\uAC1C\uB294 \uB85C\uCF00\uC774\uC158\uC744 \uAE30\uB2E4\uB9BD\uB2C8\uB2E4.",
+  "Built {name}.": "{name|\uC744} \uBE4C\uB4DC\uD588\uC2B5\uB2C8\uB2E4.",
+  "Can units walk from {from} to {to} without the bridges?": "\uB2E4\uB9AC \uC5C6\uC774 \uC720\uB2DB\uC774 {from}\uC5D0\uC11C {to}\uAE4C\uC9C0 \uAC78\uC5B4\uAC08 \uC218 \uC788\uB098\uC694?",
+  "Can units walk from {from} to {to}?": "\uC720\uB2DB\uC774 {from}\uC5D0\uC11C {to}\uAE4C\uC9C0 \uAC78\uC5B4\uAC08 \uC218 \uC788\uB098\uC694?",
+  "Can {unit} go at {x},{y}?": "{x},{y}\uC5D0 {unit|\uC744} \uB193\uC744 \uC218 \uC788\uB098\uC694?",
+  "Cancel": "\uCDE8\uC18C",
+  "Change the design first": "\uBA3C\uC800 \uC124\uACC4 \uBC14\uAFB8\uAE30",
+  "Changing the design": "\uC124\uACC4\uB97C \uBC14\uAFB8\uB294 \uC911",
+  "Chat": "\uCC44\uD305",
+  "Chat with the people on this shared map": "\uC774 \uACF5\uC720 \uB9F5\uC5D0 \uC788\uB294 \uC0AC\uB78C\uB4E4\uACFC \uCC44\uD305",
+  "Chat \xB7 shared map": "\uCC44\uD305 \xB7 \uACF5\uC720 \uB9F5",
+  "Chat \xB7 {name}": "\uCC44\uD305 \xB7 {name}",
+  "Check": "\uAC80\uC0AC",
+  "Check Map": "\uB9F5 \uAC80\uC0AC",
+  "Check Map: {text}": "\uB9F5 \uAC80\uC0AC: {text}",
+  "Check the game's rules": "\uAC8C\uC784 \uADDC\uCE59 \uAC80\uC0AC",
+  "Check the game's rules and fix what fails": "\uAC8C\uC784 \uADDC\uCE59\uC744 \uAC80\uC0AC\uD558\uACE0 \uC5B4\uAE0B\uB09C \uAC83 \uACE0\uCE58\uAE30",
+  "Check the map": "\uB9F5 \uAC80\uC0AC",
+  "Clear": "\uC9C0\uC6B0\uAE30",
+  "Clear the selection": "\uC120\uD0DD \uD574\uC81C",
+  "Clear {rect} for player {players}": "\uD50C\uB808\uC774\uC5B4 {players}\uC758 {rect} \uC548\uAC1C \uC9C0\uC6B0\uAE30",
+  "Clear {rect} for players {players}": "\uD50C\uB808\uC774\uC5B4 {players}\uC758 {rect} \uC548\uAC1C \uC9C0\uC6B0\uAE30",
+  "Click for your account.": "\uD074\uB9AD\uD558\uBA74 \uACC4\uC815\uC744 \uC5FD\uB2C8\uB2E4.",
+  "Click to enlarge": "\uD074\uB9AD\uD558\uBA74 \uD655\uB300\uD569\uB2C8\uB2E4",
+  "Click to see the link and who is in.": "\uD074\uB9AD\uD558\uBA74 \uB9C1\uD06C\uC640 \uCC38\uC5EC\uD55C \uC0AC\uB78C\uC744 \uBD05\uB2C8\uB2E4.",
+  "Close": "\uB2EB\uAE30",
+  "Compiler: {message}": "\uCEF4\uD30C\uC77C\uB7EC: {message}",
+  "Compiles: {n, plural, one {# trigger} other {# triggers}}, {programs, plural, one {a program} other {# programs}} of {inPrograms, plural, one {# trigger} other {# triggers}}.": "\uCEF4\uD30C\uC77C\uB428: \uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C}}, \uD504\uB85C\uADF8\uB7A8 {programs, plural, other {#\uAC1C}}(\uD2B8\uB9AC\uAC70 {inPrograms, plural, other {#\uAC1C}}).",
+  "Compiles: {n, plural, one {# trigger} other {# triggers}}.": "\uCEF4\uD30C\uC77C\uB428: \uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C}}.",
+  "Connecting\u2026": "\uC5F0\uACB0\uD558\uB294 \uC911\u2026",
+  "Continue": "\uACC4\uC18D",
+  "Convert {n, plural, one {# doodad} other {# doodads}} to terrain": "\uC7A5\uC2DD\uBB3C {n}\uAC1C\uB97C \uC9C0\uD615\uC73C\uB85C \uBCC0\uD658",
+  "Copy": "\uBCF5\uC0AC",
+  "Copy Link to This Map": "\uC774 \uB9F5\uC758 \uB9C1\uD06C \uBCF5\uC0AC",
+  "Copy Link to This Map\u2026": "\uC774 \uB9F5\uC758 \uB9C1\uD06C \uBCF5\uC0AC\u2026",
+  "Copy link": "\uB9C1\uD06C \uBCF5\uC0AC",
+  "Copy the transcript as text": "\uB300\uD654 \uB0B4\uC6A9\uC744 \uD14D\uC2A4\uD2B8\uB85C \uBCF5\uC0AC",
+  "Copying the map to scmjs.dev\u2026": "\uB9F5\uC744 scmjs.dev\uC5D0 \uBCF5\uC0AC\uD558\uB294 \uC911\u2026",
+  "Could not reach the shared map.": "\uACF5\uC720 \uB9F5\uC5D0 \uC5F0\uACB0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+  "Death counters and switches": "\uB370\uC2A4 \uCE74\uC6B4\uD130\uC640 \uC2A4\uC704\uCE58",
+  "Delete": "\uC0AD\uC81C",
+  "Delete map": "\uB9F5 \uC0AD\uC81C",
+  "Delete map\u2026": "\uB9F5 \uC0AD\uC81C\u2026",
+  "Delete revision": "\uBC84\uC804 \uC0AD\uC81C",
+  "Delete revision #{n}": "\uBC84\uC804 #{n} \uC0AD\uC81C",
+  "Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it.": "{name}\uC758 #{n} \uBC84\uC804\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694? \uB2E4\uB978 \uBC84\uC804\uC774 \uAC19\uC740 \uD30C\uC77C\uC744 \uC4F0\uC9C0 \uC54A\uC73C\uBA74 \uD30C\uC77C\uC774 \uACC4\uC815\uC5D0\uC11C \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4.",
+  "Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it. {links, plural, one {The link to it stops} other {The # links to it stop}} working too.": "{name}\uC758 #{n} \uBC84\uC804\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694? \uB2E4\uB978 \uBC84\uC804\uC774 \uAC19\uC740 \uD30C\uC77C\uC744 \uC4F0\uC9C0 \uC54A\uC73C\uBA74 \uD30C\uC77C\uC774 \uACC4\uC815\uC5D0\uC11C \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4. \uC774 \uBC84\uC804\uC744 \uAC00\uB9AC\uD0A4\uB294 \uB9C1\uD06C {links}\uAC1C\uB3C4 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Delete {name} and all {revisions} of its revisions from the account?": "{name|\uACFC} \uBC84\uC804 {revisions}\uAC1C\uB97C \uBAA8\uB450 \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694?",
+  "Delete {name} and all {revisions} of its revisions from the account? {links, plural, one {Its link stops} other {Its # links stop}} working too.": "{name|\uACFC} \uBC84\uC804 {revisions}\uAC1C\uB97C \uBAA8\uB450 \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694? \uB9C1\uD06C {links}\uAC1C\uB3C4 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Deleting\u2026": "\uC0AD\uC81C\uD558\uB294 \uC911\u2026",
+  "Describe": "\uC124\uBA85",
+  "Description": "\uC124\uBA85",
+  "Desert": "\uC0AC\uB9C9",
+  "Design": "\uC124\uACC4",
+  "Design again": "\uB2E4\uC2DC \uC124\uACC4",
+  "Designer's notes": "\uB514\uC790\uC774\uB108 \uBA54\uBAA8",
+  "Designing the scenario": "\uC2DC\uB098\uB9AC\uC624\uB97C \uC124\uACC4\uD558\uB294 \uC911",
+  "Diagonal mirror (square)": "\uB300\uAC01\uC120 \uB300\uCE6D (\uC815\uC0AC\uAC01\uD615)",
+  "Dock the assistant at the right, under the Properties panel, instead of floating over the map": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8\uB97C \uB9F5 \uC704\uC5D0 \uB744\uC6B0\uC9C0 \uC54A\uACE0 \uC624\uB978\uCABD \uC18D\uC131 \uD328\uB110 \uC544\uB798\uC5D0 \uB3C4\uD0B9",
+  "Done in {s} s": "{s}\uCD08 \uB9CC\uC5D0 \uC644\uB8CC",
+  "Done.": "\uC644\uB8CC.",
+  "Download": "\uB2E4\uC6B4\uB85C\uB4DC",
+  "Downloading #{n}\u2026": "#{n} \uB0B4\uB824\uBC1B\uB294 \uC911\u2026",
+  "Downloading\u2026": "\uB0B4\uB824\uBC1B\uB294 \uC911\u2026",
+  "Drag over the area to redo": "\uB2E4\uC2DC \uB9CC\uB4E4 \uC601\uC5ED\uC744 \uB4DC\uB798\uADF8\uD558\uC138\uC694",
+  "Edit location #{index}: {parts}": "\uB85C\uCF00\uC774\uC158 #{index} \uD3B8\uC9D1: {parts}",
+  "Edit note\u2026": "\uBA54\uBAA8 \uD3B8\uC9D1\u2026",
+  "Eight-fold (square)": "8\uBC29\uD5A5 (\uC815\uC0AC\uAC01\uD615)",
+  "Embed This Map": "\uC774 \uB9F5 \uD37C\uAC00\uAE30",
+  "Embed\u2026": "\uD37C\uAC00\uAE30\u2026",
+  "End sharing": "\uACF5\uC720 \uB05D\uB0B4\uAE30",
+  "End sharing this map? Everyone is sent out of it and the link stops working. The map and its revisions stay in My Maps.": "\uC774 \uB9F5\uC758 \uACF5\uC720\uB97C \uB05D\uB0BC\uAE4C\uC694? \uBAA8\uB450\uAC00 \uB098\uAC00\uAC8C \uB418\uACE0 \uB9C1\uD06C\uB294 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uACFC \uBC84\uC804\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "End sharing {name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.": "{name} \uACF5\uC720\uB97C \uB05D\uB0BC\uAE4C\uC694? \uC548\uC5D0 \uC788\uB294 \uC0AC\uB78C\uC740 \uBAA8\uB450 \uB098\uAC00\uAC8C \uB418\uACE0 \uB9C1\uD06C\uB294 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uACFC \uBC84\uC804\uC740 \uC5EC\uAE30\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "End sharing \u201C{name}\u201D? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.": "\u201C{name}\u201D \uACF5\uC720\uB97C \uB05D\uB0BC\uAE4C\uC694? \uC548\uC5D0 \uC788\uB294 \uC0AC\uB78C\uC740 \uBAA8\uB450 \uB098\uAC00\uAC8C \uB418\uACE0 \uB9C1\uD06C\uB294 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uACFC \uBC84\uC804\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "End sharing \u201C{name}\u201D? Anyone in it is sent out; they keep their copy and can save it.": "\u201C{name}\u201D \uACF5\uC720\uB97C \uB05D\uB0BC\uAE4C\uC694? \uC548\uC5D0 \uC788\uB294 \uC0AC\uB78C\uC740 \uBAA8\uB450 \uB098\uAC00\uAC8C \uB418\uC9C0\uB9CC, \uAC01\uC790 \uC0AC\uBCF8\uC744 \uAC00\uC9C0\uACE0 \uC788\uC5B4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Ending sharing\u2026": "\uACF5\uC720\uB97C \uB05D\uB0B4\uB294 \uC911\u2026",
+  "Ends {date} unless someone edits it": "\uB204\uAD70\uAC00 \uD3B8\uC9D1\uD558\uC9C0 \uC54A\uC73C\uBA74 {date}\uC5D0 \uB05D\uB0A8",
+  "Every string in use": "\uC0AC\uC6A9 \uC911\uC778 \uBAA8\uB4E0 \uBB38\uC790\uC5F4",
+  "Every version of StarCraft (triggers only)": "\uBAA8\uB4E0 \uBC84\uC804\uC758 \uC2A4\uD0C0\uD06C\uB798\uD504\uD2B8 (\uD2B8\uB9AC\uAC70\uB9CC)",
+  "Example: four-player lake": "\uC608: 4\uC778\uC6A9 \uD638\uC218",
+  "Example: tight badlands": "\uC608: \uC881\uC740 \uBC30\uB4DC\uB79C\uB4DC",
+  "Example: two-player jungle": "\uC608: 2\uC778\uC6A9 \uC815\uAE00",
+  "Explain": "\uC124\uBA85",
+  "Explain Triggers": "\uD2B8\uB9AC\uAC70 \uC124\uBA85",
+  "Explain Triggers\u2026": "\uD2B8\uB9AC\uAC70 \uC124\uBA85\u2026",
+  "Extend the map's current script": "\uB9F5\uC758 \uD604\uC7AC \uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uB367\uBD99\uC774\uAE30",
+  "Failed": "\uC2E4\uD328",
+  'Find "{text}" in the locations': '\uB85C\uCF00\uC774\uC158\uC5D0\uC11C "{text}" \uCC3E\uAE30',
+  'Find "{text}" in the sprites': '\uC2A4\uD504\uB77C\uC774\uD2B8\uC5D0\uC11C "{text}" \uCC3E\uAE30',
+  'Find "{text}" in the strings': '\uBB38\uC790\uC5F4\uC5D0\uC11C "{text}" \uCC3E\uAE30',
+  'Find "{text}" in the triggers': '\uD2B8\uB9AC\uAC70\uC5D0\uC11C "{text}" \uCC3E\uAE30',
+  'Find "{text}" in the units': '\uC720\uB2DB\uC5D0\uC11C "{text}" \uCC3E\uAE30',
+  "Find {w} \xD7 {h} of flat ground near the centre": "\uC911\uC559 \uBD80\uADFC\uC5D0\uC11C {w} \xD7 {h} \uD3C9\uC9C0 \uCC3E\uAE30",
+  "Find {w} \xD7 {h} of flat ground near {x},{y}": "{x},{y} \uBD80\uADFC\uC5D0\uC11C {w} \xD7 {h} \uD3C9\uC9C0 \uCC3E\uAE30",
+  "Find {w} \xD7 {h} of open ground near the centre": "\uC911\uC559 \uBD80\uADFC\uC5D0\uC11C {w} \xD7 {h} \uBE48 \uB545 \uCC3E\uAE30",
+  "Find {w} \xD7 {h} of open ground near {x},{y}": "{x},{y} \uBD80\uADFC\uC5D0\uC11C {w} \xD7 {h} \uBE48 \uB545 \uCC3E\uAE30",
+  "Fit a bridge near {x},{y}": "{x},{y} \uBD80\uADFC\uC5D0 \uB2E4\uB9AC \uB9DE\uCD94\uAE30",
+  "Fit a ramp near {x},{y} facing south-east": "{x},{y} \uBD80\uADFC\uC5D0 \uB0A8\uB3D9\uCABD\uC744 \uD5A5\uD55C \uACBD\uC0AC\uB85C \uB9DE\uCD94\uAE30",
+  "Fit a ramp near {x},{y} facing south-west": "{x},{y} \uBD80\uADFC\uC5D0 \uB0A8\uC11C\uCABD\uC744 \uD5A5\uD55C \uACBD\uC0AC\uB85C \uB9DE\uCD94\uAE30",
+  "Fix spelling and grammar": "\uB9DE\uCDA4\uBC95\uACFC \uBB38\uBC95 \uACE0\uCE58\uAE30",
+  "Fog": "\uC548\uAC1C",
+  "Fog {rect} for player {players}": "\uD50C\uB808\uC774\uC5B4 {players}\uC758 {rect} \uC548\uAC1C \uB36E\uAE30",
+  "Fog {rect} for players {players}": "\uD50C\uB808\uC774\uC5B4 {players}\uC758 {rect} \uC548\uAC1C \uB36E\uAE30",
+  "Follow the assistant's work around the map": "\uB9F5\uC5D0\uC11C \uC5B4\uC2DC\uC2A4\uD134\uD2B8\uC758 \uC791\uC5C5 \uB530\uB77C\uAC00\uAE30",
+  "For a day": "\uD558\uB8E8 \uB3D9\uC548",
+  "For a month": "\uD55C \uB2EC \uB3D9\uC548",
+  "For a week": "\uC77C\uC8FC\uC77C \uB3D9\uC548",
+  'Force {index} "{name}"': '\uC138\uB825 {index} "{name}"',
+  "Forces": "\uC138\uB825",
+  "Forget the conversation": "\uB300\uD654 \uB0B4\uC6A9 \uC9C0\uC6B0\uAE30",
+  "Free trial": "\uBB34\uB8CC \uCCB4\uD5D8",
+  "Free trial \xB7 {balance} left \xB7 sign in to keep it and get more": "\uBB34\uB8CC \uCCB4\uD5D8 \xB7 {balance} \uB0A8\uC74C \xB7 \uB85C\uADF8\uC778\uD558\uBA74 \uC720\uC9C0\uB418\uACE0 \uB354 \uBC1B\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4",
+  "From \u2013 to": "\uBC94\uC704",
+  "Game Data (getting the game's graphics)": "\uAC8C\uC784 \uB370\uC774\uD130 (\uAC8C\uC784 \uADF8\uB798\uD53D \uBC1B\uB294 \uC911)",
+  "Generate": "\uC0DD\uC131",
+  "Generate Map": "\uB9F5 \uC0DD\uC131",
+  "Generate Map\u2026": "\uB9F5 \uC0DD\uC131\u2026",
+  "Go to": "\uC774\uB3D9",
+  "Go to location #{n}": "\uB85C\uCF00\uC774\uC158 #{n|\uB85C} \uC774\uB3D9",
+  "Go to unit #{n}": "\uC720\uB2DB #{n|\uB85C} \uC774\uB3D9",
+  "Go to {x},{y}": "{x},{y|\uB85C} \uC774\uB3D9",
+  "Green: the toolkit builds it from the parameters. Gold: written as a trigger script from the description. Edit the parameters here; a location or unit by name, numbers as digits.": "\uCD08\uB85D: \uD234\uD0B7\uC774 \uB9E4\uAC1C\uBCC0\uC218\uB85C \uB9CC\uB4ED\uB2C8\uB2E4. \uAE08\uC0C9: \uC124\uBA85\uC744 \uBCF4\uACE0 \uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uC791\uC131\uD569\uB2C8\uB2E4. \uB9E4\uAC1C\uBCC0\uC218\uB294 \uC5EC\uAE30\uC11C \uACE0\uCE58\uC138\uC694. \uB85C\uCF00\uC774\uC158\uACFC \uC720\uB2DB\uC740 \uC774\uB984\uC73C\uB85C, \uC218\uB294 \uC22B\uC790\uB85C \uC801\uC2B5\uB2C8\uB2E4.",
+  "HTML \u2014 websites": "HTML \u2014 \uC6F9\uC0AC\uC774\uD2B8",
+  "How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer.": "\uBAA8\uB378\uC774 \uC694\uCCAD \uD558\uB098\uC5D0 \uC5BC\uB9C8\uB098 \uACF5\uC744 \uB4E4\uC774\uB294\uC9C0, \uADF8\uB798\uC11C \uC5BC\uB9C8\uB098 \uAC78\uB9AC\uACE0 \uC5BC\uB9C8\uAC00 \uB4DC\uB294\uC9C0\uB97C \uC815\uD569\uB2C8\uB2E4. \uD45C\uC900\uC740 \uAE30\uB2A5\uB9C8\uB2E4 \uB9DE\uCDB0 \uB454 \uC124\uC815\uC744 \uC501\uB2C8\uB2E4. \uB9F5 \uBC30\uCE58\uC640 \uD2B8\uB9AC\uAC70 \uC791\uC131\uC740 \uC774\uBBF8 \uAC00\uC7A5 \uB192\uC740 \uC124\uC815\uC73C\uB85C \uB3D9\uC791\uD569\uB2C8\uB2E4. \uC5B4\uC2DC\uC2A4\uD134\uD2B8 \uB300\uD654 \uB3C4\uC911\uC5D0 \uBC14\uAFB8\uBA74 \uC11C\uBC84\uAC00 \uB300\uD654 \uC804\uCCB4\uB97C \uD55C \uBC88 \uB2E4\uC2DC \uC77D\uC73C\uBBC0\uB85C \uB2E4\uC74C \uBA54\uC2DC\uC9C0\uAC00 \uC870\uAE08 \uB354 \uBE44\uC309\uB2C8\uB2E4.",
+  "How long it stays open after its last edit": "\uB9C8\uC9C0\uB9C9 \uD3B8\uC9D1 \uD6C4 \uC5F4\uC5B4 \uB458 \uAE30\uAC04",
+  "How the others see you": "\uB2E4\uB978 \uC0AC\uB78C\uC5D0\uAC8C \uBCF4\uC77C \uC774\uB984",
+  "Ice": "\uC5BC\uC74C",
+  "Import Strings": "\uBB38\uC790\uC5F4 \uAC00\uC838\uC624\uAE30",
+  "Import Triggers": "\uD2B8\uB9AC\uAC70 \uAC00\uC838\uC624\uAE30",
+  "In it now: {people}": "\uC9C0\uAE08 \uCC38\uC5EC \uC911: {people}",
+  "In-universe": "\uC138\uACC4\uAD00 \uB9D0\uD22C",
+  "Include a picture of the map in the list (one pixel per tile)": "\uBAA9\uB85D\uC5D0 \uB9F5 \uADF8\uB9BC \uB123\uAE30 (\uD0C0\uC77C\uB2F9 1\uD53D\uC140)",
+  "Installation": "\uC778\uC2A4\uD1A8\uB808\uC774\uC158",
+  "Instruction": "\uC9C0\uC2DC",
+  "Into": "\uB300\uC0C1",
+  "Into the open map: its terrain and objects are replaced by the plan, and the triggers are appended to what is there.": "\uC5F4\uB9B0 \uB9F5\uC5D0: \uC9C0\uD615\uACFC \uC624\uBE0C\uC81D\uD2B8\uB294 \uACC4\uD68D\uC73C\uB85C \uAD50\uCCB4\uB418\uACE0, \uD2B8\uB9AC\uAC70\uB294 \uAE30\uC874 \uD2B8\uB9AC\uAC70 \uB4A4\uC5D0 \uB367\uBD99\uC2B5\uB2C8\uB2E4.",
+  "Into the open map: its terrain and objects inside the plan's area are replaced. One undo step.": "\uC5F4\uB9B0 \uB9F5\uC5D0: \uACC4\uD68D \uC601\uC5ED \uC548\uC758 \uC9C0\uD615\uACFC \uC624\uBE0C\uC81D\uD2B8\uAC00 \uAD50\uCCB4\uB429\uB2C8\uB2E4. \uC2E4\uD589 \uCDE8\uC18C \uD55C \uB2E8\uACC4\uC785\uB2C8\uB2E4.",
+  "It is yours: File \u25B8 Save asks where to keep it.": "\uC774\uC81C \uB0B4 \uB9F5\uC785\uB2C8\uB2E4. \uD30C\uC77C \u25B8 \uC800\uC7A5\uC744 \uB204\uB974\uBA74 \uBCF4\uAD00\uD560 \uC704\uCE58\uB97C \uBB3B\uC2B5\uB2C8\uB2E4.",
+  "Join": "\uCC38\uC5EC",
+  "Join a Shared Map": "\uACF5\uC720 \uB9F5 \uCC38\uC5EC",
+  "Join a Shared Map\u2026": "\uACF5\uC720 \uB9F5 \uCC38\uC5EC\u2026",
+  "Join it to edit with whoever is there; Open gives you a copy of a revision on its own.": "\uCC38\uC5EC\uD558\uBA74 \uADF8 \uC548\uC758 \uC0AC\uB78C\uB4E4\uACFC \uD568\uAED8 \uD3B8\uC9D1\uD569\uB2C8\uB2E4. \uC5F4\uAE30\uB294 \uBC84\uC804\uC758 \uC0AC\uBCF8\uC744 \uB530\uB85C \uC5FD\uB2C8\uB2E4.",
+  "Joined the shared map": "\uACF5\uC720 \uB9F5\uC5D0 \uCC38\uC5EC\uD588\uC2B5\uB2C8\uB2E4",
+  "Joined \u201C{name}\u201D": "\u201C{name}\u201D\uC5D0 \uCC38\uC5EC\uD588\uC2B5\uB2C8\uB2E4",
+  "Joining {name}\u2026": "{name}\uC5D0 \uCC38\uC5EC\uD558\uB294 \uC911\u2026",
+  "Joining\u2026": "\uCC38\uC5EC\uD558\uB294 \uC911\u2026",
+  "Jump to latest": "\uCD5C\uC2E0\uC73C\uB85C \uC774\uB3D9",
+  "Jungle": "\uC815\uAE00",
+  "Keep it open": "\uC5F4\uC5B4 \uB458 \uAE30\uAC04",
+  "Keep the units, sprites and doodads that are there now": "\uC9C0\uAE08 \uC788\uB294 \uC720\uB2DB, \uC2A4\uD504\uB77C\uC774\uD2B8, \uC7A5\uC2DD\uBB3C \uC720\uC9C0",
+  "Kept open": "\uC5F4\uC5B4 \uB460",
+  "Kept open \xB7 {ends}": "\uC5F4\uC5B4 \uB460 \xB7 {ends}",
+  "Kept open: {ends}. Each time everyone has left, it saves a new revision to the owner's My Maps.": "\uC5F4\uC5B4 \uB460: {ends}. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC18C\uC720\uC790\uC758 \uB0B4 \uB9F5\uC5D0 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4.",
+  "Kept open: {ends}. Each time everyone has left, it saves a new revision to your My Maps.": "\uC5F4\uC5B4 \uB460: {ends}. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uB0B4 \uB9F5\uC5D0 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4.",
+  "Kept open: {ends}. Each time everyone has left, it saves a new revision to {owner}'s My Maps.": "\uC5F4\uC5B4 \uB460: {ends}. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 {owner}\uC758 \uB0B4 \uB9F5\uC5D0 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4.",
+  "Kept the open map.": "\uC5F4\uB9B0 \uB9F5\uC744 \uADF8\uB300\uB85C \uB450\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "Large (1200 \xD7 630)": "\uD06C\uAC8C (1200 \xD7 630)",
+  "Last edit {when}": "\uB9C8\uC9C0\uB9C9 \uD3B8\uC9D1 {when}",
+  "Last edit {when} by {name}": "\uB9C8\uC9C0\uB9C9 \uD3B8\uC9D1 {when}, {name}",
+  "Lay a base": "\uAE30\uC9C0 \uBC30\uCE58",
+  "Lay out the {preset} preset": "{preset} \uD504\uB9AC\uC14B \uBC30\uCE58",
+  "Lay out the {preset} preset: {params}": "{preset} \uD504\uB9AC\uC14B \uBC30\uCE58: {params}",
+  "Layout brief and {n, plural, one {# location} other {# locations}}": "\uBC30\uCE58 \uAC1C\uC694\uC640 \uB85C\uCF00\uC774\uC158 {n, plural, other {#\uAC1C}}",
+  "Leave": "\uB098\uAC00\uAE30",
+  "Let the link follow my later saves to this map": "\uC774\uD6C4 \uC774 \uB9F5\uC5D0 \uC800\uC7A5\uD55C \uB0B4\uC6A9\uC744 \uB9C1\uD06C\uAC00 \uB530\uB77C\uAC00\uAC8C \uD558\uAE30",
+  "Let the model choose": "\uBAA8\uB378\uC774 \uACE0\uB974\uAC8C \uD558\uAE30",
+  "Link": "\uB9C1\uD06C",
+  "Link removed.": "\uB9C1\uD06C\uB97C \uC81C\uAC70\uD588\uC2B5\uB2C8\uB2E4.",
+  "Link to #{n}": "#{n} \uB9C1\uD06C",
+  "Link to the newest": "\uCD5C\uC2E0 \uBC84\uC804 \uB9C1\uD06C",
+  "Link to {which} made and copied.": "{which} \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uC5B4 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
+  "Link to {which} made.": "{which} \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "Links": "\uB9C1\uD06C",
+  "List": "\uBAA9\uB85D",
+  "List the guides": "\uAC00\uC774\uB4DC \uBAA9\uB85D",
+  "List units": "\uC720\uB2DB \uBAA9\uB85D",
+  "List {owner}'s units": "{owner}\uC758 \uC720\uB2DB \uBAA9\uB85D",
+  "Load the list again": "\uBAA9\uB85D\uC744 \uB2E4\uC2DC \uBD88\uB7EC\uC635\uB2C8\uB2E4",
+  "Loading your maps\u2026": "\uB9F5\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\u2026",
+  "Loading your shared maps\u2026": "\uACF5\uC720 \uC911\uC778 \uB9F5\uC744 \uBD88\uB7EC\uC624\uB294 \uC911\u2026",
+  "Location Properties": "\uB85C\uCF00\uC774\uC158 \uC18D\uC131",
+  "Locations": "\uB85C\uCF00\uC774\uC158",
+  "Locations the brief must place": "\uAC1C\uC694\uAC00 \uBC30\uCE58\uD574\uC57C \uD560 \uB85C\uCF00\uC774\uC158",
+  'Look up the AI script "{query}"': 'AI \uC2A4\uD06C\uB9BD\uD2B8 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the action "{query}"': '\uC561\uC158 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the condition "{query}"': '\uC870\uAC74 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the doodad "{query}"': '\uC7A5\uC2DD\uBB3C "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the sprite "{query}"': '\uC2A4\uD504\uB77C\uC774\uD2B8 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the tech "{query}"': '\uAE30\uC220 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the unit "{query}"': '\uC720\uB2DB "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the upgrade "{query}"': '\uC5C5\uADF8\uB808\uC774\uB4DC "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the weapon "{query}"': '\uBB34\uAE30 "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  'Look up the {kind} "{query}"': '{kind} "{query}" \uCC3E\uC544\uBCF4\uAE30',
+  "Looking it up\u2026": "\uCC3E\uB294 \uC911\u2026",
+  "Made {date}": "{date}\uC5D0 \uB9CC\uB4E6",
+  "Make Scenario": "\uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30",
+  "Make Scenario\u2026": "\uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30\u2026",
+  "Making a link\u2026": "\uB9C1\uD06C\uB97C \uB9CC\uB4DC\uB294 \uC911\u2026",
+  "Making the link\u2026": "\uB9C1\uD06C\uB97C \uB9CC\uB4DC\uB294 \uC911\u2026",
+  "Manage": "\uAD00\uB9AC",
+  "Manage on scmjs.dev": "scmjs.dev\uC5D0\uC11C \uAD00\uB9AC",
+  "Map Properties": "\uB9F5 \uC18D\uC131",
+  "Map Revision": "\uB9F5 \uBC84\uC804",
+  "Map deleted.": "\uB9F5\uC744 \uC0AD\uC81C\uD588\uC2B5\uB2C8\uB2E4.",
+  "Map storage": "\uB9F5 \uC800\uC7A5 \uACF5\uAC04",
+  "Maps are kept on a signed-in account; a trial cannot store them.": "\uB9F5\uC740 \uB85C\uADF8\uC778\uD55C \uACC4\uC815\uC5D0 \uBCF4\uAD00\uB429\uB2C8\uB2E4. \uCCB4\uD5D8\uC73C\uB85C\uB294 \uBCF4\uAD00\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "Maps you save to scmjs.dev show up here, with every revision and its note.": "scmjs.dev\uC5D0 \uC800\uC7A5\uD55C \uB9F5\uC774 \uBAA8\uB4E0 \uBC84\uC804\uACFC \uBA54\uBAA8\uC640 \uD568\uAED8 \uC5EC\uAE30\uC5D0 \uB098\uD0C0\uB0A9\uB2C8\uB2E4.",
+  "Markdown \u2014 GitHub, Discourse, Reddit": "Markdown \u2014 GitHub, Discourse, Reddit",
+  "Melee balance": "\uBC00\uB9AC \uBC38\uB7F0\uC2A4",
+  "Mirror both ways": "\uC591\uCD95 \uB300\uCE6D",
+  "Mirror left \u2194 right": "\uC88C\uC6B0 \uB300\uCE6D",
+  "Mirror top \u2194 bottom": "\uC0C1\uD558 \uB300\uCE6D",
+  "Mission Briefing": "\uC784\uBB34 \uBE0C\uB9AC\uD551",
+  "Mission briefing": "\uC784\uBB34 \uBE0C\uB9AC\uD551",
+  "Mission briefing ({n})": "\uC784\uBB34 \uBE0C\uB9AC\uD551 ({n})",
+  "Move trigger #{from} to #{to}": "\uD2B8\uB9AC\uAC70 #{from} \uC704\uCE58\uB97C #{to|\uB85C} \uC774\uB3D9",
+  "Move {n, plural, one {# unit} other {# units}}": "\uC720\uB2DB {n}\uAC1C \uC774\uB3D9",
+  "My Maps on scmjs.dev": "scmjs.dev\uC758 \uB0B4 \uB9F5",
+  "My Maps on scmjs.dev\u2026": "scmjs.dev\uC758 \uB0B4 \uB9F5\u2026",
+  "My Maps\u2026": "\uB0B4 \uB9F5\u2026",
+  "Name": "\uC774\uB984",
+  "Name and Describe": "\uC774\uB984\uACFC \uC124\uBA85 \uC9D3\uAE30",
+  "Name and Describe\u2026": "\uC774\uB984\uACFC \uC124\uBA85 \uC9D3\uAE30\u2026",
+  "Name and description": "\uC774\uB984\uACFC \uC124\uBA85",
+  "Name for this map:": "\uC774 \uB9F5\uC758 \uC774\uB984:",
+  "Name in the list": "\uBAA9\uB85D\uC5D0 \uBCF4\uC77C \uC774\uB984",
+  'Name switch {index} "{name}"': '\uC2A4\uC704\uCE58 {index} \uC774\uB984 \uC9C0\uC815: "{name}"',
+  "Narration": "\uB0B4\uB808\uC774\uC158",
+  "Neutral": "\uC911\uB9BD",
+  "New link": "\uC0C8 \uB9C1\uD06C",
+  "Newest": "\uCD5C\uC2E0",
+  "No links. A link lets anyone open a copy of this map in their editor, without signing in.": "\uB9C1\uD06C\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uB9C1\uD06C\uAC00 \uC788\uC73C\uBA74 \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0\uC11C \uC774 \uB9F5\uC758 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "No map is open.": "\uC5F4\uB9B0 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  'No map matches "{query}".': '"{query}"\uC5D0 \uB9DE\uB294 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
+  "No maps yet": "\uC544\uC9C1 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
+  "No note": "\uBA54\uBAA8 \uC5C6\uC74C",
+  "No strings in that scope.": "\uADF8 \uBC94\uC704\uC5D0\uB294 \uBB38\uC790\uC5F4\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "Nobody in it now": "\uC9C0\uAE08 \uC544\uBB34\uB3C4 \uC5C6\uC74C",
+  "None": "\uC5C6\uC74C",
+  "Not built: the script has errors.": "\uBE4C\uB4DC\uD558\uC9C0 \uC54A\uC74C: \uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uC624\uB958\uAC00 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Not opened.": "\uC5F4\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "Not saved.": "\uC800\uC7A5\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "Not signed in": "\uB85C\uADF8\uC778 \uC548 \uD568",
+  "Not signed in to scmjs.dev. Click to sign in.": "scmjs.dev\uC5D0 \uB85C\uADF8\uC778\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uD074\uB9AD\uD558\uBA74 \uB85C\uADF8\uC778\uD569\uB2C8\uB2E4.",
+  "Not signed in \xB7 the first AI request starts a free trial": "\uB85C\uADF8\uC778 \uC548 \uD568 \xB7 \uCCAB AI \uC694\uCCAD \uB54C \uBB34\uB8CC \uCCB4\uD5D8\uC774 \uC2DC\uC791\uB429\uB2C8\uB2E4",
+  "Note": "\uBA54\uBAA8",
+  "Note for revision #{n} of {name}:": "{name}\uC758 \uBC84\uC804 #{n} \uBA54\uBAA8:",
+  "Note for this revision": "\uC774 \uBC84\uC804\uC758 \uBA54\uBAA8",
+  "Note saved.": "\uBA54\uBAA8\uB97C \uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4.",
+  "Nothing changed.": "\uBC14\uB010 \uAC83\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "Nothing said yet. Everyone on the shared map sees what you write here; it goes when the sharing ends.": "\uC544\uC9C1 \uC544\uBB34 \uB9D0\uB3C4 \uC5C6\uC2B5\uB2C8\uB2E4. \uC5EC\uAE30\uC5D0 \uC4F4 \uB0B4\uC6A9\uC740 \uACF5\uC720 \uB9F5\uC5D0 \uC788\uB294 \uBAA8\uB450\uAC00 \uBCF4\uBA70, \uACF5\uC720\uAC00 \uB05D\uB098\uBA74 \uC0AC\uB77C\uC9D1\uB2C8\uB2E4.",
+  "Nothing spent this session.": "\uC774\uBC88 \uC138\uC158\uC5D0\uC11C \uC4F4 \uAE08\uC561\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  'Now: "{name}" \u2014 {description}': '\uD604\uC7AC: "{name}" \u2014 {description}',
+  "Objectives": "\uBAA9\uD45C",
+  "Objectives and briefing": "\uBAA9\uD45C\uC640 \uBE0C\uB9AC\uD551",
+  "Objectives, one per line.": "\uBAA9\uD45C, \uD55C \uC904\uC5D0 \uD558\uB098\uC529.",
+  "Off": "\uB054",
+  "Off for now while I work out the tooling and costs.": "\uB3C4\uAD6C\uC640 \uBE44\uC6A9\uC744 \uC815\uB9AC\uD558\uB294 \uB3D9\uC548 \uC7A0\uC2DC \uAEBC \uB450\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "Off leaves your account and the maps stored on it; Tools \u25B8 AI \u25B8 Options\u2026 has the quality and the assistant's settings.": "\uAEBC\uB3C4 \uACC4\uC815\uACFC \uACC4\uC815\uC5D0 \uBCF4\uAD00\uB41C \uB9F5\uC740 \uADF8\uB300\uB85C \uB0A8\uC2B5\uB2C8\uB2E4. \uD488\uC9C8\uACFC \uC5B4\uC2DC\uC2A4\uD134\uD2B8 \uC124\uC815\uC740 \uB3C4\uAD6C \u25B8 AI \u25B8 \uC635\uC158\u2026\uC5D0 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Off takes the Tools \u25B8 AI menu, the assistant and the AI buttons in the editor's dialogs away. Your account and the maps stored on it stay.": "\uB044\uBA74 \uB3C4\uAD6C \u25B8 AI \uBA54\uB274, \uC5B4\uC2DC\uC2A4\uD134\uD2B8, \uC5D0\uB514\uD130 \uB300\uD654 \uC0C1\uC790\uC758 AI \uBC84\uD2BC\uC774 \uC0AC\uB77C\uC9D1\uB2C8\uB2E4. \uACC4\uC815\uACFC \uACC4\uC815\uC5D0 \uC800\uC7A5\uD55C \uB9F5\uC740 \uADF8\uB300\uB85C \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "On": "\uCF2C",
+  "One undo step.": "\uC2E4\uD589 \uCDE8\uC18C \uD55C \uB2E8\uACC4\uC785\uB2C8\uB2E4.",
+  "Only names: scenario, forces, units, locations, switches": "\uC774\uB984\uB9CC: \uC2DC\uB098\uB9AC\uC624, \uC138\uB825, \uC720\uB2DB, \uB85C\uCF00\uC774\uC158, \uC2A4\uC704\uCE58",
+  "Only the mission briefing": "\uC784\uBB34 \uBE0C\uB9AC\uD551\uB9CC",
+  "Only trigger text (messages, objectives)": "\uD2B8\uB9AC\uAC70 \uD14D\uC2A4\uD2B8\uB9CC (\uBA54\uC2DC\uC9C0, \uBAA9\uD45C)",
+  "Open": "\uC5F4\uAE30",
+  "Open #{n}": "#{n} \uC5F4\uAE30",
+  "Open TrigScript": "TrigScript \uC5F4\uAE30",
+  "Open a Copy": "\uC0AC\uBCF8 \uC5F4\uAE30",
+  "Open a Map Link\u2026": "\uB9F5 \uB9C1\uD06C \uC5F4\uAE30\u2026",
+  "Open a copy": "\uC0AC\uBCF8 \uC5F4\uAE30",
+  "Open a map first.": "\uBA3C\uC800 \uB9F5\uC744 \uC5EC\uC138\uC694.",
+  "Open from scmjs.dev\u2026": "scmjs.dev\uC5D0\uC11C \uC5F4\uAE30\u2026",
+  "Open revision #{n} in the editor": "#{n} \uBC84\uC804\uC744 \uC5D0\uB514\uD130\uC5D0\uC11C \uC5FD\uB2C8\uB2E4",
+  "Open the assistant": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8 \uC5F4\uAE30",
+  "Open the shared map and edit it with whoever is in it": "\uACF5\uC720 \uB9F5\uC744 \uC5F4\uACE0 \uADF8 \uC548\uC5D0 \uC788\uB294 \uC0AC\uB78C\uB4E4\uACFC \uD568\uAED8 \uD3B8\uC9D1\uD569\uB2C8\uB2E4",
+  "Open this revision on its own, apart from the shared map": "\uACF5\uC720 \uB9F5\uACFC \uBCC4\uAC1C\uB85C \uC774 \uBC84\uC804\uB9CC \uB530\uB85C \uC5FD\uB2C8\uB2E4",
+  "Open until everyone leaves": "\uBAA8\uB450 \uB098\uAC08 \uB54C\uAE4C\uC9C0 \uC5F4\uB9BC",
+  "Opened a copy of {name}": "{name} \uC0AC\uBCF8\uC744 \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4",
+  "Opened {name} #{n}": "{name} #{n} \uC5F4\uB9BC",
+  "Options\u2026": "\uC635\uC158\u2026",
+  "Or: {names}": "\uB2E4\uB978 \uC548: {names}",
+  "Other diagonal (square)": "\uBC18\uB300 \uB300\uAC01\uC120 \uB300\uCE6D (\uC815\uC0AC\uAC01\uD615)",
+  "Other edits came after this turn's; undo them first, from the Edit menu.": "\uC774 \uCC28\uB840 \uB4A4\uC5D0 \uB2E4\uB978 \uD3B8\uC9D1\uC774 \uC788\uC2B5\uB2C8\uB2E4. \uD3B8\uC9D1 \uBA54\uB274\uC5D0\uC11C \uADF8 \uD3B8\uC9D1\uB4E4\uC744 \uBA3C\uC800 \uC2E4\uD589 \uCDE8\uC18C\uD558\uC138\uC694.",
+  "Packing the map\u2026": "\uB9F5\uC744 \uBB36\uB294 \uC911\u2026",
+  "Paint shapes": "\uB3C4\uD615 \uCE60\uD558\uAE30",
+  "Paint {n, plural, one {# shape} other {# shapes}}: {list}": "\uB3C4\uD615 {n}\uAC1C \uCE60\uD558\uAE30: {list}",
+  "Paint {terrain} over {rect}": "{rect}\uC5D0 {terrain} \uCE60\uD558\uAE30",
+  "Paste the link you were sent": "\uBC1B\uC740 \uB9C1\uD06C\uB97C \uBD99\uC5EC \uB123\uC73C\uC138\uC694",
+  "People on the shared map": "\uACF5\uC720 \uB9F5\uC758 \uC0AC\uB78C\uB4E4",
+  "Per Make Scenario run ($)": "\uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30 \uC2E4\uD589\uB2F9 ($)",
+  "Per assistant message ($)": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8 \uBA54\uC2DC\uC9C0\uB2F9 ($)",
+  "Pick a map to see its revisions.": "\uB9F5\uC744 \uACE0\uB974\uBA74 \uBC84\uC804\uC774 \uBCF4\uC785\uB2C8\uB2E4.",
+  "Picture": "\uADF8\uB9BC",
+  "Place doodads": "\uC7A5\uC2DD\uBB3C \uBC30\uCE58",
+  "Place sprites": "\uC2A4\uD504\uB77C\uC774\uD2B8 \uBC30\uCE58",
+  "Place sprites: {sprites} near {x},{y}": "\uC2A4\uD504\uB77C\uC774\uD2B8 \uBC30\uCE58: {sprites} ({x},{y} \uBD80\uADFC)",
+  "Place units": "\uC720\uB2DB \uBC30\uCE58",
+  "Place {doodads} near {x},{y}": "{doodads} \uBC30\uCE58 ({x},{y} \uBD80\uADFC)",
+  "Place {units} for {owner} near {x},{y}": "{owner}\uC758 {units} \uBC30\uCE58 ({x},{y} \uBD80\uADFC)",
+  "Planning the terrain": "\uC9C0\uD615\uC744 \uACC4\uD68D\uD558\uB294 \uC911",
+  "Player Colors": "\uD50C\uB808\uC774\uC5B4 \uC0C9\uC0C1",
+  "Player Settings": "\uD50C\uB808\uC774\uC5B4 \uC124\uC815",
+  "Player {n}": "\uD50C\uB808\uC774\uC5B4 {n}",
+  "Player {slot}: {type}, {race}, force {force} \u2014 {role}": "\uD50C\uB808\uC774\uC5B4 {slot}: {type}, {race}, \uC138\uB825 {force} \u2014 {role}",
+  "Players": "\uD50C\uB808\uC774\uC5B4",
+  "Players and forces": "\uD50C\uB808\uC774\uC5B4\uC640 \uC138\uB825",
+  "Plays on": "\uC2E4\uD589 \uD658\uACBD",
+  "Preserve {n, plural, one {# trigger} other {# triggers}}": "\uD2B8\uB9AC\uAC70 {n}\uAC1C \uC720\uC9C0",
+  "Put #{n} in": "#{n} \uB123\uAE30",
+  "Put #{n} into the shared map": "\uACF5\uC720 \uB9F5\uC5D0 #{n} \uB123\uAE30",
+  "Put a revision into the shared map": "\uACF5\uC720 \uB9F5\uC5D0 \uBC84\uC804 \uB123\uAE30",
+  "Quality": "\uD488\uC9C8",
+  "Quick \u2014 fastest and cheapest": "\uBE60\uB974\uAC8C \u2014 \uAC00\uC7A5 \uBE60\uB974\uACE0 \uAC00\uC7A5 \uC800\uB834\uD568",
+  "Read Player {player}'s fog": "\uD50C\uB808\uC774\uC5B4 {player}\uC758 \uC548\uAC1C \uC77D\uAE30",
+  "Read Player {player}'s fog over {rect}": "\uD50C\uB808\uC774\uC5B4 {player}\uC758 {rect} \uC548\uAC1C \uC77D\uAE30",
+  "Read the guide: {id}": "\uAC00\uC774\uB4DC \uC77D\uAE30: {id}",
+  "Read the map's bases": "\uB9F5\uC758 \uAE30\uC9C0 \uC77D\uAE30",
+  "Read the terrain at {x},{y}": "{x},{y} \uC9C0\uD615 \uC77D\uAE30",
+  "Read the terrain over {rect}": "{rect} \uC9C0\uD615 \uC77D\uAE30",
+  "Read {what, select, briefing {the briefing} other {the triggers}}{range} as text": "{what, select, briefing {\uBE0C\uB9AC\uD551} other {\uD2B8\uB9AC\uAC70}}{range} \uD14D\uC2A4\uD2B8\uB85C \uC77D\uAE30",
+  "Ready": "\uC900\uBE44\uB428",
+  "Ready.": "\uC900\uBE44\uB428.",
+  "Reasoning": "\uCD94\uB860",
+  "Recent activity": "\uCD5C\uADFC \uC0AC\uC6A9 \uB0B4\uC5ED",
+  "Reconnected to the shared map.": "\uACF5\uC720 \uB9F5\uC5D0 \uB2E4\uC2DC \uC5F0\uACB0\uD588\uC2B5\uB2C8\uB2E4.",
+  "Reconnecting\u2026": "\uB2E4\uC2DC \uC5F0\uACB0\uD558\uB294 \uC911\u2026",
+  "Redo Area {x0},{y0} \u2013 {x1},{y1}": "\uC601\uC5ED \uB2E4\uC2DC \uB9CC\uB4E4\uAE30 {x0},{y0} \u2013 {x1},{y1}",
+  "Redo Area\u2026": "\uC601\uC5ED \uB2E4\uC2DC \uB9CC\uB4E4\uAE30\u2026",
+  "Redo this area with AI\u2026": "AI\uB85C \uC774 \uC601\uC5ED \uB2E4\uC2DC \uB9CC\uB4E4\uAE30\u2026",
+  "Refills": "\uCDA9\uC804",
+  "Refills {date}": "{date}\uC5D0 \uB2E4\uC2DC \uCC44\uC6CC\uC9D0",
+  "Refine": "\uB2E4\uB4EC\uAE30",
+  "Refresh": "\uC0C8\uB85C \uACE0\uCE68",
+  "Refreshing\u2026": "\uC0C8\uB85C \uACE0\uCE58\uB294 \uC911\u2026",
+  "Remove": "\uC81C\uAC70",
+  "Remove link": "\uB9C1\uD06C \uC81C\uAC70",
+  "Remove this link to {name}? Anyone who has it can no longer open the map. The map stays on your account.": "{name} \uB9F5\uC758 \uC774 \uB9C1\uD06C\uB97C \uC81C\uAC70\uD560\uAE4C\uC694? \uB9C1\uD06C\uB97C \uAC00\uC9C4 \uC0AC\uB78C\uC740 \uB354 \uC774\uC0C1 \uB9F5\uC744 \uC5F4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uACC4\uC815\uC5D0 \uADF8\uB300\uB85C \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "Remove {n, plural, one {# doodad} other {# doodads}} {list}": "\uC7A5\uC2DD\uBB3C {n}\uAC1C \uC81C\uAC70 {list}",
+  "Remove {n, plural, one {# location} other {# locations}} {list}": "\uB85C\uCF00\uC774\uC158 {n}\uAC1C \uC81C\uAC70 {list}",
+  "Remove {n, plural, one {# sprite} other {# sprites}}": "\uC2A4\uD504\uB77C\uC774\uD2B8 {n}\uAC1C \uC81C\uAC70",
+  "Remove {n, plural, one {# trigger} other {# triggers}} {list}": "\uD2B8\uB9AC\uAC70 {n}\uAC1C \uC81C\uAC70 {list}",
+  "Remove {n, plural, one {# unit} other {# units}} {list}": "\uC720\uB2DB {n}\uAC1C \uC81C\uAC70 {list}",
+  "Rename": "\uC774\uB984 \uBC14\uAFB8\uAE30",
+  "Rename map": "\uB9F5 \uC774\uB984 \uBC14\uAFB8\uAE30",
+  "Renamed.": "\uC774\uB984\uC744 \uBC14\uAFE8\uC2B5\uB2C8\uB2E4.",
+  "Rename\u2026": "\uC774\uB984 \uBC14\uAFB8\uAE30\u2026",
+  "Renaming\u2026": "\uC774\uB984 \uBC14\uAFB8\uB294 \uC911\u2026",
+  "Rendering the map at {ppt} px per tile\u2026": "\uD0C0\uC77C\uB2F9 {ppt}px\uB85C \uB9F5\uC744 \uADF8\uB9AC\uB294 \uC911\u2026",
+  "Renders the plan onto the map as one undo step, then names the map after it.": "\uACC4\uD68D\uC744 \uC2E4\uD589 \uCDE8\uC18C \uD55C \uB2E8\uACC4\uB85C \uB9F5\uC5D0 \uADF8\uB9B0 \uB2E4\uC74C, \uB9F5 \uC774\uB984\uC744 \uACC4\uD68D\uC5D0 \uB9DE\uCDB0 \uC9D3\uC2B5\uB2C8\uB2E4.",
+  "Replace Terrain": "\uC9C0\uD615 \uBC14\uAFB8\uAE30",
+  "Replace every trigger on the map with the script (the hand-made ones are folded into it first)": "\uB9F5\uC758 \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uB97C \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uAD50\uCCB4 (\uC9C1\uC811 \uB9CC\uB4E0 \uD2B8\uB9AC\uAC70\uB294 \uBA3C\uC800 \uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uD569\uCE69\uB2C8\uB2E4)",
+  "Replace the map's existing briefing": "\uB9F5\uC758 \uAE30\uC874 \uBE0C\uB9AC\uD551 \uAD50\uCCB4",
+  "Replace the shared map with revision #{n}? Everyone in it gets #{n} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.": "\uACF5\uC720 \uB9F5\uC744 #{n} \uBC84\uC804\uC73C\uB85C \uBC14\uAFC0\uAE4C\uC694? \uC548\uC5D0 \uC788\uB294 \uBAA8\uB450\uC5D0\uAC8C \uC989\uC2DC #{n} \uBC84\uC804\uC774 \uC801\uC6A9\uB418\uACE0, \uD06C\uAE30 \uBCC0\uACBD \uD6C4\uCC98\uB7FC \uBAA8\uB450\uC758 \uC2E4\uD589 \uCDE8\uC18C \uAE30\uB85D\uC774 \uCC98\uC74C\uBD80\uD130 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uBA3C\uC800 \uC800\uC7A5\uD558\uC9C0 \uC54A\uC73C\uBA74 \uC9C0\uAE08\uC758 \uB9F5\uC740 \uB0A8\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Replace the shared map with this revision, for everyone in it": "\uACF5\uC720 \uB9F5\uC744 \uC774 \uBC84\uC804\uC73C\uB85C \uBC14\uAFC9\uB2C8\uB2E4. \uC548\uC5D0 \uC788\uB294 \uBAA8\uB450\uC5D0\uAC8C \uC801\uC6A9\uB429\uB2C8\uB2E4",
+  "Replace trigger #{n}": "\uD2B8\uB9AC\uAC70 #{n} \uAD50\uCCB4",
+  "Resize Map": "\uB9F5 \uD06C\uAE30 \uBCC0\uACBD",
+  "Resize the map to {width} \xD7 {height}": "\uB9F5 \uD06C\uAE30\uB97C {width} \xD7 {height|\uB85C} \uBCC0\uACBD",
+  "Review": "\uAC80\uD1A0",
+  "Review Map": "\uB9F5 \uAC80\uD1A0",
+  "Review Map\u2026": "\uB9F5 \uAC80\uD1A0\u2026",
+  "Review it\u2026": "\uAC80\uD1A0\u2026",
+  "Revision #{n} deleted.": "#{n} \uBC84\uC804\uC744 \uC0AD\uC81C\uD588\uC2B5\uB2C8\uB2E4.",
+  "Revision #{n}, saved {ago}": "\uBC84\uC804 #{n}, {ago} \uC800\uC7A5",
+  "Revision note": "\uBC84\uC804 \uBA54\uBAA8",
+  "Revisions": "\uBC84\uC804",
+  "Revisions ({n})": "\uBC84\uC804 ({n})",
+  "Rewrite": "\uB2E4\uC2DC \uC4F0\uAE30",
+  "Rewrite Strings": "\uBB38\uC790\uC5F4 \uB2E4\uC2DC \uC4F0\uAE30",
+  "Rewrite Strings\u2026": "\uBB38\uC790\uC5F4 \uB2E4\uC2DC \uC4F0\uAE30\u2026",
+  "Rewrite with AI\u2026": "AI\uB85C \uB2E4\uC2DC \uC4F0\uAE30\u2026",
+  "Role": "\uC5ED\uD560",
+  "Rotate 180\xB0": "180\xB0 \uD68C\uC804",
+  "Rotate 90\xB0 (square)": "90\xB0 \uD68C\uC804 (\uC815\uC0AC\uAC01\uD615)",
+  "Rounds per message": "\uBA54\uC2DC\uC9C0\uB2F9 \uB77C\uC6B4\uB4DC",
+  "Save": "\uC800\uC7A5",
+  "Save and make the link": "\uC800\uC7A5\uD558\uACE0 \uB9C1\uD06C \uB9CC\uB4E4\uAE30",
+  "Save as": "\uC800\uC7A5 \uC704\uCE58",
+  "Save revision #{n} as a file": "#{n} \uBC84\uC804\uC744 \uD30C\uC77C\uB85C \uC800\uC7A5\uD569\uB2C8\uB2E4",
+  "Save the open map here\u2026": "\uC5F4\uB9B0 \uB9F5\uC744 \uC5EC\uAE30\uC5D0 \uC800\uC7A5\u2026",
+  "Save to scmjs.dev": "scmjs.dev\uC5D0 \uC800\uC7A5",
+  "Save to scmjs.dev\u2026": "scmjs.dev\uC5D0 \uC800\uC7A5\u2026",
+  "Saved as {name} #{n}. Anyone with this link can open a copy of it in their editor, without signing in:": "{name} #{n} \uBC84\uC804\uC73C\uB85C \uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4. \uC774 \uB9C1\uD06C\uAC00 \uC788\uC73C\uBA74 \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0\uC11C \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC2B5\uB2C8\uB2E4:",
+  "Saved to scmjs.dev: {name} #{n}": "scmjs.dev\uC5D0 \uC800\uC7A5\uB428: {name} #{n}",
+  "Saved {name}.": "{name} \uC800\uC7A5\uB428.",
+  "Saving the map to My Maps\u2026": "\uB9F5\uC744 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uD558\uB294 \uC911\u2026",
+  "Saving the note\u2026": "\uBA54\uBAA8 \uC800\uC7A5 \uC911\u2026",
+  "Saving\u2026": "\uC800\uC7A5 \uC911\u2026",
+  "Say something to everyone here": "\uC5EC\uAE30 \uC788\uB294 \uBAA8\uB450\uC5D0\uAC8C \uB9D0\uD558\uAE30",
+  "Say what kind of map you want first.": "\uBA3C\uC800 \uC5B4\uB5A4 \uB9F5\uC744 \uC6D0\uD558\uB294\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "Say what kind of scenario you want first.": "\uBA3C\uC800 \uC5B4\uB5A4 \uC2DC\uB098\uB9AC\uC624\uB97C \uC6D0\uD558\uB294\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "Say what the area should become first.": "\uBA3C\uC800 \uC774 \uC601\uC5ED\uC744 \uBB34\uC5C7\uC73C\uB85C \uB9CC\uB4E4\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "Say what the triggers should do first.": "\uBA3C\uC800 \uD2B8\uB9AC\uAC70\uAC00 \uBB34\uC5C7\uC744 \uD560\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "Say what to do with the strings first.": "\uBA3C\uC800 \uBB38\uC790\uC5F4\uB85C \uBB34\uC5C7\uC744 \uD560\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "Scatter {category} over {rect}": "{rect}\uC5D0 {category} \uD769\uBFCC\uB9AC\uAE30",
+  "Scenario": "\uC2DC\uB098\uB9AC\uC624",
+  "Scope": "\uBC94\uC704",
+  "Screenshot of the whole map": "\uB9F5 \uC804\uCCB4 \uC2A4\uD06C\uB9B0\uC0F7",
+  "Screenshot of {rect}": "{rect} \uC2A4\uD06C\uB9B0\uC0F7",
+  "Script: {name}": "\uC2A4\uD06C\uB9BD\uD2B8: {name}",
+  "Search maps": "\uB9F5 \uAC80\uC0C9",
+  "Seconds each": "\uAC01\uAC01\uC758 \uCD08",
+  "Select the link and copy it.": "\uB9C1\uD06C\uB97C \uC120\uD0DD\uD574\uC11C \uBCF5\uC0AC\uD558\uC138\uC694.",
+  "Select the text and copy it.": "\uD14D\uC2A4\uD2B8\uB97C \uC120\uD0DD\uD574\uC11C \uBCF5\uC0AC\uD558\uC138\uC694.",
+  "Select {things}": "{things} \uC120\uD0DD",
+  "Selection": "\uC120\uD0DD",
+  "Send": "\uBCF4\uB0B4\uAE30",
+  "Send a picture of the visible area with every message": "\uBA54\uC2DC\uC9C0\uB9C8\uB2E4 \uBCF4\uC774\uB294 \uC601\uC5ED\uC758 \uADF8\uB9BC \uBCF4\uB0B4\uAE30",
+  "Send a picture of the visible area with the message": "\uBA54\uC2DC\uC9C0\uC640 \uD568\uAED8 \uBCF4\uC774\uB294 \uC601\uC5ED\uC758 \uADF8\uB9BC \uBCF4\uB0B4\uAE30",
+  "Send this link to the people you want to edit with. Anyone who has it can join.": "\uD568\uAED8 \uD3B8\uC9D1\uD560 \uC0AC\uB78C\uB4E4\uC5D0\uAC8C \uC774 \uB9C1\uD06C\uB97C \uBCF4\uB0B4\uC138\uC694. \uB9C1\uD06C\uAC00 \uC788\uB294 \uC0AC\uB78C\uC740 \uB204\uAD6C\uB098 \uCC38\uC5EC\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Sent a {w} \xD7 {h} picture ({kb} KB) with the map's facts and {n, plural, one {# Check Map line} other {# Check Map lines}}.": "{w} \xD7 {h} \uADF8\uB9BC({kb} KB)\uC744 \uB9F5 \uC815\uBCF4, \uB9F5 \uAC80\uC0AC \uACB0\uACFC {n, plural, other {#\uC904\uACFC}} \uD568\uAED8 \uBCF4\uB0C8\uC2B5\uB2C8\uB2E4.",
+  "Session: {cost} over {n, plural, one {# call} other {# calls}}": "\uC138\uC158: {cost}, {n, plural, other {#\uD68C \uD638\uCD9C}}",
+  "Set force {list}: {fields}": "\uC138\uB825 {list} \uC124\uC815: {fields}",
+  "Set forces {list}: {fields}": "\uC138\uB825 {list} \uC124\uC815: {fields}",
+  "Set player {list}: {fields}": "\uD50C\uB808\uC774\uC5B4 {list} \uC124\uC815: {fields}",
+  "Set players {list}: {fields}": "\uD50C\uB808\uC774\uC5B4 {list} \uC124\uC815: {fields}",
+  'Set string {index}: "{text}"': '\uBB38\uC790\uC5F4 {index} \uC124\uC815: "{text}"',
+  "Set the map revision to {version}": "\uB9F5 \uBC84\uC804\uC744 {version|\uB85C} \uC124\uC815",
+  "Set the map's description": "\uB9F5 \uC124\uBA85 \uC124\uC815",
+  "Set the map's name": "\uB9F5 \uC774\uB984 \uC124\uC815",
+  "Set the map's name and description": "\uB9F5 \uC774\uB984\uACFC \uC124\uBA85 \uC124\uC815",
+  "Set the map's properties": "\uB9F5 \uC18D\uC131 \uC124\uC815",
+  "Set up the players and forces for: ": "\uB2E4\uC74C\uC5D0 \uB9DE\uAC8C \uD50C\uB808\uC774\uC5B4\uC640 \uC138\uB825 \uC124\uC815: ",
+  "Set up with AI\u2026": "AI\uB85C \uC124\uC815\u2026",
+  "Set {fields} on {n, plural, one {# unit} other {# units}}": "\uC720\uB2DB {n}\uAC1C\uC758 {fields} \uC124\uC815",
+  "Settings": "\uC124\uC815",
+  "Share this Map": "\uC774 \uB9F5 \uACF5\uC720",
+  "Share this Map\u2026": "\uC774 \uB9F5 \uACF5\uC720\u2026",
+  "Shared by {owner}": "\uACF5\uC720\uD55C \uC0AC\uB78C: {owner}",
+  "Shared editing": "\uACF5\uC720 \uD3B8\uC9D1",
+  "Shared editing ended": "\uD568\uAED8 \uD3B8\uC9D1\uD558\uAE30\uAC00 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4",
+  "Shared map": "\uACF5\uC720 \uB9F5",
+  "Shared map opened again": "\uACF5\uC720 \uB9F5\uC744 \uB2E4\uC2DC \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4",
+  "Shared maps": "\uACF5\uC720 \uB9F5",
+  "Shared {when}": "\uACF5\uC720 {when}",
+  "Shared \xB7 {ends}": "\uACF5\uC720 \uC911 \xB7 {ends}",
+  "Shared \xB7 {n, plural, one {# person} other {# people}}": "\uACF5\uC720 \uC911 \xB7 {n}\uBA85",
+  "Shared \xB7 {n} editing": "\uACF5\uC720 \uC911 \xB7 {n}\uBA85 \uD3B8\uC9D1 \uC911",
+  "Sharing a map takes a scmjs.dev account. The people you share it with need only the link.": "\uB9F5\uC744 \uACF5\uC720\uD558\uB824\uBA74 scmjs.dev \uACC4\uC815\uC774 \uD544\uC694\uD569\uB2C8\uB2E4. \uD568\uAED8\uD560 \uC0AC\uB78C\uB4E4\uC740 \uB9C1\uD06C\uB9CC \uC788\uC73C\uBA74 \uB429\uB2C8\uB2E4.",
+  "Sharing ended.": "\uACF5\uC720\uB97C \uB05D\uB0C8\uC2B5\uB2C8\uB2E4.",
+  "Sharing\u2026": "\uACF5\uC720\uD558\uB294 \uC911\u2026",
+  "Shorten": "\uC904\uC774\uAE30",
+  "Show my status in the status bar": "\uC0C1\uD0DC \uD45C\uC2DC\uC904\uC5D0 \uB0B4 \uC0C1\uD0DC \uD45C\uC2DC",
+  "Show the model's reasoning summary while it works": "\uBAA8\uB378\uC774 \uC791\uC5C5\uD558\uB294 \uB3D9\uC548 \uCD94\uB860 \uC694\uC57D \uBCF4\uAE30",
+  "Sign in": "\uB85C\uADF8\uC778",
+  "Sign in to scmjs.dev": "scmjs.dev\uC5D0 \uB85C\uADF8\uC778",
+  "Sign in to scmjs.dev to keep maps on your account.": "\uACC4\uC815\uC5D0 \uB9F5\uC744 \uBCF4\uAD00\uD558\uB824\uBA74 scmjs.dev\uC5D0 \uB85C\uADF8\uC778\uD558\uC138\uC694.",
+  "Sign in to scmjs.dev\u2026": "scmjs.dev\uC5D0 \uB85C\uADF8\uC778\u2026",
+  "Sign in to use": "\uB85C\uADF8\uC778\uD558\uBA74 \uC0AC\uC6A9 \uAC00\uB2A5",
+  "Sign in with {provider}": "{provider|\uC73C\uB85C} \uB85C\uADF8\uC778",
+  "Sign in\u2026": "\uB85C\uADF8\uC778\u2026",
+  "Sign out": "\uB85C\uADF8\uC544\uC6C3",
+  "Sign out of scmjs.dev": "scmjs.dev\uC5D0\uC11C \uB85C\uADF8\uC544\uC6C3",
+  "Sign-in": "\uB85C\uADF8\uC778 \uC218\uB2E8",
+  "Signed in": "\uB85C\uADF8\uC778\uB428",
+  "Signed in as": "\uB85C\uADF8\uC778 \uACC4\uC815",
+  "Signed in as {name}.": "{name} \uACC4\uC815\uC73C\uB85C \uB85C\uADF8\uC778\uD588\uC2B5\uB2C8\uB2E4.",
+  "Signed in to scmjs.dev": "scmjs.dev\uC5D0 \uB85C\uADF8\uC778\uD588\uC2B5\uB2C8\uB2E4",
+  "Signed in to scmjs.dev as {name}": "scmjs.dev\uC5D0 {name} \uACC4\uC815\uC73C\uB85C \uB85C\uADF8\uC778\uD588\uC2B5\uB2C8\uB2E4",
+  "Signed in.": "\uB85C\uADF8\uC778\uD588\uC2B5\uB2C8\uB2E4.",
+  "Signed out of scmjs.dev": "scmjs.dev\uC5D0\uC11C \uB85C\uADF8\uC544\uC6C3\uD588\uC2B5\uB2C8\uB2E4",
+  "Signed out.": "\uB85C\uADF8\uC544\uC6C3\uD588\uC2B5\uB2C8\uB2E4.",
+  "Signing in {gives}, and room to keep maps on your account.": "\uB85C\uADF8\uC778\uD558\uBA74 {gives|\uC744} \uBC1B\uACE0, \uACC4\uC815\uC5D0 \uB9F5\uC744 \uBCF4\uAD00\uD560 \uACF5\uAC04\uB3C4 \uC0DD\uAE41\uB2C8\uB2E4.",
+  "Simulate the triggers for {n, plural, one {# cycle} other {# cycles}}": "\uD2B8\uB9AC\uAC70 {n}\uC0AC\uC774\uD074 \uC2DC\uBBAC\uB808\uC774\uC158",
+  "Size": "\uD06C\uAE30",
+  "Small (600 \xD7 315), for a signature": "\uC791\uAC8C (600 \xD7 315), \uC11C\uBA85\uC6A9",
+  "Someone else's change came first; {n, plural, one {# part} other {# parts}} of yours no longer applied.": "\uB2E4\uB978 \uC0AC\uB78C\uC758 \uBCC0\uACBD\uC774 \uBA3C\uC800 \uC801\uC6A9\uB418\uC5B4 \uB0B4 \uBCC0\uACBD \uC911 {n}\uAC1C \uBD80\uBD84\uC774 \uB354 \uC774\uC0C1 \uC801\uC6A9\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "Space Platform": "\uC6B0\uC8FC \uD50C\uB7AB\uD3FC",
+  "Spending": "\uC9C0\uCD9C",
+  "Sprite Properties": "\uC2A4\uD504\uB77C\uC774\uD2B8 \uC18D\uC131",
+  "Standard \u2014 tuned for each feature (recommended)": "\uD45C\uC900 \u2014 \uAE30\uB2A5\uB9C8\uB2E4 \uB9DE\uCD98 \uC124\uC815 (\uAD8C\uC7A5)",
+  "StarCraft: Remastered (scripts may be programs)": "\uC2A4\uD0C0\uD06C\uB798\uD504\uD2B8: \uB9AC\uB9C8\uC2A4\uD130 (\uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uD504\uB85C\uADF8\uB7A8 \uC0AC\uC6A9 \uAC00\uB2A5)",
+  "Start sharing": "\uACF5\uC720 \uC2DC\uC791",
+  "Start the free trial": "\uBB34\uB8CC \uCCB4\uD5D8 \uC2DC\uC791",
+  "Status": "\uC0C1\uD0DC",
+  "Step {n} \xB7 {text}": "{n}\uB2E8\uACC4 \xB7 {text}",
+  "Stop": "\uC815\uC9C0",
+  "Stop preserving {n, plural, one {# trigger} other {# triggers}}": "\uD2B8\uB9AC\uAC70 {n}\uAC1C \uC720\uC9C0 \uD574\uC81C",
+  "Stop sharing": "\uACF5\uC720 \uC911\uC9C0",
+  "Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.": "\uC774 \uB9F5\uC758 \uACF5\uC720\uB97C \uC911\uC9C0\uD560\uAE4C\uC694? \uBAA8\uB450\uAC00 \uB098\uAC00\uAC8C \uB418\uC9C0\uB9CC, \uAC01\uC790 \uC0AC\uBCF8\uC744 \uAC00\uC9C0\uACE0 \uC788\uC5B4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Stop the build": "\uBE4C\uB4DC \uC911\uC9C0",
+  "Stopped": "\uC815\uC9C0\uB428",
+  "Stopped before anything was sent.": "\uBCF4\uB0B4\uAE30 \uC804\uC5D0 \uBA48\uCDC4\uC2B5\uB2C8\uB2E4.",
+  "Stopped building {name}: {parts}. What was built stays.": "{name} \uBE4C\uB4DC\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4: {parts}. \uBE4C\uB4DC\uB41C \uAC83\uC740 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "Stopped.": "\uC911\uC9C0\uD588\uC2B5\uB2C8\uB2E4.",
+  "Suggest": "\uC81C\uC548",
+  "Suggest a name": "\uC774\uB984 \uC81C\uC548",
+  "Switches": "\uC2A4\uC704\uCE58",
+  "Symmetry": "\uB300\uCE6D",
+  "System: {name}": "\uC2DC\uC2A4\uD15C: {name}",
+  "Systems ({n})": "\uC2DC\uC2A4\uD15C ({n})",
+  "Talking to {server} \u2014 a development server named by ?{query}= on the editor's address. Open the editor with ?{query}= (empty) to go back to scmjs.dev.": "{server}\uC5D0 \uC5F0\uACB0 \uC911\uC785\uB2C8\uB2E4. \uC5D0\uB514\uD130 \uC8FC\uC18C\uC758 ?{query}= \uAC12\uC73C\uB85C \uC9C0\uC815\uD55C \uAC1C\uBC1C \uC11C\uBC84\uC785\uB2C8\uB2E4. scmjs.dev\uB85C \uB3CC\uC544\uAC00\uB824\uBA74 \uC5D0\uB514\uD130\uB97C ?{query}= (\uBE48 \uAC12)\uC73C\uB85C \uC5EC\uC138\uC694.",
+  "Tech Settings": "\uAE30\uC220 \uC124\uC815",
+  "Technology settings for {tech}: {fields}": "{tech} \uAE30\uC220 \uC124\uC815: {fields}",
+  "Tell the assistant what the players should be": "\uD50C\uB808\uC774\uC5B4\uB97C \uC5B4\uB5BB\uAC8C \uB458\uC9C0 \uC5B4\uC2DC\uC2A4\uD134\uD2B8\uC5D0\uAC8C \uC54C\uB824 \uC90D\uB2C8\uB2E4",
+  "Terrain": "\uC9C0\uD615",
+  "Terrain and locations": "\uC9C0\uD615\uACFC \uB85C\uCF00\uC774\uC158",
+  "Terrain and locations ({preset} preset)": "\uC9C0\uD615\uACFC \uB85C\uCF00\uC774\uC158 ({preset} \uD504\uB9AC\uC14B)",
+  "That is not a map link.": "\uB9F5 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
+  "That is not a shared map's link.": "\uACF5\uC720 \uB9F5\uC758 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
+  "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB97C \uC4F0\uAC70\uB098 \uAC80\uC0AC\uD558\uAC70\uB098 \uBE4C\uB4DC\uD558\uB824\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
+  "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uCF1C\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD234\uD0B7\uC774 \uB9CC\uB4E4 \uC218 \uC5C6\uB294 \uC2DC\uC2A4\uD15C\uC740 \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uC791\uC131\uD569\uB2C8\uB2E4.",
+  "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.": "Trigger Script \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uC124\uACC4\uB294 \uD234\uD0B7\uC758 \uC2DC\uC2A4\uD15C(\uD558\uC774\uD37C \uD2B8\uB9AC\uAC70, \uC2A4\uD3F0, \uD0AC \uBCF4\uC0C1, \uC6E8\uC774\uBE0C, \uBAA9\uC228, \uC0C1\uC810 \uB4F1)\uB9CC \uC501\uB2C8\uB2E4. \uC9C1\uC811 \uB9CC\uB4E0 \uADDC\uCE59\uC774 \uD544\uC694\uD558\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
+  "The balance is used up: {message}": "\uC794\uC561\uC744 \uB2E4 \uC37C\uC2B5\uB2C8\uB2E4: {message}",
+  "The clipboard is not available here.": "\uC5EC\uAE30\uC11C\uB294 \uD074\uB9BD\uBCF4\uB4DC\uB97C \uC4F8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "The connection to the shared map dropped. Keep working: your changes are kept here and sent once it is back. The editor keeps trying for two minutes.": "\uACF5\uC720 \uB9F5\uACFC\uC758 \uC5F0\uACB0\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4. \uACC4\uC18D \uC791\uC5C5\uD558\uC138\uC694. \uBCC0\uACBD \uB0B4\uC6A9\uC740 \uC5EC\uAE30\uC5D0 \uBCF4\uAD00\uD588\uB2E4\uAC00 \uC5F0\uACB0\uB418\uBA74 \uBCF4\uB0C5\uB2C8\uB2E4. \uC5D0\uB514\uD130\uB294 2\uBD84 \uB3D9\uC548 \uB2E4\uC2DC \uC2DC\uB3C4\uD569\uB2C8\uB2E4.",
+  "The connection to the shared map was lost. The map is still open here; save it, or join again.": "\uACF5\uC720 \uB9F5\uACFC\uC758 \uC5F0\uACB0\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "The design": "\uC124\uACC4",
+  "The design is for Remastered, and its timers are counted at 24 trigger cycles a second, but no script on the map has a program: until one does the triggers run every two seconds and every timer is about 48 times slow. Add a program in TrigScript, or set the design to every version and build again.": "\uC124\uACC4\uAC00 \uB9AC\uB9C8\uC2A4\uD130\uC6A9\uC774\uB77C \uD0C0\uC774\uBA38\uB97C \uCD08\uB2F9 24\uD68C \uD2B8\uB9AC\uAC70 \uC2E4\uD589\uC73C\uB85C \uC14C\uC9C0\uB9CC, \uB9F5\uC758 \uC5B4\uB5A4 \uC2A4\uD06C\uB9BD\uD2B8\uC5D0\uB3C4 \uD504\uB85C\uADF8\uB7A8\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uD504\uB85C\uADF8\uB7A8\uC774 \uC0DD\uAE30\uAE30 \uC804\uAE4C\uC9C0 \uD2B8\uB9AC\uAC70\uB294 2\uCD08\uB9C8\uB2E4 \uC2E4\uD589\uB418\uC5B4 \uBAA8\uB4E0 \uD0C0\uC774\uBA38\uAC00 \uC57D 48\uBC30 \uB290\uB824\uC9D1\uB2C8\uB2E4. TrigScript\uC5D0\uC11C \uD504\uB85C\uADF8\uB7A8\uC744 \uCD94\uAC00\uD558\uAC70\uB098, \uC124\uACC4\uB97C \uBAA8\uB4E0 \uBC84\uC804\uC6A9\uC73C\uB85C \uBC14\uAFB8\uACE0 \uB2E4\uC2DC \uBE4C\uB4DC\uD558\uC138\uC694.",
+  "The file is what File \u25B8 Save would write, with the options you last saved with. Saving the same bytes again costs no storage; only the note is new.": "\uD30C\uC77C\uC740 \uB9C8\uC9C0\uB9C9\uC73C\uB85C \uC800\uC7A5\uD560 \uB54C\uC758 \uC635\uC158\uC73C\uB85C \uD30C\uC77C \u25B8 \uC800\uC7A5\uC774 \uC4F0\uB294 \uAC83\uACFC \uAC19\uC2B5\uB2C8\uB2E4. \uAC19\uC740 \uB0B4\uC6A9\uC744 \uB2E4\uC2DC \uC800\uC7A5\uD558\uBA74 \uC800\uC7A5 \uACF5\uAC04\uC744 \uC4F0\uC9C0 \uC54A\uACE0 \uBA54\uBAA8\uB9CC \uC0C8\uB85C \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity.": "\uCCAB AI \uC694\uCCAD\uC744 \uD558\uBA74 \uB85C\uADF8\uC778 \uC5C6\uC774 \uBB34\uB8CC \uCCB4\uD5D8\uC774 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uB85C\uADF8\uC778\uD558\uBA74 \uC794\uC561\uC774 \uBE0C\uB77C\uC6B0\uC800 \uC0AC\uC774\uC5D0\uC11C \uC720\uC9C0\uB418\uACE0 \uB85C\uADF8\uC778 \uD06C\uB808\uB527\uC774 \uB354\uD574\uC9D1\uB2C8\uB2E4. \uC794\uC561, \uCDA9\uC804, \uC0AC\uC6A9 \uB0B4\uC5ED\uC740 \uACC4\uC815 \uB300\uD654 \uC0C1\uC790\uC5D0 \uC788\uC2B5\uB2C8\uB2E4.",
+  "The link always opens this revision.": "\uC774 \uB9C1\uD06C\uB294 \uD56D\uC0C1 \uC774 \uBC84\uC804\uC744 \uC5FD\uB2C8\uB2E4.",
+  "The link is on the clipboard.": "\uB9C1\uD06C\uB97C \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
+  "The link opens whichever revision is newest when it is opened.": "\uC774 \uB9C1\uD06C\uB294 \uC5F4 \uB54C \uAC00\uC7A5 \uCD5C\uC2E0\uC778 \uBC84\uC804\uC744 \uC5FD\uB2C8\uB2E4.",
+  "The map could not be copied.": "\uB9F5\uC744 \uBCF5\uC0AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+  "The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays.": "\uC2DC\uB098\uB9AC\uC624\uB97C \uBE4C\uB4DC\uD558\uB294 \uB3D9\uC548 \uC55E\uC5D0 \uC788\uB294 \uB9F5\uC774 \uBC14\uB00C\uC5B4\uC11C \uBE4C\uB4DC\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4. \uBE4C\uB4DC\uB97C \uC2DC\uC791\uD558\uC9C0 \uC54A\uC740 \uB9F5\uC5D0\uB294 \uC544\uBB34\uAC83\uB3C4 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8 \uB9F5\uC744 \uB2E4\uC2DC \uC55E\uC73C\uB85C \uAC00\uC838\uC640 \uBE4C\uB4DC\uD558\uC138\uC694. \uC774\uBBF8 \uBE4C\uB4DC\uD55C \uAC83\uC740 \uB0A8\uC544 \uC788\uC2B5\uB2C8\uB2E4.",
+  "The map is on scmjs.dev only while it is shared: sharing ends when you stop it, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it.": "\uB9F5\uC740 \uACF5\uC720\uB418\uB294 \uB3D9\uC548\uC5D0\uB9CC scmjs.dev\uC5D0 \uC788\uC2B5\uB2C8\uB2E4. \uACF5\uC720\uB294 \uC9C1\uC811 \uC911\uC9C0\uD558\uAC70\uB098, \uB9C8\uC9C0\uB9C9 \uC0AC\uB78C\uC774 \uB098\uAC00\uACE0 30\uBD84\uC774 \uC9C0\uB098\uAC70\uB098, \uC11C\uBC84\uAC00 \uB2E4\uC2DC \uC2DC\uC791\uB418\uBA74 \uB05D\uB0A9\uB2C8\uB2E4. \uBAA8\uB450 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0 \uB9F5\uC774 \uB0A8\uC544 \uC788\uC5B4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a day with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uD558\uB8E8 \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a month with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uD55C \uB2EC \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a week with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uC77C\uC8FC\uC77C \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It stays open until you end it (or after a year with no edits), and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uC9C1\uC811 \uB05D\uB0BC \uB54C\uAE4C\uC9C0 (\uB610\uB294 1\uB144 \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC744 \uB54C\uAE4C\uC9C0) \uC5F4\uB824 \uC788\uC73C\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The map opens as a new file in your editor. It is your own copy: nothing you change reaches the person who shared it.": "\uB9F5\uC740 \uC5D0\uB514\uD130\uC5D0\uC11C \uC0C8 \uD30C\uC77C\uB85C \uC5F4\uB9BD\uB2C8\uB2E4. \uB0B4 \uC0AC\uBCF8\uC774\uBBC0\uB85C \uBB34\uC5C7\uC744 \uBC14\uAFD4\uB3C4 \uACF5\uC720\uD55C \uC0AC\uB78C\uC5D0\uAC8C\uB294 \uC804\uD574\uC9C0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "The map opens beside the ones you have open. You edit it together with everyone in it; closing it leaves.": "\uB9F5\uC740 \uC5F4\uB824 \uC788\uB294 \uB9F5\uB4E4 \uC606\uC5D0 \uC5F4\uB9BD\uB2C8\uB2E4. \uC548\uC5D0 \uC788\uB294 \uBAA8\uB450\uC640 \uD568\uAED8 \uD3B8\uC9D1\uD558\uBA70, \uB2EB\uC73C\uBA74 \uB098\uAC11\uB2C8\uB2E4.",
+  "The map stays open for the others and at its link.": "\uB9F5\uC740 \uB2E4\uB978 \uC0AC\uB78C\uB4E4\uC5D0\uAC8C, \uADF8\uB9AC\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC2B5\uB2C8\uB2E4.",
+  "The map was edited since the last plan was applied. Apply the new plan on top of it?": "\uB9C8\uC9C0\uB9C9 \uACC4\uD68D\uC744 \uC801\uC6A9\uD55C \uB4A4\uB85C \uB9F5\uC774 \uD3B8\uC9D1\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC0C8 \uACC4\uD68D\uC744 \uADF8 \uC704\uC5D0 \uC801\uC6A9\uD560\uAE4C\uC694?",
+  "The model declined this request. {message}": "\uBAA8\uB378\uC774 \uC774 \uC694\uCCAD\uC744 \uAC70\uC808\uD588\uC2B5\uB2C8\uB2E4. {message}",
+  "The model declined.": "\uBAA8\uB378\uC774 \uAC70\uC808\uD588\uC2B5\uB2C8\uB2E4.",
+  "The model is given this map's names: {starts, plural, one {# start location} other {# start locations}}, {triggers, plural, one {# existing trigger} other {# existing triggers}}, and every unit, location and switch as it is called here.": "\uBAA8\uB378\uC740 \uC774 \uB9F5\uC758 \uC774\uB984\uC744 \uBC1B\uC2B5\uB2C8\uB2E4: \uC2DC\uC791 \uC704\uCE58 {starts, plural, other {#\uAC1C}}, \uAE30\uC874 \uD2B8\uB9AC\uAC70 {triggers, plural, other {#\uAC1C}}, \uADF8\uB9AC\uACE0 \uC5EC\uAE30\uC11C \uBD80\uB974\uB294 \uC774\uB984 \uADF8\uB300\uB85C\uC758 \uBAA8\uB4E0 \uC720\uB2DB, \uB85C\uCF00\uC774\uC158, \uC2A4\uC704\uCE58.",
+  "The model named this tool but did not call it.": "\uBAA8\uB378\uC774 \uC774 \uB3C4\uAD6C\uB97C \uC5B8\uAE09\uD588\uC9C0\uB9CC \uD638\uCD9C\uD558\uC9C0\uB294 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "The model sees the map's state, your selection and the view with every message.": "\uBA54\uC2DC\uC9C0\uB9C8\uB2E4 \uBAA8\uB378\uC774 \uB9F5\uC758 \uC0C1\uD0DC, \uC120\uD0DD\uD55C \uAC83, \uD654\uBA74\uC744 \uD568\uAED8 \uBD05\uB2C8\uB2E4.",
+  "The model sees: {list}": "\uBAA8\uB378\uC774 \uBCF4\uB294 \uAC83: {list}",
+  "The model service failed: {message}": "\uBAA8\uB378 \uC11C\uBE44\uC2A4\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4: {message}",
+  "The narration, one message per line.": "\uB0B4\uB808\uC774\uC158, \uD55C \uC904\uC5D0 \uBA54\uC2DC\uC9C0 \uD558\uB098\uC529.",
+  "The old link no longer works. Nobody in the map was sent out.": "\uC774\uC804 \uB9C1\uD06C\uB294 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5 \uC548\uC5D0 \uC788\uB358 \uC0AC\uB78C\uC740 \uADF8\uB300\uB85C \uC788\uC2B5\uB2C8\uB2E4.",
+  "The open map": "\uC5F4\uB9B0 \uB9F5",
+  "The open map is saved to your account as a new map, and you get a link anyone can open a copy of it with, without signing in.": "\uC5F4\uB9B0 \uB9F5\uC744 \uACC4\uC815\uC5D0 \uC0C8 \uB9F5\uC73C\uB85C \uC800\uC7A5\uD558\uACE0, \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uB294 \uB9C1\uD06C\uB97C \uBC1B\uC2B5\uB2C8\uB2E4.",
+  "The open map is saved to your account as a new revision of {name}, and you get a link anyone can open a copy of it with, without signing in.": "\uC5F4\uB9B0 \uB9F5\uC744 \uACC4\uC815\uC5D0 {name}\uC758 \uC0C8 \uBC84\uC804\uC73C\uB85C \uC800\uC7A5\uD558\uACE0, \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uB294 \uB9C1\uD06C\uB97C \uBC1B\uC2B5\uB2C8\uB2E4.",
+  "The payment page opened in a new tab. The credit lands once it is paid.": "\uACB0\uC81C \uD398\uC774\uC9C0\uB97C \uC0C8 \uD0ED\uC5D0 \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4. \uACB0\uC81C\uAC00 \uB05D\uB098\uBA74 \uD06C\uB808\uB527\uC774 \uB4E4\uC5B4\uC635\uB2C8\uB2E4.",
+  "The people who open it get their own copy. Nothing they change reaches yours; to edit it together, use Share this Map\u2026 instead.": "\uB9C1\uD06C\uB97C \uC5EC\uB294 \uC0AC\uB78C\uC740 \uAC01\uC790 \uC0AC\uBCF8\uC744 \uBC1B\uC2B5\uB2C8\uB2E4. \uADF8 \uC0AC\uB78C\uC774 \uBC14\uAFBC \uB0B4\uC6A9\uC740 \uB0B4 \uB9F5\uC5D0 \uC804\uD574\uC9C0\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uD568\uAED8 \uD3B8\uC9D1\uD558\uB824\uBA74 \uB300\uC2E0 \uC774 \uB9F5 \uACF5\uC720\u2026\uB97C \uC4F0\uC138\uC694.",
+  "The person who shared the map ended the session.": "\uB9F5\uC744 \uACF5\uC720\uD55C \uC0AC\uB78C\uC774 \uC138\uC158\uC744 \uB05D\uB0C8\uC2B5\uB2C8\uB2E4.",
+  "The picture on its own": "\uADF8\uB9BC\uB9CC",
+  "The picture opens": "\uADF8\uB9BC\uC774 \uC5EC\uB294 \uAC83",
+  "The plan": "\uACC4\uD68D",
+  "The revised plan replaces the applied one: the previous render is undone first when nothing else was edited in between.": "\uACE0\uCE5C \uACC4\uD68D\uC774 \uC801\uC6A9\uB41C \uACC4\uD68D\uC744 \uB300\uC2E0\uD569\uB2C8\uB2E4. \uADF8 \uC0AC\uC774\uC5D0 \uB2E4\uB978 \uD3B8\uC9D1\uC774 \uC5C6\uC5C8\uB2E4\uBA74 \uC774\uC804 \uACB0\uACFC\uB97C \uBA3C\uC800 \uC2E4\uD589 \uCDE8\uC18C\uD569\uB2C8\uB2E4.",
+  "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second and the hyper triggers in the list are left out.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC148\uD558\uACE0, \uBAA9\uB85D\uC758 \uD558\uC774\uD37C \uD2B8\uB9AC\uAC70\uB294 \uBE60\uC9D1\uB2C8\uB2E4.",
+  "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC149\uB2C8\uB2E4.",
+  "The script": "\uC2A4\uD06C\uB9BD\uD2B8",
+  "The script appears here. Edit it before building if you like.": "\uC2A4\uD06C\uB9BD\uD2B8\uAC00 \uC5EC\uAE30\uC5D0 \uB098\uD0C0\uB0A9\uB2C8\uB2E4. \uBE4C\uB4DC\uD558\uAE30 \uC804\uC5D0 \uACE0\uCCD0\uB3C4 \uB429\uB2C8\uB2E4.",
+  "The script has {n, plural, one {# error} other {# errors}}; asking for a repair ({round} of {rounds})\u2026": "\uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uC624\uB958\uAC00 {n, plural, other {#\uAC1C}} \uC788\uC2B5\uB2C8\uB2E4. \uC218\uC815\uC744 \uC694\uCCAD\uD558\uB294 \uC911 ({round}/{rounds})\u2026",
+  "The script still has errors. Fix them here or in TrigScript, then Build.": "\uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uC544\uC9C1 \uC624\uB958\uAC00 \uC788\uC2B5\uB2C8\uB2E4. \uC5EC\uAE30\uB098 TrigScript\uC5D0\uC11C \uACE0\uCE5C \uB2E4\uC74C \uBE4C\uB4DC\uD558\uC138\uC694.",
+  "The server answered in a form this plugin does not understand: {message}": "\uC11C\uBC84\uAC00 \uC774 \uD50C\uB7EC\uADF8\uC778\uC774 \uC774\uD574\uD558\uC9C0 \uBABB\uD558\uB294 \uD615\uC2DD\uC73C\uB85C \uC751\uB2F5\uD588\uC2B5\uB2C8\uB2E4: {message}",
+  "The server does not allow that model: {message}": "\uC11C\uBC84\uAC00 \uADF8 \uBAA8\uB378\uC744 \uD5C8\uC6A9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4: {message}",
+  "The server does not take shared maps from this page.": "\uC11C\uBC84\uAC00 \uC774 \uD398\uC774\uC9C0\uC5D0\uC11C \uC624\uB294 \uACF5\uC720 \uB9F5\uC744 \uBC1B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "The server is busy.": "\uC11C\uBC84\uAC00 \uBC14\uC069\uB2C8\uB2E4.",
+  "The server refused: {message}": "\uC11C\uBC84\uAC00 \uAC70\uBD80\uD588\uC2B5\uB2C8\uB2E4: {message}",
+  "The server rejected the request: {message}": "\uC11C\uBC84\uAC00 \uC694\uCCAD\uC744 \uAC70\uBD80\uD588\uC2B5\uB2C8\uB2E4: {message}",
+  "The server restarted, which ends every shared map.": "\uC11C\uBC84\uAC00 \uB2E4\uC2DC \uC2DC\uC791\uB418\uC5B4 \uBAA8\uB4E0 \uACF5\uC720 \uB9F5\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4.",
+  "The session has ended: {message} Sign in again from the Account menu.": "\uC138\uC158\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4: {message} \uACC4\uC815 \uBA54\uB274\uC5D0\uC11C \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.",
+  "The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again.": "\uACF5\uC720 \uB9F5\uACFC \uC774 \uC5D0\uB514\uD130\uC758 \uBCC0\uACBD \uB0B4\uC6A9\uC774 \uB354 \uC774\uC0C1 \uC77C\uCE58\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "The shared map closed after nobody used it for a while.": "\uD55C\uB3D9\uC548 \uC544\uBB34\uB3C4 \uC4F0\uC9C0 \uC54A\uC544 \uACF5\uC720 \uB9F5\uC774 \uB2EB\uD614\uC2B5\uB2C8\uB2E4.",
+  "The shared map could not be opened again ({error}). The map is still open here; save it, or join again.": "\uACF5\uC720 \uB9F5\uC744 \uB2E4\uC2DC \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4 ({error}). \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "The shared map could not be opened.": "\uACF5\uC720 \uB9F5\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+  "The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps.": "\uC815\uD574\uC9C4 \uAE30\uAC04 \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC5B4 \uACF5\uC720 \uB9F5\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4. \uB9F5\uACFC \uBC84\uC804\uC740 \uC18C\uC720\uC790\uC758 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
+  "The shared map ended while you were away. The map is still open here; save it, or join again.": "\uC790\uB9AC\uB97C \uBE44\uC6B4 \uC0AC\uC774 \uACF5\uC720 \uB9F5\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "The shared map ended.": "\uACF5\uC720 \uB9F5\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4.",
+  "The shared map was closed in this editor.": "\uC774 \uC5D0\uB514\uD130\uC5D0\uC11C \uACF5\uC720 \uB9F5\uC744 \uB2EB\uC558\uC2B5\uB2C8\uB2E4.",
+  "The shared map: anyone who sees it can join and edit": "\uACF5\uC720 \uB9F5: \uBCF4\uB294 \uC0AC\uB78C \uB204\uAD6C\uB098 \uCC38\uC5EC\uD574\uC11C \uD3B8\uC9D1\uD560 \uC218 \uC788\uC74C",
+  "There are no triggers to explain.": "\uC124\uBA85\uD560 \uD2B8\uB9AC\uAC70\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "These systems belong to the map the scenario was built on; bring it to the front first.": "\uC774 \uC2DC\uC2A4\uD15C\uB4E4\uC740 \uC2DC\uB098\uB9AC\uC624\uB97C \uBE4C\uB4DC\uD55C \uB9F5\uC758 \uAC83\uC785\uB2C8\uB2E4. \uBA3C\uC800 \uADF8 \uB9F5\uC744 \uC55E\uC73C\uB85C \uAC00\uC838\uC624\uC138\uC694.",
+  "Thinking": "\uC0DD\uAC01\uD558\uB294 \uC911",
+  "This feature is turned off on the server for now.": "\uC774 \uAE30\uB2A5\uC740 \uC9C0\uAE08 \uC11C\uBC84\uC5D0\uC11C \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4.",
+  "This server has no pictures for shared maps yet.": "\uC774 \uC11C\uBC84\uB294 \uC544\uC9C1 \uACF5\uC720 \uB9F5 \uADF8\uB9BC\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "This server has no shared map editing.": "\uC774 \uC11C\uBC84\uB294 \uACF5\uC720 \uB9F5 \uD3B8\uC9D1\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "This server keeps no maps.": "\uC774 \uC11C\uBC84\uB294 \uB9F5\uC744 \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "This server offers no sign-in.": "\uC774 \uC11C\uBC84\uB294 \uB85C\uADF8\uC778\uC744 \uC81C\uACF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Thorough \u2014 the highest setting; slower and dearer": "\uAF3C\uAF3C\uD558\uAC8C \u2014 \uAC00\uC7A5 \uB192\uC740 \uC124\uC815, \uB354 \uB290\uB9AC\uACE0 \uBE44\uC308",
+  "Thought": "\uC0DD\uAC01\uD568",
+  "Tileset": "\uD0C0\uC77C\uC14B",
+  'Tone, length, language \u2014 or leave it to the facts. ("short and grim", "in German", "mention the gold expansion")': '\uC5B4\uC870, \uAE38\uC774, \uC5B8\uC5B4 \u2014 \uBE44\uC6CC \uB450\uBA74 \uB9F5\uC758 \uC815\uBCF4\uB85C \uC501\uB2C8\uB2E4. ("\uC9E7\uACE0 \uC74C\uC6B8\uD558\uAC8C", "\uB3C5\uC77C\uC5B4\uB85C", "\uACE8\uB4DC \uBA40\uD2F0\uB97C \uC5B8\uAE09")',
+  "Too many requests for now.": "\uC9C0\uAE08\uC740 \uC694\uCCAD\uC774 \uB108\uBB34 \uB9CE\uC2B5\uB2C8\uB2E4.",
+  "Top up or wait": "\uCDA9\uC804\uD558\uAC70\uB098 \uAE30\uB2E4\uB9AC\uAE30",
+  "Top up\u2026": "\uCDA9\uC804\u2026",
+  "Transcript copied.": "\uB300\uD654 \uB0B4\uC6A9\uC744 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
+  "Translate to\u2026": "\uBC88\uC5ED\u2026",
+  "Translate, fix or retone the strings": "\uBB38\uC790\uC5F4\uC744 \uBC88\uC5ED\uD558\uAC70\uB098 \uACE0\uCE58\uAC70\uB098 \uC5B4\uC870\uB97C \uBC14\uAFC9\uB2C8\uB2E4",
+  "Trial started: {amount} to spend.": "\uCCB4\uD5D8\uC744 \uC2DC\uC791\uD588\uC2B5\uB2C8\uB2E4. {amount}\uAE4C\uC9C0 \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Triggers": "\uD2B8\uB9AC\uAC70",
+  "Triggers ({n})": "\uD2B8\uB9AC\uAC70 ({n})",
+  "Triggers only, and no hyper triggers: the trigger list runs about every two seconds, and no timer is finer than that.": "\uD2B8\uB9AC\uAC70\uB9CC \uC4F0\uACE0 \uD558\uC774\uD37C \uD2B8\uB9AC\uAC70\uB294 \uC5C6\uC2B5\uB2C8\uB2E4. \uD2B8\uB9AC\uAC70 \uBAA9\uB85D\uC740 \uC57D 2\uCD08\uB9C8\uB2E4 \uC2E4\uD589\uB418\uBA70, \uC774\uBCF4\uB2E4 \uC815\uBC00\uD55C \uD0C0\uC774\uBA38\uB294 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "Triggers only. The design has hyper triggers, so timers are counted at about 12 cycles a second.": "\uD2B8\uB9AC\uAC70\uB9CC \uC501\uB2C8\uB2E4. \uC124\uACC4\uC5D0 \uD558\uC774\uD37C \uD2B8\uB9AC\uAC70\uAC00 \uC788\uC73C\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 12\uD68C\uB85C \uC149\uB2C8\uB2E4.",
+  "Try again": "\uB2E4\uC2DC \uC2DC\uB3C4",
+  "Try again in a moment.": "\uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  "Try again in {n, plural, one {# minute} other {# minutes}}.": "{n, plural, other {#\uBD84}} \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  "Try again in {n, plural, one {# second} other {# seconds}}.": "{n, plural, other {#\uCD08}} \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  "Twilight": "\uD2B8\uC640\uC77C\uB77C\uC787",
+  "Type a name for the others to see.": "\uB2E4\uB978 \uC0AC\uB78C\uC5D0\uAC8C \uBCF4\uC77C \uC774\uB984\uC744 \uC785\uB825\uD558\uC138\uC694.",
+  "Type-check the script ({n, plural, one {# line} other {# lines}})": "\uC2A4\uD06C\uB9BD\uD2B8 \uD0C0\uC785 \uAC80\uC0AC ({n}\uC904)",
+  "UMS readability": "UMS \uAC00\uB3C5\uC131",
+  "Undo the edits this turn made, newest first": "\uC774 \uCC28\uB840\uC5D0 \uD55C \uD3B8\uC9D1\uC744 \uCD5C\uC2E0 \uAC83\uBD80\uD130 \uC2E4\uD589 \uCDE8\uC18C\uD569\uB2C8\uB2E4",
+  "Unit Properties": "\uC720\uB2DB \uC18D\uC131",
+  "Unit Properties Slots": "\uC720\uB2DB \uC18D\uC131 \uC2AC\uB86F",
+  "Unit Settings": "\uC720\uB2DB \uC124\uC815",
+  "Unit settings for {unit}: {fields}": "{unit} \uC720\uB2DB \uC124\uC815: {fields}",
+  "Until I end it": "\uB0B4\uAC00 \uB05D\uB0BC \uB54C\uAE4C\uC9C0",
+  "Until everyone leaves": "\uBAA8\uB450 \uB098\uAC08 \uB54C\uAE4C\uC9C0",
+  "Until you end it": "\uC9C1\uC811 \uB05D\uB0BC \uB54C\uAE4C\uC9C0",
+  "Upgrade Settings": "\uC5C5\uADF8\uB808\uC774\uB4DC \uC124\uC815",
+  "Upgrade settings for {upgrade}: {fields}": "{upgrade} \uC5C5\uADF8\uB808\uC774\uB4DC \uC124\uC815: {fields}",
+  "Uploading\u2026": "\uC62C\uB9AC\uB294 \uC911\u2026",
+  "Use the AI features": "AI \uAE30\uB2A5 \uC0AC\uC6A9",
+  "Use the AI features (Tools \u25B8 AI, the assistant, the AI buttons in the editor's dialogs)": "AI \uAE30\uB2A5 \uC0AC\uC6A9 (\uB3C4\uAD6C \u25B8 AI, \uC5B4\uC2DC\uC2A4\uD134\uD2B8, \uC5D0\uB514\uD130 \uB300\uD654 \uC0C1\uC790\uC758 AI \uBC84\uD2BC)",
+  "Use this": "\uC774\uAC83 \uC0AC\uC6A9",
+  "Used by": "\uC0AC\uC6A9\uCC98",
+  "Waiting for the model": "\uBAA8\uB378\uC744 \uAE30\uB2E4\uB9AC\uB294 \uC911",
+  "Waiting for the server\u2026": "\uC11C\uBC84\uB97C \uAE30\uB2E4\uB9AC\uB294 \uC911\u2026",
+  "Waiting for {provider}\u2026": "{provider} \uB85C\uADF8\uC778\uC744 \uAE30\uB2E4\uB9AC\uB294 \uC911\u2026",
+  "Walk through what these triggers do in play": "\uAC8C\uC784\uC5D0\uC11C \uC774 \uD2B8\uB9AC\uAC70\uB4E4\uC774 \uD558\uB294 \uC77C\uC744 \uCC28\uB840\uB85C \uC124\uBA85\uD569\uB2C8\uB2E4",
+  "What": "\uB0B4\uC6A9",
+  "What changed, or what this version is for (optional)": "\uBB34\uC5C7\uC774 \uBC14\uB00C\uC5C8\uB294\uC9C0, \uB610\uB294 \uC774 \uBC84\uC804\uC758 \uC6A9\uB3C4 (\uC120\uD0DD)",
+  "What kind of map? Say how many players, the feel of the terrain, where the bases go, anything the layout should have.": "\uC5B4\uB5A4 \uB9F5\uC778\uAC00\uC694? \uD50C\uB808\uC774\uC5B4 \uC218, \uC9C0\uD615\uC758 \uB290\uB08C, \uAE30\uC9C0 \uC704\uCE58 \uB4F1 \uBC30\uCE58\uC5D0 \uB4E4\uC5B4\uAC00\uC57C \uD560 \uAC83\uC744 \uC801\uC73C\uC138\uC694.",
+  'What kind of scenario? A genre and a sentence of story is enough: "a madness map", "an RPG about a lost marine", "a four-player tower defense with two lanes".': '\uC5B4\uB5A4 \uC2DC\uB098\uB9AC\uC624\uC778\uAC00\uC694? \uC7A5\uB974\uC640 \uC774\uC57C\uAE30 \uD55C \uBB38\uC7A5\uC774\uBA74 \uCDA9\uBD84\uD569\uB2C8\uB2E4: "\uB9E4\uB4DC\uB2C8\uC2A4 \uB9F5", "\uAE38 \uC783\uC740 \uB9C8\uB9B0\uC758 RPG", "\uB450 \uAC08\uB798 \uAE38\uC774 \uC788\uB294 4\uC778\uC6A9 \uD0C0\uC6CC \uB514\uD39C\uC2A4".',
+  'What should change in the design? ("make it two players", "add a boss", "less income")': '\uC124\uACC4\uC5D0\uC11C \uBB34\uC5C7\uC744 \uBC14\uAFC0\uAE4C\uC694? ("2\uC778\uC6A9\uC73C\uB85C", "\uBCF4\uC2A4 \uCD94\uAC00", "\uC218\uC785 \uC904\uC774\uAE30")',
+  'What should change? ("more room around the naturals", "swap the lake for a plateau")': '\uBB34\uC5C7\uC744 \uBC14\uAFC0\uAE4C\uC694? ("\uC55E\uB9C8\uB2F9 \uC8FC\uBCC0\uC744 \uB354 \uB113\uAC8C", "\uD638\uC218\uB97C \uACE0\uC9C0\uB300\uB85C")',
+  'What should happen? ("each player gets 10 marines at their start every 30 seconds until minute 5", "victory when a player has 50 kills", "a countdown that ends the game in a draw")': '\uBB34\uC2A8 \uC77C\uC774 \uC77C\uC5B4\uB098\uC57C \uD558\uB098\uC694? ("5\uBD84\uAE4C\uC9C0 30\uCD08\uB9C8\uB2E4 \uAC01 \uD50C\uB808\uC774\uC5B4\uC758 \uC2DC\uC791 \uC704\uCE58\uC5D0 \uB9C8\uB9B0 10\uAE30", "50\uD0AC\uC744 \uD55C \uD50C\uB808\uC774\uC5B4\uAC00 \uC2B9\uB9AC", "\uBB34\uC2B9\uBD80\uB85C \uAC8C\uC784\uC744 \uB05D\uB0B4\uB294 \uCE74\uC6B4\uD2B8\uB2E4\uC6B4")',
+  'What should this area become? ("a lake with a bridge", "a plateau with one ramp to the south", "a forest with a path through it")': '\uC774 \uC601\uC5ED\uC744 \uBB34\uC5C7\uC73C\uB85C \uB9CC\uB4E4\uAE4C\uC694? ("\uB2E4\uB9AC\uAC00 \uC788\uB294 \uD638\uC218", "\uB0A8\uCABD\uC73C\uB85C \uACBD\uC0AC\uB85C\uAC00 \uD558\uB098 \uC788\uB294 \uACE0\uC9C0\uB300", "\uAC00\uC6B4\uB370\uB85C \uAE38\uC774 \uB09C \uC232")',
+  "What the triggers should do": "\uD2B8\uB9AC\uAC70\uAC00 \uD560 \uC77C",
+  "What this panel has cost \xB7 what the session has cost": "\uC774 \uD328\uB110\uC5D0\uC11C \uB4E0 \uBE44\uC6A9 \xB7 \uC138\uC158 \uC804\uCCB4\uC5D0\uC11C \uB4E0 \uBE44\uC6A9",
+  "What this session has cost so far": "\uC774\uBC88 \uC138\uC158\uC5D0\uC11C \uC9C0\uAE08\uAE4C\uC9C0 \uB4E0 \uBE44\uC6A9",
+  "What to change first": "\uBA3C\uC800 \uBC14\uAFC0 \uAC83",
+  "What to do with the strings.": "\uBB38\uC790\uC5F4\uB85C \uBB34\uC5C7\uC744 \uD560\uC9C0 \uC801\uC73C\uC138\uC694.",
+  "What to look at": "\uBCFC \uAC83",
+  "What to look at \u2014 or leave empty for a general review.": "\uBB34\uC5C7\uC744 \uBCFC\uC9C0 \uC801\uAC70\uB098, \uBE44\uC6CC \uB450\uBA74 \uC804\uBC18\uC801\uC73C\uB85C \uAC80\uD1A0\uD569\uB2C8\uB2E4.",
+  "What to make": "\uB9CC\uB4E4 \uAC83",
+  "What to make of it": "\uB9CC\uB4E4 \uAC83",
+  "What to make: {excerpt} \xB7 {w}\xD7{h} {tileset} \xB7 {n, plural, one {# player} other {# players}}": "\uB9CC\uB4E4 \uAC83: {excerpt} \xB7 {w}\xD7{h} {tileset} \xB7 \uD50C\uB808\uC774\uC5B4 {n, plural, other {#\uBA85}}",
+  "When": "\uB0A0\uC9DC",
+  "Which": "\uB300\uC0C1",
+  'Who is speaking, what is at stake, how long \u2014 or leave it to the triggers and the map. ("a terse Terran commander", "three lines", "in Spanish")': '\uB204\uAC00 \uB9D0\uD558\uB294\uC9C0, \uBB34\uC5C7\uC774 \uAC78\uB824 \uC788\uB294\uC9C0, \uC5BC\uB9C8\uB098 \uAE38\uAC8C \u2014 \uBE44\uC6CC \uB450\uBA74 \uD2B8\uB9AC\uAC70\uC640 \uB9F5\uC744 \uBCF4\uACE0 \uC501\uB2C8\uB2E4. ("\uB9D0\uC218 \uC801\uC740 \uD14C\uB780 \uC9C0\uD718\uAD00", "\uC138 \uC904", "\uC2A4\uD398\uC778\uC5B4\uB85C")',
+  "Working on the map": "\uB9F5 \uC791\uC5C5 \uC911",
+  "Working\u2026": "\uC791\uC5C5 \uC911\u2026",
+  "Write": "\uC791\uC131",
+  "Write Briefing": "\uBE0C\uB9AC\uD551 \uC791\uC131",
+  "Write Briefing\u2026": "\uBE0C\uB9AC\uD551 \uC791\uC131\u2026",
+  "Write Triggers": "\uD2B8\uB9AC\uAC70 \uC791\uC131",
+  "Write Triggers\u2026": "\uD2B8\uB9AC\uAC70 \uC791\uC131\u2026",
+  "Write a trigger script from a description": "\uC124\uBA85\uC73C\uB85C \uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB97C \uC501\uB2C8\uB2E4",
+  "Write briefing\u2026": "\uBE0C\uB9AC\uD551 \uC4F0\uAE30\u2026",
+  "Write into the map": "\uB9F5\uC5D0 \uC801\uAE30",
+  "Write objectives and narration with the AI": "AI\uC640 \uD568\uAED8 \uBAA9\uD45C\uC640 \uB0B4\uB808\uC774\uC158\uC744 \uC501\uB2C8\uB2E4",
+  "Write triggers\u2026": "\uD2B8\uB9AC\uAC70 \uC4F0\uAE30\u2026",
+  "Writing": "\uC4F0\uB294 \uC911",
+  "Writing the answer\u2026 {size} characters": "\uB2F5\uC744 \uC4F0\uB294 \uC911\u2026 {size}\uC790",
+  "Writing the answer\u2026 {size} characters \xB7 {last}": "\uB2F5\uC744 \uC4F0\uB294 \uC911\u2026 {size}\uC790 \xB7 {last}",
+  "Writing\u2026": "\uC791\uC131\uD558\uB294 \uC911\u2026",
+  "Written into Scenario \u25B8 Map Properties. It is not an undo step; write the old one back the same way if you change your mind.": "\uC2DC\uB098\uB9AC\uC624 \u25B8 \uB9F5 \uC18D\uC131\uC5D0 \uC801\uC5C8\uC2B5\uB2C8\uB2E4. \uC2E4\uD589 \uCDE8\uC18C \uB2E8\uACC4\uAC00 \uC544\uB2C8\uBBC0\uB85C, \uB9C8\uC74C\uC774 \uBC14\uB00C\uBA74 \uAC19\uC740 \uBC29\uBC95\uC73C\uB85C \uC774\uC804 \uAC83\uC744 \uB2E4\uC2DC \uC801\uC73C\uC138\uC694.",
+  "Written: {objectives, plural, one {# objective} other {# objectives}} and {messages, plural, one {# message} other {# messages}} in one briefing trigger for all players. Triggers \u25B8 Mission Briefing shows it.": "\uBAA8\uB4E0 \uD50C\uB808\uC774\uC5B4\uB97C \uC704\uD55C \uBE0C\uB9AC\uD551 \uD2B8\uB9AC\uAC70 \uD558\uB098\uC5D0 \uBAA9\uD45C {objectives, plural, other {#\uAC1C\uC640}} \uBA54\uC2DC\uC9C0 {messages, plural, other {#\uAC1C\uB97C}} \uC801\uC5C8\uC2B5\uB2C8\uB2E4. \uD2B8\uB9AC\uAC70 \u25B8 \uC784\uBB34 \uBE0C\uB9AC\uD551\uC5D0\uC11C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "Wrote {n, plural, one {# string} other {# strings}} in place. Not an undo step; Scenario \u25B8 String Editor shows them.": "\uBB38\uC790\uC5F4 {n, plural, other {#\uAC1C\uB97C}} \uC81C\uC790\uB9AC\uC5D0 \uC801\uC5C8\uC2B5\uB2C8\uB2E4. \uC2E4\uD589 \uCDE8\uC18C \uB2E8\uACC4\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC2DC\uB098\uB9AC\uC624 \u25B8 \uBB38\uC790\uC5F4 \uD3B8\uC9D1\uAE30\uC5D0\uC11C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "You are editing a shared map with others.": "\uB2E4\uB978 \uC0AC\uB78C\uB4E4\uACFC \uACF5\uC720 \uB9F5\uC744 \uD3B8\uC9D1\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4.",
+  "You are editing \u201C{name}\u201D with others.": "\uB2E4\uB978 \uC0AC\uB78C\uB4E4\uACFC \uD568\uAED8 \u201C{name}\u201D \uB9F5\uC744 \uD3B8\uC9D1\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4.",
+  "You are in a shared map already; joining this one leaves it.": "\uC774\uBBF8 \uACF5\uC720 \uB9F5\uC5D0 \uC788\uC2B5\uB2C8\uB2E4. \uC774 \uB9F5\uC5D0 \uCC38\uC5EC\uD558\uBA74 \uC9C0\uAE08 \uB9F5\uC5D0\uC11C \uB098\uAC11\uB2C8\uB2E4.",
+  "You are not sharing any maps.": "\uACF5\uC720 \uC911\uC778 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab, with {n, plural, one {# change} other {# changes}} the others never got.": "\uB108\uBB34 \uC624\uB798 \uC5F0\uACB0\uC774 \uB04A\uACA8 \uB530\uB77C\uC7A1\uC744 \uC218 \uC5C6\uC5B4\uC11C \uACF5\uC720 \uB9F5\uC744 \uC0C8 \uD0ED\uC5D0 \uB2E4\uC2DC \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4. \uC774\uC804 \uB9F5\uC740 \uB2E4\uB978 \uC0AC\uB78C\uC774 \uBC1B\uC9C0 \uBABB\uD55C \uBCC0\uACBD {n}\uAC1C\uC640 \uD568\uAED8 \uC790\uAE30 \uD0ED\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC2B5\uB2C8\uB2E4.",
+  "You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab.": "\uB108\uBB34 \uC624\uB798 \uC5F0\uACB0\uC774 \uB04A\uACA8 \uB530\uB77C\uC7A1\uC744 \uC218 \uC5C6\uC5B4\uC11C \uACF5\uC720 \uB9F5\uC744 \uC0C8 \uD0ED\uC5D0 \uB2E4\uC2DC \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4. \uC774\uC804 \uB9F5\uC740 \uC790\uAE30 \uD0ED\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC2B5\uB2C8\uB2E4.",
+  "You were removed from the shared map.": "\uACF5\uC720 \uB9F5\uC5D0\uC11C \uC81C\uAC70\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "You: {text}": "\uB098: {text}",
+  "Your name": "\uB0B4 \uC774\uB984",
+  "Your shared maps": "\uACF5\uC720 \uC911\uC778 \uB9F5",
+  "a madness map": "\uB9E4\uB4DC\uB2C8\uC2A4 \uB9F5",
+  "a tower defense": "\uD0C0\uC6CC \uB514\uD39C\uC2A4",
+  "accountBalance": "\uC794\uC561",
+  "after {n} rounds of tool calls; Tools \u25B8 AI \u25B8 Options\u2026 sets the limit": "\uB3C4\uAD6C \uD638\uCD9C {n}\uB77C\uC6B4\uB4DC \uD6C4 \uBA48\uCDA4. \uD55C\uB3C4\uB294 \uB3C4\uAD6C \u25B8 AI \u25B8 \uC635\uC158\u2026\uC5D0\uC11C \uC815\uD569\uB2C8\uB2E4",
+  "allied": "\uB3D9\uB9F9",
+  "allied victory": "\uB3D9\uB9F9 \uC2B9\uB9AC",
+  "an RPG": "RPG",
+  "area": "\uC601\uC5ED",
+  "at the {ceiling} ceiling for one message ({spent} spent); Tools \u25B8 AI \u25B8 Options\u2026 sets it": "\uBA54\uC2DC\uC9C0 \uD558\uB098\uC758 \uD55C\uB3C4 {ceiling}\uC5D0 \uB3C4\uB2EC\uD574 \uBA48\uCDA4 ({spent} \uC0AC\uC6A9). \uD55C\uB3C4\uB294 \uB3C4\uAD6C \u25B8 AI \u25B8 \uC635\uC158\u2026\uC5D0\uC11C \uC815\uD569\uB2C8\uB2E4",
+  "at {x},{y}": "({x},{y})",
+  "built by the toolkit": "\uD234\uD0B7\uC774 \uB9CC\uB4E6",
+  "by name": "\uC774\uB984\uBCC4",
+  "by owner": "\uC18C\uC720\uC790\uBCC4",
+  "by owner and name": "\uC18C\uC720\uC790\uC640 \uC774\uB984\uBCC4",
+  "by {group}": "{group}\uBCC4",
+  "changed": "\uBCC0\uACBD\uB428",
+  "clean": "\uBB38\uC81C \uC5C6\uC74C",
+  "connection lost": "\uC5F0\uACB0 \uB04A\uAE40",
+  "connection lost, may come back": "\uC5F0\uACB0 \uB04A\uAE40, \uB3CC\uC544\uC62C \uC218 \uC788\uC74C",
+  "east": "\uB3D9\uCABD",
+  "failed": "\uC2E4\uD328",
+  "for Player {player}": "(\uD50C\uB808\uC774\uC5B4 {player})",
+  "from #{n}": "#{n}\uBD80\uD130",
+  "gives {credit} of credit to start": "\uC2DC\uC791 \uD06C\uB808\uB527 {credit}",
+  "gives {credit} of credit to start and {weekly} a week, refilled every Monday": "\uC2DC\uC791 \uD06C\uB808\uB527 {credit} \uBC0F \uB9E4\uC8FC \uC6D4\uC694\uC77C\uC5D0 \uB2E4\uC2DC \uCC44\uC6CC\uC9C0\uB294 \uC8FC\uAC04 {weekly}",
+  "gives {weekly} a week, refilled every Monday": "\uB9E4\uC8FC \uC6D4\uC694\uC77C\uC5D0 \uB2E4\uC2DC \uCC44\uC6CC\uC9C0\uB294 \uC8FC\uAC04 {weekly}",
+  "heights": "\uB192\uC774",
+  "in {dialog}": "{dialog} \uC0AC\uC6A9 \uC911",
+  "in {rect}": "{rect} \uC548",
+  "info": "\uC815\uBCF4",
+  "it speaks protocol {theirs}, this plugin speaks {ours}.": "\uC11C\uBC84\uC758 \uD504\uB85C\uD1A0\uCF5C\uC740 {theirs}, \uC774 \uD50C\uB7EC\uADF8\uC778\uC758 \uD504\uB85C\uD1A0\uCF5C\uC740 {ours}\uC785\uB2C8\uB2E4.",
+  "just now": "\uBC29\uAE08",
+  "keeps your balance across browsers": "\uBE0C\uB77C\uC6B0\uC800\uAC00 \uBC14\uB00C\uC5B4\uB3C4 \uC720\uC9C0\uB418\uB294 \uC794\uC561",
+  "line to the {direction}": "\uC790\uC6D0 \uC904\uC740 {direction}",
+  "line {line}:{column} \u2014 {message}": "{line}:{column}\uD589 \u2014 {message}",
+  "map": "\uB9F5",
+  "name": "\uC774\uB984",
+  'named "{name}"': '\uC774\uB984 "{name}"',
+  "no map is open.": "\uC5F4\uB9B0 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "no plan came back": "\uACC4\uD68D\uC774 \uB3CC\uC544\uC624\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4",
+  "no problems": "\uBB38\uC81C \uC5C6\uC74C",
+  "no server address is set.": "\uC11C\uBC84 \uC8FC\uC18C\uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "no symmetry": "\uB300\uCE6D \uC5C6\uC74C",
+  "no: {reason}": "\uC544\uB2C8\uC694: {reason}",
+  "north": "\uBD81\uCABD",
+  "north-east": "\uBD81\uB3D9\uCABD",
+  "north-west": "\uBD81\uC11C\uCABD",
+  "not a kind the toolkit has": "\uD234\uD0B7\uC5D0 \uC5C6\uB294 \uC885\uB958",
+  "not called": "\uD638\uCD9C\uB418\uC9C0 \uC54A\uC74C",
+  "not run": "\uC2E4\uD589 \uC548 \uD568",
+  "not run: stopped": "\uC2E4\uD589 \uC548 \uD568: \uC911\uC9C0\uB428",
+  "nothing": "\uC5C6\uC74C",
+  "nothing changed": "\uBC14\uB010 \uAC83 \uC5C6\uC74C",
+  "nothing left out": "\uBE60\uC9C4 \uAC83 \uC5C6\uC74C",
+  "nothing placed: {reason}": "\uBC30\uCE58\uB41C \uAC83 \uC5C6\uC74C: {reason}",
+  "nothing to add": "\uCD94\uAC00\uD560 \uAC83 \uC5C6\uC74C",
+  "nothing was placed": "\uBC30\uCE58\uB41C \uAC83\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
+  "nothing wrong": "\uBB38\uC81C \uC5C6\uC74C",
+  "over {list}": "\uB36E\uC740 \uAC83: {list}",
+  "owner {n}": "\uC18C\uC720\uC790 {n}",
+  "picture": "\uADF8\uB9BC",
+  "problem": "\uBB38\uC81C",
+  "properties": "\uC18D\uC131",
+  "refills {day}": "{day} \uCDA9\uC804",
+  "revision #{n}": "\uBC84\uC804 #{n}",
+  "round {n}": "{n}\uBC88\uC9F8 \uB77C\uC6B4\uB4DC",
+  "scmjs.dev Account": "scmjs.dev \uACC4\uC815",
+  "scmjs.dev Account\u2026": "scmjs.dev \uACC4\uC815\u2026",
+  "scmjs.dev could not be reached: {message} Check your connection and try again.": "scmjs.dev\uC5D0 \uC5F0\uACB0\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4: {message} \uC5F0\uACB0\uC744 \uD655\uC778\uD558\uACE0 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  "scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store \u2014 nothing else, never a prompt or a card. Delete all of it from the account page at {site}.": "scmjs.dev\uB294 \uB85C\uADF8\uC778 \uC81C\uACF5\uC790 ID, \uD45C\uC2DC \uC774\uB984, \uD638\uCD9C \uBE44\uC6A9 \uC0AC\uC6A9 \uB0B4\uC5ED, \uBCF4\uAD00\uD55C \uB9F5\uB9CC \uC800\uC7A5\uD569\uB2C8\uB2E4. \uD504\uB86C\uD504\uD2B8\uB098 \uCE74\uB4DC \uC815\uBCF4\uB294 \uC808\uB300 \uC800\uC7A5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. {site}\uC758 \uACC4\uC815 \uD398\uC774\uC9C0\uC5D0\uC11C \uC804\uBD80 \uC0AD\uC81C\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "scmjs.dev plans the layout; this takes a few minutes": "scmjs.dev\uAC00 \uBC30\uCE58\uB97C \uACC4\uD68D\uD569\uB2C8\uB2E4. \uBA87 \uBD84 \uAC78\uB9BD\uB2C8\uB2E4",
+  "scmjs.dev trial": "scmjs.dev \uCCB4\uD5D8",
+  "scmjs.dev trial \xB7 {balance}": "scmjs.dev \uCCB4\uD5D8 \xB7 {balance}",
+  "screenshot": "\uC2A4\uD06C\uB9B0\uC0F7",
+  "shared the map": "\uB9F5\uC744 \uACF5\uC720\uD568",
+  "shared vision": "\uC2DC\uC57C \uACF5\uC720",
+  "south": "\uB0A8\uCABD",
+  "south-east": "\uB0A8\uB3D9\uCABD",
+  "south-west": "\uB0A8\uC11C\uCABD",
+  "start locations for {n, plural, one {player {players}} other {players {players}}} were placed by the editor; check where": "\uD50C\uB808\uC774\uC5B4 {players}\uC758 \uC2DC\uC791 \uC704\uCE58\uB294 \uC5D0\uB514\uD130\uAC00 \uB193\uC558\uC2B5\uB2C8\uB2E4. \uC704\uCE58\uB97C \uD655\uC778\uD558\uC138\uC694",
+  "terrain {id}": "\uC9C0\uD615 {id}",
+  "the Sound Editor": "\uC0AC\uC6B4\uB4DC \uD3B8\uC9D1\uAE30",
+  "the String Editor": "\uBB38\uC790\uC5F4 \uD3B8\uC9D1\uAE30",
+  "the TrigScript plugin is off": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4",
+  "the Trigger Editor": "\uD2B8\uB9AC\uAC70 \uD3B8\uC9D1\uAE30",
+  "the answer was cut off at the output limit; Continue picks it up": "\uCD9C\uB825 \uD55C\uB3C4\uC5D0\uC11C \uB2F5\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4. \uACC4\uC18D\uC744 \uB204\uB974\uBA74 \uC774\uC5B4\uC11C \uC501\uB2C8\uB2E4",
+  "the area {rect}": "\uC601\uC5ED {rect}",
+  "the browser blocked the sign-in window; allow popups for this site and try again.": "\uBE0C\uB77C\uC6B0\uC800\uAC00 \uB85C\uADF8\uC778 \uCC3D\uC744 \uB9C9\uC558\uC2B5\uB2C8\uB2E4. \uC774 \uC0AC\uC774\uD2B8\uC758 \uD31D\uC5C5\uC744 \uD5C8\uC6A9\uD558\uACE0 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
+  "the build failed": "\uBE4C\uB4DC\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4",
+  "the design's systems need {counters} death counters and the map has {free} free ({by}). Remove or merge systems in the design \u2014 several obstacle stretches on one beat, one spawn with {p} instead of one per player \u2014 and build again": "\uC124\uACC4\uC758 \uC2DC\uC2A4\uD15C\uC5D0 \uB370\uC2A4 \uCE74\uC6B4\uD130 {counters}\uAC1C\uAC00 \uD544\uC694\uD55C\uB370 \uB9F5\uC5D0\uB294 {free}\uAC1C\uB9CC \uBE44\uC5B4 \uC788\uC2B5\uB2C8\uB2E4 ({by}). \uC124\uACC4\uC5D0\uC11C \uC2DC\uC2A4\uD15C\uC744 \uBE7C\uAC70\uB098 \uD569\uCE5C \uB4A4(\uC7A5\uC560\uBB3C \uAD6C\uAC04 \uC5EC\uB7FF\uC744 \uD55C \uBC15\uC790\uC5D0, \uD50C\uB808\uC774\uC5B4\uB9C8\uB2E4 \uD558\uB098\uC529\uC774 \uC544\uB2CC {p|\uB85C} \uC2A4\uD3F0 \uD558\uB098) \uB2E4\uC2DC \uBE4C\uB4DC\uD558\uC138\uC694",
+  "the location list": "\uB85C\uCF00\uC774\uC158 \uBAA9\uB85D",
+  "the map could not be packed.": "\uB9F5\uC744 \uBB36\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+  "the map could not be rendered (tileset graphics missing?)": "\uB9F5\uC744 \uADF8\uB9B4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4 (\uD0C0\uC77C\uC14B \uADF8\uB798\uD53D\uC774 \uC5C6\uB098\uC694?)",
+  "the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8\uAC00 \uC791\uC5C5\uD558\uB294 \uB3D9\uC548 \uC55E\uC5D0 \uC788\uB294 \uB9F5\uC774 \uBC14\uB00C\uC5B4\uC11C \uC774\uBC88 \uCC28\uB840\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4. \uC791\uC5C5\uD560 \uB9F5\uC5D0\uC11C \uB2E4\uC2DC \uC694\uCCAD\uD558\uC138\uC694",
+  "the model did not answer": "\uBAA8\uB378\uC774 \uC751\uB2F5\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4",
+  "the model did not answer the repair": "\uBAA8\uB378\uC774 \uC218\uC815 \uC694\uCCAD\uC5D0 \uC751\uB2F5\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4",
+  "the newest save": "\uCD5C\uC2E0 \uC800\uC7A5\uBCF8",
+  "the plan could not be rendered": "\uACC4\uD68D\uC744 \uADF8\uB9B4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4",
+  "the script has {n, plural, one {# error} other {# errors}} after {rounds} repairs; open TrigScript to fix it": "{rounds}\uBC88 \uC218\uC815\uD55C \uB4A4\uC5D0\uB3C4 \uC2A4\uD06C\uB9BD\uD2B8\uC5D0 \uC624\uB958\uAC00 {n, plural, other {#\uAC1C}} \uC788\uC2B5\uB2C8\uB2E4. TrigScript\uB97C \uC5F4\uC5B4 \uACE0\uCE58\uC138\uC694",
+  "the script still uses program() after {rounds} repairs, which this map (for every version of StarCraft) cannot have; change the design to Remastered, or open TrigScript to rewrite it": "{rounds}\uBC88 \uC218\uC815\uD55C \uB4A4\uC5D0\uB3C4 \uC2A4\uD06C\uB9BD\uD2B8\uAC00 program()\uC744 \uC501\uB2C8\uB2E4. \uC774 \uB9F5(\uBAA8\uB4E0 \uBC84\uC804\uC758 \uC2A4\uD0C0\uD06C\uB798\uD504\uD2B8\uC6A9)\uC5D0\uB294 \uC4F8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uC124\uACC4\uB97C \uB9AC\uB9C8\uC2A4\uD130\uC6A9\uC73C\uB85C \uBC14\uAFB8\uAC70\uB098 TrigScript\uB97C \uC5F4\uC5B4 \uB2E4\uC2DC \uC791\uC131\uD558\uC138\uC694",
+  "the shared map is not open.": "\uACF5\uC720 \uB9F5\uC774 \uC5F4\uB824 \uC788\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "the sign-in did not finish in time.": "\uB85C\uADF8\uC778\uC774 \uC81C\uC2DC\uAC04\uC5D0 \uB05D\uB098\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "the stream ended without a result.": "\uC2A4\uD2B8\uB9BC\uC774 \uACB0\uACFC \uC5C6\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4.",
+  "the stream had no body.": "\uC2A4\uD2B8\uB9BC\uC5D0 \uBCF8\uBB38\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  'the toolkit has no kind "{kind}"': '\uD234\uD0B7\uC5D0 "{kind}" \uC885\uB958\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4',
+  "this server has no pictures for links yet.": "\uC774 \uC11C\uBC84\uB294 \uC544\uC9C1 \uB9C1\uD06C \uADF8\uB9BC\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "this server offers no sign-in.": "\uC774 \uC11C\uBC84\uB294 \uB85C\uADF8\uC778\uC744 \uC81C\uACF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "to #{n}": "#{n}\uAE4C\uC9C0",
+  "untitled map": "\uC81C\uBAA9 \uC5C6\uB294 \uB9F5",
+  "warning": "\uACBD\uACE0",
+  "west": "\uC11C\uCABD",
+  "written as a trigger script": "\uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uC791\uC131",
+  "yes, {n, plural, one {# tile} other {# tiles}} reached": "\uC608, \uD0C0\uC77C {n}\uAC1C\uC5D0 \uB3C4\uB2EC",
+  "yesterday": "\uC5B4\uC81C",
+  "you": "\uB098",
+  "{balance} ({weekly} weekly + {credit} credit)": "{balance} (\uC8FC\uAC04 {weekly} + \uD06C\uB808\uB527 {credit})",
+  "{balance} left": "{balance} \uB0A8\uC74C",
+  "{bases, plural, one {# base} other {# bases}}, {expansions, plural, one {# expansion} other {# expansions}}": "\uAE30\uC9C0 {bases}\uAC1C, \uD655\uC7A5 {expansions}\uAC1C",
+  "{bases, plural, one {# base} other {# bases}}, {ramps, plural, one {# ramp} other {# ramps}}, {rules, plural, one {# decoration rule} other {# decoration rules}}, {units, plural, one {# unit} other {# units}}, {locations, plural, one {# location} other {# locations}}.": "\uAE30\uC9C0 {bases, plural, other {#\uAC1C}}, \uACBD\uC0AC\uB85C {ramps, plural, other {#\uAC1C}}, \uC7A5\uC2DD \uADDC\uCE59 {rules, plural, other {#\uAC1C}}, \uC720\uB2DB {units, plural, other {#\uAC1C}}, \uB85C\uCF00\uC774\uC158 {locations, plural, other {#\uAC1C}}.",
+  "{cost} \xB7 {time} \xB7 {input} in / {output} out": "{cost} \xB7 {time} \xB7 \uC785\uB825 {input} / \uCD9C\uB825 {output}",
+  "{counters} of {free} free death counters, {switches, plural, one {# switch} other {# switches}}": "\uBE48 \uB370\uC2A4 \uCE74\uC6B4\uD130 {free}\uAC1C \uC911 {counters}\uAC1C, \uC2A4\uC704\uCE58 {switches}\uAC1C",
+  "{count} of {total}": "{total}\uAC1C \uC911 {count}\uAC1C",
+  "{count} of {total}, more follow": "{total}\uAC1C \uC911 {count}\uAC1C, \uB354 \uC788\uC74C",
+  "{day}, to {amount}": "{day}, {amount}\uAE4C\uC9C0",
+  "{file} line {line}:{column} \u2014 {message}": "{file} {line}:{column}\uD589 \u2014 {message}",
+  "{fixed} fixed": "{fixed}\uAC1C \uACE0\uCE68",
+  "{genre}: {name} \u2014 {systems, plural, one {# system} other {# systems}}, {locations, plural, one {# location} other {# locations}}, {humans, plural, one {# human player} other {# human players}}{target, select, remastered {, for Remastered} other {}}": "{genre}: {name} \u2014 \uC2DC\uC2A4\uD15C {systems, plural, other {#\uAC1C}}, \uB85C\uCF00\uC774\uC158 {locations, plural, other {#\uAC1C}}, \uC0AC\uB78C \uD50C\uB808\uC774\uC5B4 {humans, plural, other {#\uBA85}}{target, select, remastered {, \uB9AC\uB9C8\uC2A4\uD130\uC6A9} other {}}",
+  "{groups, plural, one {# group} other {# groups}} of {n, plural, one {# unit} other {# units}}": "\uC720\uB2DB {n}\uAC1C, \uBB36\uC74C {groups}\uAC1C",
+  "{here} here \xB7 {session} session": "\uC5EC\uAE30 {here} \xB7 \uC138\uC158 {session}",
+  "{kind} (player {player}) at {x},{y}, minerals to the {direction}, {minerals} patches, {geysers, plural, one {# geyser} other {# geysers}}": "{kind} (\uD50C\uB808\uC774\uC5B4 {player}) {x},{y}, \uBBF8\uB124\uB784 \uBC29\uD5A5 {direction}, \uBBF8\uB124\uB784 {minerals}\uB369\uC774, \uAC00\uC2A4 {geysers, plural, other {#\uAC1C}}",
+  "{kind} at {x},{y}, minerals to the {direction}, {minerals} patches, {geysers, plural, one {# geyser} other {# geysers}}": "{kind} {x},{y}, \uBBF8\uB124\uB784 \uBC29\uD5A5 {direction}, \uBBF8\uB124\uB784 {minerals}\uB369\uC774, \uAC00\uC2A4 {geysers, plural, other {#\uAC1C}}",
+  "{label}\u2026 {s} s": "{label}\u2026 {s}\uCD08",
+  "{list} and {n} more": "{list} \uC678 {n}\uAC1C",
+  "{list} {filters}": "{list} ({filters})",
+  "{maps, plural, one {# map} other {# maps}}, {revisions, plural, one {# revision} other {# revisions}}. Account \u25B8 My Maps\u2026 lists them; Account \u25B8 Save to scmjs.dev\u2026 adds one.": "\uB9F5 {maps, plural, other {#\uAC1C}}, \uBC84\uC804 {revisions, plural, other {#\uAC1C}}. \uACC4\uC815 \u25B8 \uB0B4 \uB9F5\u2026\uC5D0\uC11C \uBAA9\uB85D\uC744 \uBCF4\uACE0, \uACC4\uC815 \u25B8 scmjs.dev\uC5D0 \uC800\uC7A5\u2026\uC73C\uB85C \uCD94\uAC00\uD569\uB2C8\uB2E4.",
+  "{message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.": "{message} scmjs.dev\uC5D0 \uB85C\uADF8\uC778\uD558\uBA74 \uC794\uC561\uC744 \uC720\uC9C0\uD558\uACE0 \uB85C\uADF8\uC778 \uD06C\uB808\uB527\uC744 \uBC1B\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+  "{message} The map is still open here; save it, or join again.": "{message} \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
+  "{minerals, plural, one {# patch} other {# patches}}, {geysers, plural, one {# geyser} other {# geysers}} to the {direction}": "{direction}\uC5D0 \uBBF8\uB124\uB784 {minerals}\uB369\uC774, \uAC00\uC2A4 \uAC04\uD5D0\uCC9C {geysers}\uAC1C",
+  "{n, plural, one {# base} other {# bases}} listed (mirrored on apply)": "\uAE30\uC9C0 {n, plural, other {#\uAC1C}} (\uC801\uC6A9\uD560 \uB54C \uB300\uCE6D\uB428)",
+  "{n, plural, one {# bridge} other {# bridges}}": "\uB2E4\uB9AC {n}\uAC1C",
+  "{n, plural, one {# diamond painted} other {# diamonds painted}}": "\uB2E4\uC774\uC544\uBAAC\uB4DC {n}\uAC1C \uCE60\uD568",
+  "{n, plural, one {# doodad} other {# doodads}}": "\uC7A5\uC2DD\uBB3C {n}\uAC1C",
+  "{n, plural, one {# edit} other {# edits}}": "{n, plural, other {\uD3B8\uC9D1 #\uAC1C}}",
+  "{n, plural, one {# error} other {# errors}}:": "\uC624\uB958 {n, plural, other {#\uAC1C}}:",
+  "{n, plural, one {# finding} other {# findings}}": "\uBB38\uC81C {n}\uAC1C",
+  "{n, plural, one {# force} other {# forces}} changed": "\uC138\uB825 {n}\uAC1C \uBCC0\uACBD",
+  "{n, plural, one {# item} other {# items}}": "\uD56D\uBAA9 {n}\uAC1C",
+  "{n, plural, one {# line} other {# lines}}": "{n, plural, other {#\uC904}}",
+  "{n, plural, one {# location} other {# locations}}": "\uB85C\uCF00\uC774\uC158 {n}\uAC1C",
+  "{n, plural, one {# location} other {# locations}} the plan did not place: {names}. The systems that need them wait; draw the locations (Layers \u25B8 Locations), then build the waiting systems below.": "\uACC4\uD68D\uC774 \uBC30\uCE58\uD558\uC9C0 \uC54A\uC740 \uB85C\uCF00\uC774\uC158 {n, plural, other {#\uAC1C}}: {names}. \uC774 \uB85C\uCF00\uC774\uC158\uC774 \uD544\uC694\uD55C \uC2DC\uC2A4\uD15C\uC740 \uAE30\uB2E4\uB9BD\uB2C8\uB2E4. \uB85C\uCF00\uC774\uC158\uC744 \uADF8\uB9B0 \uB2E4\uC74C(\uB808\uC774\uC5B4 \u25B8 \uB85C\uCF00\uC774\uC158) \uC544\uB798\uC5D0\uC11C \uAE30\uB2E4\uB9AC\uB294 \uC2DC\uC2A4\uD15C\uC744 \uBE4C\uB4DC\uD558\uC138\uC694.",
+  "{n, plural, one {# month ago} other {# months ago}}": "{n, plural, other {#\uAC1C\uC6D4 \uC804}}",
+  "{n, plural, one {# note} other {# notes}} from the build": "\uBE4C\uB4DC \uBA54\uBAA8 {n, plural, other {#\uAC1C}}",
+  "{n, plural, one {# person} other {# people}} editing it.": "{n}\uBA85\uC774 \uD3B8\uC9D1 \uC911\uC785\uB2C8\uB2E4.",
+  "{n, plural, one {# person} other {# people}} in the map": "\uB9F5 \uC548\uC5D0 {n}\uBA85",
+  "{n, plural, one {# player} other {# players}} changed": "\uD50C\uB808\uC774\uC5B4 {n}\uBA85 \uBCC0\uACBD",
+  "{n, plural, one {# problem} other {# problems}}": "\uBB38\uC81C {n}\uAC1C",
+  "{n, plural, one {# problem} other {# problems}}, {fixed} fixed": "\uBB38\uC81C {n}\uAC1C, {fixed}\uAC1C \uACE0\uCE68",
+  "{n, plural, one {# ramp} other {# ramps}}": "\uACBD\uC0AC\uB85C {n}\uAC1C",
+  "{n, plural, one {# resource} other {# resources}}": "\uC790\uC6D0 {n}\uAC1C",
+  "{n, plural, one {# settings change} other {# settings changes}} (not undoable)": "{n, plural, other {\uC124\uC815 \uBCC0\uACBD #\uAC1C}} (\uC2E4\uD589 \uCDE8\uC18C \uBD88\uAC00)",
+  "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}": "\uC124\uC815 {n, plural, other {#\uAC1C}} \uC801\uC74C, \uC0AC\uB78C \uD50C\uB808\uC774\uC5B4 {humans, plural, other {#\uBA85}}",
+  "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}, {keepers, plural, one {# keeper} other {# keepers}}": "\uC124\uC815 {n, plural, other {#\uAC1C}} \uC801\uC74C, \uC0AC\uB78C \uD50C\uB808\uC774\uC5B4 {humans, plural, other {#\uBA85}}, \uC720\uC9C0 \uC720\uB2DB {keepers, plural, other {#\uAC1C}}",
+  "{n, plural, one {# site} other {# sites}}": "\uC790\uB9AC {n}\uACF3",
+  "{n, plural, one {# sprite} other {# sprites}}": "\uC2A4\uD504\uB77C\uC774\uD2B8 {n}\uAC1C",
+  "{n, plural, one {# start location} other {# start locations}}": "\uC2DC\uC791 \uC704\uCE58 {n}\uAC1C",
+  "{n, plural, one {# step} other {# steps}}": "{n, plural, other {#\uB2E8\uACC4}}",
+  "{n, plural, one {# step} other {# steps}} so far \xB7 {cost} \xB7 waiting for the model": "\uC9C0\uAE08\uAE4C\uC9C0 {n, plural, other {#\uB2E8\uACC4}} \xB7 {cost} \xB7 \uBAA8\uB378\uC744 \uAE30\uB2E4\uB9AC\uB294 \uC911",
+  "{n, plural, one {# system waits} other {# systems wait}} for locations the plan did not place: {names}. Draw them, then build.": "\uC2DC\uC2A4\uD15C {n, plural, other {#\uAC1C\uAC00}} \uACC4\uD68D\uC774 \uBC30\uCE58\uD558\uC9C0 \uC54A\uC740 \uB85C\uCF00\uC774\uC158\uC744 \uAE30\uB2E4\uB9BD\uB2C8\uB2E4: {names}. \uB85C\uCF00\uC774\uC158\uC744 \uADF8\uB9B0 \uB2E4\uC74C \uBE4C\uB4DC\uD558\uC138\uC694.",
+  "{n, plural, one {# thing} other {# things}} to know": "\uC54C\uC544 \uB458 \uAC83 {n, plural, other {#\uAC00\uC9C0}}",
+  "{n, plural, one {# thing} other {# things}} to look at": "\uC0B4\uD3B4\uBCFC \uAC83 {n, plural, other {#\uAC00\uC9C0}}",
+  "{n, plural, one {# tile laid} other {# tiles laid}}": "\uD0C0\uC77C {n}\uAC1C \uB193\uC74C",
+  "{n, plural, one {# tile} other {# tiles}}": "\uD0C0\uC77C {n}\uAC1C",
+  "{n, plural, one {# trigger} other {# triggers}}": "\uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C}}",
+  "{n, plural, one {# trigger} other {# triggers}} added, {total} in all": "\uD2B8\uB9AC\uAC70 {n}\uAC1C \uCD94\uAC00, \uBAA8\uB450 {total}\uAC1C",
+  "{n, plural, one {# trigger} other {# triggers}} from a script: {summary}": "\uC2A4\uD06C\uB9BD\uD2B8\uC5D0\uC11C \uD2B8\uB9AC\uAC70 {n, plural, other {#\uAC1C}}: {summary}",
+  "{n, plural, one {# unit} other {# units}}": "\uC720\uB2DB {n}\uAC1C",
+  "{n, plural, one {# year ago} other {# years ago}}": "{n, plural, other {#\uB144 \uC804}}",
+  "{n, plural, one {Undid # edit.} other {Undid # edits.}}": "{n, plural, other {\uD3B8\uC9D1 #\uAC1C\uB97C \uC2E4\uD589 \uCDE8\uC18C\uD588\uC2B5\uB2C8\uB2E4.}}",
+  "{n, plural, one {Undo it} other {Undo these #}}": "{n, plural, =1 {\uC2E4\uD589 \uCDE8\uC18C} other {#\uAC1C \uC2E4\uD589 \uCDE8\uC18C}}",
+  "{n, plural, one {player {players}} other {players {players}}} (computer) owned nothing, which would defeat them at once and stop their triggers: a {unit} in the top-right corner keeps them in the game": "\uD50C\uB808\uC774\uC5B4 {players}(\uCEF4\uD4E8\uD130)\uC5D0\uAC8C \uC544\uBB34\uAC83\uB3C4 \uC5C6\uC5B4 \uACE7\uBC14\uB85C \uD328\uBC30\uD558\uACE0 \uD2B8\uB9AC\uAC70\uAC00 \uBA48\uCD9C \uBED4\uD588\uC2B5\uB2C8\uB2E4. \uC624\uB978\uCABD \uC704 \uBAA8\uC11C\uB9AC\uC758 {unit|\uC774} \uAC8C\uC784\uC5D0 \uB0A8\uC544 \uC788\uAC8C \uD569\uB2C8\uB2E4",
+  "{n, plural, one {player {players}} other {players {players}}}: race set to {race} instead of User Selectable \u2014 the game drops a User Selectable player's placed buildings and gives a melee start instead": "\uD50C\uB808\uC774\uC5B4 {players}: \uC885\uC871\uC744 \uC0AC\uC6A9\uC790 \uC120\uD0DD \uB300\uC2E0 {race|\uC73C\uB85C} \uC124\uC815\uD588\uC2B5\uB2C8\uB2E4 \u2014 \uAC8C\uC784\uC740 \uC0AC\uC6A9\uC790 \uC120\uD0DD \uD50C\uB808\uC774\uC5B4\uAC00 \uBC30\uCE58\uD55C \uAC74\uBB3C\uC744 \uC5C6\uC560\uACE0 \uBC00\uB9AC \uC2DC\uC791\uC744 \uC90D\uB2C8\uB2E4",
+  "{n, plural, one {waits for location {names}} other {waits for locations {names}}}": "\uB85C\uCF00\uC774\uC158 {names} \uAE30\uB2E4\uB9AC\uB294 \uC911",
+  "{name} (you)": "{name} (\uB098)",
+  "{name} in the chat": "{name}\uC758 \uCC44\uD305",
+  "{name} joined the shared map": "{name|\uC774} \uACF5\uC720 \uB9F5\uC5D0 \uB4E4\uC5B4\uC654\uC2B5\uB2C8\uB2E4",
+  "{name} left the shared map.": "{name|\uC774} \uACF5\uC720 \uB9F5\uC5D0\uC11C \uB098\uAC14\uC2B5\uB2C8\uB2E4.",
+  "{name} lost the connection to the shared map.": "{name}\uC758 \uACF5\uC720 \uB9F5 \uC5F0\uACB0\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4.",
+  "{name} was removed from the shared map.": "{name|\uC774} \uACF5\uC720 \uB9F5\uC5D0\uC11C \uC81C\uAC70\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "{name} \xB7 no balance is kept": "{name} \xB7 \uC794\uC561\uC744 \uB530\uB85C \uAD00\uB9AC\uD558\uC9C0 \uC54A\uC74C",
+  "{name} \xB7 {balance} left": "{name} \xB7 {balance} \uB0A8\uC74C",
+  "{name} \u2014 new revision #{n}": "{name} \u2014 \uC0C8 \uBC84\uC804 #{n}",
+  "{name}: left out \u2014 on a Remastered map every trigger already runs each frame": "{name}: \uC81C\uC678\uB428 \u2014 \uB9AC\uB9C8\uC2A4\uD130 \uB9F5\uC5D0\uC11C\uB294 \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uC774\uBBF8 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB429\uB2C8\uB2E4",
+  "{n} days ago": "{n}\uC77C \uC804",
+  "{n} failed": "{n}\uAC1C \uC2E4\uD328",
+  "{n} h ago": "{n}\uC2DC\uAC04 \uC804",
+  "{n} min ago": "{n}\uBD84 \uC804",
+  "{n} ms": "{n}ms",
+  "{n} not run": "{n}\uAC1C \uC2E4\uD589 \uC548 \uB428",
+  "{n} of {limit} shared maps.": "\uACF5\uC720 \uB9F5 {limit}\uAC1C \uC911 {n}\uAC1C.",
+  "{n} of {total, plural, one {# string} other {# strings}} would change. Untick any to keep, then Apply.": "\uBB38\uC790\uC5F4 {total, plural, other {#\uAC1C}} \uC911 {n}\uAC1C\uAC00 \uBC14\uB01D\uB2C8\uB2E4. \uC720\uC9C0\uD560 \uAC83\uC740 \uCCB4\uD06C\uB97C \uD574\uC81C\uD55C \uB2E4\uC74C \uC801\uC6A9\uD558\uC138\uC694.",
+  "{n} placed on the map": "\uB9F5\uC5D0 {n}\uAC1C \uBC30\uCE58",
+  "{n} s": "{n}\uCD08",
+  "{n} waiting": "{n}\uAC1C \uB300\uAE30",
+  "{outcome} Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.": "{outcome} \uBAA8\uB4E0 \uD3B8\uC9D1\uC740 \uC2E4\uD589 \uCDE8\uC18C \uB2E8\uACC4\uC785\uB2C8\uB2E4. \uC124\uC815\uACFC \uD2B8\uB9AC\uAC70\uB294 StarEdit\uCC98\uB7FC \uC2E4\uD589 \uCDE8\uC18C \uBC16\uC758 \uC791\uC5C5\uC785\uB2C8\uB2E4.",
+  "{placed} placed": "{placed}\uAC1C \uBC30\uCE58",
+  "{placed} placed, {refused} refused": "{placed}\uAC1C \uBC30\uCE58, {refused}\uAC1C \uAC70\uBD80",
+  "{players, plural, one {# player} other {# players}}": "\uD50C\uB808\uC774\uC5B4 {players}\uBA85",
+  "{players, plural, one {# player} other {# players}} ({humans} human)": "\uD50C\uB808\uC774\uC5B4 {players}\uBA85 (\uC0AC\uB78C {humans}\uBA85)",
+  "{price} for {credit} of credit": "{price}\uC5D0 \uD06C\uB808\uB527 {credit}",
+  "{px} px per tile": "\uD0C0\uC77C\uB2F9 {px}px",
+  "{ramps, plural, one {# ramp} other {# ramps}}, {rules, plural, one {# decoration rule} other {# decoration rules}}, {units, plural, one {# unit} other {# units}}, {locations, plural, one {# location} other {# locations}}.": "\uACBD\uC0AC\uB85C {ramps, plural, other {#\uAC1C}}, \uC7A5\uC2DD \uADDC\uCE59 {rules, plural, other {#\uAC1C}}, \uC720\uB2DB {units, plural, other {#\uAC1C}}, \uB85C\uCF00\uC774\uC158 {locations, plural, other {#\uAC1C}}.",
+  "{revisions, plural, one {# revision} other {# revisions}} \xB7 {size}": "\uBC84\uC804 {revisions}\uAC1C \xB7 {size}",
+  "{revisions, plural, one {# revision} other {# revisions}} \xB7 {size} \xB7 {links, plural, one {# link} other {# links}}": "\uBC84\uC804 {revisions}\uAC1C \xB7 {size} \xB7 \uB9C1\uD06C {links}\uAC1C",
+  "{role} \xB7 no balance is kept": "{role} \xB7 \uC794\uC561\uC744 \uB530\uB85C \uAD00\uB9AC\uD558\uC9C0 \uC54A\uC74C",
+  "{session} session": "\uC138\uC158 {session}",
+  "{shared} \xB7 you are in it": "{shared} \xB7 \uCC38\uC5EC \uC911",
+  "{size} \xB7 created {date}": "{size} \xB7 {date} \uB9CC\uB4E6",
+  "{spent} of {ceiling}": "{spent} / {ceiling}",
+  "{s} s": "{s}\uCD08",
+  "{used} MB of {cap} MB of map storage used": "\uB9F5 \uC800\uC7A5 \uACF5\uAC04 {cap} MB \uC911 {used} MB \uC0AC\uC6A9",
+  "{used} of {cap} used": "{cap} \uC911 {used} \uC0AC\uC6A9",
+  "{used} of {cap} used.": "{cap} \uC911 {used} \uC0AC\uC6A9.",
+  "{what} copied.": "{what} \uBCF5\uC0AC\uB428.",
+  "{which} \xB7 opened {n}\xD7": "{which} \xB7 {n}\uD68C \uC5F4\uB9BC",
+  "{w} \xD7 {h} tiles, {cell, plural, one {# tile} other {# tiles}} per cell. The model is shown the area with {margin} tiles of margin so the edges join.": "{w} \xD7 {h} \uD0C0\uC77C, \uCE78\uB2F9 {cell, plural, other {#\uD0C0\uC77C}}. \uAC00\uC7A5\uC790\uB9AC\uAC00 \uC774\uC5B4\uC9C0\uB3C4\uB85D \uBAA8\uB378\uC5D0\uAC8C \uC601\uC5ED \uB458\uB808 {margin}\uD0C0\uC77C\uAE4C\uC9C0 \uBCF4\uC5EC \uC90D\uB2C8\uB2E4.",
+  "\u201C{name}\u201D \xB7 {n} of {max} people editing now.": "\u201C{name}\u201D \xB7 \uC9C0\uAE08 {max}\uBA85 \uC911 {n}\uBA85 \uD3B8\uC9D1 \uC911.",
+  "\u201C{name}\u201D, shared by {owner} \xB7 {n} of {max} people editing now.": "\u201C{name}\u201D, \uACF5\uC720\uD55C \uC0AC\uB78C {owner} \xB7 \uC9C0\uAE08 {max}\uBA85 \uC911 {n}\uBA85 \uD3B8\uC9D1 \uC911."
+};
+
+// i18n.ts
+var bound = null;
+function bindI18n(api) {
+  if (!api.i18n) return () => {
+  };
+  bound = api;
+  const reg = api.i18n.register({ ko: KO });
+  return () => {
+    reg.dispose();
+    if (bound === api) bound = null;
+  };
+}
+function t(text, params) {
+  return bound ? bound.i18n.t(text, params) : format(text, params);
+}
+function tc(context, text, params) {
+  return bound ? bound.i18n.tc(context, text, params) : format(text, params);
+}
+function msg(text) {
+  return text;
+}
+function translate(text, params) {
+  return t(text, params);
+}
+function matchBrace(s, open) {
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    if (s[i] === "{") depth++;
+    else if (s[i] === "}" && --depth === 0) return i;
+  }
+  return -1;
+}
+function format(message, params) {
+  if (!message.includes("{")) return message;
+  let out = "";
+  let i = 0;
+  while (i < message.length) {
+    const open = message.indexOf("{", i);
+    if (open < 0) {
+      out += message.slice(i);
+      break;
+    }
+    const close = matchBrace(message, open);
+    if (close < 0) {
+      out += message.slice(i);
+      break;
+    }
+    out += message.slice(i, open) + placeholder(message.slice(open + 1, close), params);
+    i = close + 1;
+  }
+  return out;
+}
+function placeholder(inner, params) {
+  const comma = inner.indexOf(",");
+  if (comma < 0) {
+    const bar = inner.indexOf("|");
+    const value2 = params?.[(bar < 0 ? inner : inner.slice(0, bar)).trim()];
+    return value2 === void 0 ? `{${inner}}` : String(value2);
+  }
+  const name = inner.slice(0, comma).trim();
+  const rest = inner.slice(comma + 1);
+  const comma2 = rest.indexOf(",");
+  if (comma2 < 0) return `{${inner}}`;
+  const kind = rest.slice(0, comma2).trim();
+  const branches = parseBranches(rest.slice(comma2 + 1));
+  const value = params?.[name];
+  if (value === void 0) return `{${inner}}`;
+  if (kind === "plural" && typeof value === "number") {
+    const branch = branches.get(`=${value}`) ?? branches.get(new Intl.PluralRules("en").select(value)) ?? branches.get("other");
+    return branch === void 0 ? `{${inner}}` : format(branch.replace(/#/g, new Intl.NumberFormat("en").format(value)), params);
+  }
+  if (kind === "select") {
+    const branch = branches.get(String(value)) ?? branches.get("other");
+    return branch === void 0 ? `{${inner}}` : format(branch, params);
+  }
+  return `{${inner}}`;
+}
+function parseBranches(options) {
+  const out = /* @__PURE__ */ new Map();
+  let i = 0;
+  while (i < options.length) {
+    const open = options.indexOf("{", i);
+    if (open < 0) break;
+    const close = matchBrace(options, open);
+    if (close < 0) break;
+    const key = options.slice(i, open).trim();
+    if (key) out.set(key, options.slice(open + 1, close));
+    i = close + 1;
+  }
+  return out;
+}
+
 // client.ts
 var ScmjsError = class extends Error {
   code;
@@ -21,18 +1105,19 @@ var ScmjsError = class extends Error {
 };
 function describeError(err) {
   if (err instanceof ScmjsError) {
-    const retry = err.retryAfterSec ? ` Try again in ${err.retryAfterSec >= 90 ? `${Math.ceil(err.retryAfterSec / 60)} minutes` : `${err.retryAfterSec} seconds`}.` : "";
+    const retry = err.retryAfterSec ? " " + (err.retryAfterSec >= 90 ? t("Try again in {n, plural, one {# minute} other {# minutes}}.", { n: Math.ceil(err.retryAfterSec / 60) }) : t("Try again in {n, plural, one {# second} other {# seconds}}.", { n: err.retryAfterSec })) : "";
+    const message = err.message;
     switch (err.code) {
       case "unauthorized":
-        return `The session has ended: ${err.message} Sign in again from the Account menu.`;
+        return t("The session has ended: {message} Sign in again from the Account menu.", { message });
       case "forbidden":
-        return `The server refused: ${err.message}`;
+        return t("The server refused: {message}", { message });
       case "rate_limited":
-        return `Too many requests for now.${retry}`;
+        return t("Too many requests for now.") + retry;
       case "too_busy":
-        return `The server is busy.${retry || " Try again in a moment."}`;
+        return t("The server is busy.") + (retry || " " + t("Try again in a moment."));
       case "budget_exceeded":
-        return `The balance is used up: ${err.message}`;
+        return t("The balance is used up: {message}", { message });
       case "task_ceiling":
         return err.message;
       case "storage_full":
@@ -42,21 +1127,21 @@ function describeError(err) {
       case "not_found":
         return err.message;
       case "recipe_disabled":
-        return "This feature is turned off on the server for now.";
+        return t("This feature is turned off on the server for now.");
       case "model_not_allowed":
-        return `The server does not allow that model: ${err.message}`;
+        return t("The server does not allow that model: {message}", { message });
       case "refused":
-        return `The model declined this request. ${err.message}`.trim();
+        return t("The model declined this request. {message}", { message }).trim();
       case "invalid_input":
-        return `The server rejected the request: ${err.message}`;
+        return t("The server rejected the request: {message}", { message });
       case "upstream":
-        return `The model service failed: ${err.message}`;
+        return t("The model service failed: {message}", { message });
       case "network":
-        return `scmjs.dev could not be reached: ${err.message} Check your connection and try again.`;
+        return t("scmjs.dev could not be reached: {message} Check your connection and try again.", { message });
       case "aborted":
-        return "Stopped.";
+        return t("Stopped.");
       case "protocol":
-        return `The server answered in a form this plugin does not understand: ${err.message}`;
+        return t("The server answered in a form this plugin does not understand: {message}", { message });
       default:
         return err.message;
     }
@@ -88,8 +1173,11 @@ function formatUsd(v) {
   return `$${v.toFixed(2)}`;
 }
 function signInGives(offers) {
-  const gets = [offers.signupUsd > 0 ? `${formatUsd(offers.signupUsd)} of credit to start` : "", offers.weeklyUsd > 0 ? `${formatUsd(offers.weeklyUsd)} a week, refilled every Monday` : ""].filter(Boolean);
-  return gets.length ? `gives ${gets.join(" and ")}` : "keeps your balance across browsers";
+  const credit = formatUsd(offers.signupUsd), weekly = formatUsd(offers.weeklyUsd);
+  if (offers.signupUsd > 0 && offers.weeklyUsd > 0) return t("gives {credit} of credit to start and {weekly} a week, refilled every Monday", { credit, weekly });
+  if (offers.signupUsd > 0) return t("gives {credit} of credit to start", { credit });
+  if (offers.weeklyUsd > 0) return t("gives {weekly} a week, refilled every Monday", { weekly });
+  return t("keeps your balance across browsers");
 }
 function formatBytes(n2) {
   if (n2 < 1024) return `${n2} B`;
@@ -101,9 +1189,9 @@ function formatTokens(n2) {
   return n2 >= 1e3 ? `${(n2 / 1e3).toFixed(n2 >= 1e4 ? 0 : 1)}k` : String(n2);
 }
 function formatUsage(u) {
-  const secs = u.durationMs >= 1e3 ? `${Math.round(u.durationMs / 1e3)} s` : `${u.durationMs} ms`;
+  const secs = u.durationMs >= 1e3 ? t("{n} s", { n: Math.round(u.durationMs / 1e3) }) : t("{n} ms", { n: u.durationMs });
   const inTokens = u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
-  return `${formatUsd(u.costUsd)} \xB7 ${secs} \xB7 ${formatTokens(inTokens)} in / ${formatTokens(u.outputTokens)} out`;
+  return t("{cost} \xB7 {time} \xB7 {input} in / {output} out", { cost: formatUsd(u.costUsd), time: secs, input: formatTokens(inTokens), output: formatTokens(u.outputTokens) });
 }
 var SseParser = class {
   buffer = "";
@@ -145,9 +1233,9 @@ var Ledger = class {
     };
   }
   summary() {
-    const t = this.totals;
-    if (t.calls === 0) return "Nothing spent this session.";
-    return `Session: ${formatUsd(t.costUsd)} over ${t.calls} call${t.calls === 1 ? "" : "s"}`;
+    const totals = this.totals;
+    if (totals.calls === 0) return t("Nothing spent this session.");
+    return t("Session: {cost} over {n, plural, one {# call} other {# calls}}", { cost: formatUsd(totals.costUsd), n: totals.calls });
   }
 };
 var ScmjsClient = class {
@@ -164,7 +1252,7 @@ var ScmjsClient = class {
   }
   base() {
     const url = this.credentials().serverUrl.trim().replace(/\/+$/, "");
-    if (!url) throw new ScmjsError("network", "no server address is set.");
+    if (!url) throw new ScmjsError("network", t("no server address is set."));
     return url;
   }
   headers() {
@@ -192,7 +1280,7 @@ var ScmjsClient = class {
   /** `GET /v1/info`: what the server offers and what the caller has left; refuses a server speaking another protocol. */
   async info(signal) {
     const info = await this.request("/v1/info", { signal });
-    if (info.protocol !== void 0 && info.protocol !== PROTOCOL_VERSION) throw new ScmjsError("protocol", `it speaks protocol ${info.protocol}, this plugin speaks ${PROTOCOL_VERSION}.`);
+    if (info.protocol !== void 0 && info.protocol !== PROTOCOL_VERSION) throw new ScmjsError("protocol", t("it speaks protocol {theirs}, this plugin speaks {ours}.", { theirs: String(info.protocol), ours: PROTOCOL_VERSION }));
     return info;
   }
   /** `POST /v1/trial`: a session with the free trial on it, once per device id. */
@@ -353,7 +1441,7 @@ var ScmjsClient = class {
       if (r2.remaining) this.onRemaining?.(r2.remaining);
       return { output: r2.output, usage: r2.usage, remaining: r2.remaining };
     }
-    if (!res.body) throw new ScmjsError("protocol", "the stream had no body.");
+    if (!res.body) throw new ScmjsError("protocol", t("the stream had no body."));
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     const parser = new SseParser();
@@ -401,7 +1489,7 @@ var ScmjsClient = class {
       if (err instanceof ScmjsError) throw err;
       throw toNetworkError(err);
     }
-    if (!result) throw new ScmjsError("protocol", "the stream ended without a result.");
+    if (!result) throw new ScmjsError("protocol", t("the stream ended without a result."));
     const r = result;
     this.ledger.add(r.usage);
     if (r.remaining) this.onRemaining?.(r.remaining);
@@ -564,15 +1652,16 @@ var AccountManager = class {
     const v = this.view;
     switch (this.kind()) {
       case "guest":
-        return this.aiOffered() && this.info?.trial !== false ? "Not signed in \xB7 the first AI request starts a free trial" : "Not signed in";
+        return this.aiOffered() && this.info?.trial !== false ? t("Not signed in \xB7 the first AI request starts a free trial") : t("Not signed in");
       case "trial":
-        return v ? `Free trial \xB7 ${formatUsd(v.balanceUsd)} left \xB7 sign in to keep it and get more` : "Free trial";
+        return v ? t("Free trial \xB7 {balance} left \xB7 sign in to keep it and get more", { balance: formatUsd(v.balanceUsd) }) : t("Free trial");
       default: {
-        if (!v) return "Signed in";
-        if (v.unlimited) return `${v.name ?? "Signed in"} \xB7 no balance is kept`;
-        const credit = v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.creditUsd)} of it credit)` : "";
-        const resets = v.resetsAt ? ` \xB7 refills ${shortDay(v.resetsAt)}` : "";
-        return `${v.name ?? "Signed in"} \xB7 ${formatUsd(v.balanceUsd)} left${credit}${resets}`;
+        if (!v) return t("Signed in");
+        const name = v.name ?? t("Signed in");
+        if (v.unlimited) return t("{name} \xB7 no balance is kept", { name });
+        const credit = v.creditUsd > 0 && v.weeklyUsd > 0 ? " " + t("({credit} of it credit)", { credit: formatUsd(v.creditUsd) }) : "";
+        const resets = v.resetsAt ? " \xB7 " + t("refills {day}", { day: shortDay(v.resetsAt) }) : "";
+        return t("{name} \xB7 {balance} left", { name, balance: formatUsd(v.balanceUsd) }) + credit + resets;
       }
     }
   }
@@ -652,7 +1741,7 @@ var AccountManager = class {
       this.changed();
     } catch (err) {
       if (err instanceof ScmjsError && (err.code === "forbidden" || err.code === "rate_limited")) {
-        throw new ScmjsError("budget_exceeded", `${err.message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.`);
+        throw new ScmjsError("budget_exceeded", t("{message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.", { message: err.message }));
       }
       throw err;
     }
@@ -665,11 +1754,11 @@ var AccountManager = class {
    */
   async signIn(provider) {
     const id = provider ?? this.info?.providers[0]?.id;
-    if (!id) throw new ScmjsError("forbidden", "this server offers no sign-in.");
+    if (!id) throw new ScmjsError("forbidden", t("this server offers no sign-in."));
     const origin = new URL(this.client.base()).origin;
     const open = this.deps.openPopup ?? ((name) => window.open("", name, "width=540,height=720,popup=yes"));
     const popup = open("scmjs-signin");
-    if (!popup) throw new ScmjsError("network", "the browser blocked the sign-in window; allow popups for this site and try again.");
+    if (!popup) throw new ScmjsError("network", t("the browser blocked the sign-in window; allow popups for this site and try again."));
     let url;
     try {
       url = (await this.client.authStart(id, (this.deps.origin ?? (() => window.location.origin))())).url;
@@ -715,7 +1804,7 @@ var AccountManager = class {
             popup.close();
           } catch {
           }
-          reject(new ScmjsError("network", "the sign-in did not finish in time."));
+          reject(new ScmjsError("network", t("the sign-in did not finish in time.")));
         });
       }, this.deps.signInTimeoutMs ?? 5 * 6e4);
     });
@@ -802,7 +1891,8 @@ function paged(rows, input, defaultLimit, maxLimit, budget = PAGE_BUDGET) {
 function pageReport(result) {
   const r = jsonOf(result);
   if (!r || r.count === void 0) return "";
-  return `${num(r.count)} of ${num(r.matched ?? r.total)}${r.next !== void 0 ? ", more follow" : ""}`;
+  const p = { count: num(r.count), total: num(r.matched ?? r.total) };
+  return r.next !== void 0 ? t("{count} of {total}, more follow", p) : t("{count} of {total}", p);
 }
 function capResult(value, cap = RESULT_CAP) {
   const s = typeof value === "string" ? value : JSON.stringify(value);
@@ -811,6 +1901,31 @@ function capResult(value, cap = RESULT_CAP) {
 }
 function ownerName(o) {
   return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
+}
+function ownerLabel(o) {
+  return o < 8 ? t("Player {n}", { n: o + 1 }) : o === 11 ? t("Neutral") : t("owner {n}", { n: o + 1 });
+}
+function compassLabel(d) {
+  switch (d) {
+    case "n":
+      return t("north");
+    case "ne":
+      return t("north-east");
+    case "e":
+      return t("east");
+    case "se":
+      return t("south-east");
+    case "s":
+      return t("south");
+    case "sw":
+      return t("south-west");
+    case "w":
+      return t("west");
+    case "nw":
+      return t("north-west");
+    default:
+      return d;
+  }
 }
 function ownerOf(v, d = 11) {
   if (typeof v === "string" && /neutral/i.test(v)) return 11;
@@ -958,7 +2073,7 @@ function reportStep(tool, result) {
     } catch {
     }
   }
-  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
+  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? t("picture") : "";
   const text = result.trim();
   if (text.startsWith("{") || text.startsWith("[")) {
     try {
@@ -971,7 +2086,7 @@ function reportStep(tool, result) {
   return cut(text.split("\n")[0], 80);
 }
 function describeShape(v) {
-  if (Array.isArray(v)) return plural(v.length, "item");
+  if (Array.isArray(v)) return t("{n, plural, one {# item} other {# items}}", { n: v.length });
   if (!v || typeof v !== "object") return "";
   const parts = [];
   for (const [k, val] of Object.entries(v)) {
@@ -985,7 +2100,7 @@ function describeShape(v) {
 }
 var cut = (s, n2) => s.length > n2 ? `${s.slice(0, n2 - 1)}\u2026` : s;
 function summarizeResult(result) {
-  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? "(picture)" : "Done.");
+  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? t("(picture)") : t("Done."));
   const line = text.split("\n")[0];
   return line.length > 160 ? `${line.slice(0, 160)}\u2026` : line;
 }
@@ -1015,7 +2130,7 @@ function tally(names, max = 3) {
   const counts = /* @__PURE__ */ new Map();
   for (const n2 of names) counts.set(n2, (counts.get(n2) ?? 0) + 1);
   const parts = [...counts].map(([n2, c2]) => c2 === 1 ? n2 : `${n2} \xD7${c2}`);
-  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
+  return parts.length > max ? t("{list} and {n} more", { list: parts.slice(0, max).join(", "), n: parts.length - max }) : parts.join(", ");
 }
 function indexList(indices, max = 3) {
   const shown = indices.slice(0, max).map((i) => `#${i}`).join(", ");
@@ -1030,12 +2145,13 @@ function placedReport(result) {
   if (!r) return "";
   const placed = Array.isArray(r.placed) ? r.placed.length : 0;
   const refused = Array.isArray(r.refused) ? r.refused : [];
-  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
-  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
+  if (!placed && refused.length) return t("nothing placed: {reason}", { reason: refused[0] });
+  return refused.length ? t("{placed} placed, {refused} refused", { placed, refused: refused.length }) : t("{placed} placed", { placed });
 }
 
 // ai/execute.ts
 var MAP_CHANGED = "the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on";
+var mapChangedMessage = () => t("the map in front changed while the assistant was working, so the turn stopped; ask again on the map it should work on");
 var STOPPED = "Not run: the turn was stopped.";
 async function executeCalls(calls, deps, hooks = {}) {
   const out = { results: [], edits: [], settingsWrites: [], stopped: false, mapChanged: false };
@@ -1115,7 +2231,7 @@ function statisticsLines(api) {
   lines.push(`${s.triggers.count} triggers (${s.triggers.conditions} conditions, ${s.triggers.actions} actions, ${s.triggers.preserved} preserved, ${s.triggers.disabled} disabled), ${s.briefings.count} briefing triggers, ${s.switchesNamed} named switches, ${s.sounds} sounds`);
   lines.push(`strings: ${s.strings.set} of ${s.strings.slots} slots set${s.strings.extended ? " (extended table)" : ""}`);
   for (const p of s.players) if (p.units > 0 || p.startLocations > 0) lines.push(`player ${p.slot + 1}: ${p.type}, ${p.race}, ${p.units} units${p.buildings !== null ? ` (${p.buildings} buildings)` : ""}, ${p.startLocations} start location${p.startLocations === 1 ? "" : "s"}`);
-  if (s.terrain) lines.push(`terrain: ${s.terrain.slice(0, 8).map((t) => `${t.name} ${Math.round(t.tiles / (s.width * s.height) * 100)}%`).join(", ")}`);
+  if (s.terrain) lines.push(`terrain: ${s.terrain.slice(0, 8).map((t2) => `${t2.name} ${Math.round(t2.tiles / (s.width * s.height) * 100)}%`).join(", ")}`);
   return lines;
 }
 function unitLines(api) {
@@ -1215,7 +2331,7 @@ function mapFacts(api, options = {}) {
   };
 }
 function terrainVocab(api) {
-  return api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable }));
+  return api.terrain.types().map((t2) => ({ id: t2.id, name: t2.name, height: t2.height, buildable: t2.buildable }));
 }
 function doodadCategoryNames(api) {
   return api.palette.doodadCategories().map((c2) => c2.name);
@@ -1362,9 +2478,9 @@ function shapesBox(input, width, height) {
   if (!Array.isArray(input.shapes)) return [];
   const dx = Math.round(n(input.originX, 0)), dy = Math.round(n(input.originY, 0));
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  const grow = (l2, t2, r2, b2) => {
+  const grow = (l2, t3, r2, b2) => {
     x0 = Math.min(x0, l2);
-    y0 = Math.min(y0, t2);
+    y0 = Math.min(y0, t3);
     x1 = Math.max(x1, r2);
     y1 = Math.max(y1, b2);
   };
@@ -1409,16 +2525,16 @@ function shapesBox(input, width, height) {
     }
   }
   if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return [];
-  const l = Math.max(0, Math.floor(x0 + dx)), t = Math.max(0, Math.floor(y0 + dy)), r = Math.min(width, Math.ceil(x1 + dx)), b = Math.min(height, Math.ceil(y1 + dy));
-  return r > l && b > t ? [{ x0: l, y0: t, x1: r, y1: b }] : [];
+  const l = Math.max(0, Math.floor(x0 + dx)), t2 = Math.max(0, Math.floor(y0 + dy)), r = Math.min(width, Math.ceil(x1 + dx)), b = Math.min(height, Math.ceil(y1 + dy));
+  return r > l && b > t2 ? [{ x0: l, y0: t2, x1: r, y1: b }] : [];
 }
 function followBox(api, f) {
   const info = api.document.info();
   if (!info || footprintEmpty(f)) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  const grow = (l, t, r, b) => {
+  const grow = (l, t2, r, b) => {
     x0 = Math.min(x0, l);
-    y0 = Math.min(y0, t);
+    y0 = Math.min(y0, t2);
     x1 = Math.max(x1, r);
     y1 = Math.max(y1, b);
   };
@@ -1660,24 +2776,24 @@ function renderMarkdown(md) {
 // ai/ramps.ts
 function rampDoodads(doodads, types) {
   const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
+  for (const t2 of types) {
+    byGroup.set(t2.group, t2);
+    byGroup.set(t2.group + 1, t2);
   }
-  const byName2 = new Map(types.filter((t) => t.name).map((t) => [t.name.toLowerCase(), t]));
+  const byName2 = new Map(types.filter((t2) => t2.name).map((t2) => [t2.name.toLowerCase(), t2]));
   const lowest = [...types].sort((a2, b) => a2.height - b.height || a2.group - b.group)[0];
   const out = [];
   for (const d of doodads) {
     if (!d.ramp || !d.required?.length) continue;
     const flats = /* @__PURE__ */ new Map();
     d.required.forEach((g, i) => {
-      const t = byGroup.get(g);
-      if (!t) return;
-      const e = flats.get(t.id) ?? { t, sx: 0, sy: 0, n: 0 };
+      const t2 = byGroup.get(g);
+      if (!t2) return;
+      const e = flats.get(t2.id) ?? { t: t2, sx: 0, sy: 0, n: 0 };
       e.sx += i % d.width;
       e.sy += Math.floor(i / d.width);
       e.n++;
-      flats.set(t.id, e);
+      flats.set(t2.id, e);
     });
     const list2 = [...flats.values()].sort((a2, b) => a2.t.height - b.t.height || b.n - a2.n);
     if (list2.length === 0) continue;
@@ -1729,7 +2845,7 @@ function rampPairs(ramps, tileset, types) {
   if (!tileset || !types) return out;
   const verified = VERIFIED_RAMPS[tileset];
   if (!verified) return out;
-  const name = (id) => types.find((t) => t.id === id)?.name?.toLowerCase();
+  const name = (id) => types.find((t2) => t2.id === id)?.name?.toLowerCase();
   return out.filter((p) => verified.some(([lo, hi]) => lo.toLowerCase() === name(p.low) && hi.toLowerCase() === name(p.high)));
 }
 function rampsOf(api) {
@@ -1741,25 +2857,25 @@ function rampPairsOf(api) {
 }
 function bridgeDoodads(doodads, types) {
   const byGroup = /* @__PURE__ */ new Map();
-  for (const t of types) {
-    byGroup.set(t.group, t);
-    byGroup.set(t.group + 1, t);
+  for (const t2 of types) {
+    byGroup.set(t2.group, t2);
+    byGroup.set(t2.group + 1, t2);
   }
   const out = [];
   for (const d of doodads) {
     if (!/bridge/i.test(d.category) || !d.required?.length) continue;
     const flats = /* @__PURE__ */ new Map();
     for (const g of d.required) {
-      const t = byGroup.get(g);
-      if (t) {
-        const e = flats.get(t.id) ?? { t, n: 0 };
+      const t2 = byGroup.get(g);
+      if (t2) {
+        const e = flats.get(t2.id) ?? { t: t2, n: 0 };
         e.n++;
-        flats.set(t.id, e);
+        flats.set(t2.id, e);
       }
     }
     const list2 = [...flats.values()];
     const water = list2.find((e) => e.t.buildable === false || /water|lava|tar|ice/i.test(e.t.name ?? "")) ?? null;
-    const plain = [...types].filter((t) => t.height === 0 && t.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
+    const plain = [...types].filter((t2) => t2.height === 0 && t2.buildable !== false).sort((a2, b) => a2.group - b.group)[0] ?? null;
     const ground = list2.filter((e) => e !== water).sort((a2, b) => b.n - a2.n)[0] ?? (plain ? { t: plain, n: 0 } : null);
     if (!water || !ground) continue;
     out.push({ id: d.id, name: d.name, width: d.width, height: d.height, ground: ground.t.id, water: water.t.id });
@@ -1771,7 +2887,7 @@ function bridgePair(bridges, tileset, types) {
   if (tileset && types) {
     const v = VERIFIED_BRIDGES[tileset];
     if (!v) return null;
-    const ground = types.find((t) => t.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t) => t.name?.toLowerCase() === v.water.toLowerCase());
+    const ground = types.find((t2) => t2.name?.toLowerCase() === v.ground.toLowerCase()), water = types.find((t2) => t2.name?.toLowerCase() === v.water.toLowerCase());
     return ground && water ? { ground: ground.id, water: water.id, channel: v.channel } : null;
   }
   return { ground: bridges[0].ground, water: bridges[0].water };
@@ -1903,7 +3019,7 @@ function diamondTerrain(terrainAt, tx, ty) {
   return best;
 }
 function paintOrder(ids, terrains, counts) {
-  const height = (id) => terrains.find((t) => t.id === id)?.height ?? 0;
+  const height = (id) => terrains.find((t2) => t2.id === id)?.height ?? 0;
   return [...ids].sort((a2, b) => height(a2) - height(b) || (counts.get(b) ?? 0) - (counts.get(a2) ?? 0) || a2 - b);
 }
 
@@ -1926,7 +3042,7 @@ function compileShapes(shapes, ctx) {
   const findings = [];
   const ramps = [];
   const bridges = [];
-  const known = new Map(ctx.terrains.map((t) => [t.id, t]));
+  const known = new Map(ctx.terrains.map((t2) => [t2.id, t2]));
   const put = (x, y, id) => {
     if (x >= 0 && y >= 0 && x < width && y < height) {
       cells[y * width + x] = id;
@@ -2109,8 +3225,8 @@ function compileShapes(shapes, ctx) {
       case "border": {
         const id = terrainOf(s, what);
         if (id === null) return;
-        const t = Math.max(1, Math.round(s.width ?? 2));
-        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (x < t || y < t || x >= width - t || y >= height - t) put(x, y, id);
+        const t2 = Math.max(1, Math.round(s.width ?? 2));
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (x < t2 || y < t2 || x >= width - t2 || y >= height - t2) put(x, y, id);
         return;
       }
       case "ramp": {
@@ -2213,9 +3329,9 @@ function uniqueSides(sides) {
 }
 function insideCutRect(r, cuts, x, y) {
   if (x < r.x0 || y < r.y0 || x >= r.x1 || y >= r.y1) return false;
-  const l = x - r.x0, rt = r.x1 - 1 - x, t = y - r.y0, b = r.y1 - 1 - y;
-  if (l + 2 * t < 2 * cuts.nw - 1) return false;
-  if (rt + 2 * t < 2 * cuts.ne - 1) return false;
+  const l = x - r.x0, rt = r.x1 - 1 - x, t2 = y - r.y0, b = r.y1 - 1 - y;
+  if (l + 2 * t2 < 2 * cuts.nw - 1) return false;
+  if (rt + 2 * t2 < 2 * cuts.ne - 1) return false;
   if (l + 2 * b < 2 * cuts.sw - 1) return false;
   if (rt + 2 * b < 2 * cuts.se - 1) return false;
   return true;
@@ -2275,8 +3391,8 @@ function nearestSegment(verts, at) {
   for (let i = 0; i + 1 < verts.length; i++) {
     const [ax, ay] = verts[i].p, [bx, by] = verts[i + 1].p;
     const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
-    const t = Math.max(0, Math.min(1, ((at.x - ax) * vx + (at.y - ay) * vy) / len2));
-    const dx = at.x - (ax + t * vx), dy = at.y - (ay + t * vy);
+    const t2 = Math.max(0, Math.min(1, ((at.x - ax) * vx + (at.y - ay) * vy) / len2));
+    const dx = at.x - (ax + t2 * vx), dy = at.y - (ay + t2 * vy);
     const d = dx * dx + dy * dy;
     if (d < bestD) {
       bestD = d;
@@ -2301,7 +3417,7 @@ function cutAround(verts, at, radius, nearest) {
   const after = exit ? [{ ...verts[exit.index + 1], p: exit.p }, ...verts.slice(exit.index + 1)] : [];
   return { before, after };
 }
-var lerp = (a2, b, t) => [a2[0] + (b[0] - a2[0]) * t, a2[1] + (b[1] - a2[1]) * t];
+var lerp = (a2, b, t2) => [a2[0] + (b[0] - a2[0]) * t2, a2[1] + (b[1] - a2[1]) * t2];
 function circleCrossings(a2, b, c2, r) {
   const vx = b[0] - a2[0], vy = b[1] - a2[1], fx = a2[0] - c2[0], fy = a2[1] - c2[1];
   const A = vx * vx + vy * vy, B = 2 * (fx * vx + fy * vy), C = fx * fx + fy * fy - r * r;
@@ -2309,7 +3425,7 @@ function circleCrossings(a2, b, c2, r) {
   const disc = B * B - 4 * A * C;
   if (disc < 0) return [];
   const q2 = Math.sqrt(disc);
-  return [(-B - q2) / (2 * A), (-B + q2) / (2 * A)].filter((t) => t > 0 && t < 1);
+  return [(-B - q2) / (2 * A), (-B + q2) / (2 * A)].filter((t2) => t2 > 0 && t2 < 1);
 }
 function strokeVarying(verts, terrainOf, put) {
   for (let i = 0; i + 1 < verts.length; i++) {
@@ -2328,9 +3444,9 @@ function strokeTapered(a2, b, wa, wb, put) {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const fx = x + 0.5 - ax, fy = y + 0.5 - ay;
     const qb = -2 * (fx * vx + fy * vy) - 2 * ha * dh, qc = fx * fx + fy * fy - ha * ha;
-    const g = (t2) => (qa * t2 + qb) * t2 + qc;
-    const t = qa > 0 ? Math.max(0, Math.min(1, -qb / (2 * qa))) : g(0) <= g(1) ? 0 : 1;
-    if (g(t) <= 0) put(x, y);
+    const g = (t3) => (qa * t3 + qb) * t3 + qc;
+    const t2 = qa > 0 ? Math.max(0, Math.min(1, -qb / (2 * qa))) : g(0) <= g(1) ? 0 : 1;
+    if (g(t2) <= 0) put(x, y);
   }
 }
 function strokePolyline(pts, width, put) {
@@ -2342,8 +3458,8 @@ function strokePolyline(pts, width, put) {
     const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy || 1;
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const px = x + 0.5, py = y + 0.5;
-      const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
-      const dx = px - (ax + t * vx), dy = py - (ay + t * vy);
+      const t2 = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / len2));
+      const dx = px - (ax + t2 * vx), dy = py - (ay + t2 * vy);
       if (dx * dx + dy * dy <= half * half) put(x, y);
     }
   }
@@ -2428,20 +3544,20 @@ function shiftShapes(shapes, dx, dy) {
 // ai/reference.ts
 var ENUM_KINDS = ["player", "comparison", "modifier", "unitState", "order", "alliance", "resource", "score", "switchState", "switchAction", "textFlags"];
 function terrainName(api, id) {
-  return api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+  return api.terrain.types().find((t2) => t2.id === id)?.name ?? `terrain ${id}`;
 }
 function gatherReference(api) {
   const defs = api.triggers.defs;
   const races = { zerg: "Z", terran: "T", protoss: "P" };
   const units = [];
-  for (const t of api.settings.unitTypes()) {
-    const size = api.palette.unitSize(t.id);
-    const d = t.defaults ?? t;
+  for (const t2 of api.settings.unitTypes()) {
+    const size = api.palette.unitSize(t2.id);
+    const d = t2.defaults ?? t2;
     units.push({
-      id: t.id,
-      name: t.name,
-      ...t.customName ? { customName: api.names.unit(t.id) } : {},
-      race: races[String(api.data.race(t.id)).toLowerCase()] ?? "-",
+      id: t2.id,
+      name: t2.name,
+      ...t2.customName ? { customName: api.names.unit(t2.id) } : {},
+      race: races[String(api.data.race(t2.id)).toLowerCase()] ?? "-",
       width: size.width,
       height: size.height,
       building: size.building,
@@ -2460,7 +3576,7 @@ function gatherReference(api) {
   return {
     ...map,
     tileset: api.tileset.name(),
-    terrains: api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })),
+    terrains: api.terrain.types().map((t2) => ({ id: t2.id, name: t2.name, height: t2.height, buildable: t2.buildable })),
     ramps: rampPairsOf(api).map((p) => ({ low: terrainName(api, p.low), high: terrainName(api, p.high) })),
     bridges: (() => {
       const b = bridgePairOf(api);
@@ -2469,7 +3585,7 @@ function gatherReference(api) {
     doodadCategories: api.palette.doodadCategories().map((c2) => ({ name: c2.name, doodads: c2.doodads.map((d) => ({ id: d.id, name: d.name, width: d.width, height: d.height })) })),
     units,
     upgrades: api.names.upgrades().map((u) => ({ id: u.value, name: u.label })),
-    techs: api.names.techs().map((t) => ({ id: t.value, name: t.label })),
+    techs: api.names.techs().map((t2) => ({ id: t2.value, name: t2.label })),
     conditions: defs.conditions().map((c2) => sig(c2.name, c2.args)),
     actions: defs.actions(false).map((a2) => sig(a2.name, a2.args)),
     briefingActions: defs.actions(true).map((a2) => sig(a2.name, a2.args)),
@@ -2530,7 +3646,7 @@ function gameLayer(p) {
   out.push(p.upgrades.map((u) => `${u.id} ${u.name}`).join("; "));
   out.push("");
   out.push("## Technologies (set_tech)");
-  out.push(p.techs.map((t) => `${t.id} ${t.name}`).join("; "));
+  out.push(p.techs.map((t2) => `${t2.id} ${t2.name}`).join("; "));
   out.push("");
   out.push(`## Trigger conditions: ${p.conditions.map((c2) => c2.name).join("; ")}`);
   out.push(`## Trigger actions: ${p.actions.map((a2) => a2.name).join("; ")}`);
@@ -2554,7 +3670,7 @@ function tilesetLayer(p) {
   out.push(`# Reference: the ${p.tileset} tileset`);
   out.push("");
   out.push("## Terrains (paint_terrain ids; height 0 low, 1 mid, 2 high)");
-  for (const t of p.terrains) out.push(`- ${t.id}: ${t.name} \u2014 height ${t.height}${t.buildable ? ", buildable" : ", not buildable"}`);
+  for (const t2 of p.terrains) out.push(`- ${t2.id}: ${t2.name} \u2014 height ${t2.height}${t2.buildable ? ", buildable" : ", not buildable"}`);
   if (p.ramps) out.push(`- Ramps the editor can fit (down south-west or south-east only): ${p.ramps.length ? p.ramps.map((r) => `${r.low} \u2192 ${r.high}`).join(", ") : "none"}`);
   if (p.bridges !== void 0) out.push(`- Bridges: ${p.bridges ? `the editor fits one over a diagonal channel of ${p.bridges.water} ${p.bridges.channel} tiles wide between ${p.bridges.ground} banks (a stroke with bridges in paint_shapes bends the river onto that diagonal, narrows it to the channel and fits the bridge; a bare bridge shape stamps the channel over whatever is there)` : "none the editor can place on this tileset; a crossing is a gap of ground in the water"}`);
   out.push("- A shore or cliff between two terrains takes about three tiles either side of the boundary; water narrower than about ten tiles is all shore.");
@@ -2644,7 +3760,7 @@ function gatherMap(api) {
   const info = api.document.info();
   const players2 = api.settings.players().filter((p) => p.typeName !== "Inactive" && p.typeName !== "Unused").map((p) => `${p.slot + 1}: ${p.typeName}, ${p.raceName}${p.force !== null ? `, force ${p.force + 1}${p.forceName ? ` "${p.forceName}"` : ""}` : ""}`);
   const renamed = [];
-  for (const t of api.settings.unitTypes()) if (t.customName) renamed.push({ id: t.id, name: t.name, customName: api.names.unit(t.id) });
+  for (const t2 of api.settings.unitTypes()) if (t2.customName) renamed.push({ id: t2.id, name: t2.name, customName: api.names.unit(t2.id) });
   return {
     mapName: info?.name ?? "",
     description: info?.description ?? "",
@@ -2705,13 +3821,13 @@ var PresetError = class extends Error {
 var WATER = /water|lava|tar|space|ice$|magma/i;
 var DRESS = /ruins|mud|rocky|crags|moguls|flagstone|shale|asphalt|plating|crushed/i;
 function terrainRoles(ctx) {
-  const t = ctx.terrains;
-  const flats0 = t.filter((x) => x.height === 0 && x.buildable);
-  const ground = t.find((x) => x.height === 0 && x.buildable && /^(dirt|jungle|snow|space|grass|substructure)$/i.test(x.name)) ?? flats0[0] ?? t[0];
-  const water = t.find((x) => x.height === 0 && !x.buildable && WATER.test(x.name)) ?? null;
+  const t2 = ctx.terrains;
+  const flats0 = t2.filter((x) => x.height === 0 && x.buildable);
+  const ground = t2.find((x) => x.height === 0 && x.buildable && /^(dirt|jungle|snow|space|grass|substructure)$/i.test(x.name)) ?? flats0[0] ?? t2[0];
+  const water = t2.find((x) => x.height === 0 && !x.buildable && WATER.test(x.name)) ?? null;
   const pair = ctx.rampPairs.find((p) => p.low === ground.id) ?? ctx.rampPairs[0];
-  const high = pair ? pair.high : t.find((x) => x.height > 0 && x.buildable)?.id ?? ground.id;
-  const dress = t.find((x) => x.height === 0 && DRESS.test(x.name))?.id ?? ground.id;
+  const high = pair ? pair.high : t2.find((x) => x.height > 0 && x.buildable)?.id ?? ground.id;
+  const dress = t2.find((x) => x.height === 0 && DRESS.test(x.name))?.id ?? ground.id;
   return { ground: ground.id, water: water?.id ?? null, high, dress };
 }
 var Reader = class {
@@ -2853,7 +3969,7 @@ var PRESETS = [
       const laneXs = Array.from({ length: lanes }, (_, i) => Math.round(W * (i + 1) / (lanes + 1)));
       const enclosure = wall === "water" ? 6 : 8;
       shapes.push({ op: "rect", terrain: wallTerrain, x: goalX - enclosure, y: goalY - enclosure, w: goalW + 2 * enclosure, h: H - goalY + enclosure, cut: 0 });
-      const floor = roles.dress !== roles.ground && ctx.terrains.find((t) => t.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
+      const floor = roles.dress !== roles.ground && ctx.terrains.find((t2) => t2.id === roles.dress)?.buildable === false ? roles.dress : roles.ground;
       laneXs.forEach((lx, i) => {
         const bendX = lx + (lx < W / 2 ? -1 : lx > W / 2 ? 1 : i % 2 ? -1 : 1) * Math.min(14, W / 8);
         const pts = bends ? [[lx, -6], [lx, H * 0.35], [bendX, H * 0.5], [lx, H * 0.65], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]] : [[lx, -6], [lx, goalY - 6], [W / 2 + (lx - W / 2) * 0.3, goalY + 5]];
@@ -2869,7 +3985,7 @@ var PRESETS = [
       const taken = [];
       const free = (x0, y0, x1, y1) => {
         if (x0 < 1 || y0 < 1 || x1 > W - 1 || y1 > H - 1) return false;
-        if (taken.some((t) => x0 < t.x1 && x1 > t.x0 && y0 < t.y1 && y1 > t.y0)) return false;
+        if (taken.some((t2) => x0 < t2.x1 && x1 > t2.x0 && y0 < t2.y1 && y1 > t2.y0)) return false;
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (cells[y * W + x] !== roles.ground) return false;
         return true;
       };
@@ -3004,8 +4120,8 @@ var PRESETS = [
         let left = Math.max(0, Math.min(total, d));
         for (const s of segs) {
           if (left <= s.len) {
-            const t = s.len ? left / s.len : 0;
-            return { x: s.a[0] + (s.b[0] - s.a[0]) * t, y: s.a[1] + (s.b[1] - s.a[1]) * t, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
+            const t2 = s.len ? left / s.len : 0;
+            return { x: s.a[0] + (s.b[0] - s.a[0]) * t2, y: s.a[1] + (s.b[1] - s.a[1]) * t2, vertical: Math.abs(s.b[1] - s.a[1]) > Math.abs(s.b[0] - s.a[0]) };
           }
           left -= s.len;
         }
@@ -3073,9 +4189,9 @@ var PRESETS = [
       const stops = regions + (boss ? 2 : 1);
       const centres = [];
       for (let i = 0; i < stops; i++) {
-        const t = i / (stops - 1);
+        const t2 = i / (stops - 1);
         const wobble = (i % 2 ? 1 : -1) * Math.min(12, W / 10) * (i === 0 || i === stops - 1 ? 0 : 1);
-        centres.push([townAt[0] + (endAt[0] - townAt[0]) * t + wobble * (corner.includes("s") ? 1 : -1) * 0.5, townAt[1] + (endAt[1] - townAt[1]) * t + wobble * 0.5]);
+        centres.push([townAt[0] + (endAt[0] - townAt[0]) * t2 + wobble * (corner.includes("s") ? 1 : -1) * 0.5, townAt[1] + (endAt[1] - townAt[1]) * t2 + wobble * 0.5]);
       }
       const shapes = [{ op: "ground", terrain: fill }];
       for (let i = 0; i + 1 < centres.length; i++) shapes.push({ op: "stroke", terrain: roles.ground, points: [centres[i], centres[i + 1]], width: 6 });
@@ -3138,7 +4254,7 @@ function buildPreset(id, params, ctx) {
 }
 function decoration(ctx, roles) {
   const categories = ctx.doodadCategories ?? [];
-  const name = (id) => ctx.terrains.find((t) => t.id === id)?.name ?? "";
+  const name = (id) => ctx.terrains.find((t2) => t2.id === id)?.name ?? "";
   const match = (terrain) => categories.find((c2) => c2.toLowerCase() === name(terrain).toLowerCase()) ?? null;
   const out = [];
   const ground = match(roles.ground);
@@ -3467,7 +4583,7 @@ function angleDirection(a2) {
 function checkPlan(input, ctx) {
   const problems = [];
   const plan = { ...input, legend: { ...input.legend }, grid: [...input.grid ?? []], bases: [...input.bases ?? []], ramps: [...input.ramps ?? []], bridges: (input.bridges ?? []).filter((b) => typeof b.x === "number" && typeof b.y === "number").map((b) => ({ x: Math.round(b.x), y: Math.round(b.y), along: b.along === "sw" ? "sw" : "se" })), doodads: [...input.doodads ?? []], units: [...input.units ?? []], locations: [...input.locations ?? []], notes: [...input.notes ?? []] };
-  const known = new Set(ctx.terrains.map((t) => t.id));
+  const known = new Set(ctx.terrains.map((t2) => t2.id));
   const fallback = ctx.terrains[0]?.id ?? 0;
   plan.cellSize = Math.max(1, Math.floor(plan.cellSize || 1));
   const columns = Math.max(1, Math.floor(plan.columns || 1));
@@ -3714,10 +4830,10 @@ function prng(seed) {
   let a2 = seed >>> 0;
   return () => {
     a2 = a2 + 1831565813 >>> 0;
-    let t = a2;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    let t2 = a2;
+    t2 = Math.imul(t2 ^ t2 >>> 15, t2 | 1);
+    t2 ^= t2 + Math.imul(t2 ^ t2 >>> 7, t2 | 61);
+    return ((t2 ^ t2 >>> 14) >>> 0) / 4294967296;
   };
 }
 function hashString(s) {
@@ -3759,7 +4875,7 @@ function scatterDoodads(plan, ctx, categories, occupied, margin = 0) {
         break;
       }
       if (!onAllowed) continue;
-      if (taken.some((t) => overlaps2(t, foot)) || occupied(foot)) continue;
+      if (taken.some((t2) => overlaps2(t2, foot)) || occupied(foot)) continue;
       taken.push(foot);
       placed.push({ doodadId: d.id, tx, ty, name: d.name, width: d.width, height: d.height, allowed });
       got++;
@@ -3800,7 +4916,7 @@ function doodadChoices(api) {
 function renderPlan(api, input, options) {
   const info = api.document.info();
   if (!info) return null;
-  const terrains = api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable }));
+  const terrains = api.terrain.types().map((t2) => ({ id: t2.id, name: t2.name, height: t2.height, buildable: t2.buildable }));
   const ctx = { terrains, width: info.width, height: info.height, originX: options.originX, originY: options.originY };
   const tilesetRamps = rampsOf(api);
   const tilesetBridges = bridgesOf(api);
@@ -4050,7 +5166,7 @@ function channelEndFindings(api, b, pair, terrains) {
     const x = Math.round(end[0] + sign * d[0] * CHANNEL_PROBE), y = Math.round(end[1] + sign * d[1] * CHANNEL_PROBE);
     const id = api.terrain.terrainAt(x, y);
     if (id === null || id === pair.water) return;
-    const name = (t) => terrains.find((v) => v.id === t)?.name ?? `terrain ${t}`;
+    const name = (t2) => terrains.find((v) => v.id === t2)?.name ?? `terrain ${t2}`;
     out.push(`bridge at ${b.x},${b.y}: beyond its ${names[i]} end (${Math.round(end[0])},${Math.round(end[1])}) lies ${name(id)} at ${x},${y}, not ${name(pair.water)} \u2014 the river does not reach the bridge from that side; paint water up to that end, or paint the river as one stroke with bridges`);
   });
   return out;
@@ -4095,16 +5211,16 @@ function clearArea(api, tx, area) {
 function summarizeRender(r) {
   const p = r.placed;
   const parts = [];
-  if (p.diamonds) parts.push(`${p.diamonds} diamonds painted`);
-  if (p.tiles) parts.push(`${p.tiles} tiles laid`);
-  if (p.starts) parts.push(`${p.starts} start location${p.starts === 1 ? "" : "s"}`);
-  if (p.resources) parts.push(`${p.resources} resources`);
-  if (p.ramps) parts.push(`${p.ramps} ramp${p.ramps === 1 ? "" : "s"}`);
-  if (p.bridges) parts.push(`${p.bridges} bridge${p.bridges === 1 ? "" : "s"}`);
-  if (p.doodads) parts.push(`${p.doodads} doodads`);
-  if (p.units) parts.push(`${p.units} unit${p.units === 1 ? "" : "s"}`);
-  if (p.locations) parts.push(`${p.locations} location${p.locations === 1 ? "" : "s"}`);
-  return parts.length ? parts.join(", ") : "nothing was placed";
+  if (p.diamonds) parts.push(t("{n, plural, one {# diamond painted} other {# diamonds painted}}", { n: p.diamonds }));
+  if (p.tiles) parts.push(t("{n, plural, one {# tile laid} other {# tiles laid}}", { n: p.tiles }));
+  if (p.starts) parts.push(t("{n, plural, one {# start location} other {# start locations}}", { n: p.starts }));
+  if (p.resources) parts.push(t("{n, plural, one {# resource} other {# resources}}", { n: p.resources }));
+  if (p.ramps) parts.push(t("{n, plural, one {# ramp} other {# ramps}}", { n: p.ramps }));
+  if (p.bridges) parts.push(t("{n, plural, one {# bridge} other {# bridges}}", { n: p.bridges }));
+  if (p.doodads) parts.push(t("{n, plural, one {# doodad} other {# doodads}}", { n: p.doodads }));
+  if (p.units) parts.push(t("{n, plural, one {# unit} other {# units}}", { n: p.units }));
+  if (p.locations) parts.push(t("{n, plural, one {# location} other {# locations}}", { n: p.locations }));
+  return parts.length ? parts.join(", ") : t("nothing was placed");
 }
 
 // ai/bases.ts
@@ -4492,8 +5608,8 @@ var KINDS = [
     build(r) {
       const owner = r.str("owner", "All Players");
       const own = /^\d+$/.test(owner) ? Number(owner) : owner;
-      const t = trigger([own], [], [...Array.from({ length: 62 }, () => a.wait(0)), a.preserve()]);
-      return { triggers: [t, t, t] };
+      const t2 = trigger([own], [], [...Array.from({ length: 62 }, () => a.wait(0)), a.preserve()]);
+      return { triggers: [t2, t2, t2] };
     }
   },
   {
@@ -4909,8 +6025,8 @@ var KINDS = [
       const progress = dc.take("the checkpoint reached");
       const used = lives > 0 ? dc.take("the lives used") : null;
       const triggers = [];
-      const ending = finish ? { result: dc.take("the finish result"), finished: dc.takeSwitch("the finish reached"), closed: dc.takeSwitch("the finish closed") } : null;
-      if (ending) for (const p of players2) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "At least", SEEN)], [a.setSwitch(ending.closed, "set")]));
+      const ending2 = finish ? { result: dc.take("the finish result"), finished: dc.takeSwitch("the finish reached"), closed: dc.takeSwitch("the finish closed") } : null;
+      if (ending2) for (const p of players2) triggers.push(trigger([p], [c.switch(ending2.finished, "set"), c.deaths(p, ending2.result, "At least", SEEN)], [a.setSwitch(ending2.closed, "set")]));
       for (const p of players2) {
         cps.forEach((cp, i) => {
           const n2 = i + 1;
@@ -4930,11 +6046,11 @@ var KINDS = [
         });
         if (used) triggers.push(trigger([p], [c.command(p, unit, "Exactly", 0), c.deaths(p, used, "At least", lives)], [a.text("No lives left."), a.defeat()]));
       }
-      if (ending && finish) {
-        for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(shared ? ending.closed : ending.finished, "not set"), c.deaths(p, ending.result, "At most", SEEN)], [a.setDeaths(p, ending.result, "Set To", FINISHED), a.setSwitch(ending.finished, "set"), a.text(`Player ${p} has finished!`)]));
-        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.finished, "set"), c.deaths(p, ending.result, "Exactly", 0)], [a.setDeaths(p, ending.result, "Set To", SEEN)]));
-        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At least", FINISHED)], [a.victory()]));
-        for (const p of players2) triggers.push(trigger([p], [c.switch(ending.closed, "set"), c.deaths(p, ending.result, "At most", SEEN)], [a.defeat()]));
+      if (ending2 && finish) {
+        for (const p of players2) triggers.push(trigger([p], [c.bring(p, unit, finish, "At least", 1), c.switch(shared ? ending2.closed : ending2.finished, "not set"), c.deaths(p, ending2.result, "At most", SEEN)], [a.setDeaths(p, ending2.result, "Set To", FINISHED), a.setSwitch(ending2.finished, "set"), a.text(`Player ${p} has finished!`)]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending2.finished, "set"), c.deaths(p, ending2.result, "Exactly", 0)], [a.setDeaths(p, ending2.result, "Set To", SEEN)]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending2.closed, "set"), c.deaths(p, ending2.result, "At least", FINISHED)], [a.victory()]));
+        for (const p of players2) triggers.push(trigger([p], [c.switch(ending2.closed, "set"), c.deaths(p, ending2.result, "At most", SEEN)], [a.defeat()]));
       }
       return { triggers, notes: [`${cps.length} checkpoints${strict ? " in order" : ", in any order"}, ${lives > 0 ? `${lives} lives` : "unlimited lives"}${finish ? `; ${shared ? "everyone at the finish in the same moment wins" : "the first to the finish wins"}, the rest lose, a cycle or two later` : ""}; each player's first ${unit} is made at ${startLoc} and costs no life`] };
     }
@@ -5072,7 +6188,7 @@ var KINDS = [
       const st = /victory/i.test(status) ? "Allied Victory" : /enemy/i.test(status) ? "Enemy" : "Ally";
       const targets = /^humans?$/i.test(withRaw) ? ctx.humans : /^computers?$/i.test(withRaw) ? ctx.computers : /^force\s*[1-4]$/i.test(withRaw) ? [`Force ${withRaw.replace(/\D/g, "")}`] : withRaw.split(/[,\s]+/).map(Number).filter((n2) => n2 >= 1 && n2 <= 12);
       if (targets.length === 0) r.problems.push(`"with" should name players, not "${withRaw}"`);
-      return { triggers: [trigger(players2, [], targets.map((t) => a.alliance(t, st)))] };
+      return { triggers: [trigger(players2, [], targets.map((t2) => a.alliance(t2, st)))] };
     }
   },
   {
@@ -5260,8 +6376,8 @@ function counterBudget(d, ctx) {
   return { counters: dc.used.length, free, switches, by, ok: dc.used.length <= free };
 }
 function budgetText(b) {
-  if (b.ok) return `${b.counters} of ${b.free} free death counters, ${b.switches} switch${b.switches === 1 ? "" : "es"}`;
-  return `the design's systems need ${b.counters} death counters and the map has ${b.free} free (${b.by.slice(0, 4).map((x) => `${x.name}: ${x.counters}`).join(", ")}${b.by.length > 4 ? ", \u2026" : ""}). Remove or merge systems in the design \u2014 several obstacle stretches on one beat, one spawn with {p} instead of one per player \u2014 and build again`;
+  if (b.ok) return t("{counters} of {free} free death counters, {switches, plural, one {# switch} other {# switches}}", { counters: b.counters, free: b.free, switches: b.switches });
+  return t("the design's systems need {counters} death counters and the map has {free} free ({by}). Remove or merge systems in the design \u2014 several obstacle stretches on one beat, one spawn with {p} instead of one per player \u2014 and build again", { counters: b.counters, free: b.free, by: `${b.by.slice(0, 4).map((x) => `${x.name}: ${x.counters}`).join(", ")}${b.by.length > 4 ? ", \u2026" : ""}`, p: "{p}" });
 }
 function buildOutcome(c2) {
   if (c2.stopped) return "stopped";
@@ -5270,18 +6386,18 @@ function buildOutcome(c2) {
 }
 function outcomeText(name, c2) {
   const parts = [];
-  if (c2.failed) parts.push(`${c2.failed} failed`);
-  if (c2.waiting) parts.push(`${c2.waiting} waiting`);
-  if (c2.notRun) parts.push(`${c2.notRun} not run`);
+  if (c2.failed) parts.push(t("{n} failed", { n: c2.failed }));
+  if (c2.waiting) parts.push(t("{n} waiting", { n: c2.waiting }));
+  if (c2.notRun) parts.push(t("{n} not run", { n: c2.notRun }));
   switch (buildOutcome(c2)) {
     case "built":
-      return `Built ${name}.`;
+      return t("Built {name}.", { name });
     case "waiting":
-      return `Built ${name}, ${c2.waiting} waiting for locations.`;
+      return t("Built {name}, {n} waiting for locations.", { name, n: c2.waiting });
     case "stopped":
-      return `Stopped building ${name}: ${parts.join(", ") || "nothing left out"}. What was built stays.`;
+      return t("Stopped building {name}: {parts}. What was built stays.", { name, parts: parts.join(", ") || t("nothing left out") });
     case "failed":
-      return `Built ${name} with ${parts.join(", ")}.`;
+      return t("Built {name} with {parts}.", { name, parts: parts.join(", ") });
   }
 }
 
@@ -5485,6 +6601,7 @@ function guideIndex() {
 // ai/script.ts
 var SCRIPT_PLUGIN = "trigscript";
 var NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.";
+var noScriptPluginMessage = () => t("The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.");
 function hasScriptPlugin(api) {
   return api.commands.has(`${SCRIPT_PLUGIN}.compile`);
 }
@@ -5511,6 +6628,10 @@ function scriptBridge(api) {
 }
 function describeDiagnostic(d) {
   return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} \u2014 ${d.message}`;
+}
+function diagnosticLabel(d) {
+  const p = { file: d.file, line: d.line, column: d.column, message: d.message };
+  return d.file && d.file !== "main.ts" ? t("{file} line {line}:{column} \u2014 {message}", p) : t("line {line}:{column} \u2014 {message}", p);
 }
 function repairDiagnostic(d) {
   return { line: d.line, column: d.column, message: d.file && d.file !== "main.ts" ? `${d.file}: ${d.message}` : d.message };
@@ -5602,7 +6723,7 @@ function compactTriggers(text) {
 
 // ai/tools/ums.ts
 function hasHyperTriggers(api, triggers = api.triggers.list()) {
-  return triggers.some((t) => t.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
+  return triggers.some((t2) => t2.actions.filter((a2) => a2.type === api.consts.triggers.action.Wait && a2.time <= 1).length >= 8);
 }
 function hasPrograms(api) {
   return (scriptBridge(api)?.state()?.programs ?? 0) > 0;
@@ -5628,12 +6749,12 @@ function usedTriggerState(api, triggers = api.triggers.list()) {
   const { condition, action } = api.consts.triggers;
   const units = /* @__PURE__ */ new Set();
   const switches = /* @__PURE__ */ new Set();
-  for (const t of triggers) {
-    for (const c2 of t.conditions) {
+  for (const t2 of triggers) {
+    for (const c2 of t2.conditions) {
       if (c2.type === condition.Deaths) units.add(c2.unitId);
       else if (c2.type === condition.Switch) switches.add(c2.resource);
     }
-    for (const a2 of t.actions) {
+    for (const a2 of t2.actions) {
       if (a2.type === action.SetDeaths) units.add(a2.unitId);
       else if (a2.type === action.SetSwitch) switches.add(a2.target);
     }
@@ -5653,7 +6774,7 @@ function addSystem(api, kind, params, ctx, label = `AI: ${kind}`) {
   const built = buildSystem(kind, params, ctx);
   const parsed = built.text.trim() ? api.triggers.text.parse(built.text, { briefing: false }) : [];
   if (parsed.length) api.document.update(label, (tx) => {
-    for (const t of parsed) tx.triggers.add(t.trigger);
+    for (const t2 of parsed) tx.triggers.add(t2.trigger);
   });
   const placed = built.place.length ? placeInLocations(api, built.place, label) : { placed: 0, notes: [] };
   return { count: parsed.length, placed: placed.placed, notes: [...built.notes, ...placed.notes] };
@@ -5701,7 +6822,7 @@ function umsTools() {
   return [
     {
       def: { name: "guide", description: `A guide to read once: "terrain" (how the brush, shapes, ramps, bridges, bases and doodads behave \u2014 before terrain work), "basics" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.`, inputSchema: obj({ id: { type: "string" } }) },
-      describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
+      describe: (input) => str(input.id) ? t("Read the guide: {id}", { id: str(input.id) }) : t("List the guides"),
       writes: false,
       run: (input) => {
         const id = str(input.id);
@@ -5723,11 +6844,11 @@ ${guideIndex()}`;
       def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
       describe: (input) => {
         const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
-        return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`;
+        return p ? t("Build {kind}: {params}", { kind: str(input.kind), params: p }) : t("Build {kind}", { kind: str(input.kind) });
       },
       report: (result) => {
         const r = jsonOf(result);
-        return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : "";
+        return r ? t("{n, plural, one {# trigger} other {# triggers}} added, {total} in all", { n: num(r.added), total: num(r.triggers) }) : "";
       },
       writes: true,
       settings: true,
@@ -5792,11 +6913,11 @@ function layoutTools() {
       def: { name: "layout_preset", description: "Lay a preset over the whole map: terrain with fitting ramps and bridges, named locations, a start per human, decoration. Replaces the terrain and clears objects; triggers and settings stay. `params` as strings (see layout_presets). One undo step.", inputSchema: obj({ preset: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["preset"]) },
       describe: (input) => {
         const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
-        return `Lay out the ${str(input.preset)} preset${p ? `: ${p}` : ""}`;
+        return p ? t("Lay out the {preset} preset: {params}", { preset: str(input.preset), params: p }) : t("Lay out the {preset} preset", { preset: str(input.preset) });
       },
       report: (result) => {
         const r = jsonOf(result);
-        return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${plural(r.locations.length, "location")}` : ""}` : "";
+        return r ? `${String(r.laidOut)}${Array.isArray(r.locations) ? `; ${t("{n, plural, one {# location} other {# locations}}", { n: r.locations.length })}` : ""}` : "";
       },
       writes: true,
       run: (input, { api }) => {
@@ -5840,7 +6961,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
       },
       describe: (input) => {
         const ops = list(input.shapes).map((sh) => str(sh.op)).filter(Boolean);
-        return ops.length ? `Paint ${plural(ops.length, "shape")}: ${tally(ops)}` : "Paint shapes";
+        return ops.length ? t("Paint {n, plural, one {# shape} other {# shapes}}: {list}", { n: ops.length, list: tally(ops) }) : t("Paint shapes");
       },
       report: (result) => {
         const r = jsonOf(result);
@@ -5879,7 +7000,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "place_ramp", description: "Fit one of the tileset's ramps on a cliff already there, near a tile, going down sw or se (the only ways ramps go). Needs a straight diagonal cliff run; a plateau shape makes one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, side: { type: "string", enum: ["sw", "se"] } }, ["x", "y", "side"]) },
-      describe: (input) => `Fit a ramp near ${num(input.x)},${num(input.y)} facing ${str(input.side) === "se" ? "south-east" : "south-west"}`,
+      describe: (input) => str(input.side) === "se" ? t("Fit a ramp near {x},{y} facing south-east", { x: num(input.x), y: num(input.y) }) : t("Fit a ramp near {x},{y} facing south-west", { x: num(input.x), y: num(input.y) }),
       report: (result) => {
         const r = jsonOf(result);
         return r ? String(r.placed) : "";
@@ -5904,7 +7025,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "place_bridge", description: "Fit one of the tileset's bridges over a diagonal water channel already there, near a tile. Where the tileset has no bridge the editor can place (Badlands, Installation, Ash World) leave a gap of ground instead. A stroke with `bridges` in paint_shapes does channel and bridge in one.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" } }, ["x", "y"]) },
-      describe: (input) => `Fit a bridge near ${num(input.x)},${num(input.y)}`,
+      describe: (input) => t("Fit a bridge near {x},{y}", { x: num(input.x), y: num(input.y) }),
       report: (result) => {
         const r = jsonOf(result);
         return r ? String(r.placed) : "";
@@ -5940,12 +7061,12 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           hall: { type: "string" }
         })
       },
-      describe: (input) => `Lay a base${input.player !== void 0 ? ` for Player ${num(input.player)}` : ""}${input.x !== void 0 ? ` at ${num(input.x)},${num(input.y)}` : ""}${str(input.direction) ? `, line to the ${str(input.direction)}` : ""}`,
+      describe: (input) => `${t("Lay a base")}${input.player !== void 0 ? ` ${t("for Player {player}", { player: num(input.player) })}` : ""}${input.x !== void 0 ? ` ${t("at {x},{y}", { x: num(input.x), y: num(input.y) })}` : ""}${str(input.direction) ? `, ${t("line to the {direction}", { direction: compassLabel(str(input.direction)) })}` : ""}`,
       report: (result) => {
         const r = jsonOf(result);
         if (!r) return "";
         const p = r.placed ?? {};
-        const parts = [`${plural(num(p.minerals), "patch").replace("patchs", "patches")}, ${plural(num(p.geysers), "geyser")} to the ${String(r.direction)}`];
+        const parts = [t("{minerals, plural, one {# patch} other {# patches}}, {geysers, plural, one {# geyser} other {# geysers}} to the {direction}", { minerals: num(p.minerals), geysers: num(p.geysers), direction: compassLabel(String(r.direction)) })];
         if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0]));
         return parts.join("; ");
       },
@@ -6032,10 +7153,10 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "bases", description: "Every base in one call: per start location the player, hall footprint, mineral line (positions, amounts), geysers, the line's side and the open side, the nearest other start; then the expansions with no start. Read this before working on bases.", inputSchema: obj({}) },
-      describe: () => "Read the map's bases",
+      describe: () => t("Read the map's bases"),
       report: (result) => {
         const r = jsonOf(result);
-        return r ? `${plural(list(r.bases).length, "base")}, ${plural(list(r.expansions).length, "expansion")}` : "";
+        return r ? t("{bases, plural, one {# base} other {# bases}}, {expansions, plural, one {# expansion} other {# expansions}}", { bases: list(r.bases).length, expansions: list(r.expansions).length }) : "";
       },
       writes: false,
       run: (_input, { api }) => {
@@ -6079,10 +7200,14 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "find_site", description: "The nearest blocks of `w` \xD7 `h` flat ground to a point (default the centre; `radius` 40). `purpose` building (buildable, walkable, one height; about 14 \xD7 11 for a base \u2014 the answer gives the hall for place_base) or terrain (one height to paint over; doodads do not count). Reachable from every start unless anyStart is false. Up to five, a block apart.", inputSchema: obj({ w: { type: "integer" }, h: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, radius: { type: "integer" }, purpose: { type: "string", enum: ["building", "terrain"] }, anyStart: { type: "boolean" } }, ["w", "h"]) },
-      describe: (input) => `Find ${num(input.w)} \xD7 ${num(input.h)} of ${str(input.purpose) === "terrain" ? "flat" : "open"} ground${input.x !== void 0 ? ` near ${num(input.x)},${num(input.y)}` : " near the centre"}`,
+      describe: (input) => {
+        const p = { w: num(input.w), h: num(input.h), x: num(input.x), y: num(input.y) };
+        const flat = str(input.purpose) === "terrain";
+        return input.x !== void 0 ? flat ? t("Find {w} \xD7 {h} of flat ground near {x},{y}", p) : t("Find {w} \xD7 {h} of open ground near {x},{y}", p) : flat ? t("Find {w} \xD7 {h} of flat ground near the centre", p) : t("Find {w} \xD7 {h} of open ground near the centre", p);
+      },
       report: (result) => {
         const r = jsonOf(result);
-        return r ? plural(list(r.sites).length, "site") : "";
+        return r ? t("{n, plural, one {# site} other {# sites}}", { n: list(r.sites).length }) : "";
       },
       writes: false,
       run: (input, { api }) => {
@@ -6109,20 +7234,20 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
         }
         const tileCache = /* @__PURE__ */ new Map();
         const at = (i) => {
-          let t = tileCache.get(scn.tiles[i]);
-          if (!t) {
+          let t2 = tileCache.get(scn.tiles[i]);
+          if (!t2) {
             const ti = api.terrain.tileInfo(scn.tiles[i]);
-            t = { ok: !!ti && (forTerrain ? (ti.kind === "terrain" || ti.kind === "doodad") && ti.walkable >= 8 : ti.buildable && ti.walkable >= 8), height: ti?.height ?? 0 };
-            tileCache.set(scn.tiles[i], t);
+            t2 = { ok: !!ti && (forTerrain ? (ti.kind === "terrain" || ti.kind === "doodad") && ti.walkable >= 8 : ti.buildable && ti.walkable >= 8), height: ti?.height ?? 0 };
+            tileCache.set(scn.tiles[i], t2);
           }
-          return t;
+          return t2;
         };
         const found = [];
         for (const height of [0, 1, 2]) {
           const ok = new Uint8Array(info.width * info.height);
           for (let i = 0; i < ok.length; i++) {
-            const t = at(i);
-            ok[i] = t.ok && t.height === height && (!reach || reach[i]) ? 1 : 0;
+            const t2 = at(i);
+            ok[i] = t2.ok && t2.height === height && (!reach || reach[i]) ? 1 : 0;
           }
           for (const s of scanSites({ width: info.width, height: info.height, ok }, w, h3, near, radius, 8)) found.push({ ...s, height });
         }
@@ -6133,7 +7258,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           if (sites.some((k) => Math.abs(k.x - s.x) < w && Math.abs(k.y - s.y) < h3)) continue;
           const hall = { x: s.x + Math.floor((w - HALL.w) / 2), y: s.y + Math.floor((h3 - HALL.h) / 2) };
           const terrainId = api.terrain.terrainAt(s.x + Math.floor(w / 2), s.y + Math.floor(h3 / 2));
-          sites.push({ x: s.x, y: s.y, w, h: h3, ...w >= HALL.w && h3 >= HALL.h ? { hall } : {}, distance: Math.round(s.distance), height: s.height, terrain: api.terrain.types().find((t) => t.id === terrainId)?.name ?? terrainId });
+          sites.push({ x: s.x, y: s.y, w, h: h3, ...w >= HALL.w && h3 >= HALL.h ? { hall } : {}, distance: Math.round(s.distance), height: s.height, terrain: api.terrain.types().find((t2) => t2.id === terrainId)?.name ?? terrainId });
         }
         if (!sites.length) return capResult({ sites: [], note: `no ${w} \xD7 ${h3} block of flat, buildable, walkable ground${reach ? " reachable from every start" : ""} within ${radius} tiles of ${Math.round(near.x)},${Math.round(near.y)}; try a smaller block, a larger radius or another point` });
         return capResult({ near: { x: Math.round(near.x), y: Math.round(near.y) }, radius, reachableFromEveryStart: !!reach, sites });
@@ -6141,10 +7266,13 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "reachable", description: "Whether a ground unit can walk between two ends (a location by name or a tile), by flood fill; says how many tiles the start reaches and the nearest walkable tile when an end is not walkable. To prove a bridge is the only crossing, ask again with ignoreBridges true and expect no.", inputSchema: obj({ fromLocation: { type: "string" }, toLocation: { type: "string" }, fromX: { type: "integer" }, fromY: { type: "integer" }, toX: { type: "integer" }, toY: { type: "integer" }, ignoreBridges: { type: "boolean" } }) },
-      describe: (input) => `Can units walk from ${str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`} to ${str(input.toLocation) || `${num(input.toX)},${num(input.toY)}`}${input.ignoreBridges === true ? " without the bridges" : ""}?`,
+      describe: (input) => {
+        const p = { from: str(input.fromLocation) || `${num(input.fromX)},${num(input.fromY)}`, to: str(input.toLocation) || `${num(input.toX)},${num(input.toY)}` };
+        return input.ignoreBridges === true ? t("Can units walk from {from} to {to} without the bridges?", p) : t("Can units walk from {from} to {to}?", p);
+      },
       report: (result) => {
         const r = jsonOf(result);
-        return r ? r.reachable ? `yes, ${plural(num(r.tilesReachedFromStart), "tile")} reached` : `no: ${String(r.to)}` : "";
+        return r ? r.reachable ? t("yes, {n, plural, one {# tile} other {# tiles}} reached", { n: num(r.tilesReachedFromStart) }) : t("no: {reason}", { reason: String(r.to) }) : "";
       },
       writes: false,
       run: (input, { api }) => {
@@ -6178,13 +7306,13 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
     },
     {
       def: { name: "scenario_rules", description: "Rules the game applies silently, checked on the map: a slot that owns nothing (defeated at once, its triggers never run), a human without a start, time counted without hyper triggers, hyper triggers beside a program. fix: true gives an ownerless computer a flier no trigger names.", inputSchema: obj({ fix: { type: "boolean" } }) },
-      describe: (input) => input.fix === true ? "Check the game's rules and fix what fails" : "Check the game's rules",
+      describe: (input) => input.fix === true ? t("Check the game's rules and fix what fails") : t("Check the game's rules"),
       report: (result) => {
         const r = jsonOf(result);
         if (!r) return "";
         const problems = Array.isArray(r.problems) ? r.problems.filter((x) => x !== "none") : [];
         const fixed = Array.isArray(r.fixed) ? r.fixed.length : 0;
-        return problems.length ? `${plural(problems.length, "problem")}${fixed ? `, ${fixed} fixed` : ""}` : fixed ? `${fixed} fixed` : "no problems";
+        return problems.length ? fixed ? t("{n, plural, one {# problem} other {# problems}}, {fixed} fixed", { n: problems.length, fixed }) : t("{n, plural, one {# problem} other {# problems}}", { n: problems.length }) : fixed ? t("{fixed} fixed", { fixed }) : t("no problems");
       },
       writes: true,
       writesWhen: (input) => input.fix === true,
@@ -6198,7 +7326,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
         for (const p of humans) if (!owned.has(p)) problems.push(`Player ${p} (human) owns no unit; a human is placed by the start location, so check it has one and that the triggers or the melee start give it something`);
         const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
         for (const p of humans) if (!starts.has(p)) problems.push(`Player ${p} (human) has no start location`);
-        const named = new Set(scn.triggers.flatMap((t) => [...t.conditions.map((c2) => c2.unitId), ...t.actions.map((a2) => a2.unitId)]));
+        const named = new Set(scn.triggers.flatMap((t2) => [...t2.conditions.map((c2) => c2.unitId), ...t2.actions.map((a2) => a2.unitId)]));
         const keeperName = KEEPERS.find((k) => {
           const id = unitIdByName2(api, k);
           return id !== null && !named.has(id);
@@ -6215,7 +7343,7 @@ ${err.problems.map((p) => `- ${p}`).join("\n")}`);
           } else problems.push(`Player ${p} (computer) owns nothing: it is defeated the moment the game starts and its triggers never run \u2014 give it a unit out of the way (fix: true does)`);
         }
         const tempo = mapTempo(api, scn.triggers);
-        const counters = scn.triggers.some((t) => t.conditions.some((c2) => c2.type === api.consts.triggers.condition.Deaths) && t.actions.some((a2) => a2.type === api.consts.triggers.action.SetDeaths));
+        const counters = scn.triggers.some((t2) => t2.conditions.some((c2) => c2.type === api.consts.triggers.condition.Deaths) && t2.actions.some((a2) => a2.type === api.consts.triggers.action.SetDeaths));
         if (tempo === "turbo" && hasHyperTriggers(api, scn.triggers)) problems.push("the map has a TrigScript program, so every trigger already runs each frame: its hyper triggers do nothing but hold up any other Wait of their owner, and timers the toolkit built for hyper tempo now run twice as fast (remove the hyper triggers and rebuild those systems with ums_build)");
         if (counters && tempo === "plain") problems.push("triggers count with death counters but the map has no hyper triggers: they tick once every two seconds (add the hyper system with ums_build)");
         return capResult({ problems: problems.length ? problems : ["none"], fixed });
@@ -6250,7 +7378,7 @@ function scatterInRect(api, cat, rect, want, fits, random = Math.random) {
       const d = cat.doodads[Math.floor(random() * cat.doodads.length)];
       const x0 = rect.x0 + Math.floor(random() * Math.max(1, rect.x1 - rect.x0 - d.width + 1));
       const y0 = rect.y0 + Math.floor(random() * Math.max(1, rect.y1 - rect.y0 - d.height + 1));
-      const open = (x2) => x2 >= rect.x0 && x2 + d.width <= rect.x1 && !taken.some((t) => overlaps2(t, { x0: x2, y0, x1: x2 + d.width, y1: y0 + d.height })) && fits(d, x2, y0);
+      const open = (x2) => x2 >= rect.x0 && x2 + d.width <= rect.x1 && !taken.some((t2) => overlaps2(t2, { x0: x2, y0, x1: x2 + d.width, y1: y0 + d.height })) && fits(d, x2, y0);
       const x = open(x0) ? x0 : open(x0 + 1) ? x0 + 1 : open(x0 - 1) ? x0 - 1 : -1;
       if (x < 0) {
         refused++;
@@ -6272,7 +7400,7 @@ function objectTools() {
       def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a resource. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
       describe: (input) => {
         const u = list(input.units);
-        return u.length ? `Place ${tally(u.map((x) => str(x.unit)))} for ${ownerName(ownerOf(u[0].player, 0))} near ${num(u[0].x)},${num(u[0].y)}` : "Place units";
+        return u.length ? t("Place {units} for {owner} near {x},{y}", { units: tally(u.map((x) => str(x.unit))), owner: ownerLabel(ownerOf(u[0].player, 0)), x: num(u[0].x), y: num(u[0].y) }) : t("Place units");
       },
       report: placedReport,
       writes: true,
@@ -6304,7 +7432,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "unit")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# unit} other {# units}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove units", (tx) => {
@@ -6315,7 +7443,7 @@ function objectTools() {
     },
     {
       def: { name: "move_units", description: "Move units by index to new tile centres. One undo step.", inputSchema: obj({ moves: { type: "array", items: obj({ index: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" } }, ["index", "x", "y"]) } }, ["moves"]) },
-      describe: (input) => `Move ${plural(list(input.moves).length, "unit")}`,
+      describe: (input) => t("Move {n, plural, one {# unit} other {# units}}", { n: list(input.moves).length }),
       writes: true,
       run: (input, { api }) => {
         let n2 = 0;
@@ -6331,7 +7459,7 @@ function objectTools() {
     },
     {
       def: { name: "update_units", description: "Change fields of units by index: owner, hitPoints / shields / energy (%), resources, hangar, and the flags cloaked, burrowed, inTransit, hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: bag({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints(input.indices).length, "unit")}`,
+      describe: (input) => t("Set {fields} on {n, plural, one {# unit} other {# units}}", { fields: fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || t("properties"), n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => {
         const indices = ints(input.indices);
@@ -6385,7 +7513,7 @@ function objectTools() {
       def: { name: "place_doodads", description: "Place doodads by name, id or category name with the top-left at a tile; one that does not fit is refused. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
       describe: (input) => {
         const d = list(input.doodads);
-        return d.length ? `Place ${tally(d.map((x) => str(x.doodad)))} near ${num(d[0].x)},${num(d[0].y)}` : "Place doodads";
+        return d.length ? t("Place {doodads} near {x},{y}", { doodads: tally(d.map((x) => str(x.doodad))), x: num(d[0].x), y: num(d[0].y) }) : t("Place doodads");
       },
       report: placedReport,
       writes: true,
@@ -6409,7 +7537,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_doodads", description: "Remove doodads by index; the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "doodad")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# doodad} other {# doodads}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove doodads", (tx) => {
@@ -6420,7 +7548,7 @@ function objectTools() {
     },
     {
       def: { name: "convert_doodads", description: "Turn doodads (by index) into plain terrain tiles, an overlay into a sprite \u2014 for touching a ramp or cliff piece up tile by tile. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Convert ${plural(ints(input.indices).length, "doodad")} to terrain`,
+      describe: (input) => t("Convert {n, plural, one {# doodad} other {# doodads}} to terrain", { n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: convert doodads to terrain", (tx) => {
@@ -6431,7 +7559,7 @@ function objectTools() {
     },
     {
       def: { name: "scatter_doodads", description: "Scatter a category's doodads over a rect at density 0\u20131 where the editor's rule lets them stand (a category on its own ground: Water on water); refusals are counted. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
-      describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
+      describe: (input) => t("Scatter {category} over {rect}", { category: str(input.category), rect: rectText(input) }),
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);
@@ -6448,7 +7576,7 @@ function objectTools() {
       def: { name: "place_sprites", description: "Place sprites at tile centres: kind pure (a sprites.dat image by name or id) or unit (a unit drawn as a sprite); each may add player (1-based), flipped, disabled. One undo step.", inputSchema: obj({ sprites: { type: "array", items: bag({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
       describe: (input) => {
         const sp = list(input.sprites);
-        return sp.length ? `Place sprites: ${tally(sp.map((x) => str(x.sprite)))} near ${num(sp[0].x)},${num(sp[0].y)}` : "Place sprites";
+        return sp.length ? t("Place sprites: {sprites} near {x},{y}", { sprites: tally(sp.map((x) => str(x.sprite))), x: num(sp[0].x), y: num(sp[0].y) }) : t("Place sprites");
       },
       report: placedReport,
       writes: true,
@@ -6472,7 +7600,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "sprite")}`,
+      describe: (input) => t("Remove {n, plural, one {# sprite} other {# sprites}}", { n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove sprites", (tx) => {
@@ -6483,7 +7611,7 @@ function objectTools() {
     },
     {
       def: { name: "add_location", description: "Add a named location over a tile rect. One undo step.", inputSchema: obj({ name: { type: "string" }, ...rectSchema }, ["name", "x0", "y0", "x1", "y1"]) },
-      describe: (input) => `Add location "${str(input.name, "Location")}" at ${rectText(input)}`,
+      describe: (input) => t('Add location "{name}" at {rect}', { name: str(input.name, "Location"), rect: rectText(input) }),
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);
@@ -6496,7 +7624,7 @@ function objectTools() {
     },
     {
       def: { name: "edit_location", description: "Edit a location by slot `index`: name, x0 / y0 / x1 / y1 (a tile rect), excludeLowGround / excludeMediumGround / excludeHighGround / excludeLowAir / excludeMediumAir / excludeHighAir. Only the fields given change. One undo step.", inputSchema: bag({ index: { type: "integer" } }, ["index"]) },
-      describe: (input) => `Edit location #${num(input.index)}: ${[input.name !== void 0 && "name", input.x0 !== void 0 && "area", Object.keys(input).some((k) => k.startsWith("exclude")) && "heights"].filter(Boolean).join(", ") || "nothing"}`,
+      describe: (input) => t("Edit location #{index}: {parts}", { index: num(input.index), parts: [input.name !== void 0 && t("name"), input.x0 !== void 0 && t("area"), Object.keys(input).some((k) => k.startsWith("exclude")) && t("heights")].filter(Boolean).join(", ") || t("nothing") }),
       writes: true,
       run: (input, { api }) => {
         const index = Math.round(num(input.index, -1));
@@ -6526,7 +7654,7 @@ function objectTools() {
     },
     {
       def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "location")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# location} other {# locations}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => {
         const r = api.document.edit("AI: remove locations", (tx) => {
@@ -6537,7 +7665,10 @@ function objectTools() {
     },
     {
       def: { name: "set_fog", description: "Fog of war over a rect for 1-based players: mode fog (starts unexplored) or clear. One undo step.", inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
-      describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints(input.players).length === 1 ? "" : "s"} ${ints(input.players).join(", ")}`,
+      describe: (input) => {
+        const one = ints(input.players).length === 1, p = { rect: rectText(input), players: ints(input.players).join(", ") };
+        return str(input.mode) === "clear" ? one ? t("Clear {rect} for player {players}", p) : t("Clear {rect} for players {players}", p) : one ? t("Fog {rect} for player {players}", p) : t("Fog {rect} for players {players}", p);
+      },
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);
@@ -6695,10 +7826,10 @@ var Runner = class {
   lastError = null;
   constructor(ctx) {
     this.ctx = ctx;
-    this.status = ctx.api.ui.widgets.statusLine({ text: "Ready." });
+    this.status = ctx.api.ui.widgets.statusLine({ text: t("Ready.") });
     this.latest = h("div", { className: "ai-hint ai-latest", hidden: true });
     this.thinkingBody = h("div", { className: "ai-body" });
-    this.thinking = h("details", { hidden: true }, h("summary", null, "Reasoning"), this.thinkingBody);
+    this.thinking = h("details", { hidden: true }, h("summary", null, t("Reasoning")), this.thinkingBody);
     this.el = h("div", { className: "ai-runner" }, this.status, this.latest, this.thinking);
   }
   get signal() {
@@ -6711,17 +7842,17 @@ var Runner = class {
     return Math.round((Date.now() - this.startedAt) / 1e3);
   }
   /** Start a run; `label` says what is being asked for ("Designing the scenario"), so the wait is not a blank "asking". */
-  start(label = "Asking scmjs.dev") {
+  start(label) {
     this.abort();
     this.controller = new AbortController();
     this.startedAt = Date.now();
-    this.label = label;
+    this.label = label ?? t("Asking scmjs.dev");
     this.thought = "";
     this.written = 0;
     this.tail = "";
     this.lastNamed = "";
     this.lastError = null;
-    this.status.cancel(() => this.abort(), "Stop");
+    this.status.cancel(() => this.abort(), t("Stop"));
     clear(this.thinkingBody);
     this.latest.hidden = true;
     this.latest.textContent = "";
@@ -6732,7 +7863,7 @@ var Runner = class {
   }
   tick() {
     const s = this.seconds;
-    this.status.progress(`${this.label}\u2026 ${s} s`, null);
+    this.status.progress(t("{label}\u2026 {s} s", { label: this.label, s }), null);
     this.onTick?.(s);
   }
   /**
@@ -6745,7 +7876,7 @@ var Runner = class {
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
     this.thought = (this.thought + text).slice(-4e3);
-    const paragraphs = this.thought.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+    const paragraphs = this.thought.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const current = paragraphs[paragraphs.length - 1] ?? "";
     if (current) {
       this.latest.textContent = current;
@@ -6764,7 +7895,8 @@ var Runner = class {
     const names = [...this.tail.matchAll(/"name"\s*:\s*"((?:[^"\\]|\\.)+)"/g)];
     const last = names.length ? names[names.length - 1][1] : this.lastNamed;
     this.lastNamed = last;
-    this.latest.textContent = `Writing the answer\u2026 ${this.written >= 1e3 ? `${(this.written / 1e3).toFixed(1)}k` : this.written} characters${last ? ` \xB7 ${last}` : ""}`;
+    const size = this.written >= 1e3 ? `${(this.written / 1e3).toFixed(1)}k` : String(this.written);
+    this.latest.textContent = last ? t("Writing the answer\u2026 {size} characters \xB7 {last}", { size, last }) : t("Writing the answer\u2026 {size} characters", { size });
     this.latest.hidden = false;
   }
   settle() {
@@ -6781,11 +7913,11 @@ var Runner = class {
     this.status.set(h(
       "span",
       null,
-      note ?? "Done.",
+      note ?? t("Done."),
       " ",
       h("span", { className: "ai-dim" }, formatUsage(usage)),
       " \xB7 ",
-      h("span", { className: "ai-dim", title: "What this session has cost so far" }, this.ctx.ledger.summary())
+      h("span", { className: "ai-dim", title: t("What this session has cost so far") }, this.ctx.ledger.summary())
     ));
   }
   fail(err) {
@@ -6796,12 +7928,12 @@ var Runner = class {
     const accountLink = code === "budget_exceeded" || code === "unauthorized" ? h("a", { href: "#", onClick: (e) => {
       e.preventDefault();
       this.ctx.openAccount();
-    } }, code === "unauthorized" ? "Sign in" : this.ctx.account.signedIn() ? "Top up or wait" : "Sign in") : null;
+    } }, code === "unauthorized" ? t("Sign in") : this.ctx.account.signedIn() ? t("Top up or wait") : t("Sign in")) : null;
     this.status.set(accountLink ? h("span", { title: text }, text, " ", accountLink) : text, "error");
   }
-  idle(text = "Ready.") {
+  idle(text) {
     this.settle();
-    this.status.set(text);
+    this.status.set(text ?? t("Ready."));
   }
   abort() {
     this.controller?.abort();
@@ -6834,13 +7966,13 @@ async function runRecipe(ctx, runner, name, input, hooks = {}) {
   try {
     const r = await ctx.client.run(name, input, {
       ...rest,
-      onThinking: (t) => {
-        runner.addThinking(t);
-        hooks.onThinking?.(t);
+      onThinking: (x) => {
+        runner.addThinking(x);
+        hooks.onThinking?.(x);
       },
-      onDelta: (t) => {
-        runner.addDelta(t);
-        hooks.onDelta?.(t);
+      onDelta: (x) => {
+        runner.addDelta(x);
+        hooks.onDelta?.(x);
       },
       signal: runner.signal
     }, options);
@@ -6867,7 +7999,7 @@ function ledgerLine(ctx) {
   return el;
 }
 function noteList(items, className = "") {
-  return h("ul", { className: `ai-notes ${className}`.trim(), style: "margin: 0; padding-left: 18px; line-height: 1.4;" }, ...items.map((t) => h("li", null, t)));
+  return h("ul", { className: `ai-notes ${className}`.trim(), style: "margin: 0; padding-left: 18px; line-height: 1.4;" }, ...items.map((item) => h("li", null, item)));
 }
 function hex(packed) {
   return `#${(packed & 16777215).toString(16).padStart(6, "0")}`;
@@ -6891,31 +8023,31 @@ async function openRegion(ctx, preset) {
   if (!info) return;
   let rect = preset ?? api.selection.markedArea();
   if (!rect) {
-    rect = await api.ui.pickArea({ prompt: "Drag over the area to redo" });
+    rect = await api.ui.pickArea({ prompt: t("Drag over the area to redo") });
     if (!rect) return;
   }
   rect = { x0: Math.max(0, Math.min(rect.x0, rect.x1)), y0: Math.max(0, Math.min(rect.y0, rect.y1)), x1: Math.min(info.width, Math.max(rect.x0, rect.x1)), y1: Math.min(info.height, Math.max(rect.y0, rect.y1)) };
   if (rect.x1 - rect.x0 < 2 || rect.y1 - rect.y0 < 2) {
-    api.ui.status("AI: the area is too small to redo.");
+    api.ui.status(t("AI: the area is too small to redo."));
     return;
   }
   const area = rect;
   const state = { prompt: "", plan: null, applied: false };
   api.ui.dialog({
-    title: `Redo Area ${area.x0},${area.y0} \u2013 ${area.x1},${area.y1}`,
+    title: t("Redo Area {x0},{y0} \u2013 {x1},{y1}", { x0: area.x0, y0: area.y0, x1: area.x1, y1: area.y1 }),
     size: "lg",
     tall: true,
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const promptField = textarea({ placeholder: 'What should this area become? ("a lake with a bridge", "a plateau with one ramp to the south", "a forest with a path through it")', rows: 3 });
+      const promptField = textarea({ placeholder: t('What should this area become? ("a lake with a bridge", "a plateau with one ramp to the south", "a forest with a path through it")'), rows: 3 });
       promptField.addEventListener("input", () => {
         state.prompt = promptField.value;
       });
-      const keepUnits = w.checkbox("Keep the units, sprites and doodads that are there now", { value: false });
+      const keepUnits = w.checkbox(t("Keep the units, sprites and doodads that are there now"), { value: false });
       const preview = h("div", null);
-      const applyButton = w.button("Apply", { primary: true, onClick: () => apply() });
-      const afterwards = h("div", { className: "ai-btns", hidden: true }, applyButton, h("span", { className: "ai-hint" }, "One undo step."));
+      const applyButton = w.button(t("Apply"), { primary: true, onClick: () => apply() });
+      const afterwards = h("div", { className: "ai-btns", hidden: true }, applyButton, h("span", { className: "ai-hint" }, t("One undo step.")));
       const cellSize = regionCellSize(area);
       const showPlan = (plan, findings = []) => {
         preview.replaceChildren();
@@ -6929,21 +8061,21 @@ async function openRegion(ctx, preset) {
           grid.append(line);
         }
         const terrains = api.terrain.types();
-        const legendRow = h("div", { className: "ai-legend" }, ...Object.entries(plan.legend).map(([ch, id]) => h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 4473924)}` }), `${ch} ${terrains.find((t) => t.id === id)?.name ?? id}`)));
+        const legendRow = h("div", { className: "ai-legend" }, ...Object.entries(plan.legend).map(([ch, id]) => h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 4473924)}` }), `${ch} ${terrains.find((ty) => ty.id === id)?.name ?? id}`)));
         preview.append(w.group(
-          "The plan",
+          t("The plan"),
           grid,
           legendRow,
           plan.notes.length ? noteList(plan.notes) : null,
-          h("div", { className: "ai-hint" }, `${plan.bases.length} bases, ${plan.ramps.length} ramps, ${plan.doodads.length} decoration rules, ${plan.units.length} units, ${plan.locations.length} locations.`),
-          findings.length ? h("details", { open: true }, h("summary", null, `${findings.length} thing${findings.length === 1 ? "" : "s"} to know`), h("div", { className: "ai-body" }, noteList(findings))) : null
+          h("div", { className: "ai-hint" }, t("{bases, plural, one {# base} other {# bases}}, {ramps, plural, one {# ramp} other {# ramps}}, {rules, plural, one {# decoration rule} other {# decoration rules}}, {units, plural, one {# unit} other {# units}}, {locations, plural, one {# location} other {# locations}}.", { bases: plan.bases.length, ramps: plan.ramps.length, rules: plan.doodads.length, units: plan.units.length, locations: plan.locations.length })),
+          findings.length ? h("details", { open: true }, h("summary", null, t("{n, plural, one {# thing} other {# things}} to know", { n: findings.length })), h("div", { className: "ai-body" }, noteList(findings))) : null
         ));
         afterwards.hidden = false;
       };
       const generate = async () => {
         if (!state.prompt.trim()) {
           promptField.focus();
-          runner.idle("Say what the area should become first.");
+          runner.idle(t("Say what the area should become first."));
           return;
         }
         await api.tileset.load();
@@ -6972,20 +8104,20 @@ async function openRegion(ctx, preset) {
       const apply = () => {
         if (!state.plan) return;
         if (state.applied) api.document.undo();
-        const rendered = renderPlan(api, state.plan, { originX: area.x0, originY: area.y0, label: "AI: redo area", clearArea: !keepUnits.input.checked });
+        const rendered = renderPlan(api, state.plan, { originX: area.x0, originY: area.y0, label: t("AI: redo area"), clearArea: !keepUnits.input.checked });
         if (!rendered) return;
         state.applied = true;
         showPlan(state.plan, rendered.findings);
-        runner.idle(`Applied: ${summarizeRender(rendered)}. Edit \u25B8 Undo takes it back.`);
-        api.ui.status(`AI: ${summarizeRender(rendered)}`);
+        runner.idle(t("Applied: {summary}. Edit \u25B8 Undo takes it back.", { summary: summarizeRender(rendered) }));
+        api.ui.status(t("AI: {summary}", { summary: summarizeRender(rendered) }));
       };
       root2.append(
         w.group(
-          "What to make of it",
+          t("What to make of it"),
           promptField,
           keepUnits,
-          h("div", { className: "ai-hint" }, `${area.x1 - area.x0} \xD7 ${area.y1 - area.y0} tiles, ${cellSize} tile${cellSize === 1 ? "" : "s"} per cell. The model is shown the area with ${MARGIN} tiles of margin so the edges join.`),
-          h("div", { className: "ai-btns" }, w.button("Generate", { primary: true, onClick: () => void generate() }))
+          h("div", { className: "ai-hint" }, t("{w} \xD7 {h} tiles, {cell, plural, one {# tile} other {# tiles}} per cell. The model is shown the area with {margin} tiles of margin so the edges join.", { w: area.x1 - area.x0, h: area.y1 - area.y0, cell: cellSize, margin: MARGIN })),
+          h("div", { className: "ai-btns" }, w.button(t("Generate"), { primary: true, onClick: () => void generate() }))
         ),
         runner.el,
         preview,
@@ -6995,7 +8127,7 @@ async function openRegion(ctx, preset) {
       promptField.focus();
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
@@ -7045,7 +8177,7 @@ function readTools() {
     {
       def: { name: "list_terrains", description: "The tileset's terrain types: id, name, height (0 low \u2013 2 high), buildable.", inputSchema: obj({}) },
       writes: false,
-      run: (_i, { api }) => capResult(api.terrain.types().map((t) => ({ id: t.id, name: t.name, height: t.height, buildable: t.buildable })))
+      run: (_i, { api }) => capResult(api.terrain.types().map((t2) => ({ id: t2.id, name: t2.name, height: t2.height, buildable: t2.buildable })))
     },
     {
       def: { name: "list_doodad_categories", description: "The tileset's doodad categories with counts; `category` lists that category's doodads with sizes.", inputSchema: obj({ category: { type: "string" } }) },
@@ -7062,10 +8194,19 @@ function readTools() {
     },
     {
       def: { name: "list_units", description: "Units on the map: index, name, owner, tile, resource amount. Filter by owner (1-based, 12 neutral), name substring, tile rect or indices; `details` adds every record field. `group` (owner, name or both) answers with a count and resource total per group instead of rows \u2014 for counting or totals, ask that way. Pages of up to 200 (fewer when rows are long); `next` is where the next page starts.", inputSchema: obj({ owner: { type: "integer" }, name: { type: "string" }, ...rectSchema, ...pageSchema, details: { type: "boolean" }, indices: { type: "array", items: { type: "integer" } }, group: { type: "string", enum: ["owner", "name", "both"] } }) },
-      describe: (input) => `List ${input.owner !== void 0 ? `${ownerName(ownerOf(input.owner))}'s ` : ""}units${str(input.name) ? ` named "${str(input.name)}"` : ""}${hasRect(input) ? ` in ${rectText(input)}` : ""}${Array.isArray(input.indices) ? ` ${indexList(ints(input.indices))}` : ""}${str(input.group) ? ` by ${str(input.group) === "both" ? "owner and name" : str(input.group)}` : ""}`,
+      describe: (input) => {
+        const head = input.owner !== void 0 ? t("List {owner}'s units", { owner: ownerLabel(ownerOf(input.owner)) }) : t("List units");
+        const filters = [
+          str(input.name) && t('named "{name}"', { name: str(input.name) }),
+          hasRect(input) && t("in {rect}", { rect: rectText(input) }),
+          Array.isArray(input.indices) && indexList(ints(input.indices)),
+          str(input.group) && (str(input.group) === "both" ? t("by owner and name") : str(input.group) === "owner" ? t("by owner") : str(input.group) === "name" ? t("by name") : t("by {group}", { group: str(input.group) }))
+        ].filter(Boolean).join(" ");
+        return filters ? t("{list} {filters}", { list: head, filters }) : head;
+      },
       report: (result) => {
         const r = jsonOf(result);
-        return r?.groups !== void 0 ? `${plural(num(r.count), "group")} of ${plural(num(r.matched), "unit")}` : pageReport(result);
+        return r?.groups !== void 0 ? t("{groups, plural, one {# group} other {# groups}} of {n, plural, one {# unit} other {# units}}", { groups: num(r.count), n: num(r.matched) }) : pageReport(result);
       },
       writes: false,
       run: (input, { api }) => {
@@ -7202,7 +8343,10 @@ function readTools() {
     },
     {
       def: { name: "list_triggers_text", description: "Triggers in the text format from `from` to `to` (1-based, inclusive; default the first 20); briefing=true for the mission briefing.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }) },
-      describe: (input) => `Read ${input.briefing === true ? "the briefing" : "the triggers"}${input.from !== void 0 ? ` from #${num(input.from)}` : ""}${input.to !== void 0 ? ` to #${num(input.to)}` : ""} as text`,
+      describe: (input) => {
+        const range = [input.from !== void 0 && t("from #{n}", { n: num(input.from) }), input.to !== void 0 && t("to #{n}", { n: num(input.to) })].filter(Boolean).join(" ");
+        return t("Read {what, select, briefing {the briefing} other {the triggers}}{range} as text", { what: input.briefing === true ? "briefing" : "triggers", range: range ? ` ${range}` : "" });
+      },
       writes: false,
       run: (input, { api }) => {
         const briefing = input.briefing === true;
@@ -7211,8 +8355,8 @@ function readTools() {
         const from = Math.max(1, Math.round(num(input.from, 1)));
         const to = Math.min(all.length, Math.round(num(input.to, from + 19)));
         const slice = all.slice(from - 1, to);
-        const text = slice.map((t, i) => `// #${from + i}
-${api.triggers.text.one(t, { briefing })}`).join("\n\n");
+        const text = slice.map((t2, i) => `// #${from + i}
+${api.triggers.text.one(t2, { briefing })}`).join("\n\n");
         return capResult(`${all.length} trigger${all.length === 1 ? "" : "s"} in all; showing ${from}\u2013${to}.
 
 ${text}`, 3e4);
@@ -7220,16 +8364,16 @@ ${text}`, 3e4);
     },
     {
       def: { name: "find", description: "Search units, locations, sprites, strings or triggers for text.", inputSchema: obj({ kind: { type: "string", enum: ["units", "locations", "sprites", "strings", "triggers"] }, text: { type: "string" } }, ["kind", "text"]) },
-      describe: (input) => `Find "${str(input.text)}" in the ${str(input.kind)}`,
+      describe: (input) => findLine(str(input.text), str(input.kind)),
       writes: false,
       run: (input, { api }) => capResult(api.query.find({ kind: str(input.kind, "strings"), query: str(input.text), limit: 100 }))
     },
     {
       def: { name: "validate", description: "Check Map: the problems the editor finds.", inputSchema: obj({}) },
-      describe: () => "Check the map",
+      describe: () => t("Check the map"),
       report: (result) => {
         const r = jsonOf(result);
-        return Array.isArray(r) ? r.length ? plural(r.length, "finding") : "clean" : "";
+        return Array.isArray(r) ? r.length ? t("{n, plural, one {# finding} other {# findings}}", { n: r.length }) : t("clean") : "";
       },
       writes: false,
       run: (_i, { api }) => {
@@ -7239,7 +8383,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "terrain_at", description: "What is under a tile (terrain, height, buildable, walkable, doodad), or a coarse grid of a rect in cells of `cellSize` tiles.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, ...rectSchema, cellSize: { type: "integer" } }) },
-      describe: (input) => hasRect(input) ? `Read the terrain over ${rectText(input)}` : `Read the terrain at ${num(input.x)},${num(input.y)}`,
+      describe: (input) => hasRect(input) ? t("Read the terrain over {rect}", { rect: rectText(input) }) : t("Read the terrain at {x},{y}", { x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, ctx) => {
         const { api } = ctx;
@@ -7247,20 +8391,20 @@ ${text}`, 3e4);
           const rect = rectOf(input, api);
           const cell = Math.max(1, Math.min(16, num(input.cellSize, Math.ceil(Math.max(rect.x1 - rect.x0, rect.y1 - rect.y0) / 48))));
           const g = sampleGrid(terrainAtTile(ctx), rect, cell);
-          const names = Object.fromEntries(Object.entries(g.legend).map(([ch, id]) => [ch, api.terrain.types().find((t2) => t2.id === id)?.name ?? id]));
+          const names = Object.fromEntries(Object.entries(g.legend).map(([ch, id]) => [ch, api.terrain.types().find((t3) => t3.id === id)?.name ?? id]));
           return capResult({ originX: g.originX, originY: g.originY, cellSize: cell, legend: names, grid: g.grid });
         }
         const x = Math.round(num(input.x)), y = Math.round(num(input.y));
         const scn = api.document.scenario();
         if (!scn || x < 0 || y < 0 || x >= scn.width || y >= scn.height) return "Off the map.";
-        const t = api.terrain.tileInfo(scn.tiles[y * scn.width + x]);
+        const t2 = api.terrain.tileInfo(scn.tiles[y * scn.width + x]);
         const d = api.query.doodadAt(x, y);
-        return capResult({ x, y, terrain: api.names.tile(scn.tiles[y * scn.width + x]), terrainId: api.terrain.terrainAt(x, y), kind: t?.kind, height: t?.height, buildable: t?.buildable, walkableMinitiles: t?.walkable, doodad: d >= 0 ? api.palette.doodadInfo(scn.doodads[d]?.doodadId ?? -1)?.name ?? d : null, fogged: scn.mask ? Array.from({ length: 8 }, (_, p) => scn.mask[y * scn.width + x] >> p & 1).map((b, p) => b ? p + 1 : 0).filter(Boolean) : "everyone (no MASK section)" });
+        return capResult({ x, y, terrain: api.names.tile(scn.tiles[y * scn.width + x]), terrainId: api.terrain.terrainAt(x, y), kind: t2?.kind, height: t2?.height, buildable: t2?.buildable, walkableMinitiles: t2?.walkable, doodad: d >= 0 ? api.palette.doodadInfo(scn.doodads[d]?.doodadId ?? -1)?.name ?? d : null, fogged: scn.mask ? Array.from({ length: 8 }, (_, p) => scn.mask[y * scn.width + x] >> p & 1).map((b, p) => b ? p + 1 : 0).filter(Boolean) : "everyone (no MASK section)" });
       }
     },
     {
       def: { name: "fog_at", description: "Fog of war over a rect for a 1-based player, as a coarse grid (`#` starts unexplored, `.` explored).", inputSchema: obj({ ...rectSchema, player: { type: "integer" }, cellSize: { type: "integer" } }, ["player"]) },
-      describe: (input) => `Read Player ${num(input.player)}'s fog${hasRect(input) ? ` over ${rectText(input)}` : ""}`,
+      describe: (input) => hasRect(input) ? t("Read Player {player}'s fog over {rect}", { player: num(input.player), rect: rectText(input) }) : t("Read Player {player}'s fog", { player: num(input.player) }),
       writes: false,
       run: (input, { api }) => {
         const scn = api.document.scenario();
@@ -7287,7 +8431,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "placement_ok", description: "Whether a unit could be placed centred at a tile: the editor's own check.", inputSchema: obj({ unit: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["unit", "x", "y"]) },
-      describe: (input) => `Can ${str(input.unit)} go at ${num(input.x)},${num(input.y)}?`,
+      describe: (input) => t("Can {unit} go at {x},{y}?", { unit: str(input.unit), x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, { api }) => {
         const id = unitIdByName(api, str(input.unit));
@@ -7299,10 +8443,10 @@ ${text}`, 3e4);
     },
     {
       def: { name: "screenshot", description: "A picture of a rect, or the whole map, at `pixelsPerTile` (default 8; 32 is the game's art, 2 a minimap).", inputSchema: obj({ ...rectSchema, pixelsPerTile: { type: "integer" } }) },
-      describe: (input) => hasRect(input) ? `Screenshot of ${rectText(input)}` : "Screenshot of the whole map",
+      describe: (input) => hasRect(input) ? t("Screenshot of {rect}", { rect: rectText(input) }) : t("Screenshot of the whole map"),
       report: (result) => {
         const m = /at ([\d.]+) px per tile/.exec(typeof result === "string" ? result : result.text ?? "");
-        return m ? `${m[1]} px per tile` : "picture";
+        return m ? t("{px} px per tile", { px: m[1] }) : t("picture");
       },
       writes: false,
       run: async (input, { api }) => {
@@ -7320,7 +8464,7 @@ ${text}`, 3e4);
     },
     {
       def: { name: "lookup", description: "A name in the game data: kind unit (id, size, cost, hp, weapons, the map's settings), doodad, sprite, upgrade, tech, weapon, ai_script, condition or action; `query` is a name or part of one.", inputSchema: obj({ kind: { type: "string", enum: ["unit", "doodad", "sprite", "upgrade", "tech", "weapon", "ai_script", "condition", "action"] }, query: { type: "string" } }, ["kind", "query"]) },
-      describe: (input) => `Look up the ${str(input.kind)} "${str(input.query)}"`,
+      describe: (input) => lookupLine(str(input.kind), str(input.query)),
       writes: false,
       run: (input, { api }) => {
         const kind = str(input.kind), q2 = str(input.query).toLowerCase();
@@ -7329,9 +8473,9 @@ ${text}`, 3e4);
           case "unit": {
             const hits = matches(api.names.units().filter((u) => u.value < 228));
             return hits.length ? capResult(hits.map((u) => {
-              const t = api.settings.unitType(u.value);
+              const t2 = api.settings.unitType(u.value);
               const s = api.palette.unitSize(u.value);
-              return { id: u.value, name: u.label, race: api.data.race(u.value), width: s.width, height: s.height, building: s.building, flyer: s.flyer, ...t ? { useDefault: t.useDefault, hitPoints: t.hitPoints, shields: t.shields, armor: t.armor, buildTime: t.buildTime, minerals: t.mineralCost, gas: t.gasCost, weapons: t.weapons, customName: t.customName || void 0 } : {} };
+              return { id: u.value, name: u.label, race: api.data.race(u.value), width: s.width, height: s.height, building: s.building, flyer: s.flyer, ...t2 ? { useDefault: t2.useDefault, hitPoints: t2.hitPoints, shields: t2.shields, armor: t2.armor, buildTime: t2.buildTime, minerals: t2.mineralCost, gas: t2.gasCost, weapons: t2.weapons, customName: t2.customName || void 0 } : {} };
             })) : `No unit matches "${q2}".`;
           }
           case "doodad": {
@@ -7350,7 +8494,7 @@ ${text}`, 3e4);
           }
           case "tech": {
             const hits = matches(api.names.techs());
-            return hits.length ? capResult(hits.map((t) => api.settings.tech(t.value) ?? t)) : `No technology matches "${q2}".`;
+            return hits.length ? capResult(hits.map((t2) => api.settings.tech(t2.value) ?? t2)) : `No technology matches "${q2}".`;
           }
           case "weapon": {
             const hits = matches(api.names.weapons());
@@ -7379,8 +8523,8 @@ ${text}`, 3e4);
       run: (input, { api }) => {
         const id = unitIdByName(api, str(input.unit));
         if (id === null) return noSuchUnit(api, str(input.unit));
-        const t = api.settings.unitType(id);
-        return t ? capResult({ ...t, availability: { defaultAvailable: t.availability.defaultAvailable, players: Object.fromEntries(t.availability.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
+        const t2 = api.settings.unitType(id);
+        return t2 ? capResult({ ...t2, availability: { defaultAvailable: t2.availability.defaultAvailable, players: Object.fromEntries(t2.availability.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
       }
     },
     {
@@ -7399,11 +8543,49 @@ ${text}`, 3e4);
       run: (input, { api }) => {
         const hit = byName(api.names.techs(), str(input.tech));
         if (!hit) return noSuchTech(api, str(input.tech));
-        const t = api.settings.tech(hit.value);
-        return t ? capResult({ ...t, state: { defaultAvailable: t.state.defaultAvailable, defaultResearched: t.state.defaultResearched, players: Object.fromEntries(t.state.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
+        const t2 = api.settings.tech(hit.value);
+        return t2 ? capResult({ ...t2, state: { defaultAvailable: t2.state.defaultAvailable, defaultResearched: t2.state.defaultResearched, players: Object.fromEntries(t2.state.players.map((v, p) => [`player ${p + 1}`, v])) } }) : "No map is open.";
       }
     }
   ];
+}
+function findLine(text, kind) {
+  switch (kind) {
+    case "units":
+      return t('Find "{text}" in the units', { text });
+    case "locations":
+      return t('Find "{text}" in the locations', { text });
+    case "sprites":
+      return t('Find "{text}" in the sprites', { text });
+    case "triggers":
+      return t('Find "{text}" in the triggers', { text });
+    default:
+      return t('Find "{text}" in the strings', { text });
+  }
+}
+function lookupLine(kind, query) {
+  switch (kind) {
+    case "unit":
+      return t('Look up the unit "{query}"', { query });
+    case "doodad":
+      return t('Look up the doodad "{query}"', { query });
+    case "sprite":
+      return t('Look up the sprite "{query}"', { query });
+    case "upgrade":
+      return t('Look up the upgrade "{query}"', { query });
+    case "tech":
+      return t('Look up the tech "{query}"', { query });
+    case "weapon":
+      return t('Look up the weapon "{query}"', { query });
+    case "ai_script":
+      return t('Look up the AI script "{query}"', { query });
+    case "condition":
+      return t('Look up the condition "{query}"', { query });
+    case "action":
+      return t('Look up the action "{query}"', { query });
+    default:
+      return t('Look up the {kind} "{query}"', { kind, query });
+  }
 }
 
 // ai/tools/script.ts
@@ -7443,7 +8625,7 @@ function scriptTools() {
     },
     {
       def: { name: "compile_script", description: "Check a TrigScript without building it: type-check, run, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
-      describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
+      describe: (input) => t("Type-check the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
@@ -7454,7 +8636,7 @@ function scriptTools() {
     },
     {
       def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
-      describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
+      describe: (input) => input.takeOver === true ? t("Build the script ({n, plural, one {# line} other {# lines}}), replacing every trigger", { n: str(input.source).split("\n").length }) : t("Build the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: true,
       settings: true,
       run: async (input, { api }) => {
@@ -7487,7 +8669,7 @@ ${FIRST_PROGRAM}` : built;
     },
     {
       def: { name: "go_to", description: "Scroll the person's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
-      describe: (input) => input.unit !== void 0 ? `Go to unit #${num(input.unit)}` : input.location !== void 0 ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
+      describe: (input) => input.unit !== void 0 ? t("Go to unit #{n}", { n: num(input.unit) }) : input.location !== void 0 ? t("Go to location #{n}", { n: num(input.location) }) : t("Go to {x},{y}", { x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, { api }) => {
         if (input.unit !== void 0) api.view.goTo({ kind: "unit", index: Math.round(num(input.unit)) });
@@ -7499,9 +8681,14 @@ ${FIRST_PROGRAM}` : built;
     {
       def: { name: "select", description: "Select units, sprites, doodads or locations by index for the person (switching layer), or mark a tile rect; an empty list clears.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
       describe: (input) => {
-        const parts = ["units", "sprites", "doodads", "locations"].filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`);
-        if (input.x0 !== void 0 && input.x1 !== void 0) parts.push(`the area ${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}`);
-        return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection";
+        const count = (k) => ints(input[k]).length;
+        const parts = [];
+        if (Array.isArray(input.units)) parts.push(t("{n, plural, one {# unit} other {# units}}", { n: count("units") }));
+        if (Array.isArray(input.sprites)) parts.push(t("{n, plural, one {# sprite} other {# sprites}}", { n: count("sprites") }));
+        if (Array.isArray(input.doodads)) parts.push(t("{n, plural, one {# doodad} other {# doodads}}", { n: count("doodads") }));
+        if (Array.isArray(input.locations)) parts.push(t("{n, plural, one {# location} other {# locations}}", { n: count("locations") }));
+        if (input.x0 !== void 0 && input.x1 !== void 0) parts.push(t("the area {rect}", { rect: `${num(input.x0)},${num(input.y0)}\u2013${num(input.x1)},${num(input.y1)}` }));
+        return parts.length ? t("Select {things}", { things: parts.join(", ") }) : t("Clear the selection");
       },
       writes: false,
       run: (input, { api }) => {
@@ -7545,13 +8732,14 @@ function settingsTools() {
       def: { name: "set_players", description: "Player Settings and Colors: entries of { player (1-based), type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race, color (a name or a COLR index), rgb ([r, g, b], Remastered), force 1\u20134 }. Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: bag({ player: { type: "integer" } }, ["player"]) } }, ["players"]) },
       describe: (input) => {
         const ps = list(input.players);
-        return `Set player${ps.length === 1 ? "" : "s"} ${ps.map((p) => str(p.player)).join(", ")}: ${fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || "nothing"}`;
+        const q2 = { list: ps.map((p) => str(p.player)).join(", "), fields: fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || t("nothing") };
+        return ps.length === 1 ? t("Set player {list}: {fields}", q2) : t("Set players {list}: {fields}", q2);
       },
       report: (result) => {
         const r = jsonOf(result);
         if (!r) return "";
         const notes = Array.isArray(r.notes) ? r.notes : [];
-        return `${plural(num(r.changed), "player")} changed${notes.length ? `; ${String(notes[0])}` : ""}`;
+        return `${t("{n, plural, one {# player} other {# players}} changed", { n: num(r.changed) })}${notes.length ? `; ${String(notes[0])}` : ""}`;
       },
       writes: true,
       settings: true,
@@ -7567,8 +8755,8 @@ function settingsTools() {
             }
             const patch = {};
             if (p.type !== void 0) {
-              const t = byName(api.names.playerTypes(), str(p.type));
-              if (t) patch.type = t.value;
+              const t2 = byName(api.names.playerTypes(), str(p.type));
+              if (t2) patch.type = t2.value;
               else notes.push(`unknown player type "${str(p.type)}"`);
             }
             if (p.race !== void 0) {
@@ -7595,11 +8783,12 @@ function settingsTools() {
       def: { name: "set_forces", description: "Force Settings: entries of { force 1\u20134, name, allied, alliedVictory, sharedVision, randomStart (booleans), players ([1-based]) }. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: bag({ force: { type: "integer" } }, ["force"]) } }, ["forces"]) },
       describe: (input) => {
         const fs = list(input.forces);
-        return `Set force${fs.length === 1 ? "" : "s"} ${fs.map((f) => str(f.force)).join(", ")}: ${fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || "nothing"}`;
+        const q2 = { list: fs.map((f) => str(f.force)).join(", "), fields: fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || t("nothing") };
+        return fs.length === 1 ? t("Set force {list}: {fields}", q2) : t("Set forces {list}: {fields}", q2);
       },
       report: (result) => {
         const r = jsonOf(result);
-        return r ? `${plural(num(r.changed), "force")} changed` : "";
+        return r ? t("{n, plural, one {# force} other {# forces}} changed", { n: num(r.changed) }) : "";
       },
       writes: true,
       settings: true,
@@ -7623,10 +8812,10 @@ function settingsTools() {
     },
     {
       def: { name: "set_unit_type", description: 'Unit Settings for `unit`: hitPoints, shields, armor, buildTime (frames), mineralCost, gasCost, weapons [{id, damage, bonus}], name ("" restores), available [{player 1\u201312 or "default", value true / false / "default"}]. A number set turns use-default off; useDefault: true restores it. Not undoable.', inputSchema: bag({ unit: { type: "string" } }, ["unit"]) },
-      describe: (input) => `Unit settings for ${str(input.unit)}: ${fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || "nothing"}`,
+      describe: (input) => t("Unit settings for {unit}: {fields}", { unit: str(input.unit), fields: fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
-        return r ? r.changed ? "changed" : "nothing changed" : "";
+        return r ? r.changed ? t("changed") : t("nothing changed") : "";
       },
       writes: true,
       settings: true,
@@ -7649,16 +8838,16 @@ function settingsTools() {
         api.document.update(`AI: unit settings ${api.names.unit(id)}`, (tx) => {
           changed = tx.unitTypes.set(id, patch);
         });
-        const t = api.settings.unitType(id);
-        return capResult({ changed, now: t ? { name: t.name, useDefault: t.useDefault, hitPoints: t.hitPoints, shields: t.shields, armor: t.armor, buildTime: t.buildTime, mineralCost: t.mineralCost, gasCost: t.gasCost, weapons: t.weapons, availability: t.availability } : null });
+        const t2 = api.settings.unitType(id);
+        return capResult({ changed, now: t2 ? { name: t2.name, useDefault: t2.useDefault, hitPoints: t2.hitPoints, shields: t2.shields, armor: t2.armor, buildTime: t2.buildTime, mineralCost: t2.mineralCost, gasCost: t2.gasCost, weapons: t2.weapons, availability: t2.availability } : null });
       }
     },
     {
       def: { name: "set_upgrade", description: 'Upgrade Settings for `upgrade`: mineralCost, mineralFactor, gasCost, gasFactor, timeCost, timeFactor (frames), levels [{player 1\u201312 or "default", start, max, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ upgrade: { type: "string" } }, ["upgrade"]) },
-      describe: (input) => `Upgrade settings for ${str(input.upgrade)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || "nothing"}`,
+      describe: (input) => t("Upgrade settings for {upgrade}: {fields}", { upgrade: str(input.upgrade), fields: fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
-        return r ? r.changed ? "changed" : "nothing changed" : "";
+        return r ? r.changed ? t("changed") : t("nothing changed") : "";
       },
       writes: true,
       settings: true,
@@ -7681,10 +8870,10 @@ function settingsTools() {
     },
     {
       def: { name: "set_tech", description: 'Technology Settings for `tech`: mineralCost, gasCost, researchTime (frames), energyCost, state [{player 1\u201312 or "default", available, researched, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ tech: { type: "string" } }, ["tech"]) },
-      describe: (input) => `Technology settings for ${str(input.tech)}: ${fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || "nothing"}`,
+      describe: (input) => t("Technology settings for {tech}: {fields}", { tech: str(input.tech), fields: fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
-        return r ? r.changed ? "changed" : "nothing changed" : "";
+        return r ? r.changed ? t("changed") : t("nothing changed") : "";
       },
       writes: true,
       settings: true,
@@ -7707,7 +8896,7 @@ function settingsTools() {
     },
     {
       def: { name: "set_map_version", description: "Map Revision: original (.scm 1.00), hybrid (.scm 1.04), broodwar (.scx) or remastered. Ask first. Not undoable.", inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
-      describe: (input) => `Set the map revision to ${str(input.version)}`,
+      describe: (input) => t("Set the map revision to {version}", { version: str(input.version) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7721,7 +8910,7 @@ function settingsTools() {
     },
     {
       def: { name: "add_sound", description: "Add a WAV path to the sound table (the file must already be in the archive). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
-      describe: (input) => `Add the sound ${str(input.path)}`,
+      describe: (input) => t("Add the sound {path}", { path: str(input.path) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7745,12 +8934,12 @@ function terrainTools() {
   return [
     {
       def: { name: "paint_terrain", description: 'Paint a tile rect with a terrain id using the isometric brush: cliffs and shores form on their own and the brush bleeds about three tiles (guide "terrain"). `keep` lists terrain ids left alone inside the rect. One undo step.', inputSchema: obj({ ...rectSchema, terrain: { type: "integer" }, keep: { type: "array", items: { type: "integer" } } }, ["x0", "y0", "x1", "y1", "terrain"]) },
-      describe: (input, { api }) => `Paint ${api.terrain.types().find((t) => t.id === num(input.terrain))?.name ?? `terrain ${str(input.terrain)}`} over ${rectText(input)}`,
+      describe: (input, { api }) => t("Paint {terrain} over {rect}", { terrain: api.terrain.types().find((x) => x.id === num(input.terrain))?.name ?? t("terrain {id}", { id: str(input.terrain) }), rect: rectText(input) }),
       report: (result) => {
         const r = jsonOf(result);
         if (!r) return "";
-        const parts = [r.changed ? plural(num(r.tiles), "tile") : "nothing changed"];
-        if (r.paintedOver && typeof r.paintedOver === "object") parts.push(`over ${Object.entries(r.paintedOver).map(([k, v]) => `${k} \xD7${v}`).join(", ")}`);
+        const parts = [r.changed ? t("{n, plural, one {# tile} other {# tiles}}", { n: num(r.tiles) }) : t("nothing changed")];
+        if (r.paintedOver && typeof r.paintedOver === "object") parts.push(t("over {list}", { list: Object.entries(r.paintedOver).map(([k, v]) => `${k} \xD7${v}`).join(", ") }));
         if (Array.isArray(r.notes) && r.notes.length) parts.push(String(r.notes[0]));
         return parts.join("; ");
       },
@@ -7758,10 +8947,10 @@ function terrainTools() {
       run: (input, { api }) => {
         const rect = rectOf(input, api);
         const terrain = num(input.terrain);
-        const type = api.terrain.types().find((t) => t.id === terrain) ?? api.terrain.types().find((t) => t.name.toLowerCase() === str(input.terrain).toLowerCase());
+        const type = api.terrain.types().find((t2) => t2.id === terrain) ?? api.terrain.types().find((t2) => t2.name.toLowerCase() === str(input.terrain).toLowerCase());
         if (!type) return `Terrain ${str(input.terrain)} is not one of this tileset's types; see the reference.`;
-        const keep = new Set(list(input.keep).map((k) => api.terrain.types().find((t) => t.id === k || typeof k === "string" && t.name.toLowerCase() === k.toLowerCase())?.id).filter((id) => id !== void 0));
-        const nameOf2 = (id) => api.terrain.types().find((t) => t.id === id)?.name ?? `terrain ${id}`;
+        const keep = new Set(list(input.keep).map((k) => api.terrain.types().find((t2) => t2.id === k || typeof k === "string" && t2.name.toLowerCase() === k.toLowerCase())?.id).filter((id) => id !== void 0));
+        const nameOf2 = (id) => api.terrain.types().find((t2) => t2.id === id)?.name ?? `terrain ${id}`;
         const replaced = {};
         let kept = 0;
         const before = doodadSnapshot(api);
@@ -7787,7 +8976,7 @@ function terrainTools() {
     },
     {
       def: { name: "resize_map", description: "Resize / crop the map to width \xD7 height; `anchor` 0\u20138 says where the content stays (4 centre). Drops objects outside and clears the undo history: ask first.", inputSchema: obj({ width: { type: "integer" }, height: { type: "integer" }, anchor: { type: "integer" }, terrain: { type: "integer" } }, ["width", "height"]) },
-      describe: (input) => `Resize the map to ${num(input.width)} \xD7 ${num(input.height)}`,
+      describe: (input) => t("Resize the map to {width} \xD7 {height}", { width: num(input.width), height: num(input.height) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7807,7 +8996,7 @@ function triggerTools() {
       def: { name: "add_triggers_text", description: "Append triggers in the text format (grammar in the reference); on a parse error nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
       describe: (input) => {
         const n2 = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length;
-        return `Add ${n2 ? plural(n2, input.briefing === true ? "briefing trigger" : "trigger") : "triggers"} from text`;
+        return !n2 ? t("Add triggers from text") : input.briefing === true ? t("Add {n, plural, one {# briefing trigger} other {# briefing triggers}} from text", { n: n2 }) : t("Add {n, plural, one {# trigger} other {# triggers}} from text", { n: n2 });
       },
       writes: true,
       settings: true,
@@ -7816,7 +9005,7 @@ function triggerTools() {
           const briefing = input.briefing === true;
           const parsed = api.triggers.text.parse(str(input.text), { briefing });
           const r = api.document.update("AI: add triggers", (tx) => {
-            for (const t of parsed) (briefing ? tx.briefing : tx.triggers).add(t.trigger);
+            for (const t2 of parsed) (briefing ? tx.briefing : tx.triggers).add(t2.trigger);
           });
           const count = briefing ? api.triggers.briefing().length : api.triggers.list().length;
           return `Added ${plural(parsed.length, "trigger")}${r.changed ? `; the map now has ${count}` : " (nothing changed)"}.`;
@@ -7827,7 +9016,7 @@ function triggerTools() {
     },
     {
       def: { name: "replace_trigger", description: "Replace one trigger (1-based, as list_triggers_text numbers them) with text-format text. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
-      describe: (input) => `Replace trigger #${num(input.index)}`,
+      describe: (input) => t("Replace trigger #{n}", { n: num(input.index) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7848,7 +9037,7 @@ function triggerTools() {
     },
     {
       def: { name: "remove_triggers", description: "Remove triggers by 1-based index. Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "trigger")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# trigger} other {# triggers}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7863,7 +9052,7 @@ function triggerTools() {
     },
     {
       def: { name: "move_trigger", description: "Move a trigger from one 1-based position to another (triggers run in list order). Not undoable.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }, ["from", "to"]) },
-      describe: (input) => `Move trigger #${num(input.from)} to #${num(input.to)}`,
+      describe: (input) => t("Move trigger #{from} to #{to}", { from: num(input.from), to: num(input.to) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7877,7 +9066,7 @@ function triggerTools() {
     },
     {
       def: { name: "set_trigger_flags", description: "Preserve Trigger on or off for triggers by 1-based index (to disable one line, replace the trigger with a `;` before it). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
-      describe: (input) => `${bool(input.preserved) === false ? "Stop preserving" : "Preserve"} ${plural(ints(input.indices).length, "trigger")}`,
+      describe: (input) => bool(input.preserved) === false ? t("Stop preserving {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }) : t("Preserve {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7888,9 +9077,9 @@ function triggerTools() {
         api.document.update("AI: trigger flags", (tx) => {
           const listNow = tx.triggers.list();
           for (const i of indices) {
-            const t = listNow[i];
-            if (!t) continue;
-            if (tx.triggers.replace(i, api.triggers.setPreserved(t, preserved))) n2++;
+            const t2 = listNow[i];
+            if (!t2) continue;
+            if (tx.triggers.replace(i, api.triggers.setPreserved(t2, preserved))) n2++;
           }
         });
         return `Changed ${plural(n2, "trigger")}.`;
@@ -7898,7 +9087,10 @@ function triggerTools() {
     },
     {
       def: { name: "set_string", description: "Overwrite a string by index (everything pointing at it changes), or index 0 to add one and get its index. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
-      describe: (input) => `${num(input.index) > 0 ? `Set string ${num(input.index)}` : "Add a string"}: "${str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}\u2026` : str(input.text)}"`,
+      describe: (input) => {
+        const text = str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}\u2026` : str(input.text);
+        return num(input.index) > 0 ? t('Set string {index}: "{text}"', { index: num(input.index), text }) : t('Add a string: "{text}"', { text });
+      },
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7914,7 +9106,7 @@ function triggerTools() {
     },
     {
       def: { name: "name_switch", description: 'Name a switch (0-based index; "" clears the name). Not undoable.', inputSchema: obj({ index: { type: "integer" }, name: { type: "string" } }, ["index", "name"]) },
-      describe: (input) => `Name switch ${num(input.index)} "${str(input.name)}"`,
+      describe: (input) => t('Name switch {index} "{name}"', { index: num(input.index), name: str(input.name) }),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7926,7 +9118,7 @@ function triggerTools() {
     },
     {
       def: { name: "set_properties", description: "Set the scenario's name and/or description (Map Properties). Not undoable.", inputSchema: obj({ name: { type: "string" }, description: { type: "string" } }) },
-      describe: (input) => `Set the map's ${[input.name !== void 0 && "name", input.description !== void 0 && "description"].filter(Boolean).join(" and ") || "properties"}`,
+      describe: (input) => input.name !== void 0 && input.description !== void 0 ? t("Set the map's name and description") : input.name !== void 0 ? t("Set the map's name") : input.description !== void 0 ? t("Set the map's description") : t("Set the map's properties"),
       writes: true,
       settings: true,
       run: (input, { api }) => {
@@ -7941,7 +9133,7 @@ function triggerTools() {
     },
     {
       def: { name: "simulate_triggers", description: "Run the triggers in TrigScript's cycle interpreter for `cycles` (Deaths, Switches, Always and Never modelled) and report the actions fired and switches set. Reads only.", inputSchema: obj({ cycles: { type: "integer" }, player: { type: "integer" } }) },
-      describe: (input) => `Simulate the triggers for ${plural(num(input.cycles, 30), "cycle")}`,
+      describe: (input) => t("Simulate the triggers for {n, plural, one {# cycle} other {# cycles}}", { n: num(input.cycles, 30) }),
       writes: false,
       run: (input, { api }) => {
         const script = scriptBridge(api);
@@ -8047,28 +9239,28 @@ function pruneImages(messages, keepLast) {
 }
 function chipsFor(layer, selected, triggers) {
   const chips2 = [
-    { label: "Describe", text: "Describe this map: what kind of map it is, its layout, players and what the triggers do. Look at a screenshot first." },
-    { label: "Check", text: "Check the map for problems: run the checker, look at the picture, the players and the triggers, and list what you would fix, most important first. Do not change anything yet." }
+    { label: msg("Describe"), text: "Describe this map: what kind of map it is, its layout, players and what the triggers do. Look at a screenshot first." },
+    { label: msg("Check"), text: "Check the map for problems: run the checker, look at the picture, the players and the triggers, and list what you would fix, most important first. Do not change anything yet." }
   ];
-  if (selected > 0) chips2.push({ label: "Selection", text: "Tell me about what I have selected." });
+  if (selected > 0) chips2.push({ label: msg("Selection"), text: "Tell me about what I have selected." });
   switch (layer) {
     case "terrain":
-      chips2.push({ label: "Terrain", text: "Look at the terrain in view: heights, chokes, dead ends, and what you would change." });
+      chips2.push({ label: msg("Terrain"), text: "Look at the terrain in view: heights, chokes, dead ends, and what you would change." });
       break;
     case "units":
-      chips2.push(selected > 0 ? { label: "Balance", text: "Is this melee map fair? Compare every start location's resources, distances and chokes and say what is uneven." } : { label: "Bases", text: "List the bases: each start location with its mineral count, geysers and the nearest expansion." });
+      chips2.push(selected > 0 ? { label: msg("Balance"), text: "Is this melee map fair? Compare every start location's resources, distances and chokes and say what is uneven." } : { label: msg("Bases"), text: "List the bases: each start location with its mineral count, geysers and the nearest expansion." });
       break;
     case "locations":
-      chips2.push({ label: "Locations", text: "List the locations and which triggers use each; point out any that nothing uses." });
+      chips2.push({ label: msg("Locations"), text: "List the locations and which triggers use each; point out any that nothing uses." });
       break;
     case "fog":
-      chips2.push({ label: "Fog", text: "Which players start with which parts of the map explored? Is it even?" });
+      chips2.push({ label: msg("Fog"), text: "Which players start with which parts of the map explored? Is it even?" });
       break;
     default:
       break;
   }
-  if (triggers > 0) chips2.push({ label: "Triggers", text: "Explain what the triggers do, in play order, briefly." });
-  else chips2.push({ label: "Scenario", text: "I want to turn this into a scenario. Read the guide for the genre I name, then propose the players, locations and systems before changing anything." });
+  if (triggers > 0) chips2.push({ label: msg("Triggers"), text: "Explain what the triggers do, in play order, briefly." });
+  else chips2.push({ label: msg("Scenario"), text: "I want to turn this into a scenario. Read the guide for the genre I name, then propose the players, locations and systems before changing anything." });
   return chips2;
 }
 var QUICK_PROMPTS = chipsFor("terrain", 0, 0);
@@ -8146,12 +9338,12 @@ ${c2.text}` : c2.text;
   }
   return turns;
 }
-var PHASE_LABELS = { idle: "Ready", waiting: "Waiting for the model", thinking: "Thinking", writing: "Writing", tools: "Working on the map", stopped: "Stopped", failed: "Failed" };
+var PHASE_LABELS = { idle: msg("Ready"), waiting: msg("Waiting for the model"), thinking: msg("Thinking"), writing: msg("Writing"), tools: msg("Working on the map"), stopped: msg("Stopped"), failed: msg("Failed") };
 var isText = (c2) => c2.type === "text";
 function intentOverlay(api) {
   let footprint = null;
   const handle = api.ui.overlay({
-    name: "AI activity",
+    name: msg("AI activity"),
     above: "objects",
     visible: true,
     draw(ctx, view) {
@@ -8188,15 +9380,15 @@ function intentOverlay(api) {
   } };
 }
 function panelTitle(info) {
-  if (!info) return "AI Assistant";
-  const name = info.name.trim() || info.fileName || "untitled map";
-  return `AI Assistant \xB7 ${name}`;
+  if (!info) return t("AI Assistant");
+  const name = info.name.trim() || info.fileName || t("untitled map");
+  return t("AI Assistant \xB7 {name}", { name });
 }
 function openAssistant(ctx, store) {
   const { api } = ctx;
   const w = api.ui.widgets;
   const toolList = tools();
-  const byName2 = new Map(toolList.map((t) => [t.def.name, t]));
+  const byName2 = new Map(toolList.map((tool) => [tool.def.name, tool]));
   let running = null;
   let turnUnderWay = null;
   let askLater = null;
@@ -8212,24 +9404,24 @@ function openAssistant(ctx, store) {
       const root2 = styled(body);
       root2.classList.add("ai-assistant");
       const intent = intentOverlay(api);
-      const phaseLabel = h("span", { className: "ai-phase" }, "Ready");
+      const phaseLabel = h("span", { className: "ai-phase" }, translate(PHASE_LABELS.idle));
       const phaseDetail = h("span", { className: "ai-dim ai-grow ai-phase-detail" }, "");
       const clock2 = h("span", { className: "ai-dim ai-mono" }, "");
-      const cost = h("span", { className: "ai-pill", title: "What this panel has cost \xB7 what the session has cost" }, "");
+      const cost = h("span", { className: "ai-pill", title: t("What this panel has cost \xB7 what the session has cost") }, "");
       const strip = h("div", { className: "ai-state is-idle" }, h("div", { className: "ai-state-line" }, phaseLabel, phaseDetail, clock2, cost));
       let phase = "idle";
       let startedAt = 0;
       let clockTimer = null;
       const setCost = () => {
-        cost.textContent = state.spent ? `${formatUsd(state.spent)} here \xB7 ${formatUsd(ctx.ledger.totals.costUsd)} session` : ctx.ledger.totals.calls ? `${formatUsd(ctx.ledger.totals.costUsd)} session` : "";
+        cost.textContent = state.spent ? t("{here} here \xB7 {session} session", { here: formatUsd(state.spent), session: formatUsd(ctx.ledger.totals.costUsd) }) : ctx.ledger.totals.calls ? t("{session} session", { session: formatUsd(ctx.ledger.totals.costUsd) }) : "";
       };
       const tickClock = () => {
-        clock2.textContent = startedAt ? `${Math.round((Date.now() - startedAt) / 1e3)} s` : "";
+        clock2.textContent = startedAt ? t("{s} s", { s: Math.round((Date.now() - startedAt) / 1e3) }) : "";
       };
       const setPhase = (next, detail = "") => {
         phase = next;
         strip.className = `ai-state is-${next}`;
-        phaseLabel.textContent = PHASE_LABELS[next];
+        phaseLabel.textContent = translate(PHASE_LABELS[next]);
         phaseDetail.textContent = detail;
         const busy = next === "waiting" || next === "thinking" || next === "writing" || next === "tools";
         if (busy && clockTimer === null) {
@@ -8241,13 +9433,13 @@ function openAssistant(ctx, store) {
           clockTimer = null;
           clock2.textContent = "";
         }
-        ctx.presence?.set({ text: busy ? `AI \xB7 ${PHASE_LABELS[next].toLowerCase()}${detail ? ` \xB7 ${detail}` : ""}` : state.spent ? `AI \xB7 ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
+        ctx.presence?.set({ text: busy ? detail ? t("AI \xB7 {phase} \xB7 {detail}", { phase: translate(PHASE_LABELS[next]).toLowerCase(), detail }) : t("AI \xB7 {phase}", { phase: translate(PHASE_LABELS[next]).toLowerCase() }) : state.spent ? `AI \xB7 ${formatUsd(state.spent)}` : "AI", busy, warn: next === "failed" });
         setCost();
       };
       setCost();
       const chat = h("div", { className: "ai-chat" });
       let pinned = true;
-      const jump = w.button("Jump to latest", { ghost: true, onClick: () => {
+      const jump = w.button(t("Jump to latest"), { ghost: true, onClick: () => {
         pinned = true;
         chat.scrollTop = chat.scrollHeight;
         jump.hidden = true;
@@ -8272,7 +9464,7 @@ function openAssistant(ctx, store) {
         return el;
       };
       const activity = () => {
-        const block = w.fold({ open: true, busy: true, text: "Working\u2026" });
+        const block = w.fold({ open: true, busy: true, text: t("Working\u2026") });
         block.classList.add("ai-act");
         const steps = w.steps({ tail: 3 });
         steps.running(true);
@@ -8289,10 +9481,10 @@ function openAssistant(ctx, store) {
           const start2 = (input3) => {
             const text = describeStep(tool, name, input3, ctx);
             row.set(text, describeCall(name, input3));
-            live(`Step ${n2} \xB7 ${text}`);
+            live(t("Step {n} \xB7 {text}", { n: n2, text }));
             return text;
           };
-          live(`Step ${n2} \xB7 ${row.element.querySelector(".step-label")?.textContent ?? ""}`);
+          live(t("Step {n} \xB7 {text}", { n: n2, text: row.element.querySelector(".step-label")?.textContent ?? "" }));
           scroll();
           return {
             row,
@@ -8303,7 +9495,7 @@ function openAssistant(ctx, store) {
               row.element.title += `
 \u2192 ${summarizeResult(out)}`;
               if (typeof out !== "string" && out.image) {
-                const shot = h("button", { type: "button", className: "ai-act-shot", title: "Click to enlarge" }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: "screenshot" }));
+                const shot = h("button", { type: "button", className: "ai-act-shot", title: t("Click to enlarge") }, h("img", { src: `data:${out.image.mediaType};base64,${out.image.data}`, alt: t("screenshot") }));
                 shot.addEventListener("click", () => shot.classList.toggle("is-open"));
                 row.append(shot);
               }
@@ -8316,9 +9508,9 @@ function openAssistant(ctx, store) {
 \u2717 ${message}`;
               scroll();
             },
-            skip(reason = "not called") {
-              row.skip(reason);
-              row.element.title = reason === "not called" ? "The model named this tool but did not call it." : reason;
+            skip(reason) {
+              row.skip(reason ?? t("not called"));
+              row.element.title = reason ?? t("The model named this tool but did not call it.");
             }
           };
         };
@@ -8339,7 +9531,7 @@ function openAssistant(ctx, store) {
           think(text) {
             if (!text || !ctx.settings().showThinking) return;
             if (!think) {
-              think = w.fold({ text: "Reasoning" });
+              think = w.fold({ text: t("Reasoning") });
               think.classList.add("ai-act-think");
               block.body.insertBefore(think, steps);
             }
@@ -8358,14 +9550,14 @@ function openAssistant(ctx, store) {
               return;
             }
             const parts = [];
-            if (o.stopped) parts.push("Stopped");
+            if (o.stopped) parts.push(t("Stopped"));
             const count = steps.count();
-            if (count) parts.push(plural(count, "step"));
-            else if (think) parts.push("Thought");
-            if (o.edits) parts.push(plural(o.edits, "edit"));
-            if (o.settings) parts.push(`${plural(o.settings, "settings change")} (not undoable)`);
-            if (failed) parts.push(h("span", { className: "error" }, `${failed} failed`));
-            if (o.secs !== void 0) parts.push(`${o.secs} s`);
+            if (count) parts.push(t("{n, plural, one {# step} other {# steps}}", { n: count }));
+            else if (think) parts.push(t("Thought"));
+            if (o.edits) parts.push(t("{n, plural, one {# edit} other {# edits}}", { n: o.edits }));
+            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}} (not undoable)", { n: o.settings }));
+            if (failed) parts.push(h("span", { className: "error" }, t("{n} failed", { n: failed })));
+            if (o.secs !== void 0) parts.push(t("{s} s", { s: o.secs }));
             if (o.cost) parts.push(formatUsd(o.cost));
             block.mark(failed ? "\u2717" : "\u2713", failed ? "error" : "ok");
             block.set(...parts.flatMap((p, i) => i ? [" \xB7 ", p] : [p]));
@@ -8376,27 +9568,28 @@ function openAssistant(ctx, store) {
       };
       const context = h("div", { className: "ai-context" });
       const chipRow = h("div", { className: "ai-chips" });
-      const input = h("textarea", { rows: 3, placeholder: "Ask about the map, or say what to change. Enter sends, Shift+Enter for a new line, Esc stops." });
+      const placeholder2 = () => t("Ask about the map, or say what to change. Enter sends, Shift+Enter for a new line, Esc stops.");
+      const input = h("textarea", { rows: 3, placeholder: placeholder2() });
       const refreshContext = () => {
         const open = api.document.isOpen();
         const lines = open ? selectionLines(api) : [];
-        context.replaceChildren(h("span", { className: "ai-dim" }, lines.length ? `The model sees: ${lines.join(" \xB7 ")}` : "The model sees the map's state, your selection and the view with every message."));
+        context.replaceChildren(h("span", { className: "ai-dim" }, lines.length ? t("The model sees: {list}", { list: lines.join(" \xB7 ") }) : t("The model sees the map's state, your selection and the view with every message.")));
         const selected = open ? api.selection.units().length + api.selection.locations().length + api.selection.sprites().length + api.selection.doodads().length + (api.selection.markedArea() ? 1 : 0) : 0;
         chipRow.replaceChildren(...chipsFor(open ? api.selection.layer() : "terrain", selected, open ? api.triggers.list().length : 0).map((q2) => h("button", { type: "button", className: "ai-chip", title: q2.text, onClick: () => {
           input.value = q2.text;
           input.focus();
-        } }, q2.label)));
+        } }, translate(q2.label))));
       };
       refreshContext();
       let following = false, revealing = false, toolRunning = false;
       const undoButtons = [];
-      const STALE_UNDO = "Other edits came after this turn's; undo them first, from the Edit menu.";
+      const staleUndo = () => t("Other edits came after this turn's; undo them first, from the Edit menu.");
       const refreshUndo = () => {
         if (!api.document.isOpen()) return;
         const now = api.document.history();
         for (const u of undoButtons) if (!u.button.disabled && !undoStillApplies(u.after, now)) {
           u.button.disabled = true;
-          u.button.title = STALE_UNDO;
+          u.button.title = staleUndo();
         }
       };
       const changeOver = () => {
@@ -8415,9 +9608,9 @@ function openAssistant(ctx, store) {
           setPhase("idle");
           handle.setTitle(panelTitle(api.document.info()));
           if (state.prefill) {
-            const t = state.prefill;
+            const text = state.prefill;
             state.prefill = void 0;
-            askLater?.(t);
+            askLater?.(text);
           }
         });
       };
@@ -8435,12 +9628,12 @@ function openAssistant(ctx, store) {
           if (following && !revealing && !toolRunning) following = false;
         })
       ];
-      const send = w.button("Send", { primary: true, onClick: () => void submit() });
-      const stop = w.button("Stop", { ghost: true, onClick: () => running?.abort() });
+      const send = w.button(t("Send"), { primary: true, onClick: () => void submit() });
+      const stop = w.button(t("Stop"), { ghost: true, onClick: () => running?.abort() });
       stop.hidden = true;
-      const more = w.button("Continue", { onClick: () => void submit("Continue.") });
+      const more = w.button(t("Continue"), { onClick: () => void submit("Continue.") });
       more.hidden = true;
-      const clearButton = w.button("Clear", { ghost: true, title: "Forget the conversation", onClick: () => {
+      const clearButton = w.button(t("Clear"), { ghost: true, title: t("Forget the conversation"), onClick: () => {
         state.messages = [];
         state.conversation = void 0;
         state.turn = 0;
@@ -8449,12 +9642,12 @@ function openAssistant(ctx, store) {
         more.hidden = true;
         setPhase("idle");
       } });
-      const copyButton = w.button("Copy", { ghost: true, title: "Copy the transcript as text", onClick: () => {
+      const copyButton = w.button(t("Copy"), { ghost: true, title: t("Copy the transcript as text"), onClick: () => {
         void navigator.clipboard?.writeText(transcript()).then(() => {
-          phaseDetail.textContent = "Transcript copied.";
+          phaseDetail.textContent = t("Transcript copied.");
         });
       } });
-      const attach = w.checkbox("Picture", { value: ctx.settings().attachView, title: "Send a picture of the visible area with the message" });
+      const attach = w.checkbox(t("Picture"), { value: ctx.settings().attachView, title: t("Send a picture of the visible area with the message") });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
@@ -8471,23 +9664,23 @@ function openAssistant(ctx, store) {
           running.abort();
         }
       });
-      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c2) => `${m.role === "user" ? "You" : "Assistant"}: ${c2.text}`).join("\n")).filter(Boolean).join("\n\n");
+      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c2) => m.role === "user" ? t("You: {text}", { text: c2.text }) : t("Assistant: {text}", { text: c2.text })).join("\n")).filter(Boolean).join("\n\n");
       const replay = () => {
         chat.replaceChildren();
         pinned = true;
-        for (const t of groupTurns(state.messages)) {
-          for (const u of t.user) addUser(u);
+        for (const turn of groupTurns(state.messages)) {
+          for (const u of turn.user) addUser(u);
           const act = activity();
           let edits = 0, settingsWrites = 0;
-          for (const s of t.steps) {
+          for (const s of turn.steps) {
             if (s.kind === "thinking") act.think(s.text);
             else if (s.kind === "narration") act.note(s.text);
             else {
               const tool = byName2.get(s.name);
               const row = act.step(tool, s.name, s.input);
-              if (s.failed) row.fail(s.result ?? "failed");
+              if (s.failed) row.fail(s.result ?? t("failed"));
               else {
-                row.done(s.image ? { text: s.result, image: s.image } : s.result ?? "Done.");
+                row.done(s.image ? { text: s.result, image: s.image } : s.result ?? t("Done."));
                 if (didWrite(tool, s.input, s.result ?? "")) {
                   if (tool?.settings) settingsWrites++;
                   else edits++;
@@ -8496,7 +9689,7 @@ function openAssistant(ctx, store) {
             }
           }
           act.finish({ edits, settings: settingsWrites });
-          if (t.answer) addAssistant(t.answer);
+          if (turn.answer) addAssistant(turn.answer);
         }
         setCost();
       };
@@ -8567,7 +9760,7 @@ function openAssistant(ctx, store) {
         const text = (preset ?? input.value).trim();
         if (!text || running) return;
         if (!api.document.isOpen()) {
-          setPhase("failed", "Open a map first.");
+          setPhase("failed", t("Open a map first."));
           return;
         }
         const conv = state;
@@ -8590,7 +9783,7 @@ function openAssistant(ctx, store) {
             stop.hidden = true;
             if (api.document.id() === turnDoc) input.value = text;
             else conv.prefill = text;
-            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? "Stopped before anything was sent." : MAP_CHANGED));
+            chat.append(h("div", { className: "ai-msg is-assistant ai-bad" }, turn.signal.aborted ? t("Stopped before anything was sent.") : mapChangedMessage()));
             return;
           }
           if (picture) {
@@ -8618,12 +9811,12 @@ function openAssistant(ctx, store) {
           const secs = Math.round((Date.now() - startedAt) / 1e3);
           const after = api.document.history();
           const undoSteps = api.document.id() === turnDoc ? Math.max(0, after.undoDepth - historyBefore) : 0;
-          const undo = undoSteps > 0 ? w.button(`Undo ${undoSteps === 1 ? "it" : `these ${undoSteps}`}`, { ghost: true, title: "Undo the edits this turn made, newest first", onClick: (e) => {
+          const undo = undoSteps > 0 ? w.button(t("{n, plural, one {Undo it} other {Undo these #}}", { n: undoSteps }), { ghost: true, title: t("Undo the edits this turn made, newest first"), onClick: (e) => {
             const button = e.currentTarget;
             if (!undoStillApplies(after, api.document.history())) {
               button.disabled = true;
-              button.title = STALE_UNDO;
-              phaseDetail.textContent = STALE_UNDO;
+              button.title = staleUndo();
+              phaseDetail.textContent = staleUndo();
               return;
             }
             let count = 0;
@@ -8634,7 +9827,7 @@ function openAssistant(ctx, store) {
               count++;
             }
             button.disabled = true;
-            phaseDetail.textContent = `Undid ${count} edit${count === 1 ? "" : "s"}.`;
+            phaseDetail.textContent = t("{n, plural, one {Undid # edit.} other {Undid # edits.}}", { n: count });
             refreshUndo();
           } }) : null;
           refreshUndo();
@@ -8643,8 +9836,8 @@ function openAssistant(ctx, store) {
         };
         try {
           for (let round = 0; round < maxRounds; round++) {
-            setPhase("waiting", round === 0 ? "" : `round ${round + 1}`);
-            if (round > 0) act.live(`${plural(act.count(), "step")} so far \xB7 ${task ? `${formatUsd(turnCost)} of ${formatUsd(task.ceilingUsd)}` : formatUsd(turnCost)} \xB7 waiting for the model`);
+            setPhase("waiting", round === 0 ? "" : t("round {n}", { n: round + 1 }));
+            if (round > 0) act.live(t("{n, plural, one {# step} other {# steps}} so far \xB7 {cost} \xB7 waiting for the model", { n: act.count(), cost: task ? t("{spent} of {ceiling}", { spent: formatUsd(turnCost), ceiling: formatUsd(task.ceilingUsd) }) : formatUsd(turnCost) }));
             let streamed = "";
             const stream = { el: null };
             let renderQueued = false;
@@ -8664,18 +9857,18 @@ function openAssistant(ctx, store) {
             conv.turn = turn2 + 1;
             const r = await ctx.client.run("agent", {
               messages: conv.messages,
-              tools: toolList.map((t) => t.def),
+              tools: toolList.map((tool) => tool.def),
               facts: mapFacts(api, { triggers: false, assistant: true }),
               reference: referenceFor(api)
             }, {
               signal: running.signal,
-              onThinking: (t) => {
+              onThinking: (x) => {
                 if (phase === "waiting") setPhase("thinking");
-                act.think(t);
+                act.think(x);
               },
-              onDelta: (t) => {
+              onDelta: (x) => {
                 if (phase !== "writing") setPhase("writing");
-                streamed += t;
+                streamed += x;
                 if (!stream.el) {
                   stream.el = h("div", { className: "ai-msg is-assistant" });
                   chat.append(stream.el);
@@ -8710,7 +9903,7 @@ function openAssistant(ctx, store) {
               else stream.el.remove();
             } else if (finalText) addAssistant(finalText);
             if (r.output.stopReason === "refusal") {
-              setPhase("failed", "The model declined.");
+              setPhase("failed", t("The model declined."));
               break;
             }
             if (r.output.stopReason === "max_tokens" && !continues) {
@@ -8725,25 +9918,25 @@ function openAssistant(ctx, store) {
             settingsWrites.push(...batch.settingsWrites);
             conv.messages.push({ role: "user", content: batch.results });
             if (batch.stopped) throw new ScmjsError("aborted", "Stopped.");
-            if (batch.mapChanged) throw new Error(MAP_CHANGED);
+            if (batch.mapChanged) throw new Error(mapChangedMessage());
             if (round === maxRounds - 1) stoppedAtLimit = true;
           }
           const secs = Math.round((Date.now() - startedAt) / 1e3);
           if (stoppedAtLimit) {
-            setPhase("stopped", `after ${maxRounds} rounds of tool calls; Tools \u25B8 AI \u25B8 Options\u2026 sets the limit`);
+            setPhase("stopped", t("after {n} rounds of tool calls; Tools \u25B8 AI \u25B8 Options\u2026 sets the limit", { n: maxRounds }));
             more.hidden = false;
             conv.continueOffered = true;
           } else if (cutOff) {
-            setPhase("stopped", "the answer was cut off at the output limit; Continue picks it up");
+            setPhase("stopped", t("the answer was cut off at the output limit; Continue picks it up"));
             more.hidden = false;
             conv.continueOffered = true;
-          } else if (phase !== "failed") setPhase("idle", `Done in ${secs} s`);
+          } else if (phase !== "failed") setPhase("idle", t("Done in {s} s", { s: secs }));
           finishActivity(stoppedAtLimit || cutOff);
         } catch (err) {
           const aborted = err instanceof ScmjsError && err.code === "aborted";
           stoppedAtCeiling = err instanceof ScmjsError && err.code === "task_ceiling";
           if (stoppedAtCeiling) {
-            setPhase("stopped", `at the ${formatUsd(task?.ceilingUsd ?? 0)} ceiling for one message (${formatUsd(turnCost)} spent); Tools \u25B8 AI \u25B8 Options\u2026 sets it`);
+            setPhase("stopped", t("at the {ceiling} ceiling for one message ({spent} spent); Tools \u25B8 AI \u25B8 Options\u2026 sets it", { ceiling: formatUsd(task?.ceilingUsd ?? 0), spent: formatUsd(turnCost) }));
             more.hidden = false;
             conv.continueOffered = true;
           } else setPhase(aborted ? "stopped" : "failed", aborted ? "" : describeError(err));
@@ -8770,15 +9963,40 @@ function openAssistant(ctx, store) {
         h("div", { className: "ai-btns" }, send, stop, more, attach, h("span", { style: "flex: 1" }), copyButton, clearButton)
       ]);
       more.hidden = !state.continueOffered;
+      const setLabel = (el, text) => {
+        const node = [...el.childNodes].reverse().find((n2) => n2.nodeType === Node.TEXT_NODE);
+        if (node) node.textContent = text;
+        else el.append(text);
+      };
+      const relabel = () => {
+        handle.setTitle(panelTitle(api.document.info()));
+        setPhase(phase, phaseDetail.textContent ?? "");
+        cost.title = t("What this panel has cost \xB7 what the session has cost");
+        input.placeholder = placeholder2();
+        refreshContext();
+        setLabel(jump, t("Jump to latest"));
+        setLabel(send, t("Send"));
+        setLabel(stop, t("Stop"));
+        setLabel(more, t("Continue"));
+        setLabel(clearButton, t("Clear"));
+        clearButton.title = t("Forget the conversation");
+        setLabel(copyButton, t("Copy"));
+        copyButton.title = t("Copy the transcript as text");
+        const box = attach.querySelector("span");
+        if (box) box.textContent = t("Picture");
+        attach.title = t("Send a picture of the visible area with the message");
+        for (const u of undoButtons) if (u.button.disabled) u.button.title = staleUndo();
+      };
+      offs.push(api.events.on("language", relabel));
       askLater = (text, sendNow) => {
         input.value = text;
         input.focus();
         if (sendNow) void submit();
       };
       if (state.prefill) {
-        const t = state.prefill;
+        const text = state.prefill;
         state.prefill = void 0;
-        askLater(t);
+        askLater(text);
       } else input.focus();
       return () => {
         running?.abort();
@@ -8805,24 +10023,24 @@ function openDescribe(ctx) {
   const { api } = ctx;
   const w = api.ui.widgets;
   api.ui.dialog({
-    title: "Name and Describe",
+    title: t("Name and Describe"),
     size: "md",
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
       const info = api.document.info();
-      const promptField = textarea({ placeholder: 'Tone, length, language \u2014 or leave it to the facts. ("short and grim", "in German", "mention the gold expansion")', rows: 2 });
+      const promptField = textarea({ placeholder: t('Tone, length, language \u2014 or leave it to the facts. ("short and grim", "in German", "mention the gold expansion")'), rows: 2 });
       const list2 = h("div", { className: "ai-list" });
-      const current = h("div", { className: "ai-hint" }, `Now: "${info?.name ?? ""}" \u2014 ${info?.description || "(no description)"}`);
+      const current = h("div", { className: "ai-hint" }, t('Now: "{name}" \u2014 {description}', { name: info?.name ?? "", description: info?.description || t("(no description)") }));
       let picked = null;
-      const applyButton = w.button("Use this", { primary: true, disabled: true, onClick: () => {
+      const applyButton = w.button(t("Use this"), { primary: true, disabled: true, onClick: () => {
         if (!picked) return;
         const p = picked;
-        api.document.update("AI: name and description", (tx) => {
+        api.document.update(t("AI: name and description"), (tx) => {
           tx.properties({ name: p.name, description: p.description });
         });
-        current.textContent = `Now: "${p.name}" \u2014 ${p.description}`;
-        runner.idle("Written into Scenario \u25B8 Map Properties. It is not an undo step; write the old one back the same way if you change your mind.");
+        current.textContent = t('Now: "{name}" \u2014 {description}', { name: p.name, description: p.description });
+        runner.idle(t("Written into Scenario \u25B8 Map Properties. It is not an undo step; write the old one back the same way if you change your mind."));
       } });
       const show = (out) => {
         list2.replaceChildren();
@@ -8847,7 +10065,7 @@ function openDescribe(ctx) {
       root2.append(
         current,
         promptField,
-        h("div", { className: "ai-btns" }, w.button("Suggest", { primary: true, onClick: async () => {
+        h("div", { className: "ai-btns" }, w.button(t("Suggest"), { primary: true, onClick: async () => {
           const r = await runRecipe(ctx, runner, "describe", { facts: mapFacts(api), prompt: promptField.value.trim() || void 0 });
           if (r) show(r.output);
         } })),
@@ -8858,24 +10076,24 @@ function openDescribe(ctx) {
       );
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 function openBriefing(ctx) {
   const { api } = ctx;
   const w = api.ui.widgets;
   api.ui.dialog({
-    title: "Write Briefing",
+    title: t("Write Briefing"),
     size: "md",
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const promptField = textarea({ placeholder: 'Who is speaking, what is at stake, how long \u2014 or leave it to the triggers and the map. ("a terse Terran commander", "three lines", "in Spanish")', rows: 2 });
-      const objectives = textarea({ rows: 4, placeholder: "Objectives, one per line." });
-      const lines = textarea({ rows: 8, placeholder: "The narration, one message per line." });
+      const promptField = textarea({ placeholder: t('Who is speaking, what is at stake, how long \u2014 or leave it to the triggers and the map. ("a terse Terran commander", "three lines", "in Spanish")'), rows: 2 });
+      const objectives = textarea({ rows: 4, placeholder: t("Objectives, one per line.") });
+      const lines = textarea({ rows: 8, placeholder: t("The narration, one message per line.") });
       const seconds = w.number({ value: 8, min: 1, max: 60 });
-      const replace = w.checkbox("Replace the map's existing briefing", { value: true });
-      const writeButton = w.button("Write into the map", { primary: true, disabled: true, onClick: () => {
+      const replace = w.checkbox(t("Replace the map's existing briefing"), { value: true });
+      const writeButton = w.button(t("Write into the map"), { primary: true, disabled: true, onClick: () => {
         const obj2 = objectives.value.split("\n").map((s) => s.trim()).filter(Boolean);
         const msgs = lines.value.split("\n").map((s) => s.trim()).filter(Boolean);
         if (obj2.length === 0 && msgs.length === 0) return;
@@ -8884,24 +10102,24 @@ function openBriefing(ctx) {
         const objectivesType = typeOf("mission objectives", 4);
         const messageType = typeOf("text message", 3);
         const ms = Math.max(1, Number(seconds.value) || 8) * 1e3;
-        const r = api.document.update("AI: mission briefing", (tx) => {
-          const t = api.triggers.newTrigger([0, 1, 2, 3, 4, 5, 6, 7]);
-          t.actions = [];
+        const r = api.document.update(t("AI: mission briefing"), (tx) => {
+          const trig = api.triggers.newTrigger([0, 1, 2, 3, 4, 5, 6, 7]);
+          trig.actions = [];
           if (obj2.length) {
             const a2 = api.triggers.newAction(objectivesType, true);
             a2.text = tx.strings.intern(obj2.join("\n"));
-            t.actions.push(a2);
+            trig.actions.push(a2);
           }
           for (const m of msgs) {
             const a2 = api.triggers.newAction(messageType, true);
             a2.text = tx.strings.intern(m);
             a2.time = ms;
-            t.actions.push(a2);
+            trig.actions.push(a2);
           }
-          if (replace.input.checked) tx.briefing.set([t]);
-          else tx.briefing.add(t);
+          if (replace.input.checked) tx.briefing.set([trig]);
+          else tx.briefing.add(trig);
         });
-        runner.idle(r.changed ? `Written: ${obj2.length} objective${obj2.length === 1 ? "" : "s"} and ${msgs.length} message${msgs.length === 1 ? "" : "s"} in one briefing trigger for all players. Triggers \u25B8 Mission Briefing shows it.` : "Nothing changed.");
+        runner.idle(r.changed ? t("Written: {objectives, plural, one {# objective} other {# objectives}} and {messages, plural, one {# message} other {# messages}} in one briefing trigger for all players. Triggers \u25B8 Mission Briefing shows it.", { objectives: obj2.length, messages: msgs.length }) : t("Nothing changed."));
       } });
       const show = (out) => {
         objectives.value = out.objectives.join("\n");
@@ -8910,19 +10128,19 @@ function openBriefing(ctx) {
       };
       root2.append(
         promptField,
-        h("div", { className: "ai-btns" }, w.button("Write", { primary: true, onClick: async () => {
+        h("div", { className: "ai-btns" }, w.button(t("Write"), { primary: true, onClick: async () => {
           const r = await runRecipe(ctx, runner, "briefing", { facts: mapFacts(api), prompt: promptField.value.trim() || void 0 });
           if (r) show(r.output);
         } })),
         runner.el,
-        w.group("Objectives", objectives),
-        w.group("Narration", lines, w.form([{ label: "Seconds each", field: seconds }]), replace),
+        w.group(t("Objectives"), objectives),
+        w.group(t("Narration"), lines, w.form([{ label: t("Seconds each"), field: seconds }]), replace),
         h("div", { className: "ai-btns" }, writeButton),
         ledgerLine(ctx)
       );
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
@@ -8933,40 +10151,40 @@ function openExplain(ctx) {
   const list2 = api.triggers.list();
   const briefingList = api.triggers.briefing();
   api.ui.dialog({
-    title: "Explain Triggers",
+    title: t("Explain Triggers"),
     size: "lg",
     tall: true,
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
       const which2 = w.select([
-        { value: "triggers", label: `Triggers (${list2.length})` },
-        { value: "briefing", label: `Mission briefing (${briefingList.length})`, disabled: briefingList.length === 0 }
+        { value: "triggers", label: t("Triggers ({n})", { n: list2.length }) },
+        { value: "briefing", label: t("Mission briefing ({n})", { n: briefingList.length }), disabled: briefingList.length === 0 }
       ], { value: "triggers" });
       const from = w.number({ value: 1, min: 1, max: Math.max(1, list2.length) });
       const to = w.number({ value: list2.length, min: 1, max: Math.max(1, list2.length) });
-      const question = textarea({ placeholder: "A question, or leave empty for a walkthrough of what happens in play.", rows: 2 });
+      const question = textarea({ placeholder: t("A question, or leave empty for a walkthrough of what happens in play."), rows: 2 });
       const out = h("div", null);
       let text = "";
       const ask = async () => {
         const briefing = which2.value === "briefing";
         const source = briefing ? briefingList : list2;
         if (source.length === 0) {
-          runner.idle("There are no triggers to explain.");
+          runner.idle(t("There are no triggers to explain."));
           return;
         }
         const a2 = Math.max(1, Math.min(source.length, Number(from.value) || 1)) - 1;
         const b = Math.max(a2 + 1, Math.min(source.length, Number(to.value) || source.length));
         const slice = source.slice(a2, b);
         text = "";
-        out.replaceChildren(h("div", { className: "ai-hint" }, "Writing\u2026"));
+        out.replaceChildren(h("div", { className: "ai-hint" }, t("Writing\u2026")));
         const r = await runRecipe(ctx, runner, "explain-triggers", {
           text: api.triggers.text.print(slice, { briefing }).slice(0, 12e4),
           question: question.value.trim() || void 0,
           briefing
         }, {
-          onDelta: (t) => {
-            text += t;
+          onDelta: (d) => {
+            text += d;
             out.replaceChildren(renderMarkdown(text));
             out.scrollTop = out.scrollHeight;
           }
@@ -8978,13 +10196,13 @@ function openExplain(ctx) {
       };
       root2.append(
         w.group(
-          "Which",
+          t("Which"),
           w.form([
-            { label: "List", field: which2 },
-            { label: "From \u2013 to", field: h("div", { className: "ai-btns" }, from, "\u2013", to) }
+            { label: t("List"), field: which2 },
+            { label: t("From \u2013 to"), field: h("div", { className: "ai-btns" }, from, "\u2013", to) }
           ]),
           question,
-          h("div", { className: "ai-btns" }, w.button("Explain", { primary: true, onClick: () => void ask() }), w.button("Copy", { ghost: true, onClick: () => {
+          h("div", { className: "ai-btns" }, w.button(t("Explain"), { primary: true, onClick: () => void ask() }), w.button(t("Copy"), { ghost: true, onClick: () => {
             void navigator.clipboard?.writeText(text);
           } }))
         ),
@@ -8994,7 +10212,7 @@ function openExplain(ctx) {
       );
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
@@ -9008,14 +10226,14 @@ function openReview(ctx) {
   const { api } = ctx;
   const w = api.ui.widgets;
   api.ui.dialog({
-    title: "Review Map",
+    title: t("Review Map"),
     size: "lg",
     tall: true,
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
       const info = api.document.info();
-      const promptField = textarea({ placeholder: "What to look at \u2014 or leave empty for a general review.", rows: 2 });
+      const promptField = textarea({ placeholder: t("What to look at \u2014 or leave empty for a general review."), rows: 2 });
       const summary = h("div", null);
       const findings = h("div", { className: "ai-list", hidden: true });
       const picture = h("div", { className: "ai-hint" });
@@ -9027,9 +10245,9 @@ function openReview(ctx) {
           findings.append(h(
             "div",
             { className: "ai-item" },
-            h("span", { className: mark, style: "width: 60px; flex: none;" }, f.severity),
+            h("span", { className: mark, style: "width: 60px; flex: none;" }, severityLabel(f.severity)),
             h("div", { className: "ai-grow" }, h("div", null, f.title), h("div", { className: "ai-dim" }, f.detail)),
-            f.x !== void 0 && f.y !== void 0 ? w.button("Go to", { ghost: true, onClick: () => api.view.goTo({ kind: "tile", x: f.x, y: f.y }) }) : null
+            f.x !== void 0 && f.y !== void 0 ? w.button(t("Go to"), { ghost: true, onClick: () => api.view.goTo({ kind: "tile", x: f.x, y: f.y }) }) : null
           ));
         }
       };
@@ -9037,13 +10255,13 @@ function openReview(ctx) {
         if (!info) return;
         await api.tileset.load();
         const ppt = pixelsPerTileFor(info.width, info.height, 8, 16e5);
-        picture.textContent = `Rendering the map at ${ppt} px per tile\u2026`;
+        picture.textContent = t("Rendering the map at {ppt} px per tile\u2026", { ppt });
         const blob = await api.document.renderImage({ pixelsPerTile: ppt, units: true, sprites: true, locations: true, locationNames: true, startLocations: true, fog: false, grid: 0 });
         if (!blob) {
-          runner.fail(new Error("the map could not be rendered (tileset graphics missing?)"));
+          runner.fail(new Error(t("the map could not be rendered (tileset graphics missing?)")));
           return;
         }
-        picture.textContent = `Sent a ${info.width * ppt} \xD7 ${info.height * ppt} picture (${Math.round(blob.size / 1024)} KB) with the map's facts and ${api.query.validate().length} Check Map lines.`;
+        picture.textContent = t("Sent a {w} \xD7 {h} picture ({kb} KB) with the map's facts and {n, plural, one {# Check Map line} other {# Check Map lines}}.", { w: info.width * ppt, h: info.height * ppt, kb: Math.round(blob.size / 1024), n: api.query.validate().length });
         summary.replaceChildren();
         const r = await runRecipe(ctx, runner, "review", {
           facts: mapFacts(api),
@@ -9057,12 +10275,12 @@ function openReview(ctx) {
       };
       root2.append(
         w.group(
-          "What to look at",
+          t("What to look at"),
           promptField,
           h("div", { className: "ai-chips" }, ...PRESETS2.map((p, i) => h("button", { type: "button", className: "ai-chip", onClick: () => {
             promptField.value = p;
-          } }, ["Melee balance", "UMS readability", "What to change first"][i]))),
-          h("div", { className: "ai-btns" }, w.button("Review", { primary: true, onClick: () => void review() }), picture)
+          } }, [t("Melee balance"), t("UMS readability"), t("What to change first")][i]))),
+          h("div", { className: "ai-btns" }, w.button(t("Review"), { primary: true, onClick: () => void review() }), picture)
         ),
         runner.el,
         summary,
@@ -9071,8 +10289,20 @@ function openReview(ctx) {
       );
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
+}
+function severityLabel(severity) {
+  switch (severity) {
+    case "problem":
+      return t("problem");
+    case "warning":
+      return t("warning");
+    case "info":
+      return t("info");
+    default:
+      return severity;
+  }
 }
 
 // ai/dialogs/generate.ts
@@ -9083,26 +10313,26 @@ var EXAMPLES = [
   "A tight two-player badlands map: narrow chokes, three tiers of height, a contested gold expansion in the centre."
 ];
 var TILESETS = [
-  { id: "badlands", label: "Badlands" },
-  { id: "platform", label: "Space Platform" },
-  { id: "install", label: "Installation" },
-  { id: "ashworld", label: "Ashworld" },
-  { id: "jungle", label: "Jungle" },
-  { id: "desert", label: "Desert" },
-  { id: "ice", label: "Ice" },
-  { id: "twilight", label: "Twilight" }
+  { id: "badlands", label: msg("Badlands") },
+  { id: "platform", label: msg("Space Platform") },
+  { id: "install", label: msg("Installation") },
+  { id: "ashworld", label: msg("Ashworld") },
+  { id: "jungle", label: msg("Jungle") },
+  { id: "desert", label: msg("Desert") },
+  { id: "ice", label: msg("Ice") },
+  { id: "twilight", label: msg("Twilight") }
 ];
 var SYMMETRY_LABELS = {
-  auto: "Let the model choose",
-  none: "None",
-  "mirror-x": "Mirror left \u2194 right",
-  "mirror-y": "Mirror top \u2194 bottom",
-  rot180: "Rotate 180\xB0",
-  rot90: "Rotate 90\xB0 (square)",
-  diag: "Diagonal mirror (square)",
-  antidiag: "Other diagonal (square)",
-  quad: "Mirror both ways",
-  octo: "Eight-fold (square)"
+  auto: msg("Let the model choose"),
+  none: msg("None"),
+  "mirror-x": msg("Mirror left \u2194 right"),
+  "mirror-y": msg("Mirror top \u2194 bottom"),
+  rot180: msg("Rotate 180\xB0"),
+  rot90: msg("Rotate 90\xB0 (square)"),
+  diag: msg("Diagonal mirror (square)"),
+  antidiag: msg("Other diagonal (square)"),
+  quad: msg("Mirror both ways"),
+  octo: msg("Eight-fold (square)")
 };
 function cellSizeFor(width, height) {
   return Math.max(2, Math.round(Math.max(width, height) / 32));
@@ -9126,13 +10356,13 @@ function openGenerate(ctx) {
     refine: ""
   };
   api.ui.dialog({
-    title: "Generate Map",
+    title: t("Generate Map"),
     size: "lg",
     tall: true,
     mount(body, dialog) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const promptField = textarea({ placeholder: "What kind of map? Say how many players, the feel of the terrain, where the bases go, anything the layout should have.", rows: 4 });
+      const promptField = textarea({ placeholder: t("What kind of map? Say how many players, the feel of the terrain, where the bases go, anything the layout should have."), rows: 4 });
       promptField.addEventListener("input", () => {
         state.prompt = promptField.value;
       });
@@ -9144,17 +10374,17 @@ function openGenerate(ctx) {
         state.height = Number(v);
         syncTarget();
       } });
-      const tilesetSel = w.select(TILESETS.map((t) => ({ value: t.id, label: t.label })), { value: state.tileset, onChange: (v) => {
+      const tilesetSel = w.select(TILESETS.map((ts) => ({ value: ts.id, label: translate(ts.label) })), { value: state.tileset, onChange: (v) => {
         state.tileset = v;
         syncTarget();
       } });
       const playersSel = w.select([2, 3, 4, 5, 6, 7, 8].map((n2) => ({ value: n2, label: String(n2) })), { value: state.players, onChange: (v) => {
         state.players = Number(v);
       } });
-      const symSel = w.select(["auto", ...SYMMETRY_MODES].map((m) => ({ value: m, label: SYMMETRY_LABELS[m] })), { value: state.symmetry, onChange: (v) => {
+      const symSel = w.select(["auto", ...SYMMETRY_MODES].map((m) => ({ value: m, label: translate(SYMMETRY_LABELS[m]) })), { value: state.symmetry, onChange: (v) => {
         state.symmetry = v;
       } });
-      const targetSel = w.select([{ value: "new", label: "A new map" }, { value: "open", label: "The open map" }], { value: state.target, onChange: (v) => {
+      const targetSel = w.select([{ value: "new", label: t("A new map") }, { value: "open", label: t("The open map") }], { value: state.target, onChange: (v) => {
         state.target = v;
       } });
       const targetHint = h("div", { className: "ai-hint" });
@@ -9166,30 +10396,30 @@ function openGenerate(ctx) {
           state.target = "new";
           targetSel.value = "new";
         }
-        targetHint.textContent = same ? "Into the open map: its terrain and objects inside the plan's area are replaced. One undo step." : "A new blank map of this size and tileset is made first, so the model can be told which terrains it has. An open map with unsaved changes asks before it goes.";
+        targetHint.textContent = same ? t("Into the open map: its terrain and objects inside the plan's area are replaced. One undo step.") : t("A new blank map of this size and tileset is made first, so the model can be told which terrains it has. An open map with unsaved changes asks before it goes.");
       };
       syncTarget();
       const preview = h("div", null);
       const afterwards = h("div", { className: "ai-btns", hidden: true });
-      const applyButton = w.button("Apply", { primary: true, onClick: () => void apply() });
-      const refineField = textarea({ placeholder: 'What should change? ("more room around the naturals", "swap the lake for a plateau")', rows: 2 });
+      const applyButton = w.button(t("Apply"), { primary: true, onClick: () => void apply() });
+      const refineField = textarea({ placeholder: t('What should change? ("more room around the naturals", "swap the lake for a plateau")'), rows: 2 });
       refineField.addEventListener("input", () => {
         state.refine = refineField.value;
       });
-      const refineButton = w.button("Refine", { onClick: () => void generate(true) });
-      const reviewButton = w.button("Review it\u2026", { onClick: () => {
+      const refineButton = w.button(t("Refine"), { onClick: () => void generate(true) });
+      const reviewButton = w.button(t("Review it\u2026"), { onClick: () => {
         dialog.close();
         openReview(ctx);
       } });
-      const refineBox = h("div", { hidden: true }, w.group("Refine", refineField, h("div", { className: "ai-btns" }, refineButton, reviewButton), h("div", { className: "ai-hint" }, "The revised plan replaces the applied one: the previous render is undone first when nothing else was edited in between.")));
-      const generateButton = w.button("Generate", { primary: true, onClick: () => void generate(false) });
+      const refineBox = h("div", { hidden: true }, w.group(t("Refine"), refineField, h("div", { className: "ai-btns" }, refineButton, reviewButton), h("div", { className: "ai-hint" }, t("The revised plan replaces the applied one: the previous render is undone first when nothing else was edited in between."))));
+      const generateButton = w.button(t("Generate"), { primary: true, onClick: () => void generate(false) });
       const showPlan = (plan, findings = []) => {
         preview.replaceChildren();
         const terrains = api.terrain.types();
         const legendRow = h("div", { className: "ai-legend" });
         for (const [ch, id] of Object.entries(plan.legend)) {
-          const t = terrains.find((x) => x.id === id);
-          legendRow.append(h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 4473924)}` }), `${ch} ${t?.name ?? id}`));
+          const ty = terrains.find((x) => x.id === id);
+          legendRow.append(h("span", null, h("i", { style: `background:${hex(api.terrain.terrainColor(id) ?? 4473924)}` }), `${ch} ${ty?.name ?? id}`));
         }
         const grid = h("div", { className: "ai-grid" });
         for (const row of plan.grid) {
@@ -9200,17 +10430,17 @@ function openGenerate(ctx) {
           }
           grid.append(line);
         }
-        const bases = plan.bases.map((b) => `${b.kind}${b.player ? ` (player ${b.player})` : ""} at ${b.x},${b.y}, minerals to the ${b.mineralDirection}, ${b.minerals} patches, ${b.geysers} geyser${b.geysers === 1 ? "" : "s"}`);
+        const bases = plan.bases.map((b) => b.player ? t("{kind} (player {player}) at {x},{y}, minerals to the {direction}, {minerals} patches, {geysers, plural, one {# geyser} other {# geysers}}", { kind: b.kind, player: b.player, x: b.x, y: b.y, direction: b.mineralDirection, minerals: b.minerals, geysers: b.geysers }) : t("{kind} at {x},{y}, minerals to the {direction}, {minerals} patches, {geysers, plural, one {# geyser} other {# geysers}}", { kind: b.kind, x: b.x, y: b.y, direction: b.mineralDirection, minerals: b.minerals, geysers: b.geysers }));
         preview.append(
           w.group(
-            `${plan.name} \u2014 ${plan.symmetry === "none" ? "no symmetry" : SYMMETRY_LABELS[plan.symmetry]}`,
+            `${plan.name} \u2014 ${plan.symmetry === "none" ? t("no symmetry") : translate(SYMMETRY_LABELS[plan.symmetry])}`,
             h("div", { className: "ai-hint" }, plan.description),
             grid,
             legendRow,
-            plan.notes.length ? h("details", { open: true }, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(plan.notes))) : null,
-            bases.length ? h("details", null, h("summary", null, `${bases.length} base${bases.length === 1 ? "" : "s"} listed (mirrored on apply)`), h("div", { className: "ai-body" }, noteList(bases))) : null,
-            plan.ramps.length || plan.doodads.length || plan.units.length || plan.locations.length ? h("div", { className: "ai-hint" }, `${plan.ramps.length} ramps, ${plan.doodads.length} decoration rules, ${plan.units.length} units, ${plan.locations.length} locations.`) : null,
-            findings.length ? h("details", { open: true }, h("summary", null, `${findings.length} thing${findings.length === 1 ? "" : "s"} to know`), h("div", { className: "ai-body" }, noteList(findings))) : null
+            plan.notes.length ? h("details", { open: true }, h("summary", null, t("Designer's notes")), h("div", { className: "ai-body" }, noteList(plan.notes))) : null,
+            bases.length ? h("details", null, h("summary", null, t("{n, plural, one {# base} other {# bases}} listed (mirrored on apply)", { n: bases.length })), h("div", { className: "ai-body" }, noteList(bases))) : null,
+            plan.ramps.length || plan.doodads.length || plan.units.length || plan.locations.length ? h("div", { className: "ai-hint" }, t("{ramps, plural, one {# ramp} other {# ramps}}, {rules, plural, one {# decoration rule} other {# decoration rules}}, {units, plural, one {# unit} other {# units}}, {locations, plural, one {# location} other {# locations}}.", { ramps: plan.ramps.length, rules: plan.doodads.length, units: plan.units.length, locations: plan.locations.length })) : null,
+            findings.length ? h("details", { open: true }, h("summary", null, t("{n, plural, one {# thing} other {# things}} to know", { n: findings.length })), h("div", { className: "ai-body" }, noteList(findings))) : null
           )
         );
         afterwards.hidden = false;
@@ -9219,7 +10449,7 @@ function openGenerate(ctx) {
         if (state.target === "open" && api.document.isOpen()) return true;
         const ok = await api.document.create({ width: state.width, height: state.height, tileset: state.tileset, name: "Untitled Scenario" });
         if (!ok) {
-          runner.idle("Kept the open map.");
+          runner.idle(t("Kept the open map."));
           return false;
         }
         state.target = "open";
@@ -9230,7 +10460,7 @@ function openGenerate(ctx) {
       const generate = async (refine) => {
         if (!state.prompt.trim() && !refine) {
           promptField.focus();
-          runner.idle("Say what kind of map you want first.");
+          runner.idle(t("Say what kind of map you want first."));
           return;
         }
         if (!await ensureMap()) return;
@@ -9274,39 +10504,39 @@ Change this: ${state.refine.trim()}` : state.prompt,
         if (state.rendered && state.mark) {
           const now = api.document.history();
           const intact = now.undo === state.mark.undo && now.undoDepth === state.mark.undoDepth;
-          if (!intact && !await api.ui.confirm("The map was edited since the last plan was applied. Apply the new plan on top of it?", { title: "Generate Map", confirmLabel: "Apply on top" })) return;
+          if (!intact && !await api.ui.confirm(t("The map was edited since the last plan was applied. Apply the new plan on top of it?"), { title: t("Generate Map"), confirmLabel: t("Apply on top") })) return;
           if (intact) api.document.undo();
         }
-        const rendered = renderPlan(api, state.plan, { originX: 0, originY: 0, label: `AI: ${state.plan.name}`, clearArea: true });
+        const rendered = renderPlan(api, state.plan, { originX: 0, originY: 0, label: t("AI: {name}", { name: state.plan.name }), clearArea: true });
         if (!rendered) return;
         state.rendered = rendered;
         const after = api.document.history();
         state.mark = { undo: after.undo, undoDepth: after.undoDepth };
         if (state.plan.name || state.plan.description) {
-          api.document.update("AI: name and description", (tx) => {
+          api.document.update(t("AI: name and description"), (tx) => {
             tx.properties({ name: state.plan.name, description: state.plan.description });
           });
         }
         showPlan(state.plan, rendered.findings);
         refineBox.hidden = false;
-        runner.idle(`Applied: ${summarizeRender(rendered)}. Edit \u25B8 Undo takes it back.`);
-        api.ui.status(`AI: ${summarizeRender(rendered)}`);
+        runner.idle(t("Applied: {summary}. Edit \u25B8 Undo takes it back.", { summary: summarizeRender(rendered) }));
+        api.ui.status(t("AI: {summary}", { summary: summarizeRender(rendered) }));
       };
       root2.append(
         w.group(
-          "What to make",
+          t("What to make"),
           promptField,
-          chips(["Example: two-player jungle", "Example: four-player lake", "Example: tight badlands"], (label) => {
-            const i = ["two-player jungle", "four-player lake", "tight badlands"].findIndex((k) => label.includes(k));
+          ((labels) => chips(labels, (label) => {
+            const i = labels.indexOf(label);
             promptField.value = EXAMPLES[Math.max(0, i)];
             state.prompt = promptField.value;
-          }),
+          }))([t("Example: two-player jungle"), t("Example: four-player lake"), t("Example: tight badlands")]),
           w.form([
-            { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
-            { label: "Tileset", field: tilesetSel },
-            { label: "Players", field: playersSel },
-            { label: "Symmetry", field: symSel },
-            { label: "Into", field: targetSel }
+            { label: t("Size"), field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
+            { label: t("Tileset"), field: tilesetSel },
+            { label: t("Players"), field: playersSel },
+            { label: t("Symmetry"), field: symSel },
+            { label: t("Into"), field: targetSel }
           ]),
           targetHint,
           h("div", { className: "ai-btns" }, generateButton)
@@ -9317,27 +10547,27 @@ Change this: ${state.refine.trim()}` : state.prompt,
         refineBox,
         ledgerLine(ctx)
       );
-      afterwards.append(applyButton, h("span", { className: "ai-hint" }, "Renders the plan onto the map as one undo step, then names the map after it."));
+      afterwards.append(applyButton, h("span", { className: "ai-hint" }, t("Renders the plan onto the map as one undo step, then names the map after it.")));
       promptField.focus();
       return () => {
         runner.dispose();
       };
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
 // ai/dialogs/scenario.ts
 var SIZES2 = [64, 96, 128, 160, 192, 256];
 var TILESETS2 = [
-  { id: "badlands", label: "Badlands" },
-  { id: "platform", label: "Space Platform" },
-  { id: "install", label: "Installation" },
-  { id: "ashworld", label: "Ashworld" },
-  { id: "jungle", label: "Jungle" },
-  { id: "desert", label: "Desert" },
-  { id: "ice", label: "Ice" },
-  { id: "twilight", label: "Twilight" }
+  { id: "badlands", label: msg("Badlands") },
+  { id: "platform", label: msg("Space Platform") },
+  { id: "install", label: msg("Installation") },
+  { id: "ashworld", label: msg("Ashworld") },
+  { id: "jungle", label: msg("Jungle") },
+  { id: "desert", label: msg("Desert") },
+  { id: "ice", label: msg("Ice") },
+  { id: "twilight", label: msg("Twilight") }
 ];
 var EXAMPLES2 = {
   "a madness map": "A four-player madness map: each player in a walled corner base, zerglings and marines spawning every few seconds and charging the centre, kills paid in minerals, last base standing wins.",
@@ -9355,7 +10585,7 @@ var BuildEnded = class extends Error {
 var Waiting = class extends Error {
   locations;
   constructor(locations) {
-    super(`waits for location${locations.length === 1 ? "" : "s"} ${locations.map((l) => `"${l}"`).join(", ")}`);
+    super(t("{n, plural, one {waits for location {names}} other {waits for locations {names}}}", { n: locations.length, names: locations.map((l) => `"${l}"`).join(", ") }));
     this.locations = locations;
   }
 };
@@ -9407,21 +10637,22 @@ function openScenario(ctx, presetPrompt) {
     built: null
   };
   api.ui.dialog({
-    title: "Make Scenario",
+    title: t("Make Scenario"),
     size: "lg",
     tall: true,
     mount(body, dialog) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const askSummary = h("summary", null, "What to make");
+      const askSummary = h("summary", null, t("What to make"));
       const askBox = h("details", { className: "ai-fold", open: true }, askSummary);
       const foldAsk = () => {
-        const tileset = TILESETS2.find((t) => t.id === state.tileset)?.label ?? state.tileset;
+        const known = TILESETS2.find((ts) => ts.id === state.tileset);
+        const tileset = known ? translate(known.label) : state.tileset;
         const excerpt = state.prompt.trim().replace(/\s+/g, " ");
-        askSummary.textContent = `What to make: ${excerpt.length > 90 ? `${excerpt.slice(0, 87)}\u2026` : excerpt} \xB7 ${state.width}\xD7${state.height} ${tileset} \xB7 ${state.players} player${state.players === 1 ? "" : "s"}`;
+        askSummary.textContent = t("What to make: {excerpt} \xB7 {w}\xD7{h} {tileset} \xB7 {n, plural, one {# player} other {# players}}", { excerpt: excerpt.length > 90 ? `${excerpt.slice(0, 87)}\u2026` : excerpt, w: state.width, h: state.height, tileset, n: state.players });
         askBox.open = false;
       };
-      const promptField = textarea({ value: state.prompt, placeholder: 'What kind of scenario? A genre and a sentence of story is enough: "a madness map", "an RPG about a lost marine", "a four-player tower defense with two lanes".', rows: 3 });
+      const promptField = textarea({ value: state.prompt, placeholder: t('What kind of scenario? A genre and a sentence of story is enough: "a madness map", "an RPG about a lost marine", "a four-player tower defense with two lanes".'), rows: 3 });
       promptField.addEventListener("input", () => {
         state.prompt = promptField.value;
       });
@@ -9433,14 +10664,14 @@ function openScenario(ctx, presetPrompt) {
         state.height = Number(v);
         syncTarget();
       } });
-      const tilesetSel = w.select(TILESETS2.map((t) => ({ value: t.id, label: t.label })), { value: state.tileset, onChange: (v) => {
+      const tilesetSel = w.select(TILESETS2.map((ts) => ({ value: ts.id, label: translate(ts.label) })), { value: state.tileset, onChange: (v) => {
         state.tileset = v;
         syncTarget();
       } });
       const playersSel = w.select([1, 2, 3, 4, 5, 6, 7, 8].map((n2) => ({ value: n2, label: String(n2) })), { value: state.players, onChange: (v) => {
         state.players = Number(v);
       } });
-      const targetSel = w.select([{ value: "new", label: "A new map" }, { value: "open", label: "The open map" }], { value: state.target, onChange: (v) => {
+      const targetSel = w.select([{ value: "new", label: t("A new map") }, { value: "open", label: t("The open map") }], { value: state.target, onChange: (v) => {
         state.target = v;
       } });
       const targetHint = h("div", { className: "ai-hint" });
@@ -9452,23 +10683,23 @@ function openScenario(ctx, presetPrompt) {
           state.target = "new";
           targetSel.value = "new";
         }
-        targetHint.textContent = same ? "Into the open map: its terrain and objects are replaced by the plan, and the triggers are appended to what is there." : "A new blank map of this size and tileset is made first. An open map with unsaved changes asks before it goes.";
+        targetHint.textContent = same ? t("Into the open map: its terrain and objects are replaced by the plan, and the triggers are appended to what is there.") : t("A new blank map of this size and tileset is made first. An open map with unsaved changes asks before it goes.");
       };
       syncTarget();
-      const designButton = w.button("Design", { primary: true, onClick: () => void design(false) });
-      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts." : "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.");
+      const designButton = w.button(t("Design"), { primary: true, onClick: () => void design(false) });
+      const scriptNote = h("div", { className: "ai-hint" }, hasScriptPlugin(api) ? t("The TrigScript plugin is on: systems the toolkit cannot build are written as scripts.") : t("The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics."));
       const designBody = h("div", { className: "ai-body" });
-      const designSummary = h("summary", null, "The design");
+      const designSummary = h("summary", null, t("The design"));
       const designBox = h("details", { className: "ai-fold", hidden: true, open: true }, designSummary, designBody);
-      const refineField = textarea({ placeholder: 'What should change in the design? ("make it two players", "add a boss", "less income")', rows: 2 });
+      const refineField = textarea({ placeholder: t('What should change in the design? ("make it two players", "add a boss", "less income")'), rows: 2 });
       refineField.addEventListener("input", () => {
         state.refine = refineField.value;
       });
-      const redesignButton = w.button("Design again", { onClick: () => void design(true) });
-      const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
+      const redesignButton = w.button(t("Design again"), { onClick: () => void design(true) });
+      const buildButton = w.button(t("Build"), { primary: true, onClick: () => void build() });
       const showDesign = (d) => {
         designBody.replaceChildren();
-        designSummary.textContent = `${d.genre}: ${d.name} \u2014 ${d.systems.length} systems, ${d.locations.length} locations, ${d.players.filter((p) => p.type === "human").length} human players${d.target === "remastered" ? ", for Remastered" : ""}`;
+        designSummary.textContent = t("{genre}: {name} \u2014 {systems, plural, one {# system} other {# systems}}, {locations, plural, one {# location} other {# locations}}, {humans, plural, one {# human player} other {# human players}}{target, select, remastered {, for Remastered} other {}}", { genre: d.genre, name: d.name, systems: d.systems.length, locations: d.locations.length, humans: d.players.filter((p) => p.type === "human").length, target: d.target ?? "classic" });
         designBox.open = true;
         const nameField = w.text({ value: d.name, onChange: (v) => {
           d.name = v;
@@ -9489,15 +10720,15 @@ function openScenario(ctx, presetPrompt) {
         briefingField.addEventListener("input", () => {
           d.briefing = briefingField.value.split("\n").map((s) => s.trim()).filter(Boolean);
         });
-        const targetField = w.select([{ value: "classic", label: "Every version of StarCraft (triggers only)" }, { value: "remastered", label: "StarCraft: Remastered (scripts may be programs)" }], { value: d.target ?? "classic", onChange: (v) => {
+        const targetField = w.select([{ value: "classic", label: t("Every version of StarCraft (triggers only)") }, { value: "remastered", label: t("StarCraft: Remastered (scripts may be programs)") }], { value: d.target ?? "classic", onChange: (v) => {
           d.target = v;
           showDesign(d);
         } });
         targetField.options[1].disabled = !hasScriptPlugin(api);
         const tempo = designTempo(d);
-        const targetHint2 = h("div", { className: "ai-hint" }, d.target === "remastered" ? `The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second${d.systems.some((x) => x.kind === "hyper") ? " and the hyper triggers in the list are left out" : ""}.` : tempo === "hyper" ? "Triggers only. The design has hyper triggers, so timers are counted at about 12 cycles a second." : "Triggers only, and no hyper triggers: the trigger list runs about every two seconds, and no timer is finer than that.");
-        const players2 = noteList(d.players.map((p) => `Player ${p.slot}: ${p.type}, ${p.race}, force ${p.force} \u2014 ${p.role}`));
-        const forces = noteList(d.forces.map((f) => `Force ${f.index} "${f.name}"${f.allied ? ", allied" : ""}${f.alliedVictory ? ", allied victory" : ""}${f.sharedVision ? ", shared vision" : ""}`));
+        const targetHint2 = h("div", { className: "ai-hint" }, d.target === "remastered" ? d.systems.some((x) => x.kind === "hyper") ? t("The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second and the hyper triggers in the list are left out.") : t("The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second.") : tempo === "hyper" ? t("Triggers only. The design has hyper triggers, so timers are counted at about 12 cycles a second.") : t("Triggers only, and no hyper triggers: the trigger list runs about every two seconds, and no timer is finer than that."));
+        const players2 = noteList(d.players.map((p) => t("Player {slot}: {type}, {race}, force {force} \u2014 {role}", { slot: p.slot, type: p.type, race: p.race, force: p.force, role: p.role })));
+        const forces = noteList(d.forces.map((f) => [t('Force {index} "{name}"', { index: f.index, name: f.name }), f.allied ? t("allied") : "", f.alliedVictory ? t("allied victory") : "", f.sharedVision ? t("shared vision") : ""].filter(Boolean).join(", ")));
         const locations = noteList(d.locations.map((l) => `${l.name} \u2014 ${l.purpose}`));
         const systemRows = h("div", { className: "ai-list ai-list-open" });
         const kinds = new Set(systemKinds().map((k) => k.kind));
@@ -9505,33 +10736,33 @@ function openScenario(ctx, presetPrompt) {
           const params = w.text({ value: paramsToText(s.params), placeholder: "key=value; key=value", onChange: (v) => {
             s.params = textToParams(v);
           } });
-          const remove = w.button("Remove", { ghost: true, onClick: () => {
+          const remove = w.button(t("Remove"), { ghost: true, onClick: () => {
             d.systems.splice(i, 1);
             showDesign(d);
           } });
           systemRows.append(h(
             "div",
             { className: "ai-item" },
-            h("span", { className: kinds.has(s.kind) ? "ai-ok" : s.kind === "custom" ? "ai-gold" : "ai-bad", style: "width: 96px; flex: none;", title: kinds.has(s.kind) ? "built by the toolkit" : s.kind === "custom" ? "written as a trigger script" : "not a kind the toolkit has" }, s.kind),
+            h("span", { className: kinds.has(s.kind) ? "ai-ok" : s.kind === "custom" ? "ai-gold" : "ai-bad", style: "width: 96px; flex: none;", title: kinds.has(s.kind) ? t("built by the toolkit") : s.kind === "custom" ? t("written as a trigger script") : t("not a kind the toolkit has") }, s.kind),
             h("div", { className: "ai-grow" }, h("div", null, s.name), h("div", { className: "ai-dim" }, s.description), s.kind === "custom" ? null : params),
             remove
           ));
         });
         const parts = [
           // Build and the change fold first: they are what the person came back to press, and the document is long.
-          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, "Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text.")),
-          h("details", null, h("summary", null, "Change the design first"), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
+          h("div", { className: "ai-btns" }, buildButton, h("span", { className: "ai-hint" }, t("Builds the map from this design: the terrain first (that is the long step), then the players, the systems, the text."))),
+          h("details", null, h("summary", null, t("Change the design first")), h("div", { className: "ai-body" }, refineField, h("div", { className: "ai-btns" }, redesignButton))),
           w.group(
             `${d.genre}: ${d.name}`,
-            w.form([{ label: "Name", field: nameField }, { label: "Description", field: descField }, { label: "Plays on", field: targetField }]),
+            w.form([{ label: t("Name"), field: nameField }, { label: t("Description"), field: descField }, { label: t("Plays on"), field: targetField }]),
             targetHint2,
             h("div", { className: "ai-hint" }, d.premise)
           ),
-          w.group("Players and forces", players2, forces),
-          w.group(`Systems (${d.systems.length})`, systemRows, h("div", { className: "ai-hint" }, "Green: the toolkit builds it from the parameters. Gold: written as a trigger script from the description. Edit the parameters here; a location or unit by name, numbers as digits.")),
-          w.group(`Layout brief and ${d.locations.length} locations`, briefField, h("details", null, h("summary", null, "Locations the brief must place"), h("div", { className: "ai-body" }, locations))),
-          w.group("Objectives and briefing", objectivesField, briefingField),
-          d.notes.length ? h("details", null, h("summary", null, "Designer's notes"), h("div", { className: "ai-body" }, noteList(d.notes))) : null
+          w.group(t("Players and forces"), players2, forces),
+          w.group(t("Systems ({n})", { n: d.systems.length }), systemRows, h("div", { className: "ai-hint" }, t("Green: the toolkit builds it from the parameters. Gold: written as a trigger script from the description. Edit the parameters here; a location or unit by name, numbers as digits."))),
+          w.group(t("Layout brief and {n, plural, one {# location} other {# locations}}", { n: d.locations.length }), briefField, h("details", null, h("summary", null, t("Locations the brief must place")), h("div", { className: "ai-body" }, locations))),
+          w.group(t("Objectives and briefing"), objectivesField, briefingField),
+          d.notes.length ? h("details", null, h("summary", null, t("Designer's notes")), h("div", { className: "ai-body" }, noteList(d.notes))) : null
         ];
         for (const part of parts) if (part) designBody.append(part);
         designBox.hidden = false;
@@ -9539,7 +10770,7 @@ function openScenario(ctx, presetPrompt) {
       };
       const stepsBox = w.steps();
       stepsBox.hidden = true;
-      const stopButton = w.button("Stop the build", { onClick: () => {
+      const stopButton = w.button(t("Stop the build"), { onClick: () => {
         building?.abort.abort();
         runner.abort();
       } });
@@ -9565,7 +10796,7 @@ function openScenario(ctx, presetPrompt) {
         if (state.target === "open" && api.document.isOpen()) return true;
         const ok = await api.document.create({ width: state.width, height: state.height, tileset: state.tileset, name: "Untitled Scenario" });
         if (!ok) {
-          runner.idle("Kept the open map.");
+          runner.idle(t("Kept the open map."));
           return false;
         }
         state.target = "open";
@@ -9576,7 +10807,7 @@ function openScenario(ctx, presetPrompt) {
       const design = async (refine) => {
         if (!state.prompt.trim()) {
           promptField.focus();
-          runner.idle("Say what kind of scenario you want first.");
+          runner.idle(t("Say what kind of scenario you want first."));
           return;
         }
         if (runner.busy || designButton.disabled) return;
@@ -9609,7 +10840,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
         };
         designBox.before(runner.el);
         try {
-          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? "Changing the design" : "Designing the scenario", task: taskFor("design", ctx.settings().scenarioCeilingUsd) });
+          const r = await runRecipe(ctx, runner, "ums-design", input, { label: refine ? t("Changing the design") : t("Designing the scenario"), task: taskFor("design", ctx.settings().scenarioCeilingUsd) });
           if (!r) return;
           state.design = r.output;
           state.built = null;
@@ -9632,7 +10863,7 @@ Change this: ${state.refine.trim()}` : state.prompt;
       };
       const writeCustom = async (system, d) => {
         const bridge = scriptBridge(api);
-        if (!bridge) throw new Error("the TrigScript plugin is off");
+        if (!bridge) throw new Error(t("the TrigScript plugin is off"));
         const existing = bridge.state();
         const classic = d.target !== "remastered";
         const rate = classic ? `This map is for every version of StarCraft: write triggers only (level 1) \u2014 no program(), which would make the map need Remastered. Hyper triggers ${designTempo(d) === "hyper" ? "are on the map, so the trigger list runs about twelve times a second" : "are not on the map, so the trigger list runs about every two seconds"}.` : "This map is for StarCraft: Remastered: write this system as a program() (or several). Every trigger on the map runs each frame and there are no hyper triggers.";
@@ -9644,7 +10875,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         const input = { prompt, declarations: bridge.declarations({ compact: true }), script: existing?.source ?? void 0, existingTriggers: existingTriggersFor(api, handTriggers(api, existing?.block)) };
         let r = await runRecipe(ctx, runner, "triggers", input, { task: buildTask });
         checkBuild();
-        if (!r) throw new Error(runner.lastError ?? "the model did not answer");
+        if (!r) throw new Error(runner.lastError ?? t("the model did not answer"));
         let script = r.output.script;
         let compiled = await bridge.compile(script);
         checkBuild();
@@ -9653,16 +10884,16 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         for (let round = 0; bad(compiled) && round < REPAIR_ROUNDS; round++) {
           r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: faults(compiled) } }, { task: buildTask });
           checkBuild();
-          if (!r) throw new Error("the model did not answer the repair");
+          if (!r) throw new Error(t("the model did not answer the repair"));
           script = r.output.script;
           compiled = await bridge.compile(script);
           checkBuild();
         }
-        if (!compiled.ok) throw new Error(`the script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"} after ${REPAIR_ROUNDS} repairs; open TrigScript to fix it`);
-        if (classic && compiled.programs.length > 0) throw new Error(`the script still uses program() after ${REPAIR_ROUNDS} repairs, which this map (for every version of StarCraft) cannot have; change the design to Remastered, or open TrigScript to rewrite it`);
+        if (!compiled.ok) throw new Error(t("the script has {n, plural, one {# error} other {# errors}} after {rounds} repairs; open TrigScript to fix it", { n: compiled.diagnostics.length, rounds: REPAIR_ROUNDS }));
+        if (classic && compiled.programs.length > 0) throw new Error(t("the script still uses program() after {rounds} repairs, which this map (for every version of StarCraft) cannot have; change the design to Remastered, or open TrigScript to rewrite it", { rounds: REPAIR_ROUNDS }));
         const built = await bridge.build(script, {});
-        if (!built.block) throw new Error("the build failed");
-        return `${built.block.count} triggers from a script: ${r.output.summary}`;
+        if (!built.block) throw new Error(t("the build failed"));
+        return t("{n, plural, one {# trigger} other {# triggers}} from a script: {summary}", { n: built.block.count, summary: r.output.summary });
       };
       const build = async () => {
         const d = state.design;
@@ -9684,12 +10915,12 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         const locationNames2 = d.locations.map((l) => l.name);
         const kinds = new Set(systemKinds().map((k) => k.kind));
         const { systems: toBuild, dropped } = systemsToBuild(d);
-        for (const s of dropped) findings.push(`${s.name}: left out \u2014 on a Remastered map every trigger already runs each frame`);
+        for (const s of dropped) findings.push(t("{name}: left out \u2014 on a Remastered map every trigger already runs each frame", { name: s.name }));
         building = { doc: api.document.id(), abort: new AbortController() };
         stopButton.hidden = false;
         const steps = [];
         steps.push({
-          label: "Death counters and switches",
+          label: t("Death counters and switches"),
           vital: true,
           run: async () => {
             const budget = counterBudget(d, toolkitContext(api, { tempo, extraLocations: locationNames2 }));
@@ -9699,8 +10930,8 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         });
         const preset = d.layout?.preset ? d.layout : null;
         steps.push({
-          label: preset ? `Terrain and locations (${preset.preset} preset)` : "Terrain and locations",
-          hint: preset ? "" : "scmjs.dev plans the layout; this takes a few minutes",
+          label: preset ? t("Terrain and locations ({preset} preset)", { preset: preset.preset }) : t("Terrain and locations"),
+          hint: preset ? "" : t("scmjs.dev plans the layout; this takes a few minutes"),
           vital: true,
           run: async () => {
             let plan;
@@ -9717,8 +10948,8 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
               plan = await planTerrain();
               checkBuild();
             }
-            const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: `AI: ${d.name} terrain`, clearArea: true });
-            if (!rendered) throw new Error("the plan could not be rendered");
+            const rendered = renderPlan(api, plan, { originX: 0, originY: 0, label: t("AI: {name} terrain", { name: d.name }), clearArea: true });
+            if (!rendered) throw new Error(t("the plan could not be rendered"));
             findings.push(...rendered.findings.filter((f) => !f.startsWith("Check Map:")));
             noteMissingLocations();
             return summarizeRender(rendered);
@@ -9741,8 +10972,8 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
             rampPairs: rampPairsOf(api),
             bridgePair: bridgePairOf(api) ?? void 0
           };
-          const r = await runRecipe(ctx, runner, "map-plan", input, { label: "Planning the terrain", effort: terrainEffort(ctx.settings().quality), task: buildTask });
-          if (!r) throw new Error(runner.lastError ?? "no plan came back");
+          const r = await runRecipe(ctx, runner, "map-plan", input, { label: t("Planning the terrain"), effort: terrainEffort(ctx.settings().quality), task: buildTask });
+          if (!r) throw new Error(runner.lastError ?? t("no plan came back"));
           return r.output;
         };
         const missingLocations = () => {
@@ -9751,18 +10982,18 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         };
         const noteMissingLocations = () => {
           const missing = missingLocations();
-          if (missing.length) findings.push(`${missing.length} location${missing.length === 1 ? "" : "s"} the plan did not place: ${missing.join(", ")}. The systems that need them wait; draw the locations (Layers \u25B8 Locations), then build the waiting systems below.`);
+          if (missing.length) findings.push(t("{n, plural, one {# location} other {# locations}} the plan did not place: {names}. The systems that need them wait; draw the locations (Layers \u25B8 Locations), then build the waiting systems below.", { n: missing.length, names: missing.join(", ") }));
         };
         steps.push({
-          label: "Players and forces",
+          label: t("Players and forces"),
           run: async () => {
-            const typeOf = (label) => api.names.playerTypes().find((t) => t.label.toLowerCase() === label)?.value;
+            const typeOf = (label) => api.names.playerTypes().find((pt) => pt.label.toLowerCase() === label)?.value;
             const raceOf = (label) => api.names.races().find((r) => r.label.toLowerCase() === label)?.value;
             const races = { terran: "terran", zerg: "zerg", protoss: "protoss", random: "random", userSelect: "user selectable" };
             let changed = 0;
             const raced = [];
             const placedRace = placedBuildingsRace(toBuild, toolkitContext(api, { tempo }).isBuilding);
-            api.document.update("AI: players and forces", (tx) => {
+            api.document.update(t("AI: players and forces"), (tx) => {
               for (let slot = 0; slot < 8; slot++) {
                 const p = d.players.find((x) => x.slot === slot + 1);
                 if (!p) {
@@ -9777,12 +11008,12 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
                 if (tx.forces.set(f.index - 1, { name: f.name, allied: f.allied, alliedVictory: f.alliedVictory, sharedVision: f.sharedVision })) changed++;
               }
             });
-            if (raced.length) findings.push(`player${raced.length === 1 ? "" : "s"} ${raced.join(", ")}: race set to ${placedRace} instead of User Selectable \u2014 the game drops a User Selectable player's placed buildings and gives a melee start instead`);
+            if (raced.length) findings.push(t("{n, plural, one {player {players}} other {players {players}}}: race set to {race} instead of User Selectable \u2014 the game drops a User Selectable player's placed buildings and gives a melee start instead", { n: raced.length, players: raced.join(", "), race: String(placedRace) }));
             const starts = new Set(api.query.startLocations().map((s) => s.owner + 1));
             const missing = humans.filter((p) => !starts.has(p));
             if (missing.length) {
               const scn = api.document.scenario();
-              api.document.edit("AI: start locations", (tx) => {
+              api.document.edit(t("AI: start locations"), (tx) => {
                 missing.forEach((p, i) => {
                   const named = scn.locations.findIndex((l, li) => new RegExp(`\\b(start|spawn|base|home)\\s*${p}\\b`, "i").test(api.names.location(li)) && l.left !== l.right);
                   const loc2 = named >= 0 ? scn.locations[named] : null;
@@ -9790,7 +11021,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
                   tx.placeUnit(START_LOCATION, p - 1, c2.x, c2.y);
                 });
               });
-              findings.push(`start locations for player${missing.length === 1 ? "" : "s"} ${missing.join(", ")} were placed by the editor; check where`);
+              findings.push(t("start locations for {n, plural, one {player {players}} other {players {players}}} were placed by the editor; check where", { n: missing.length, players: missing.join(", ") }));
             }
             const keepers = [];
             const keeperName = keeperFor(d);
@@ -9798,29 +11029,29 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
             const owned = new Set(api.document.scenario().units.map((u) => u.owner));
             for (const p of d.players.filter((x) => x.type === "computer")) {
               if (owned.has(p.slot - 1) || keeper === null) continue;
-              api.document.edit(`AI: keeper for player ${p.slot}`, (tx) => {
+              api.document.edit(t("AI: keeper for player {slot}", { slot: p.slot }), (tx) => {
                 const px = (cur.width - 2) * TILE2, py = (2 + keepers.length * 2) * TILE2;
                 tx.placeUnit(keeper, p.slot - 1, px, py);
               });
               keepers.push(p.slot);
             }
-            if (keepers.length) findings.push(`player${keepers.length === 1 ? "" : "s"} ${keepers.join(", ")} (computer) owned nothing, which would defeat them at once and stop their triggers: a ${keeperName} in the top-right corner keeps them in the game`);
-            return `${changed} setting${changed === 1 ? "" : "s"} written, ${humans.length} human player${humans.length === 1 ? "" : "s"}${keepers.length ? `, ${keepers.length} keeper${keepers.length === 1 ? "" : "s"}` : ""}`;
+            if (keepers.length) findings.push(t("{n, plural, one {player {players}} other {players {players}}} (computer) owned nothing, which would defeat them at once and stop their triggers: a {unit} in the top-right corner keeps them in the game", { n: keepers.length, players: keepers.join(", "), unit: String(keeperName) }));
+            return keepers.length ? t("{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}, {keepers, plural, one {# keeper} other {# keepers}}", { n: changed, humans: humans.length, keepers: keepers.length }) : t("{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}", { n: changed, humans: humans.length });
           }
         });
         const systemStepFrom = steps.length;
         for (const s of toBuild) {
           steps.push({
-            label: `${s.kind === "custom" ? "Script" : "System"}: ${s.name}`,
+            label: s.kind === "custom" ? t("Script: {name}", { name: s.name }) : t("System: {name}", { name: s.name }),
             run: async () => {
               if (s.kind === "custom") return writeCustom(s, d);
-              if (!kinds.has(s.kind)) throw new Error(`the toolkit has no kind "${s.kind}"`);
+              if (!kinds.has(s.kind)) throw new Error(t('the toolkit has no kind "{kind}"', { kind: s.kind }));
               const needs = waitingOn(s, missingLocations());
               if (needs.length) throw new Waiting(needs);
               try {
                 const r = addSystem(api, s.kind, paramsOf(s.params), toolkitContext(api, { tempo, extraLocations: locationNames2 }), `AI: ${s.name}`);
                 findings.push(...r.notes.map((n2) => `${s.name}: ${n2}`));
-                return [r.count ? `${r.count} trigger${r.count === 1 ? "" : "s"}` : "", r.placed ? `${r.placed} placed on the map` : ""].filter(Boolean).join(", ") || "nothing to add";
+                return [r.count ? t("{n, plural, one {# trigger} other {# triggers}}", { n: r.count }) : "", r.placed ? t("{n} placed on the map", { n: r.placed }) : ""].filter(Boolean).join(", ") || t("nothing to add");
               } catch (err) {
                 if (err instanceof ToolkitError) throw new Error(err.problems.join("; "));
                 throw err;
@@ -9829,50 +11060,50 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
           });
         }
         if (!d.systems.some((s) => s.kind === "objectives") && d.objectives.trim()) {
-          steps.push({ label: "Objectives", run: async () => {
-            const r = addSystem(api, "objectives", { text: d.objectives.replace(/\n/g, "\\n") }, toolkitContext(api, { tempo, extraLocations: locationNames2 }), "AI: objectives");
-            return `${r.count} trigger`;
+          steps.push({ label: t("Objectives"), run: async () => {
+            const r = addSystem(api, "objectives", { text: d.objectives.replace(/\n/g, "\\n") }, toolkitContext(api, { tempo, extraLocations: locationNames2 }), t("AI: objectives"));
+            return t("{n, plural, one {# trigger} other {# triggers}}", { n: r.count });
           } });
         }
         if (d.briefing.length) {
           steps.push({
-            label: "Mission briefing",
+            label: t("Mission briefing"),
             run: async () => {
               const actions = api.names.actions(true);
               const typeOf = (label, fallback) => actions.find((a2) => a2.label.toLowerCase() === label)?.value ?? fallback;
-              api.document.update("AI: mission briefing", (tx) => {
-                const t = api.triggers.newTrigger(humans.map((p) => p - 1));
-                t.actions = [];
+              api.document.update(t("AI: mission briefing"), (tx) => {
+                const trig = api.triggers.newTrigger(humans.map((p) => p - 1));
+                trig.actions = [];
                 if (d.objectives.trim()) {
                   const a2 = api.triggers.newAction(typeOf("mission objectives", 4), true);
                   a2.text = tx.strings.intern(d.objectives);
-                  t.actions.push(a2);
+                  trig.actions.push(a2);
                 }
                 for (const line of d.briefing) {
                   const a2 = api.triggers.newAction(typeOf("text message", 3), true);
                   a2.text = tx.strings.intern(line);
                   a2.time = 8e3;
-                  t.actions.push(a2);
+                  trig.actions.push(a2);
                 }
-                tx.briefing.set([t]);
+                tx.briefing.set([trig]);
               });
-              return `${d.briefing.length} line${d.briefing.length === 1 ? "" : "s"}`;
+              return t("{n, plural, one {# line} other {# lines}}", { n: d.briefing.length });
             }
           });
         }
-        steps.push({ label: "Name and description", run: async () => {
-          api.document.update("AI: name and description", (tx) => {
+        steps.push({ label: t("Name and description"), run: async () => {
+          api.document.update(t("AI: name and description"), (tx) => {
             tx.properties({ name: d.name, description: d.description });
           });
           return d.name;
         } });
         steps.push({
-          label: "Check Map",
+          label: t("Check Map"),
           run: async () => {
             const issues = api.query.validate().filter((i) => i.level !== "info");
-            for (const i of issues) findings.push(`Check Map: ${i.text}`);
-            if (d.target === "remastered" && toBuild.some((x) => x.kind !== "custom") && !hasPrograms(api)) findings.push("The design is for Remastered, and its timers are counted at 24 trigger cycles a second, but no script on the map has a program: until one does the triggers run every two seconds and every timer is about 48 times slow. Add a program in TrigScript, or set the design to every version and build again.");
-            return issues.length ? `${issues.length} thing${issues.length === 1 ? "" : "s"} to look at` : "nothing wrong";
+            for (const i of issues) findings.push(t("Check Map: {text}", { text: i.text }));
+            if (d.target === "remastered" && toBuild.some((x) => x.kind !== "custom") && !hasPrograms(api)) findings.push(t("The design is for Remastered, and its timers are counted at 24 trigger cycles a second, but no script on the map has a program: until one does the triggers run every two seconds and every timer is about 48 times slow. Add a program in TrigScript, or set the design to every version and build again."));
+            return issues.length ? t("{n, plural, one {# thing} other {# things}} to look at", { n: issues.length }) : t("nothing wrong");
           }
         });
         const rows = steps.map((s) => addStep(s.label));
@@ -9892,7 +11123,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
             checkBuild();
           } catch (err) {
             ended = err;
-            leave(i, "not run");
+            leave(i, t("not run"));
             break;
           }
           rows[i].set("running", steps[i].hint ?? "");
@@ -9911,16 +11142,16 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
             }
             if (err instanceof BuildEnded || building.abort.signal.aborted) {
               ended = err instanceof BuildEnded ? err : new BuildEnded("stopped");
-              rows[i].set("skipped", "not run: stopped");
+              rows[i].set("skipped", t("not run: stopped"));
               notRun++;
-              leave(i + 1, "not run");
+              leave(i + 1, t("not run"));
               break;
             }
             failed++;
             rows[i].set("failed", err.message);
             findings.push(`${steps[i].label}: ${err.message}`);
             if (steps[i].vital) {
-              leave(i + 1, "not run");
+              leave(i + 1, t("not run"));
               break;
             }
           }
@@ -9928,10 +11159,10 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         const builtDoc = building.doc;
         building = null;
         stopButton.hidden = true;
-        if (ended?.reason === "map") findings.push("The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays.");
+        if (ended?.reason === "map") findings.push(t("The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays."));
         const buildWaiting = async () => {
           if (api.document.id() !== builtDoc) {
-            waitHint.textContent = "These systems belong to the map the scenario was built on; bring it to the front first.";
+            waitHint.textContent = t("These systems belong to the map the scenario was built on; bring it to the front first.");
             return;
           }
           const again = waiting.splice(0);
@@ -9954,7 +11185,7 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
                 rows[i].set("skipped", err.message);
               } else if (err instanceof BuildEnded) {
                 waiting.push(...again.slice(n2));
-                rows[i].set("skipped", "not run: stopped");
+                rows[i].set("skipped", t("not run: stopped"));
                 break;
               } else {
                 failed++;
@@ -9970,8 +11201,8 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
           waitHint.textContent = waitingText();
           settle();
         };
-        const waitingText = () => `${waiting.length} system${waiting.length === 1 ? "" : "s"} wait${waiting.length === 1 ? "s" : ""} for locations the plan did not place: ${[...new Set(waiting.flatMap((i) => waitingOn(toBuild[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ")}. Draw them, then build.`;
-        const waitButton = w.button("Build the waiting systems", { onClick: () => void buildWaiting() });
+        const waitingText = () => t("{n, plural, one {# system waits} other {# systems wait}} for locations the plan did not place: {names}. Draw them, then build.", { n: waiting.length, names: [...new Set(waiting.flatMap((i) => waitingOn(toBuild[i - systemStepFrom] ?? { params: [] }, missingLocations())))].join(", ") });
+        const waitButton = w.button(t("Build the waiting systems"), { onClick: () => void buildWaiting() });
         const waitHint = h("span", { className: "ai-hint" }, "");
         const waitBox = h("div", { className: "ai-btns", hidden: true }, waitButton, waitHint);
         runner.onTick = null;
@@ -9981,19 +11212,19 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
           const counts = { failed, waiting: waiting.length, notRun, stopped: ended?.reason === "stopped" };
           state.built = buildOutcome(counts);
           const text = outcomeText(d.name, counts);
-          afterHint.textContent = `${text} Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.`;
+          afterHint.textContent = t("{outcome} Every edit is an undo step; the settings and triggers are transactions outside undo, as in StarEdit.", { outcome: text });
           runner.idle(text);
-          api.ui.status(`AI: ${text}`);
+          api.ui.status(t("AI: {summary}", { summary: text }));
         };
         const notes = findings.filter((f) => f.trim());
-        if (notes.length) findingsBox.replaceChildren(h("details", { open: failed > 0 || ended !== null }, h("summary", null, `${notes.length} note${notes.length === 1 ? "" : "s"} from the build`), h("div", { className: "ai-body" }, noteList(notes))));
+        if (notes.length) findingsBox.replaceChildren(h("details", { open: failed > 0 || ended !== null }, h("summary", null, t("{n, plural, one {# note} other {# notes}} from the build", { n: notes.length })), h("div", { className: "ai-body" }, noteList(notes))));
         const afterHint = h("span", { className: "ai-hint" }, "");
         afterBox.replaceChildren(
-          w.button("Review it\u2026", { onClick: () => {
+          w.button(t("Review it\u2026"), { onClick: () => {
             dialog.close();
             openReview(ctx);
           } }),
-          w.button("Open the assistant", { onClick: () => {
+          w.button(t("Open the assistant"), { onClick: () => {
             dialog.close();
             api.commands.run("ask", `I just built the scenario "${d.name}" (${d.genre}) from a design: ${d.systems.map((s) => s.name).join(", ")}. Look it over and tell me what to fix first.`);
           } }),
@@ -10011,15 +11242,15 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         "div",
         { className: "ai-body" },
         promptField,
-        chips(Object.keys(EXAMPLES2), (label) => {
-          promptField.value = EXAMPLES2[label];
+        ((keys, labels) => chips(labels, (label) => {
+          promptField.value = EXAMPLES2[keys[labels.indexOf(label)]];
           state.prompt = promptField.value;
-        }),
+        }))(Object.keys(EXAMPLES2), [t("a madness map"), t("an RPG"), t("a tower defense")]),
         w.form([
-          { label: "Size", field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
-          { label: "Tileset", field: tilesetSel },
-          { label: "Players", field: playersSel },
-          { label: "Into", field: targetSel }
+          { label: t("Size"), field: h("div", { className: "ai-btns" }, widthSel, "\xD7", heightSel) },
+          { label: t("Tileset"), field: tilesetSel },
+          { label: t("Players"), field: playersSel },
+          { label: t("Into"), field: targetSel }
         ]),
         targetHint,
         scriptNote,
@@ -10042,16 +11273,16 @@ ${rate} Write only this system; the other systems already exist as ordinary trig
         runner.dispose();
       };
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
 // ai/dialogs/strings.ts
 var PRESETS3 = [
-  { label: "Translate to\u2026", text: "Translate every string to " },
-  { label: "Fix spelling and grammar", text: "Fix spelling, grammar and punctuation; change nothing else." },
-  { label: "Shorten", text: "Shorten each string as much as it can bear without losing its meaning." },
-  { label: "In-universe", text: "Rewrite the messages in the voice of a StarCraft mission briefing: terse, military, in-universe. Keep names and numbers." }
+  { label: msg("Translate to\u2026"), text: "Translate every string to " },
+  { label: msg("Fix spelling and grammar"), text: "Fix spelling, grammar and punctuation; change nothing else." },
+  { label: msg("Shorten"), text: "Shorten each string as much as it can bear without losing its meaning." },
+  { label: msg("In-universe"), text: "Rewrite the messages in the voice of a StarCraft mission briefing: terse, military, in-universe. Keep names and numbers." }
 ];
 function escapeControls(s) {
   return s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, (c2) => `<${c2.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}>`);
@@ -10063,30 +11294,30 @@ function openStrings(ctx) {
   const { api } = ctx;
   const w = api.ui.widgets;
   api.ui.dialog({
-    title: "Rewrite Strings",
+    title: t("Rewrite Strings"),
     size: "xl",
     tall: true,
     mount(body) {
       const root2 = styled(body);
       const runner = new Runner(ctx);
-      const instruction = textarea({ placeholder: "What to do with the strings.", rows: 2 });
+      const instruction = textarea({ placeholder: t("What to do with the strings."), rows: 2 });
       const scope = w.select([
-        { value: "all", label: "Every string in use" },
-        { value: "triggers", label: "Only trigger text (messages, objectives)" },
-        { value: "briefing", label: "Only the mission briefing" },
-        { value: "names", label: "Only names: scenario, forces, units, locations, switches" }
+        { value: "all", label: t("Every string in use") },
+        { value: "triggers", label: t("Only trigger text (messages, objectives)") },
+        { value: "briefing", label: t("Only the mission briefing") },
+        { value: "names", label: t("Only names: scenario, forces, units, locations, switches") }
       ], { value: "all" });
       const table = h("table", { className: "ai-table" });
       const tableBox = h("div", { className: "ai-scroll", hidden: true }, table);
       const ticks = /* @__PURE__ */ new Map();
       let proposed = [];
-      const applyButton = w.button("Apply ticked", { primary: true, disabled: true, onClick: () => {
+      const applyButton = w.button(t("Apply ticked"), { primary: true, disabled: true, onClick: () => {
         const rows = proposed.filter((p) => ticks.get(p.index)?.checked && p.after !== p.before);
         if (rows.length === 0) return;
-        const r = api.document.update("AI: rewrite strings", (tx) => {
+        const r = api.document.update(t("AI: rewrite strings"), (tx) => {
           for (const p of rows) tx.strings.set(p.index, unescapeControls(p.after));
         });
-        runner.idle(r.changed ? `Wrote ${rows.length} string${rows.length === 1 ? "" : "s"} in place. Not an undo step; Scenario \u25B8 String Editor shows them.` : "Nothing changed.");
+        runner.idle(r.changed ? t("Wrote {n, plural, one {# string} other {# strings}} in place. Not an undo step; Scenario \u25B8 String Editor shows them.", { n: rows.length }) : t("Nothing changed."));
         applyButton.disabled = true;
       } });
       const gather = () => {
@@ -10110,7 +11341,7 @@ function openStrings(ctx) {
         return out.sort((a2, b) => a2.index - b.index);
       };
       const show = () => {
-        table.replaceChildren(h("tr", null, h("th", null, ""), h("th", null, "#"), h("th", null, "Before"), h("th", null, "After"), h("th", null, "Used by")));
+        table.replaceChildren(h("tr", null, h("th", null, ""), h("th", null, "#"), h("th", null, t("Before")), h("th", null, t("After")), h("th", null, t("Used by"))));
         ticks.clear();
         for (const p of proposed) {
           const changed = p.after !== p.before;
@@ -10124,12 +11355,12 @@ function openStrings(ctx) {
       const run = async () => {
         if (!instruction.value.trim()) {
           instruction.focus();
-          runner.idle("Say what to do with the strings first.");
+          runner.idle(t("Say what to do with the strings first."));
           return;
         }
         const strings = gather();
         if (strings.length === 0) {
-          runner.idle("No strings in that scope.");
+          runner.idle(t("No strings in that scope."));
           return;
         }
         const r = await runRecipe(ctx, runner, "strings", { instruction: instruction.value.trim(), strings: strings.map((s) => ({ index: s.index, text: s.text, usage: s.usage })) });
@@ -10138,18 +11369,18 @@ function openStrings(ctx) {
         proposed = strings.map((s) => ({ index: s.index, before: s.text, after: after.get(s.index) ?? s.text, usage: s.usage }));
         show();
         const n2 = proposed.filter((p) => p.after !== p.before).length;
-        runner.idle(`${n2} of ${strings.length} strings would change. Untick any to keep, then Apply.`);
+        runner.idle(t("{n} of {total, plural, one {# string} other {# strings}} would change. Untick any to keep, then Apply.", { n: n2, total: strings.length }));
       };
       root2.append(
         w.group(
-          "Instruction",
+          t("Instruction"),
           instruction,
           h("div", { className: "ai-chips" }, ...PRESETS3.map((p) => h("button", { type: "button", className: "ai-chip", onClick: () => {
             instruction.value = p.text;
             instruction.focus();
-          } }, p.label))),
-          w.form([{ label: "Scope", field: scope }]),
-          h("div", { className: "ai-btns" }, w.button("Rewrite", { primary: true, onClick: () => void run() }))
+          } }, translate(p.label)))),
+          w.form([{ label: t("Scope"), field: scope }]),
+          h("div", { className: "ai-btns" }, w.button(t("Rewrite"), { primary: true, onClick: () => void run() }))
         ),
         runner.el,
         tableBox,
@@ -10158,7 +11389,7 @@ function openStrings(ctx) {
       );
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
@@ -10168,13 +11399,13 @@ function openTriggers(ctx) {
   const { api } = ctx;
   const bridge = scriptBridge(api);
   if (!bridge) {
-    void api.ui.alert(NO_SCRIPT_PLUGIN, { title: "Write Triggers" });
+    void api.ui.alert(noScriptPluginMessage(), { title: t("Write Triggers") });
     return;
   }
   const w = api.ui.widgets;
   const state = { prompt: "", script: "", summary: "", compiled: null };
   api.ui.dialog({
-    title: "Write Triggers",
+    title: t("Write Triggers"),
     size: "lg",
     tall: true,
     mount(body) {
@@ -10182,13 +11413,13 @@ function openTriggers(ctx) {
       const runner = new Runner(ctx);
       const existing = bridge.state();
       const hasScript = !!existing?.source;
-      const promptField = textarea({ placeholder: 'What should happen? ("each player gets 10 marines at their start every 30 seconds until minute 5", "victory when a player has 50 kills", "a countdown that ends the game in a draw")', rows: 4 });
+      const promptField = textarea({ placeholder: t('What should happen? ("each player gets 10 marines at their start every 30 seconds until minute 5", "victory when a player has 50 kills", "a countdown that ends the game in a draw")'), rows: 4 });
       promptField.addEventListener("input", () => {
         state.prompt = promptField.value;
       });
-      const extend = w.checkbox("Extend the map's current script", { value: hasScript, disabled: !hasScript });
-      const takeOver = w.checkbox("Replace every trigger on the map with the script (the hand-made ones are folded into it first)", { value: false });
-      const scriptField = textarea({ rows: 14, code: true, placeholder: "The script appears here. Edit it before building if you like." });
+      const extend = w.checkbox(t("Extend the map's current script"), { value: hasScript, disabled: !hasScript });
+      const takeOver = w.checkbox(t("Replace every trigger on the map with the script (the hand-made ones are folded into it first)"), { value: false });
+      const scriptField = textarea({ rows: 14, code: true, placeholder: t("The script appears here. Edit it before building if you like.") });
       scriptField.addEventListener("input", () => {
         state.script = scriptField.value;
         state.compiled = null;
@@ -10196,17 +11427,17 @@ function openTriggers(ctx) {
       });
       const summary = h("div", { className: "ai-hint" });
       const diagnostics = h("div", null);
-      const buildButton = w.button("Build", { primary: true, onClick: () => void build() });
-      const checkButton = w.button("Check", { onClick: () => void check() });
-      const openEditor = w.button("Open TrigScript", { ghost: true, onClick: () => bridge.open() });
+      const buildButton = w.button(t("Build"), { primary: true, onClick: () => void build() });
+      const checkButton = w.button(t("Check"), { onClick: () => void check() });
+      const openEditor = w.button(t("Open TrigScript"), { ghost: true, onClick: () => bridge.open() });
       const after = h("div", { className: "ai-btns", hidden: true }, buildButton, checkButton, openEditor);
       const showDiagnostics = (r) => {
         diagnostics.replaceChildren();
         if (r.ok) {
-          diagnostics.append(h("div", { className: "ai-ok" }, `Compiles: ${r.triggers.length} trigger${r.triggers.length === 1 ? "" : "s"}${r.programs.length ? `, ${r.programs.length === 1 ? "a program" : `${r.programs.length} programs`} of ${r.programs.reduce((n2, p) => n2 + p.count, 0)} triggers` : ""}.`));
+          diagnostics.append(h("div", { className: "ai-ok" }, r.programs.length ? t("Compiles: {n, plural, one {# trigger} other {# triggers}}, {programs, plural, one {a program} other {# programs}} of {inPrograms, plural, one {# trigger} other {# triggers}}.", { n: r.triggers.length, programs: r.programs.length, inPrograms: r.programs.reduce((n2, p) => n2 + p.count, 0) }) : t("Compiles: {n, plural, one {# trigger} other {# triggers}}.", { n: r.triggers.length })));
           return;
         }
-        diagnostics.append(h("div", { className: "ai-bad" }, `${r.diagnostics.length} error${r.diagnostics.length === 1 ? "" : "s"}:`), noteList(r.diagnostics.map(describeDiagnostic), "ai-bad"));
+        diagnostics.append(h("div", { className: "ai-bad" }, t("{n, plural, one {# error} other {# errors}}:", { n: r.diagnostics.length })), noteList(r.diagnostics.map(diagnosticLabel), "ai-bad"));
       };
       const check = async () => {
         try {
@@ -10215,14 +11446,14 @@ function openTriggers(ctx) {
           showDiagnostics(r);
           return r;
         } catch (err) {
-          diagnostics.replaceChildren(h("div", { className: "ai-bad" }, `Compiler: ${err.message}`));
+          diagnostics.replaceChildren(h("div", { className: "ai-bad" }, t("Compiler: {message}", { message: err.message })));
           return null;
         }
       };
       const generate = async () => {
         if (!state.prompt.trim()) {
           promptField.focus();
-          runner.idle("Say what the triggers should do first.");
+          runner.idle(t("Say what the triggers should do first."));
           return;
         }
         const declarations = bridge.declarations({ compact: true });
@@ -10244,7 +11475,7 @@ function openTriggers(ctx) {
         summary.textContent = state.summary;
         let compiled = await check();
         for (let round = 0; compiled && !compiled.ok && round < REPAIR_ROUNDS2; round++) {
-          runner.idle(`The script has ${compiled.diagnostics.length} error${compiled.diagnostics.length === 1 ? "" : "s"}; asking for a repair (${round + 1} of ${REPAIR_ROUNDS2})\u2026`);
+          runner.idle(t("The script has {n, plural, one {# error} other {# errors}}; asking for a repair ({round} of {rounds})\u2026", { n: compiled.diagnostics.length, round: round + 1, rounds: REPAIR_ROUNDS2 }));
           r = await runRecipe(ctx, runner, "triggers", { ...input, repair: { script, diagnostics: compiled.diagnostics.map(repairDiagnostic) } }, { task });
           if (!r) return;
           script = r.output.script;
@@ -10255,7 +11486,7 @@ function openTriggers(ctx) {
           compiled = await check();
         }
         after.hidden = false;
-        if (compiled && !compiled.ok) runner.idle("The script still has errors. Fix them here or in TrigScript, then Build.");
+        if (compiled && !compiled.ok) runner.idle(t("The script still has errors. Fix them here or in TrigScript, then Build."));
       };
       const build = async () => {
         if (!state.script.trim()) return;
@@ -10263,27 +11494,27 @@ function openTriggers(ctx) {
         state.compiled = r.compiled;
         showDiagnostics(r.compiled);
         if (r.block) {
-          runner.idle(`Built ${r.block.count} trigger${r.block.count === 1 ? "" : "s"} into the map (#${r.block.start + 1}\u2013#${r.block.start + r.block.count}). The source is kept with the map; TrigScript shows it.`);
-          api.ui.status(`AI: built ${r.block.count} triggers from the script.`);
-        } else runner.idle("Not built: the script has errors.");
+          runner.idle(t("Built {n, plural, one {# trigger} other {# triggers}} into the map (#{first}\u2013#{last}). The source is kept with the map; TrigScript shows it.", { n: r.block.count, first: r.block.start + 1, last: r.block.start + r.block.count }));
+          api.ui.status(t("AI: built {n, plural, one {# trigger} other {# triggers}} from the script.", { n: r.block.count }));
+        } else runner.idle(t("Not built: the script has errors."));
       };
       root2.append(
         w.group(
-          "What the triggers should do",
+          t("What the triggers should do"),
           promptField,
           extend,
           takeOver,
-          h("div", { className: "ai-hint" }, `The model is given this map's names: ${api.query.startLocations().length} start locations, ${api.triggers.list().length} existing triggers, and every unit, location and switch as it is called here.`),
-          h("div", { className: "ai-btns" }, w.button("Write", { primary: true, onClick: () => void generate() }))
+          h("div", { className: "ai-hint" }, t("The model is given this map's names: {starts, plural, one {# start location} other {# start locations}}, {triggers, plural, one {# existing trigger} other {# existing triggers}}, and every unit, location and switch as it is called here.", { starts: api.query.startLocations().length, triggers: api.triggers.list().length })),
+          h("div", { className: "ai-btns" }, w.button(t("Write"), { primary: true, onClick: () => void generate() }))
         ),
         runner.el,
-        w.group("The script", summary, scriptField, diagnostics, after),
+        w.group(t("The script"), summary, scriptField, diagnostics, after),
         ledgerLine(ctx)
       );
       promptField.focus();
       return () => runner.dispose();
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 
@@ -10293,9 +11524,9 @@ function openOptions(api) {
   api.ui.open("preferences", { page: OPTIONS_PAGE });
 }
 var QUALITY_CHOICES = [
-  { value: "quick", label: "Quick \u2014 fastest and cheapest" },
-  { value: "standard", label: "Standard \u2014 tuned for each feature (recommended)" },
-  { value: "thorough", label: "Thorough \u2014 the highest setting; slower and dearer" }
+  { value: "quick", label: msg("Quick \u2014 fastest and cheapest") },
+  { value: "standard", label: msg("Standard \u2014 tuned for each feature (recommended)") },
+  { value: "thorough", label: msg("Thorough \u2014 the highest setting; slower and dearer") }
 ];
 function registerOptionsPage(deps) {
   const { api, store, account } = deps;
@@ -10308,20 +11539,20 @@ function registerOptionsPage(deps) {
       const offAccount = account.onChange(() => {
         balance.textContent = account.summary();
       });
-      const accountBtn = w.button(account.signedIn() ? "Account\u2026" : "Sign in\u2026", { primary: !account.signedIn(), onClick: () => {
+      const accountBtn = w.button(account.signedIn() ? t("Account\u2026") : t("Sign in\u2026"), { primary: !account.signedIn(), onClick: () => {
         page.close();
         deps.openAccount();
       } });
-      const aiBox = w.checkbox("Use the AI features", { value: s.ai, onChange: (v) => {
+      const aiBox = w.checkbox(t("Use the AI features"), { value: s.ai, onChange: (v) => {
         store.set({ ai: v });
       } });
-      const qualitySelect = w.select(QUALITY_CHOICES, { value: s.quality, onChange: (v) => {
+      const qualitySelect = w.select(QUALITY_CHOICES.map((c2) => ({ value: c2.value, label: translate(c2.label) })), { value: s.quality, onChange: (v) => {
         store.set({ quality: v });
       } });
-      const thinkingBox = w.checkbox("Show the model's reasoning summary while it works", { value: s.showThinking, onChange: (v) => {
+      const thinkingBox = w.checkbox(t("Show the model's reasoning summary while it works"), { value: s.showThinking, onChange: (v) => {
         store.set({ showThinking: v });
       } });
-      const dockBox = w.checkbox("Dock the assistant at the right, under the Properties panel, instead of floating over the map", { value: s.dockAssistant, onChange: (v) => {
+      const dockBox = w.checkbox(t("Dock the assistant at the right, under the Properties panel, instead of floating over the map"), { value: s.dockAssistant, onChange: (v) => {
         store.set({ dockAssistant: v });
       } });
       const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => {
@@ -10334,46 +11565,46 @@ function registerOptionsPage(deps) {
       const scenarioCeilingField = w.number({ value: s.scenarioCeilingUsd, min: 0, max: 100, step: 0.25, onChange: (v) => {
         store.set({ scenarioCeilingUsd: usd(v) });
       } });
-      const attachBox = w.checkbox("Send a picture of the visible area with every message", { value: s.attachView, onChange: (v) => {
+      const attachBox = w.checkbox(t("Send a picture of the visible area with every message"), { value: s.attachView, onChange: (v) => {
         store.set({ attachView: v });
       } });
-      const followBox2 = w.checkbox("Follow the assistant's work around the map", { value: s.followMap, onChange: (v) => {
+      const followBox2 = w.checkbox(t("Follow the assistant's work around the map"), { value: s.followMap, onChange: (v) => {
         store.set({ followMap: v });
       } });
       root2.append(
         w.group(
-          "Account",
+          t("Account"),
           h("div", { className: "ai-btns" }, accountBtn, balance),
-          h("div", { className: "ai-hint" }, "The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity.")
+          h("div", { className: "ai-hint" }, t("The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity."))
         ),
         w.group(
-          "AI features",
+          t("AI features"),
           aiBox,
-          h("div", { className: "ai-hint" }, "Off takes the Tools \u25B8 AI menu, the assistant and the AI buttons in the editor's dialogs away. Your account and the maps stored on it stay.")
+          h("div", { className: "ai-hint" }, t("Off takes the Tools \u25B8 AI menu, the assistant and the AI buttons in the editor's dialogs away. Your account and the maps stored on it stay."))
         ),
         w.group(
-          "Quality",
-          w.form([{ label: "Quality", field: qualitySelect }]),
-          h("div", { className: "ai-hint" }, "How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer.")
+          t("Quality"),
+          w.form([{ label: t("Quality"), field: qualitySelect }]),
+          h("div", { className: "ai-hint" }, t("How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer."))
         ),
         w.group(
-          "Spending",
-          w.form([{ label: "Per assistant message ($)", field: ceilingField }, { label: "Per Make Scenario run ($)", field: scenarioCeilingField }]),
-          h("div", { className: "ai-hint" }, "A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one.")
+          t("Spending"),
+          w.form([{ label: t("Per assistant message ($)"), field: ceilingField }, { label: t("Per Make Scenario run ($)"), field: scenarioCeilingField }]),
+          h("div", { className: "ai-hint" }, t("A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one."))
         ),
         h(
           "details",
           null,
-          h("summary", null, "Assistant"),
+          h("summary", null, t("Assistant")),
           h(
             "div",
             { className: "ai-body" },
-            w.form([{ label: "Rounds per message", field: roundsField }]),
+            w.form([{ label: t("Rounds per message"), field: roundsField }]),
             attachBox,
             followBox2,
             dockBox,
             thinkingBox,
-            h("div", { className: "ai-hint" }, "A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens.")
+            h("div", { className: "ai-hint" }, t("A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens."))
           )
         )
       );
@@ -10392,14 +11623,14 @@ function installDialogSlots(ctx, actions) {
   slots2.push(api.ui.dialogSlot("mapProperties", {
     mount(body, dlg) {
       const status = api.ui.el("span", { className: "faint" }, "");
-      const button = w.button("Suggest a name", { ghost: true, title: "Ask the AI for a name and description from what is on the map; fills the fields, OK writes them", onClick: async () => {
+      const button = w.button(t("Suggest a name"), { ghost: true, title: t("Ask the AI for a name and description from what is on the map; fills the fields, OK writes them"), onClick: async () => {
         button.setBusy(true);
-        status.replaceChildren(w.spinner({ size: "sm", label: "Asking\u2026" }));
+        status.replaceChildren(w.spinner({ size: "sm", label: t("Asking\u2026") }));
         try {
           const r = await ctx.client.run("describe", { facts: mapFacts(api), prompt: dlg.fields.description?.get()?.trim() ? `The current description is: ${dlg.fields.description.get()}` : void 0 }, {}, recipeOptions(ctx.settings()));
           dlg.fields.name?.set(r.output.name);
           dlg.fields.description?.set(r.output.description);
-          status.textContent = r.output.alternatives.length ? `Or: ${r.output.alternatives.map((a2) => a2.name).join(" \xB7 ")}` : "";
+          status.textContent = r.output.alternatives.length ? t("Or: {names}", { names: r.output.alternatives.map((a2) => a2.name).join(" \xB7 ") }) : "";
         } catch (err) {
           status.textContent = describeError(err);
         } finally {
@@ -10412,18 +11643,18 @@ function installDialogSlots(ctx, actions) {
   const triggerSlot = (host, body) => {
     const briefing = host.payload.briefing === true || host.dialog === "missionBriefing";
     body.append(
-      w.button("Explain", { ghost: true, title: "Walk through what these triggers do in play", onClick: () => {
+      w.button(t("Explain"), { ghost: true, title: t("Walk through what these triggers do in play"), onClick: () => {
         host.close();
         actions.explain();
       } }),
-      w.button(briefing ? "Write briefing\u2026" : "Write triggers\u2026", { ghost: true, title: briefing ? "Write objectives and narration with the AI" : "Write a trigger script from a description", onClick: () => {
+      w.button(briefing ? t("Write briefing\u2026") : t("Write triggers\u2026"), { ghost: true, title: briefing ? t("Write objectives and narration with the AI") : t("Write a trigger script from a description"), onClick: () => {
         host.close();
         if (briefing) actions.briefing();
         else actions.triggers();
       } }),
-      w.button("Ask", { ghost: true, title: "Ask the assistant about the triggers", onClick: () => {
+      w.button(t("Ask"), { ghost: true, title: t("Ask the assistant about the triggers"), onClick: () => {
         host.close();
-        actions.assistant(briefing ? "About the mission briefing: " : "About the triggers: ");
+        actions.assistant(briefing ? t("About the mission briefing: ") : t("About the triggers: "));
       } })
     );
   };
@@ -10432,7 +11663,7 @@ function installDialogSlots(ctx, actions) {
   slots2.push(api.ui.dialogSlot("missionBriefing", { mount: (body, host) => triggerSlot(host, body) }));
   slots2.push(api.ui.dialogSlot("stringEditor", {
     mount(body, host) {
-      body.append(w.button("Rewrite with AI\u2026", { ghost: true, title: "Translate, fix or retone the strings", onClick: () => {
+      body.append(w.button(t("Rewrite with AI\u2026"), { ghost: true, title: t("Translate, fix or retone the strings"), onClick: () => {
         host.close();
         actions.strings();
       } }));
@@ -10440,9 +11671,9 @@ function installDialogSlots(ctx, actions) {
   }));
   slots2.push(api.ui.dialogSlot("playerSettings", {
     mount(body, host) {
-      body.append(w.button("Set up with AI\u2026", { ghost: true, title: "Tell the assistant what the players should be", onClick: () => {
+      body.append(w.button(t("Set up with AI\u2026"), { ghost: true, title: t("Tell the assistant what the players should be"), onClick: () => {
         host.close();
-        actions.assistant("Set up the players and forces for: ");
+        actions.assistant(t("Set up the players and forces for: "));
       } }));
     }
   }));
@@ -10472,33 +11703,33 @@ function installAi(deps) {
     }
     assistantPanel = openAssistant(ctx, conversations);
   };
-  ctx.presence = api.ui.statusItem({ text: "AI", title: "AI Assistant (Ctrl+Shift+A)", onClick: toggleAssistant });
-  out.push(api.commands.register({ id: "generate", title: "AI: Generate Map", run: () => openGenerate(ctx) }));
-  out.push(api.commands.register({ id: "scenario", title: "AI: Make Scenario", run: (prompt) => openScenario(ctx, typeof prompt === "string" ? prompt : void 0) }));
-  out.push(api.commands.register({ id: "assistant", title: "AI: Assistant", run: toggleAssistant }));
-  out.push(api.commands.register({ id: "ask", title: "AI: Ask about this", run: (text) => {
+  ctx.presence = api.ui.statusItem({ text: "AI", title: t("AI Assistant (Ctrl+Shift+A)"), onClick: toggleAssistant });
+  out.push(api.commands.register({ id: "generate", title: msg("AI: Generate Map"), run: () => openGenerate(ctx) }));
+  out.push(api.commands.register({ id: "scenario", title: msg("AI: Make Scenario"), run: (prompt) => openScenario(ctx, typeof prompt === "string" ? prompt : void 0) }));
+  out.push(api.commands.register({ id: "assistant", title: msg("AI: Assistant"), run: toggleAssistant }));
+  out.push(api.commands.register({ id: "ask", title: msg("AI: Ask about this"), run: (text) => {
     showAssistant().ask(typeof text === "string" ? text : "", false);
   } }));
-  out.push(api.commands.register({ id: "ai-options", title: "AI: Options", run: () => ctx.openSettings() }));
+  out.push(api.commands.register({ id: "ai-options", title: msg("AI: Options"), run: () => ctx.openSettings() }));
   const menu = "Tools/AI";
-  out.push(api.menu.add(menu, { label: "Make Scenario\u2026", icon: "plugin", command: "scenario" }));
-  out.push(api.menu.add(menu, { label: "Generate Map\u2026", icon: "plugin", command: "generate" }));
-  out.push(api.menu.add(menu, { label: "Redo Area\u2026", icon: "plugin", enabled: open, run: () => void openRegion(ctx) }));
-  out.push(api.menu.add(menu, { label: "Write Triggers\u2026", icon: "plugin", enabled: open, run: () => openTriggers(ctx) }));
-  out.push(api.menu.add(menu, { label: "Explain Triggers\u2026", icon: "plugin", enabled: open, run: () => openExplain(ctx) }));
-  out.push(api.menu.add(menu, { label: "Name and Describe\u2026", icon: "plugin", enabled: open, run: () => openDescribe(ctx) }));
-  out.push(api.menu.add(menu, { label: "Write Briefing\u2026", icon: "plugin", enabled: open, run: () => openBriefing(ctx) }));
-  out.push(api.menu.add(menu, { label: "Review Map\u2026", icon: "plugin", enabled: open, run: () => openReview(ctx) }));
-  out.push(api.menu.add(menu, { label: "Rewrite Strings\u2026", icon: "plugin", enabled: open, run: () => openStrings(ctx) }));
-  out.push(api.menu.add(menu, { label: "Assistant", shortcut: "Ctrl+Shift+A", icon: "plugin", enabled: open, separator: true, command: "assistant" }));
-  out.push(api.menu.add(menu, { label: "Options\u2026", icon: "plugin", separator: true, command: "ai-options" }));
+  out.push(api.menu.add(menu, { label: msg("Make Scenario\u2026"), icon: "plugin", command: "scenario" }));
+  out.push(api.menu.add(menu, { label: msg("Generate Map\u2026"), icon: "plugin", command: "generate" }));
+  out.push(api.menu.add(menu, { label: msg("Redo Area\u2026"), icon: "plugin", enabled: open, run: () => void openRegion(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Write Triggers\u2026"), icon: "plugin", enabled: open, run: () => openTriggers(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Explain Triggers\u2026"), icon: "plugin", enabled: open, run: () => openExplain(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Name and Describe\u2026"), icon: "plugin", enabled: open, run: () => openDescribe(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Write Briefing\u2026"), icon: "plugin", enabled: open, run: () => openBriefing(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Review Map\u2026"), icon: "plugin", enabled: open, run: () => openReview(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Rewrite Strings\u2026"), icon: "plugin", enabled: open, run: () => openStrings(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Assistant"), shortcut: "Ctrl+Shift+A", icon: "plugin", enabled: open, separator: true, command: "assistant" }));
+  out.push(api.menu.add(menu, { label: msg("Options\u2026"), icon: "plugin", separator: true, command: "ai-options" }));
   out.push(api.contextMenu.add("viewport", {
-    label: "Redo this area with AI\u2026",
+    label: msg("Redo this area with AI\u2026"),
     visible: (c2) => c2.markedArea !== null,
     run: (c2) => void openRegion(ctx, c2.markedArea)
   }));
   out.push(api.contextMenu.add("viewport", {
-    label: (c2) => c2.markedArea ? "Ask AI about this area\u2026" : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "Ask AI about the selection\u2026" : "Ask AI about this spot\u2026",
+    label: (c2) => c2.markedArea ? t("Ask AI about this area\u2026") : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? t("Ask AI about the selection\u2026") : t("Ask AI about this spot\u2026"),
     enabled: open,
     run: (c2) => {
       const where3 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
@@ -10657,21 +11888,21 @@ function shortDay2(iso) {
   return d.toLocaleDateString(void 0, { weekday: "short", month: "short", day: "numeric" });
 }
 function ago(iso, now = Date.now()) {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return iso;
-  const s = Math.max(0, Math.round((now - t) / 1e3));
-  if (s < 60) return "just now";
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return iso;
+  const s = Math.max(0, Math.round((now - time) / 1e3));
+  if (s < 60) return t("just now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t("{n} min ago", { n: m });
   const hrs = Math.round(m / 60);
-  if (hrs < 24) return `${hrs} h ago`;
+  if (hrs < 24) return t("{n} h ago", { n: hrs });
   const d = Math.round(hrs / 24);
-  if (d === 1) return "yesterday";
-  if (d < 30) return `${d} days ago`;
+  if (d === 1) return t("yesterday");
+  if (d < 30) return t("{n} days ago", { n: d });
   const mo = Math.round(d / 30);
-  if (mo < 12) return `${mo} month${mo === 1 ? "" : "s"} ago`;
+  if (mo < 12) return t("{n, plural, one {# month ago} other {# months ago}}", { n: mo });
   const y = Math.round(mo / 12);
-  return `${y} year${y === 1 ? "" : "s"} ago`;
+  return t("{n, plural, one {# year ago} other {# years ago}}", { n: y });
 }
 
 // share/link.ts
@@ -10695,15 +11926,15 @@ function copyLink(token, serverUrl, where3) {
   return linkTo("map", token, serverUrl, where3);
 }
 function inviteFrom(text) {
-  const t = text.trim();
-  if (INVITE.test(t)) return t;
-  const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
+  const t2 = text.trim();
+  if (INVITE.test(t2)) return t2;
+  const m = /\/share\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t2);
   return m ? m[1] : null;
 }
 function copyTokenFrom(text) {
-  const t = text.trim();
-  if (INVITE.test(t)) return t;
-  const m = /\/map\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t);
+  const t2 = text.trim();
+  if (INVITE.test(t2)) return t2;
+  const m = /\/map\/([A-Za-z0-9_-]{16,64})(?![A-Za-z0-9_-])/.exec(t2);
   return m ? m[1] : null;
 }
 function inviteOnPage(pathname) {
@@ -10744,7 +11975,7 @@ function openEmbedDialog(ctx, target) {
   const { api } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "Embed This Map",
+    title: t("Embed This Map"),
     size: "md",
     mount(body) {
       const root2 = styled2(body);
@@ -10754,25 +11985,27 @@ function openEmbedDialog(ctx, target) {
       const status = w.statusLine({ text: "" });
       const out = h2("div", null);
       let copy = null;
+      let copied = false;
       const to = w.select([
-        { value: "copy", label: "A copy of the map: anyone can open their own" },
-        ...target.edit ? [{ value: "edit", label: "The shared map: anyone who sees it can join and edit" }] : []
+        { value: "copy", label: t("A copy of the map: anyone can open their own") },
+        ...target.edit ? [{ value: "edit", label: t("The shared map: anyone who sees it can join and edit") }] : []
       ], { value: "copy", onChange: () => void render() });
       const size = w.select([
-        { value: "large", label: "Large (1200 \xD7 630)" },
-        { value: "small", label: "Small (600 \xD7 315), for a signature" }
+        { value: "large", label: t("Large (1200 \xD7 630)") },
+        { value: "small", label: t("Small (600 \xD7 315), for a signature") }
       ], { value: "large", onChange: () => void render() });
       const row = (label, text) => {
         const area = document.createElement("textarea");
         area.readOnly = true;
         area.value = text;
-        const copyBtn = w.button("Copy", { onClick: async () => {
+        const copyBtn = w.button(t("Copy"), { onClick: async () => {
           try {
             await navigator.clipboard.writeText(text);
-            status.set(`${label} copied.`, "ok");
+            copied = true;
+            status.set(t("{what} copied.", { what: label }), "ok");
           } catch {
             area.select();
-            status.set("Select the text and copy it.", "warn");
+            status.set(t("Select the text and copy it."), "warn");
           }
         } });
         return h2("div", null, h2("div", { className: "sd-k" }, label), h2("div", { className: "sd-snip" }, area, copyBtn));
@@ -10781,7 +12014,7 @@ function openEmbedDialog(ctx, target) {
         clear2(out);
         const action = to.value === "edit" && target.edit ? "edit" : "copy";
         if (action === "copy" && !copy) {
-          status.busy("Making a link\u2026");
+          status.busy(t("Making a link\u2026"));
           try {
             copy = await target.copy();
             status.set("");
@@ -10792,25 +12025,27 @@ function openEmbedDialog(ctx, target) {
         }
         const pick = action === "edit" ? target.edit : copy;
         const s = embedSnippets({ name: target.name, link: pick.link, card: pick.card, action, small: size.value === "small" });
-        if (action === "edit") status.set("Anyone who sees this picture can follow it, join the map and edit it. Account \u25B8 Shared maps \u25B8 New link stops the old link working.", "warn");
-        else if (!status.textContent?.includes("copied")) status.set("");
+        if (action === "edit") {
+          copied = false;
+          status.set(t("Anyone who sees this picture can follow it, join the map and edit it. Account \u25B8 Shared maps \u25B8 New link stops the old link working."), "warn");
+        } else if (!copied) status.set("");
         out.append(
           h2("img", { className: "sd-embed-pic", src: `${pick.card}?w=600`, alt: "" }),
-          row("Markdown \u2014 GitHub, Discourse, Reddit", s.markdown),
-          row("BBCode \u2014 forums", s.bbcode),
-          row("HTML \u2014 websites", s.html),
-          row("The picture on its own", s.image)
+          row(t("Markdown \u2014 GitHub, Discourse, Reddit"), s.markdown),
+          row(t("BBCode \u2014 forums"), s.bbcode),
+          row(t("HTML \u2014 websites"), s.html),
+          row(t("The picture on its own"), s.image)
         );
       };
       root2.append(
-        h2("div", { className: "sd-hint" }, `A picture of \u201C${target.name}\u201D that links to it, for a forum post or signature, a README or a website. The picture shows the map, its name, who shared it, its size and players.`),
-        w.form([{ label: "The picture opens", field: to }, { label: "Size", field: size }]),
+        h2("div", { className: "sd-hint" }, t("A picture of \u201C{name}\u201D that links to it, for a forum post or signature, a README or a website. The picture shows the map, its name, who shared it, its size and players.", { name: target.name })),
+        w.form([{ label: t("The picture opens"), field: to }, { label: t("Size"), field: size }]),
         out,
         status
       );
       void render();
     },
-    buttons: [{ label: "Close", primary: true }]
+    buttons: [{ label: t("Close"), primary: true }]
   });
 }
 
@@ -10826,18 +12061,21 @@ function keptEmbedTarget(ctx, view) {
       const { map } = await account.client.map(view.id);
       let link = map.linkList.find((l) => l.revision === null) ?? null;
       if (!link) link = (await account.client.createLink(view.id, null)).link;
-      if (!link.card) throw new Error("this server has no pictures for links yet.");
+      if (!link.card) throw new Error(t("this server has no pictures for links yet."));
       return { link: copyLink(link.token, account.serverUrl(), here()), card: link.card };
     }
   };
 }
 var KEEP_CHOICES = [
-  { value: "live", label: "Until everyone leaves" },
-  { value: "1", label: "For a day" },
-  { value: "7", label: "For a week" },
-  { value: "30", label: "For a month" },
-  { value: "forever", label: "Until I end it" }
+  { value: "live", label: msg("Until everyone leaves") },
+  { value: "1", label: msg("For a day") },
+  { value: "7", label: msg("For a week") },
+  { value: "30", label: msg("For a month") },
+  { value: "forever", label: msg("Until I end it") }
 ];
+function keepChoices(withLive = true) {
+  return KEEP_CHOICES.filter((c2) => withLive || c2.value !== "live").map((c2) => ({ value: c2.value, label: translate(c2.label) }));
+}
 function keepDaysOf(choice) {
   if (choice === "live") return void 0;
   if (choice === "forever") return null;
@@ -10850,14 +12088,16 @@ function choiceOf(keepDays) {
   return String(keepDays);
 }
 function keepHint(choice) {
-  if (choice === "live") return "The map is on scmjs.dev only while it is shared: sharing ends when you stop it, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it.";
-  const span = choice === "1" ? "a day" : choice === "30" ? "a month" : "a week";
-  return `The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. ${choice === "forever" ? "It stays open until you end it (or after a year with no edits)" : `It ends after ${span} with no edits`}, and the map stays in My Maps.`;
+  if (choice === "live") return t("The map is on scmjs.dev only while it is shared: sharing ends when you stop it, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it.");
+  if (choice === "forever") return t("The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It stays open until you end it (or after a year with no edits), and the map stays in My Maps.");
+  if (choice === "1") return t("The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a day with no edits, and the map stays in My Maps.");
+  if (choice === "30") return t("The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a month with no edits, and the map stays in My Maps.");
+  return t("The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a week with no edits, and the map stays in My Maps.");
 }
 function endsLine(v) {
-  if (v.keepDays === void 0) return "Until everyone leaves";
-  if (v.keepDays === null) return "Until you end it";
-  return v.endsAt ? `Ends ${shortDay2(v.endsAt)} unless someone edits it` : "Kept open";
+  if (v.keepDays === void 0) return t("Until everyone leaves");
+  if (v.keepDays === null) return t("Until you end it");
+  return v.endsAt ? t("Ends {date} unless someone edits it", { date: shortDay2(v.endsAt) }) : t("Kept open");
 }
 var lower = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 function sharedMapsList(ctx, controls, opts = {}) {
@@ -10870,21 +12110,21 @@ function sharedMapsList(ctx, controls, opts = {}) {
   const render = () => {
     clear2(el);
     if (!rooms.length) {
-      el.append(h2("div", { className: "sd-hint" }, "You are not sharing any maps."), status);
+      el.append(h2("div", { className: "sd-hint" }, t("You are not sharing any maps.")), status);
       return;
     }
-    el.append(h2("div", { className: "sd-hint" }, `${rooms.length} of ${limit} shared maps.`));
+    el.append(h2("div", { className: "sd-hint" }, t("{n} of {limit} shared maps.", { n: rooms.length, limit })));
     for (const r of rooms) {
       const inIt = controls.current()?.room?.id === r.id && controls.current()?.phase !== "ended";
       const lines = [
-        r.kind === "kept" ? `Kept open \xB7 ${lower(endsLine(r))}` : "Open until everyone leaves",
-        r.people.length ? `In it now: ${r.people.join(", ")}` : "Nobody in it now",
-        r.kind === "kept" && r.lastEditAt ? `Last edit ${ago(r.lastEditAt)}${r.lastEditBy ? ` by ${r.lastEditBy}` : ""}` : ""
+        r.kind === "kept" ? t("Kept open \xB7 {ends}", { ends: lower(endsLine(r)) }) : t("Open until everyone leaves"),
+        r.people.length ? t("In it now: {people}", { people: r.people.join(", ") }) : t("Nobody in it now"),
+        r.kind === "kept" && r.lastEditAt ? r.lastEditBy ? t("Last edit {when} by {name}", { when: ago(r.lastEditAt), name: r.lastEditBy }) : t("Last edit {when}", { when: ago(r.lastEditAt) }) : ""
       ].filter(Boolean);
       const buttons = h2("div", { className: "sd-btns" });
       if (!inIt) {
-        buttons.append(w.button("Join", { onClick: async () => {
-          status.busy(`Joining ${r.name}\u2026`);
+        buttons.append(w.button(t("Join"), { onClick: async () => {
+          status.busy(t("Joining {name}\u2026", { name: r.name }));
           try {
             await controls.join(r.invite, account.current()?.name ?? "Owner");
             status.set("");
@@ -10894,25 +12134,25 @@ function sharedMapsList(ctx, controls, opts = {}) {
           }
         } }));
       }
-      buttons.append(w.button("Copy link", { onClick: async () => {
+      buttons.append(w.button(t("Copy link"), { onClick: async () => {
         try {
           await navigator.clipboard.writeText(inviteLink(r.invite, account.serverUrl(), typeof location !== "undefined" ? location : null));
-          status.set("The link is on the clipboard.", "ok");
+          status.set(t("The link is on the clipboard."), "ok");
         } catch {
-          status.set("The clipboard is not available here.", "warn");
+          status.set(t("The clipboard is not available here."), "warn");
         }
       } }));
-      buttons.append(w.button("New link", { onClick: async () => {
+      buttons.append(w.button(t("New link"), { onClick: async () => {
         try {
           const { room } = await account.client.relinkSharedMap(r.id);
           replace(room);
-          status.set("The old link no longer works. Nobody in the map was sent out.", "ok");
+          status.set(t("The old link no longer works. Nobody in the map was sent out."), "ok");
         } catch (err) {
           status.set(describeError(err), "error");
         }
       } }));
       if (r.kind === "kept") {
-        const how = w.select(KEEP_CHOICES.filter((c2) => c2.value !== "live"), { value: choiceOf(r.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
+        const how = w.select(keepChoices(false), { value: choiceOf(r.keepDays), title: t("How long it stays open after its last edit"), onChange: async (v) => {
           try {
             const { room } = await account.client.keepSharedMap(r.id, keepDaysOf(v) ?? null);
             replace(room);
@@ -10924,19 +12164,19 @@ function sharedMapsList(ctx, controls, opts = {}) {
         buttons.append(how);
       }
       const target = keptEmbedTarget(ctx, r);
-      if (target) buttons.append(w.button("Embed\u2026", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: () => {
+      if (target) buttons.append(w.button(t("Embed\u2026"), { title: t("A picture of the map that links to it, for a forum, a README or a website"), onClick: () => {
         openEmbedDialog(ctx, target);
       } }));
-      buttons.append(w.button("End sharing", { danger: true, onClick: async () => {
-        const text = r.kind === "kept" ? `End sharing \u201C${r.name}\u201D? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.` : `End sharing \u201C${r.name}\u201D? Anyone in it is sent out; they keep their copy and can save it.`;
-        if (!await api.ui.confirm(text, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
+      buttons.append(w.button(t("End sharing"), { danger: true, onClick: async () => {
+        const text = r.kind === "kept" ? t("End sharing \u201C{name}\u201D? Anyone in it is sent out and the link stops working. The map and its revisions stay in My Maps.", { name: r.name }) : t("End sharing \u201C{name}\u201D? Anyone in it is sent out; they keep their copy and can save it.", { name: r.name });
+        if (!await api.ui.confirm(text, { title: t("End sharing"), confirmLabel: t("End sharing"), danger: true })) return;
         try {
           const res = await account.client.endSharedMap(r.id);
           rooms = res.rooms;
           limit = res.limit;
           render();
           opts.onChange?.(rooms);
-          status.set("Sharing ended.", "ok");
+          status.set(t("Sharing ended."), "ok");
         } catch (err) {
           status.set(describeError(err), "error");
         }
@@ -10944,9 +12184,9 @@ function sharedMapsList(ctx, controls, opts = {}) {
       el.append(h2(
         "div",
         { className: "sd-shared-row" },
-        h2("div", { className: "sd-name" }, r.name, inIt ? h2("span", { className: "sd-sub" }, " \xB7 you are in it") : null),
+        h2("div", { className: "sd-name" }, r.name, inIt ? h2("span", { className: "sd-sub" }, t(" \xB7 you are in it")) : null),
         ...lines.map((l) => h2("div", { className: "sd-sub" }, l)),
-        h2("div", { className: "sd-sub", title: formatDate(r.createdAt) }, `Shared ${ago(r.createdAt)}`),
+        h2("div", { className: "sd-sub", title: formatDate(r.createdAt) }, t("Shared {when}", { when: ago(r.createdAt) })),
         buttons
       ));
     }
@@ -10958,7 +12198,7 @@ function sharedMapsList(ctx, controls, opts = {}) {
     opts.onChange?.(rooms);
   };
   const reload = async () => {
-    status.busy("Loading your shared maps\u2026");
+    status.busy(t("Loading your shared maps\u2026"));
     if (!el.contains(status)) {
       clear2(el);
       el.append(status);
@@ -10984,14 +12224,14 @@ function sharedMapsList(ctx, controls, opts = {}) {
 function storageBar(used, cap) {
   const share = cap > 0 ? Math.min(1, used / cap) : 0;
   const bar = h2("div", { className: `sd-bar${share >= 0.95 ? " sd-full" : ""}` }, h2("i", { style: `width:${(share * 100).toFixed(1)}%` }));
-  const caption = h2("div", { className: "sd-hint" }, `${formatBytes(used)} of ${formatBytes(cap)} used`);
+  const caption = h2("div", { className: "sd-hint" }, t("{used} of {cap} used", { used: formatBytes(used), cap: formatBytes(cap) }));
   return h2("div", null, bar, caption);
 }
 function openAccountDialog(ctx) {
   const { api, account } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "scmjs.dev Account",
+    title: t("scmjs.dev Account"),
     size: "md",
     mount(body, dialog) {
       const root2 = styled2(body);
@@ -11015,43 +12255,43 @@ function openAccountDialog(ctx) {
         aiRow.style.display = account.aiOffered() ? "flex" : "none";
         const rows = [];
         if (s.kind === "guest") {
-          rows.push(["Status", h2("span", { className: "sd-big" }, "Not signed in")]);
-          if (s.offers) rows.push(["", h2("span", { className: "sd-hint" }, `${s.offers.trial ? `A free trial of ${formatUsd(s.offers.trialUsd)} needs no sign-in. ` : ""}Signing in ${signInGives(s.offers)}, and room to keep maps on your account.`)]);
+          rows.push([t("Status"), h2("span", { className: "sd-big" }, t("Not signed in"))]);
+          if (s.offers) rows.push(["", h2("span", { className: "sd-hint" }, (s.offers.trial ? t("A free trial of {amount} needs no sign-in.", { amount: formatUsd(s.offers.trialUsd) }) + " " : "") + t("Signing in {gives}, and room to keep maps on your account.", { gives: signInGives(s.offers) }))]);
         } else if (s.kind === "trial") {
-          rows.push(["Status", h2("span", { className: "sd-big" }, "Free trial")]);
-          if (v) rows.push(["Balance", `${formatUsd(v.balanceUsd)} left`]);
-          rows.push(["", h2("span", { className: "sd-hint" }, "A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps.")]);
+          rows.push([t("Status"), h2("span", { className: "sd-big" }, t("Free trial"))]);
+          if (v) rows.push([tc("account", "Balance"), t("{balance} left", { balance: formatUsd(v.balanceUsd) })]);
+          rows.push(["", h2("span", { className: "sd-hint" }, t("A trial is one browser, once. Sign in to keep what is left, get the sign-in credit, and store maps."))]);
         } else {
-          rows.push(["Signed in as", h2("span", { className: "sd-big" }, v?.name ?? "you")]);
+          rows.push([t("Signed in as"), h2("span", { className: "sd-big" }, v?.name ?? t("you"))]);
           if (v) {
-            rows.push(["Role", `${v.role}${v.unlimited ? " \xB7 no balance is kept" : ""}`]);
+            rows.push([t("Role"), v.unlimited ? t("{role} \xB7 no balance is kept", { role: v.role }) : v.role]);
             if (!v.unlimited) {
-              rows.push(["Balance", `${formatUsd(v.balanceUsd)}${v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.weeklyUsd)} weekly + ${formatUsd(v.creditUsd)} credit)` : ""}`]);
-              if (v.resetsAt) rows.push(["Refills", `${shortDay2(v.resetsAt)}, to ${formatUsd(Math.max(v.weeklyUsd, s.offers?.weeklyUsd ?? 0))}`]);
+              rows.push([tc("account", "Balance"), v.creditUsd > 0 && v.weeklyUsd > 0 ? t("{balance} ({weekly} weekly + {credit} credit)", { balance: formatUsd(v.balanceUsd), weekly: formatUsd(v.weeklyUsd), credit: formatUsd(v.creditUsd) }) : formatUsd(v.balanceUsd)]);
+              if (v.resetsAt) rows.push([t("Refills"), t("{day}, to {amount}", { day: shortDay2(v.resetsAt), amount: formatUsd(Math.max(v.weeklyUsd, s.offers?.weeklyUsd ?? 0)) })]);
             }
-            if (v.providers.length) rows.push(["Sign-in", v.providers.join(", ")]);
+            if (v.providers.length) rows.push([t("Sign-in"), v.providers.join(", ")]);
           }
         }
         append2(head, [h2("div", { className: "sd-head" }, ...rows.flatMap(([k, val]) => [h2("span", { className: "sd-k" }, k), h2("span", { className: "sd-v" }, val)]))]);
         if (s.kind !== "account") {
           const providers = s.offers?.providers ?? [];
-          if (!providers.length) buttons.append(h2("span", { className: "sd-hint" }, s.offers ? "This server offers no sign-in." : "Waiting for the server\u2026"));
+          if (!providers.length) buttons.append(h2("span", { className: "sd-hint" }, s.offers ? t("This server offers no sign-in.") : t("Waiting for the server\u2026")));
           for (const p of providers) {
-            buttons.append(w.button(`Sign in with ${p.name}`, { primary: true, onClick: async () => {
-              say(`Waiting for ${p.name}\u2026`);
+            buttons.append(w.button(t("Sign in with {provider}", { provider: p.name }), { primary: true, onClick: async () => {
+              say(t("Waiting for {provider}\u2026", { provider: p.name }));
               try {
                 const view = await account.signIn(p.id);
-                say(`Signed in as ${view.name ?? "you"}.`, "ok");
+                say(view.name ? t("Signed in as {name}.", { name: view.name }) : t("Signed in."), "ok");
               } catch (err) {
                 say(describeError(err), "error");
               }
             } }));
           }
           if (s.kind === "guest" && s.offers?.trial) {
-            buttons.append(w.button("Start the free trial", { onClick: async () => {
+            buttons.append(w.button(t("Start the free trial"), { onClick: async () => {
               try {
                 await account.ensureSession();
-                say(`Trial started: ${formatUsd(account.current()?.balanceUsd ?? 0)} to spend.`, "ok");
+                say(t("Trial started: {amount} to spend.", { amount: formatUsd(account.current()?.balanceUsd ?? 0) }), "ok");
               } catch (err) {
                 say(describeError(err), "error");
               }
@@ -11060,35 +12300,35 @@ function openAccountDialog(ctx) {
         } else {
           const packs = s.offers?.packs ?? [];
           if (packs.length && !v?.unlimited) {
-            const packSelect = w.select(packs.map((p) => ({ value: p.id, label: `${formatUsd(p.priceUsd)} for ${formatUsd(p.creditUsd)} of credit` })), { value: packs[0].id });
-            buttons.append(packSelect, w.button("Top up\u2026", { onClick: async () => {
+            const packSelect = w.select(packs.map((p) => ({ value: p.id, label: t("{price} for {credit} of credit", { price: formatUsd(p.priceUsd), credit: formatUsd(p.creditUsd) }) })), { value: packs[0].id });
+            buttons.append(packSelect, w.button(t("Top up\u2026"), { onClick: async () => {
               try {
                 await account.topUp(packSelect.value);
-                say("The payment page opened in a new tab. The credit lands once it is paid.");
+                say(t("The payment page opened in a new tab. The credit lands once it is paid."));
               } catch (err) {
                 say(describeError(err), "error");
               }
             } }));
           }
-          buttons.append(w.button("Manage on scmjs.dev", { onClick: () => window.open(account.accountPageUrl(), "_blank", "noopener") }));
-          buttons.append(w.button("My Maps\u2026", { onClick: () => {
+          buttons.append(w.button(t("Manage on scmjs.dev"), { onClick: () => window.open(account.accountPageUrl(), "_blank", "noopener") }));
+          buttons.append(w.button(t("My Maps\u2026"), { onClick: () => {
             dialog.close();
             ctx.openMaps();
           } }));
-          buttons.append(w.button("Sign out", { onClick: async () => {
+          buttons.append(w.button(t("Sign out"), { onClick: async () => {
             await account.signOut();
-            say("Signed out.");
+            say(t("Signed out."));
           } }));
         }
         if (s.offers) {
           const signedIn = s.kind === "account";
-          const state = (on, off2, needsSignIn) => !on ? ["Off", "sd-bad", off2] : needsSignIn && !signedIn ? ["Sign in to use", "", ""] : ["On", "sd-ok", ""];
+          const state = (on, off2, needsSignIn) => !on ? [t("Off"), "sd-bad", off2] : needsSignIn && !signedIn ? [t("Sign in to use"), "", ""] : [t("On"), "sd-ok", ""];
           const features = [
-            ["AI features", state(account.aiOffered(), "Off for now while I work out the tooling and costs.", false)],
-            ["Map storage", state(s.offers.maps, "This server keeps no maps.", true)],
-            ["Shared editing", state(!!s.offers.rooms, "This server has no shared map editing.", true)]
+            [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
+            [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
+            [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)]
           ];
-          featuresBox.append(w.group("Status", h2(
+          featuresBox.append(w.group(t("Status"), h2(
             "table",
             { className: "sd-ledger" },
             h2("tbody", null, ...features.map(([name, [text, cls, note]]) => h2(
@@ -11101,21 +12341,21 @@ function openAccountDialog(ctx) {
           )));
         }
         if (s.kind === "account") {
-          if (s.storage) storageBox.append(w.group("Map storage", storageBar(s.storage.usedBytes, s.storage.capBytes), h2("div", { className: "sd-hint" }, `${s.storage.maps} map${s.storage.maps === 1 ? "" : "s"}, ${s.storage.revisions} revision${s.storage.revisions === 1 ? "" : "s"}. Account \u25B8 My Maps\u2026 lists them; Account \u25B8 Save to scmjs.dev\u2026 adds one.`)));
-          else if (s.offers && !s.offers.maps) storageBox.append(w.group("Map storage", h2("div", { className: "sd-hint" }, "This server keeps no maps.")));
+          if (s.storage) storageBox.append(w.group(t("Map storage"), storageBar(s.storage.usedBytes, s.storage.capBytes), h2("div", { className: "sd-hint" }, t("{maps, plural, one {# map} other {# maps}}, {revisions, plural, one {# revision} other {# revisions}}. Account \u25B8 My Maps\u2026 lists them; Account \u25B8 Save to scmjs.dev\u2026 adds one.", { maps: s.storage.maps, revisions: s.storage.revisions }))));
+          else if (s.offers && !s.offers.maps) storageBox.append(w.group(t("Map storage"), h2("div", { className: "sd-hint" }, t("This server keeps no maps."))));
         }
         const sharing = s.kind === "account" && !!s.offers?.rooms && !!ctx.shares;
         sharedBox.style.display = sharing ? "" : "none";
         if (sharing && !sharedList) {
           sharedList = sharedMapsList(ctx, ctx.shares, { onJoined: () => dialog.close() });
-          sharedBox.append(w.group("Shared maps", sharedList.el));
+          sharedBox.append(w.group(t("Shared maps"), sharedList.el));
         }
         const ledger = account.ledger();
         if (s.kind === "account" && ledger.length) {
           const table = h2(
             "table",
             { className: "sd-ledger" },
-            h2("thead", null, h2("tr", null, h2("th", null, "When"), h2("th", null, "What"), h2("th", { style: "text-align:right" }, "Amount"), h2("th", null, "Note"))),
+            h2("thead", null, h2("tr", null, h2("th", null, t("When")), h2("th", null, t("What")), h2("th", { style: "text-align:right" }, t("Amount")), h2("th", null, t("Note")))),
             h2("tbody", null, ...ledger.map((e) => h2(
               "tr",
               null,
@@ -11125,32 +12365,32 @@ function openAccountDialog(ctx) {
               h2("td", { className: "sd-note" }, e.note)
             )))
           );
-          ledgerBox.append(w.group("Recent activity", h2("div", { className: "sd-scroll" }, table)));
+          ledgerBox.append(w.group(t("Recent activity"), h2("div", { className: "sd-scroll" }, table)));
         }
       };
       const settings = account.store.get();
-      const aiBox = w.checkbox("Use the AI features (Tools \u25B8 AI, the assistant, the AI buttons in the editor's dialogs)", { value: settings.ai, onChange: (v) => {
+      const aiBox = w.checkbox(t("Use the AI features (Tools \u25B8 AI, the assistant, the AI buttons in the editor's dialogs)"), { value: settings.ai, onChange: (v) => {
         account.store.set({ ai: v });
       } });
       const aiRow = h2(
         "div",
         { style: "display: flex; flex-direction: column; gap: 8px" },
         aiBox,
-        h2("div", { className: "sd-hint" }, "Off leaves your account and the maps stored on it; Tools \u25B8 AI \u25B8 Options\u2026 has the quality and the assistant's settings.")
+        h2("div", { className: "sd-hint" }, t("Off leaves your account and the maps stored on it; Tools \u25B8 AI \u25B8 Options\u2026 has the quality and the assistant's settings."))
       );
-      const statusBox = w.checkbox("Show my status in the status bar", { value: settings.statusItem, onChange: (v) => {
+      const statusBox = w.checkbox(t("Show my status in the status bar"), { value: settings.statusItem, onChange: (v) => {
         account.store.set({ statusItem: v });
       } });
       const settingsFold = h2(
         "details",
         null,
-        h2("summary", null, "Settings"),
+        h2("summary", null, t("Settings")),
         h2(
           "div",
           { style: "padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px" },
           aiRow,
           statusBox,
-          account.overridden() ? h2("div", { className: "sd-hint sd-bad" }, `Talking to ${account.serverUrl()} \u2014 a development server named by ?${SERVER_QUERY}= on the editor's address. Open the editor with ?${SERVER_QUERY}= (empty) to go back to scmjs.dev.`) : null
+          account.overridden() ? h2("div", { className: "sd-hint sd-bad" }, t("Talking to {server} \u2014 a development server named by ?{query}= on the editor's address. Open the editor with ?{query}= (empty) to go back to scmjs.dev.", { server: account.serverUrl(), query: SERVER_QUERY })) : null
         )
       );
       root2.append(
@@ -11162,7 +12402,7 @@ function openAccountDialog(ctx) {
         ledgerBox,
         settingsFold,
         status,
-        h2("div", { className: "sd-hint" }, `scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store \u2014 nothing else, never a prompt or a card. Delete all of it from the account page at ${SITE_URL}.`)
+        h2("div", { className: "sd-hint" }, t("scmjs.dev keeps your provider id, display name, a ledger of what your calls cost, and the maps you store \u2014 nothing else, never a prompt or a card. Delete all of it from the account page at {site}.", { site: SITE_URL }))
       );
       render();
       const off = account.onChange(render);
@@ -11178,7 +12418,7 @@ function openAccountDialog(ctx) {
         off();
       };
     },
-    buttons: [{ label: "Close", primary: true }]
+    buttons: [{ label: t("Close"), primary: true }]
   });
 }
 
@@ -11205,8 +12445,8 @@ function describeMeta(m) {
   const parts = [];
   if (m.tileset) parts.push(m.tileset);
   if (m.width && m.height) parts.push(`${m.width} \xD7 ${m.height}`);
-  if (m.players !== void 0) parts.push(`${m.players} player${m.players === 1 ? "" : "s"}${m.humanPlayers !== void 0 && m.humanPlayers !== m.players ? ` (${m.humanPlayers} human)` : ""}`);
-  if (m.triggers) parts.push(`${m.triggers} trigger${m.triggers === 1 ? "" : "s"}`);
+  if (m.players !== void 0) parts.push(m.humanPlayers !== void 0 && m.humanPlayers !== m.players ? t("{players, plural, one {# player} other {# players}} ({humans} human)", { players: m.players, humans: m.humanPlayers }) : t("{players, plural, one {# player} other {# players}}", { players: m.players }));
+  if (m.triggers) parts.push(t("{n, plural, one {# trigger} other {# triggers}}", { n: m.triggers }));
   return parts.join(" \xB7 ");
 }
 async function dataUrlOf(blob) {
@@ -11255,32 +12495,32 @@ async function uploadOpenMap(ctx, target, step = () => {
 }) {
   const { api, account } = ctx;
   const info = api.document.info();
-  if (!info) throw new Error("no map is open.");
-  step("Packing the map\u2026");
+  if (!info) throw new Error(t("no map is open."));
+  step(t("Packing the map\u2026"));
   const file = await api.document.export();
-  if (!file) throw new Error("the map could not be packed.");
+  if (!file) throw new Error(t("the map could not be packed."));
   const meta = metaOf(info, api.query.statistics(), api.settings.players());
   if (target.thumbnail) {
-    const t = await thumbnailOf(ctx);
-    if (t) meta.thumbnail = t;
+    const pic = await thumbnailOf(ctx);
+    if (pic) meta.thumbnail = pic;
   }
   const picture = target.thumbnail ? await pictureOf(ctx) : null;
   const fields = { fileName: info.fileName ?? file.name ?? `${info.name || "map"}.scx`, note: target.note, meta, picture };
-  step("Uploading\u2026");
+  step(t("Uploading\u2026"));
   const response = target.mapId === null ? await account.client.createMap(file, { ...fields, name: target.name || void 0 }) : await account.client.uploadRevision(target.mapId, file, fields);
   account.noteStorage(response.storage);
   return { response, fileName: fields.fileName };
 }
 function sharedLine(v) {
-  return v.people.length ? `Shared \xB7 ${v.people.length} editing` : `Shared \xB7 ${lower(endsLine(v))}`;
+  return v.people.length ? t("Shared \xB7 {n} editing", { n: v.people.length }) : t("Shared \xB7 {ends}", { ends: lower(endsLine(v)) });
 }
 function needsAccount(ctx, root2, dialog) {
   const s = ctx.account.state();
   if (s.kind === "account") return false;
   const w = ctx.api.ui.widgets;
   root2.append(
-    h2("div", { className: "sd-hint" }, s.kind === "trial" ? "Maps are kept on a signed-in account; a trial cannot store them." : "Sign in to scmjs.dev to keep maps on your account."),
-    h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
+    h2("div", { className: "sd-hint" }, s.kind === "trial" ? t("Maps are kept on a signed-in account; a trial cannot store them.") : t("Sign in to scmjs.dev to keep maps on your account.")),
+    h2("div", { className: "sd-btns" }, w.button(t("Sign in\u2026"), { primary: true, onClick: () => {
       dialog.close();
       ctx.openAccount();
     } }))
@@ -11288,10 +12528,10 @@ function needsAccount(ctx, root2, dialog) {
   return true;
 }
 function thumb(m, big = false) {
-  return h2("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h2("img", { src: m.thumbnail, alt: "" }) : h2("span", null, m.width && m.height ? `${m.width}\xD7${m.height}` : "map"));
+  return h2("div", { className: `sd-thumb${big ? " sd-thumb-big" : ""}` }, m.thumbnail ? h2("img", { src: m.thumbnail, alt: "" }) : h2("span", null, m.width && m.height ? `${m.width}\xD7${m.height}` : t("map")));
 }
 function sizeLine(m) {
-  return `${m.revisions} revision${m.revisions === 1 ? "" : "s"} \xB7 ${formatBytes(m.head.sizeBytes)}${m.links ? ` \xB7 ${m.links} link${m.links === 1 ? "" : "s"}` : ""}`;
+  return m.links ? t("{revisions, plural, one {# revision} other {# revisions}} \xB7 {size} \xB7 {links, plural, one {# link} other {# links}}", { revisions: m.revisions, size: formatBytes(m.head.sizeBytes), links: m.links }) : t("{revisions, plural, one {# revision} other {# revisions}} \xB7 {size}", { revisions: m.revisions, size: formatBytes(m.head.sizeBytes) });
 }
 function matchesSearch(m, query) {
   const q2 = query.trim().toLowerCase();
@@ -11324,7 +12564,7 @@ function detailSkeleton(ctx, m) {
       )
     ),
     w.skeleton({ width: "40%", height: 24 }),
-    h2("div", { className: "sd-section" }, "Revisions"),
+    h2("div", { className: "sd-section" }, t("Revisions")),
     w.skeleton({ lines: 4 })
   );
 }
@@ -11333,7 +12573,7 @@ function openMapsDialog(ctx, link) {
   const w = api.ui.widgets;
   const client = account.client;
   return api.ui.dialog({
-    title: "My Maps on scmjs.dev",
+    title: t("My Maps on scmjs.dev"),
     size: "xl",
     tall: true,
     mount(body, dialog) {
@@ -11345,7 +12585,7 @@ function openMapsDialog(ctx, link) {
       const storageBox = h2("div", { className: "sd-meter" });
       const listBox = h2("div", { className: "sd-pane sd-maps", tabIndex: 0 });
       const detailBox = h2("div", { className: "sd-pane sd-detail-pane" });
-      const search = w.text({ placeholder: "Search maps" });
+      const search = w.text({ placeholder: t("Search maps") });
       search.classList.add("sd-search");
       const split = h2("div", { className: "sd-split" }, listBox, detailBox);
       let maps = [];
@@ -11379,9 +12619,9 @@ function openMapsDialog(ctx, link) {
           listBox.append(h2(
             "div",
             { className: "sd-empty-state" },
-            h2("div", { className: "sd-empty-title" }, "No maps yet"),
-            h2("div", { className: "sd-hint" }, "Maps you save to scmjs.dev show up here, with every revision and its note."),
-            api.document.isOpen() ? w.button("Save the open map here\u2026", { primary: true, onClick: () => {
+            h2("div", { className: "sd-empty-title" }, t("No maps yet")),
+            h2("div", { className: "sd-hint" }, t("Maps you save to scmjs.dev show up here, with every revision and its note.")),
+            api.document.isOpen() ? w.button(t("Save the open map here\u2026"), { primary: true, onClick: () => {
               dialog.close();
               ctx.saveToCloud();
             } }) : null
@@ -11390,7 +12630,7 @@ function openMapsDialog(ctx, link) {
         }
         const shown = visible();
         if (!shown.length) {
-          listBox.append(h2("div", { className: "sd-empty-list" }, `No map matches "${search.value.trim()}".`));
+          listBox.append(h2("div", { className: "sd-empty-list" }, t('No map matches "{query}".', { query: search.value.trim() })));
           return;
         }
         for (const m of shown) {
@@ -11444,7 +12684,7 @@ function openMapsDialog(ctx, link) {
         clear2(detailBox);
         const m = picked;
         if (!m) {
-          if (maps.length) detailBox.append(h2("div", { className: "sd-empty-list" }, "Pick a map to see its revisions."));
+          if (maps.length) detailBox.append(h2("div", { className: "sd-empty-list" }, t("Pick a map to see its revisions.")));
           return;
         }
         const rev = pickedRevision ?? m.head;
@@ -11452,22 +12692,22 @@ function openMapsDialog(ctx, link) {
         const kept = shares.get(m.id) ?? null;
         const current = ctx.shares?.current() ?? null;
         const inIt = !!kept && current?.room?.id === m.id && current.phase !== "ended";
-        const join = kept && !inIt && ctx.shares ? w.button("Join", { primary: true, title: "Open the shared map and edit it with whoever is in it", onClick: () => void covered("Joining\u2026", async () => {
+        const join = kept && !inIt && ctx.shares ? w.button(t("Join"), { primary: true, title: t("Open the shared map and edit it with whoever is in it"), onClick: () => void covered(t("Joining\u2026"), async () => {
           await ctx.shares.join(kept.invite, account.current()?.name ?? "Owner");
           dialog.close();
         }) }) : null;
-        const restore = inIt && current?.owner && current.documentId !== null ? w.button(`Put #${rev.number} into the shared map`, { title: "Replace the shared map with this revision, for everyone in it", onClick: async () => {
-          if (!await api.ui.confirm(`Replace the shared map with revision #${rev.number}? Everyone in it gets #${rev.number} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.`, { title: "Put a revision into the shared map", confirmLabel: `Put #${rev.number} in`, danger: true })) return;
-          await covered(`Downloading #${rev.number}\u2026`, async () => {
+        const restore = inIt && current?.owner && current.documentId !== null ? w.button(t("Put #{n} into the shared map", { n: rev.number }), { title: t("Replace the shared map with this revision, for everyone in it"), onClick: async () => {
+          if (!await api.ui.confirm(t("Replace the shared map with revision #{n}? Everyone in it gets #{n} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.", { n: rev.number }), { title: t("Put a revision into the shared map"), confirmLabel: t("Put #{n} in", { n: rev.number }), danger: true })) return;
+          await covered(t("Downloading #{n}\u2026", { n: rev.number }), async () => {
             const { bytes } = await client.revisionFile(m.id, rev.number);
             const chk = await api.document.sections.chkOf(bytes);
-            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error("the shared map is not open.");
+            if (current.documentId === null || !api.document.activate(current.documentId)) throw new Error(t("the shared map is not open."));
             api.document.sections.replaceFile(chk);
             dialog.close();
-            api.ui.toast({ kind: "ok", title: `Put #${rev.number} into the shared map` });
+            api.ui.toast({ kind: "ok", title: t("Put #{n} into the shared map", { n: rev.number }) });
           });
         } }) : null;
-        const open = w.button(isHead ? "Open" : `Open #${rev.number}`, { primary: !join, className: "sd-open", title: kept ? "Open this revision on its own, apart from the shared map" : `Open revision #${rev.number} in the editor`, onClick: () => void covered(`Downloading #${rev.number}\u2026`, async () => {
+        const open = w.button(isHead ? t("Open") : t("Open #{n}", { n: rev.number }), { primary: !join, className: "sd-open", title: kept ? t("Open this revision on its own, apart from the shared map") : t("Open revision #{n} in the editor", { n: rev.number }), onClick: () => void covered(t("Downloading #{n}\u2026", { n: rev.number }), async () => {
           open.setBusy(true);
           try {
             const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
@@ -11475,23 +12715,23 @@ function openMapsDialog(ctx, link) {
             if (opened) {
               link.set({ mapId: m.id, mapName: m.name, fileName: fileName || rev.fileName });
               dialog.close();
-              api.ui.toast({ kind: "ok", title: `Opened ${m.name} #${rev.number}`, detail: rev.note || void 0 });
-            } else say("Not opened.");
+              api.ui.toast({ kind: "ok", title: t("Opened {name} #{n}", { name: m.name, n: rev.number }), detail: rev.note || void 0 });
+            } else say(t("Not opened."));
           } finally {
             open.setBusy(false);
           }
         }) });
-        const download = w.button("Download", { title: `Save revision #${rev.number} as a file`, onClick: () => void covered(`Downloading #${rev.number}\u2026`, async () => {
+        const download = w.button(t("Download"), { title: t("Save revision #{n} as a file", { n: rev.number }), onClick: () => void covered(t("Downloading #{n}\u2026", { n: rev.number }), async () => {
           const { bytes, fileName } = await client.revisionFile(m.id, rev.number);
           const out = await api.ui.saveFile(bytes, fileName || rev.fileName);
-          say(out ? `Saved ${out.fileName}.` : "Not saved.", out ? "ok" : void 0);
+          say(out ? t("Saved {name}.", { name: out.fileName }) : t("Not saved."), out ? "ok" : void 0);
         }) });
-        const rename = w.button("Rename\u2026", { ghost: true, onClick: async () => {
-          const name = await api.ui.prompt("Name for this map:", { title: "Rename map", value: m.name, confirmLabel: "Rename" });
+        const rename = w.button(t("Rename\u2026"), { ghost: true, onClick: async () => {
+          const name = await api.ui.prompt(t("Name for this map:"), { title: t("Rename map"), value: m.name, confirmLabel: t("Rename") });
           if (name === null || !name.trim() || name.trim() === m.name) return;
-          await covered("Renaming\u2026", async () => {
+          await covered(t("Renaming\u2026"), async () => {
             await update(await client.patchMap(m.id, { name: name.trim() }));
-            say("Renamed.", "ok");
+            say(t("Renamed."), "ok");
           });
         } });
         const revs = h2("div", { className: "sd-revs" });
@@ -11506,49 +12746,50 @@ function openMapsDialog(ctx, link) {
               }
             } },
             h2("span", { className: "sd-n" }, `#${r.number}`),
-            h2("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || "No note"),
+            h2("span", { className: `sd-note-text${r.note ? "" : " sd-empty"}` }, r.note || t("No note")),
             h2("span", { className: "sd-when", title: formatDate(r.createdAt) }, ago(r.createdAt)),
-            h2("span", { className: "sd-sub" }, `${r.number === m.head.number ? "Newest \xB7 " : ""}${r.fileName} \xB7 ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` \xB7 "${r.meta.scenarioName}"` : ""}`)
+            h2("span", { className: "sd-sub" }, `${r.number === m.head.number ? `${t("Newest")} \xB7 ` : ""}${r.fileName} \xB7 ${formatBytes(r.sizeBytes)}${r.meta.scenarioName && r.meta.scenarioName !== m.name ? ` \xB7 "${r.meta.scenarioName}"` : ""}`)
           );
           if (on) {
-            const note = w.button(r.note ? "Edit note\u2026" : "Add a note\u2026", { ghost: true, onClick: async (e) => {
+            const note = w.button(r.note ? t("Edit note\u2026") : t("Add a note\u2026"), { ghost: true, onClick: async (e) => {
               e.stopPropagation();
-              const text = await api.ui.prompt(`Note for revision #${r.number} of ${m.name}:`, { title: "Revision note", value: r.note, multiline: true, confirmLabel: "Save" });
+              const text = await api.ui.prompt(t("Note for revision #{n} of {name}:", { n: r.number, name: m.name }), { title: t("Revision note"), value: r.note, multiline: true, confirmLabel: t("Save") });
               if (text === null) return;
-              await covered("Saving the note\u2026", async () => {
+              await covered(t("Saving the note\u2026"), async () => {
                 await update(await client.patchRevision(m.id, r.number, { note: text }));
-                say("Note saved.", "ok");
+                say(t("Note saved."), "ok");
               });
             } });
             const last = m.history.length <= 1;
-            const del = w.button("Delete", { ghost: true, danger: true, disabled: last, title: last ? "A map keeps its last revision; delete the map to remove it." : `Delete revision #${r.number}`, onClick: async (e) => {
+            const del = w.button(t("Delete"), { ghost: true, danger: true, disabled: last, title: last ? t("A map keeps its last revision; delete the map to remove it.") : t("Delete revision #{n}", { n: r.number }), onClick: async (e) => {
               e.stopPropagation();
               const pinned = m.linkList.filter((l) => l.revision === r.number).length;
-              const also = pinned ? ` ${pinned === 1 ? "The link" : `The ${pinned} links`} to it stop working too.` : "";
-              if (!await api.ui.confirm(`Delete revision #${r.number} of ${m.name}? Its file is removed from the account when no other revision shares it.${also}`, { title: "Delete revision", confirmLabel: "Delete", danger: true })) return;
-              await covered("Deleting\u2026", async () => {
+              const question = pinned ? t("Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it. {links, plural, one {The link to it stops} other {The # links to it stop}} working too.", { n: r.number, name: m.name, links: pinned }) : t("Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it.", { n: r.number, name: m.name });
+              if (!await api.ui.confirm(question, { title: t("Delete revision"), confirmLabel: t("Delete"), danger: true })) return;
+              await covered(t("Deleting\u2026"), async () => {
                 pickedRevision = null;
                 await update(await client.deleteRevision(m.id, r.number));
-                say(`Revision #${r.number} deleted.`, "ok");
+                say(t("Revision #{n} deleted.", { n: r.number }), "ok");
               });
             } });
             row.append(h2("div", { className: "sd-rev-btns" }, note, del));
           }
           revs.append(row);
         }
-        const endSharing = kept ? w.button("End sharing", { danger: true, onClick: async () => {
-          if (!await api.ui.confirm(`End sharing ${m.name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.`, { title: "End sharing", confirmLabel: "End sharing", danger: true })) return;
-          await covered("Ending sharing\u2026", async () => {
+        const endSharing = kept ? w.button(t("End sharing"), { danger: true, onClick: async () => {
+          if (!await api.ui.confirm(t("End sharing {name}? Anyone in it is sent out and the link stops working. The map and its revisions stay here.", { name: m.name }), { title: t("End sharing"), confirmLabel: t("End sharing"), danger: true })) return;
+          await covered(t("Ending sharing\u2026"), async () => {
             const r = await client.endSharedMap(m.id);
             shares = new Map(r.rooms.filter((x) => x.kind === "kept").map((x) => [x.id, x]));
             renderList();
             renderDetail();
-            say("Sharing ended.", "ok");
+            say(t("Sharing ended."), "ok");
           });
         } }) : null;
-        const delMap = w.button("Delete map\u2026", { danger: true, onClick: async () => {
-          if (!await api.ui.confirm(`Delete ${m.name} and all ${m.revisions} of its revisions from the account?${m.links ? ` Its ${m.links === 1 ? "link stops" : `${m.links} links stop`} working too.` : ""}`, { title: "Delete map", confirmLabel: "Delete", danger: true })) return;
-          await covered("Deleting\u2026", async () => {
+        const delMap = w.button(t("Delete map\u2026"), { danger: true, onClick: async () => {
+          const question = m.links ? t("Delete {name} and all {revisions} of its revisions from the account? {links, plural, one {Its link stops} other {Its # links stop}} working too.", { name: m.name, revisions: m.revisions, links: m.links }) : t("Delete {name} and all {revisions} of its revisions from the account?", { name: m.name, revisions: m.revisions });
+          if (!await api.ui.confirm(question, { title: t("Delete map"), confirmLabel: t("Delete"), danger: true })) return;
+          await covered(t("Deleting\u2026"), async () => {
             const r = await client.deleteMap(m.id);
             account.noteStorage(r.storage);
             if (link.get()?.mapId === m.id) link.set(null);
@@ -11560,7 +12801,7 @@ function openMapsDialog(ctx, link) {
             renderStorage(r.storage);
             renderList();
             renderDetail();
-            say("Map deleted.", "ok");
+            say(t("Map deleted."), "ok");
           });
         } });
         detailBox.append(h2(
@@ -11575,18 +12816,18 @@ function openMapsDialog(ctx, link) {
               { className: "sd-hero-text" },
               h2("div", { className: "sd-name-row" }, h2("span", { className: "sd-title", title: m.name }, m.name), rename),
               h2("div", { className: "sd-sub" }, describeMeta(rev.meta) || rev.fileName),
-              h2("div", { className: "sd-sub" }, `${sizeLine(m)} \xB7 created ${formatDate(m.createdAt)}`),
+              h2("div", { className: "sd-sub" }, t("{size} \xB7 created {date}", { size: sizeLine(m), date: formatDate(m.createdAt) })),
               m.description ? h2("div", { className: "sd-about" }, m.description) : null,
-              kept ? h2("div", { className: "sd-badge" }, `${sharedLine(kept)}${inIt ? " \xB7 you are in it" : ""}`) : null
+              kept ? h2("div", { className: "sd-badge" }, inIt ? t("{shared} \xB7 you are in it", { shared: sharedLine(kept) }) : sharedLine(kept)) : null
             )
           ),
-          kept && !inIt ? h2("div", { className: "sd-hint" }, "Join it to edit with whoever is there; Open gives you a copy of a revision on its own.") : null,
+          kept && !inIt ? h2("div", { className: "sd-hint" }, t("Join it to edit with whoever is there; Open gives you a copy of a revision on its own.")) : null,
           h2("div", { className: "sd-btns" }, join, open, download, restore),
-          h2("div", { className: "sd-section" }, `Revisions (${m.history.length})`),
+          h2("div", { className: "sd-section" }, t("Revisions ({n})", { n: m.history.length })),
           revs,
-          h2("div", { className: "sd-section" }, "Links"),
+          h2("div", { className: "sd-section" }, t("Links")),
           linksSection(ctx, m, rev.number, update, say),
-          h2("div", { className: "sd-section" }, "Manage"),
+          h2("div", { className: "sd-section" }, t("Manage")),
           h2("div", { className: "sd-btns" }, delMap, endSharing)
         ));
       };
@@ -11632,7 +12873,7 @@ function openMapsDialog(ctx, link) {
           if (err instanceof ScmjsError && err.code === "aborted") return;
           if (pickedId !== id) return;
           clear2(detailBox);
-          detailBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => {
+          detailBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button(t("Try again"), { onClick: () => {
             pickedId = null;
             void pick(id);
           } })));
@@ -11642,14 +12883,14 @@ function openMapsDialog(ctx, link) {
         loading?.abort();
         const ac = loading = new AbortController();
         const first = !maps.length;
-        const cover = first ? null : w.busy(listBox, "Refreshing\u2026");
+        const cover = first ? null : w.busy(listBox, t("Refreshing\u2026"));
         if (first) {
           clear2(listBox);
           listBox.append(...listSkeleton(ctx, 5));
           clear2(detailBox);
           detailBox.append(detailSkeleton(ctx, void 0));
         }
-        dialog.setBusy("Loading your maps\u2026");
+        dialog.setBusy(t("Loading your maps\u2026"));
         refresh.setBusy(true);
         try {
           const [r, shared] = await Promise.all([
@@ -11674,7 +12915,7 @@ function openMapsDialog(ctx, link) {
           if (first) {
             clear2(listBox);
             clear2(detailBox);
-            listBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button("Try again", { onClick: () => void load() })));
+            listBox.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button(t("Try again"), { onClick: () => void load() })));
           }
           say(describeError(err), "error");
         } finally {
@@ -11685,8 +12926,8 @@ function openMapsDialog(ctx, link) {
           }
         }
       };
-      const refresh = w.button("Refresh", { ghost: true, title: "Load the list again", onClick: () => void load() });
-      const saveHere = w.button("Save the open map here\u2026", { disabled: !api.document.isOpen(), onClick: () => {
+      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void load() });
+      const saveHere = w.button(t("Save the open map here\u2026"), { disabled: !api.document.isOpen(), onClick: () => {
         dialog.close();
         ctx.saveToCloud();
       } });
@@ -11702,7 +12943,7 @@ function openMapsDialog(ctx, link) {
         picking?.abort();
       };
     },
-    buttons: [{ label: "Close", primary: true }]
+    buttons: [{ label: t("Close"), primary: true }]
   });
 }
 function openSaveDialog(ctx, link) {
@@ -11710,31 +12951,31 @@ function openSaveDialog(ctx, link) {
   const w = api.ui.widgets;
   const client = account.client;
   return api.ui.dialog({
-    title: "Save to scmjs.dev",
+    title: t("Save to scmjs.dev"),
     size: "md",
     mount(body, dialog) {
       const root2 = styled2(body);
       if (needsAccount(ctx, root2, dialog)) return;
       const info = api.document.info();
       if (!info) {
-        root2.append(h2("div", { className: "sd-hint" }, "No map is open."));
+        root2.append(h2("div", { className: "sd-hint" }, t("No map is open.")));
         return;
       }
       const status = w.statusLine({ text: "" });
       const say = (text, kind) => status.set(text, kind);
       const NEW = "__new__";
       const current = link.get();
-      const target = w.select([{ value: NEW, label: "A new map" }], { value: NEW, onChange: () => sync() });
-      const nameField = w.text({ value: info.name || (info.fileName ?? "").replace(/\.(scm|scx|chk)$/i, ""), placeholder: "Name in the list" });
-      const noteField = textarea2({ placeholder: "What changed, or what this version is for (optional)", rows: 3 });
-      const thumbBox = w.checkbox("Include a picture of the map in the list (one pixel per tile)", { value: true });
-      const nameRow = w.form([{ label: "Name", field: nameField }]);
+      const target = w.select([{ value: NEW, label: t("A new map") }], { value: NEW, onChange: () => sync() });
+      const nameField = w.text({ value: info.name || (info.fileName ?? "").replace(/\.(scm|scx|chk)$/i, ""), placeholder: t("Name in the list") });
+      const noteField = textarea2({ placeholder: t("What changed, or what this version is for (optional)"), rows: 3 });
+      const thumbBox = w.checkbox(t("Include a picture of the map in the list (one pixel per tile)"), { value: true });
+      const nameRow = w.form([{ label: t("Name"), field: nameField }]);
       const sync = () => {
         nameRow.hidden = target.value !== NEW;
       };
-      const save = w.button("Save", { primary: true, onClick: async () => {
+      const save = w.button(t("Save"), { primary: true, onClick: async () => {
         save.setBusy(true);
-        dialog.setBusy("Saving\u2026");
+        dialog.setBusy(t("Saving\u2026"));
         try {
           const { response: r, fileName } = await uploadOpenMap(ctx, {
             mapId: target.value === NEW ? null : target.value,
@@ -11743,7 +12984,7 @@ function openSaveDialog(ctx, link) {
             thumbnail: thumbBox.input.checked
           }, (text) => status.busy(text));
           link.set({ mapId: r.map.id, mapName: r.map.name, fileName });
-          api.ui.toast({ kind: "ok", title: `Saved to scmjs.dev: ${r.map.name} #${r.map.head.number}`, detail: `${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.` });
+          api.ui.toast({ kind: "ok", title: t("Saved to scmjs.dev: {name} #{n}", { name: r.map.name, n: r.map.head.number }), detail: t("{used} of {cap} used.", { used: formatBytes(r.storage.usedBytes), cap: formatBytes(r.storage.capBytes) }) });
           dialog.close();
         } catch (err) {
           say(describeError(err), "error");
@@ -11753,24 +12994,24 @@ function openSaveDialog(ctx, link) {
         }
       } });
       root2.append(
-        w.form([{ label: "Save as", field: target }]),
+        w.form([{ label: t("Save as"), field: target }]),
         nameRow,
-        h2("div", null, h2("div", { className: "sd-hint", style: "margin-bottom: 4px" }, "Note for this revision"), noteField),
+        h2("div", null, h2("div", { className: "sd-hint", style: "margin-bottom: 4px" }, t("Note for this revision")), noteField),
         thumbBox,
-        h2("div", { className: "sd-hint" }, "The file is what File \u25B8 Save would write, with the options you last saved with. Saving the same bytes again costs no storage; only the note is new."),
+        h2("div", { className: "sd-hint" }, t("The file is what File \u25B8 Save would write, with the options you last saved with. Saving the same bytes again costs no storage; only the note is new.")),
         h2("div", { className: "sd-btns" }, save),
         status
       );
       void (async () => {
-        status.busy("Loading your maps\u2026");
+        status.busy(t("Loading your maps\u2026"));
         target.disabled = true;
         try {
           const r = await client.listMaps();
           account.noteStorage(r.storage);
-          for (const m of r.maps) target.add(new Option(`${m.name} \u2014 new revision #${m.head.number + 1}`, m.id));
+          for (const m of r.maps) target.add(new Option(t("{name} \u2014 new revision #{n}", { name: m.name, n: m.head.number + 1 }), m.id));
           if (current && r.maps.some((m) => m.id === current.mapId)) target.value = current.mapId;
           sync();
-          say(`${formatBytes(r.storage.usedBytes)} of ${formatBytes(r.storage.capBytes)} used.`);
+          say(t("{used} of {cap} used.", { used: formatBytes(r.storage.usedBytes), cap: formatBytes(r.storage.capBytes) }));
         } catch (err) {
           say(describeError(err), "error");
         } finally {
@@ -11778,7 +13019,7 @@ function openSaveDialog(ctx, link) {
         }
       })();
     },
-    buttons: [{ label: "Cancel" }]
+    buttons: [{ label: t("Cancel") }]
   });
 }
 
@@ -11791,19 +13032,19 @@ function linkField(ctx, address, say) {
   const w = ctx.api.ui.widgets;
   const field = w.text({ value: address });
   field.readOnly = true;
-  const copy = w.button("Copy", { onClick: async () => {
+  const copy = w.button(t("Copy"), { onClick: async () => {
     try {
       await navigator.clipboard.writeText(field.value);
-      say("The link is on the clipboard.", "ok");
+      say(t("The link is on the clipboard."), "ok");
     } catch {
       field.select();
-      say("Select the link and copy it.", "warn");
+      say(t("Select the link and copy it."), "warn");
     }
   } });
   return h2("div", { className: "sd-link" }, field, copy);
 }
 function which(link) {
-  return link.revision === null ? "the newest save" : `revision #${link.revision}`;
+  return link.revision === null ? t("the newest save") : t("revision #{n}", { n: link.revision });
 }
 function linksSection(ctx, map, revision, update, say) {
   const { api, account } = ctx;
@@ -11811,24 +13052,24 @@ function linksSection(ctx, map, revision, update, say) {
   const client = account.client;
   const box = h2("div", { className: "sd-links" });
   for (const link of map.linkList) {
-    const remove = w.button("Remove", { ghost: true, onClick: async () => {
-      if (!await api.ui.confirm(`Remove this link to ${map.name}? Anyone who has it can no longer open the map. The map stays on your account.`, { title: "Remove link", confirmLabel: "Remove", danger: true })) return;
+    const remove = w.button(t("Remove"), { ghost: true, onClick: async () => {
+      if (!await api.ui.confirm(t("Remove this link to {name}? Anyone who has it can no longer open the map. The map stays on your account.", { name: map.name }), { title: t("Remove link"), confirmLabel: t("Remove"), danger: true })) return;
       try {
         await update(await client.deleteLink(map.id, link.token));
-        say("Link removed.", "ok");
+        say(t("Link removed."), "ok");
       } catch (err) {
         say(describeError(err), "error");
       }
     } });
     const card = link.card;
-    const embed = card ? w.button("Embed\u2026", { ghost: true, title: "A picture of the map that opens this link, for a forum, a README or a website", onClick: () => {
+    const embed = card ? w.button(t("Embed\u2026"), { ghost: true, title: t("A picture of the map that opens this link, for a forum, a README or a website"), onClick: () => {
       openEmbedDialog(ctx, { name: map.name, copy: async () => ({ link: linkAddress(ctx, link.token), card }) });
     } }) : null;
     box.append(h2(
       "div",
       { className: "sd-link-row" },
       linkField(ctx, linkAddress(ctx, link.token), say),
-      h2("span", { className: "sd-sub", title: `Made ${formatDate(link.createdAt)}` }, `${which(link)} \xB7 opened ${link.opens}\xD7`),
+      h2("span", { className: "sd-sub", title: t("Made {date}", { date: formatDate(link.createdAt) }) }, t("{which} \xB7 opened {n}\xD7", { which: which(link), n: link.opens })),
       embed ?? h2("span", null),
       remove
     ));
@@ -11839,9 +13080,9 @@ function linksSection(ctx, map, revision, update, say) {
       await update({ map: r.map, storage: await client.storage().then((s) => s.storage) });
       try {
         await navigator.clipboard.writeText(linkAddress(ctx, r.link.token));
-        say(`Link to ${which(r.link)} made and copied.`, "ok");
+        say(t("Link to {which} made and copied.", { which: which(r.link) }), "ok");
       } catch {
-        say(`Link to ${which(r.link)} made.`, "ok");
+        say(t("Link to {which} made.", { which: which(r.link) }), "ok");
       }
     } catch (err) {
       say(describeError(err), "error");
@@ -11850,13 +13091,13 @@ function linksSection(ctx, map, revision, update, say) {
   return h2(
     "div",
     null,
-    h2("div", { className: "sd-hint" }, map.linkList.length ? "Anyone with one of these links can open a copy of this map in their editor, without signing in. The copy is theirs; nothing they do changes yours." : "No links. A link lets anyone open a copy of this map in their editor, without signing in."),
+    h2("div", { className: "sd-hint" }, map.linkList.length ? t("Anyone with one of these links can open a copy of this map in their editor, without signing in. The copy is theirs; nothing they do changes yours.") : t("No links. A link lets anyone open a copy of this map in their editor, without signing in.")),
     box,
     h2(
       "div",
       { className: "sd-btns" },
-      w.button(`Link to #${revision}`, { onClick: make(revision), title: "The link always opens this revision." }),
-      w.button("Link to the newest", { onClick: make(null), title: "The link opens whichever revision is newest when it is opened." })
+      w.button(t("Link to #{n}", { n: revision }), { onClick: make(revision), title: t("The link always opens this revision.") }),
+      w.button(t("Link to the newest"), { onClick: make(null), title: t("The link opens whichever revision is newest when it is opened.") })
     )
   );
 }
@@ -11864,20 +13105,20 @@ function openCopyLinkDialog(ctx, links) {
   const { api, account } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "Copy Link to This Map",
+    title: t("Copy Link to This Map"),
     mount(body, dialog) {
       const root2 = styled2(body);
       const status = w.statusLine({ text: "" });
       const say = (text, kind) => status.set(text, kind);
       const info = api.document.info();
       if (!info) {
-        root2.append(h2("div", { className: "sd-hint" }, "Open a map first."));
+        root2.append(h2("div", { className: "sd-hint" }, t("Open a map first.")));
         return;
       }
       if (account.kind() !== "account") {
         root2.append(
-          h2("div", { className: "sd-hint" }, "A link opens a map kept on your scmjs.dev account, so making one takes an account. The people who open it need only the link."),
-          h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
+          h2("div", { className: "sd-hint" }, t("A link opens a map kept on your scmjs.dev account, so making one takes an account. The people who open it need only the link.")),
+          h2("div", { className: "sd-btns" }, w.button(t("Sign in\u2026"), { primary: true, onClick: () => {
             dialog.close();
             ctx.openAccount();
           } }))
@@ -11885,25 +13126,25 @@ function openCopyLinkDialog(ctx, links) {
         return;
       }
       const stored = links.get();
-      const follow = w.checkbox("Let the link follow my later saves to this map", { value: false });
-      const make = w.button("Save and make the link", { primary: true, onClick: async () => {
+      const follow = w.checkbox(t("Let the link follow my later saves to this map"), { value: false });
+      const make = w.button(t("Save and make the link"), { primary: true, onClick: async () => {
         make.setBusy(true);
-        dialog.setBusy("Saving\u2026");
+        dialog.setBusy(t("Saving\u2026"));
         try {
           const { response, fileName } = await uploadOpenMap(ctx, { mapId: stored?.mapId ?? null, note: "Shared with a link", thumbnail: true }, (text) => status.busy(text));
           links.set({ mapId: response.map.id, mapName: response.map.name, fileName });
-          status.busy("Making the link\u2026");
+          status.busy(t("Making the link\u2026"));
           const { link } = await account.client.createLink(response.map.id, follow.input.checked ? null : response.map.head.number);
           clear2(root2);
           root2.append(
-            h2("div", { className: "sd-hint" }, `Saved as ${response.map.name} #${response.map.head.number}. Anyone with this link can open a copy of it in their editor, without signing in:`),
+            h2("div", { className: "sd-hint" }, t("Saved as {name} #{n}. Anyone with this link can open a copy of it in their editor, without signing in:", { name: response.map.name, n: response.map.head.number })),
             linkField(ctx, linkAddress(ctx, link.token), say),
-            h2("div", { className: "sd-hint" }, "Account \u25B8 My Maps\u2026 lists the map's links, how often each was opened, and removes them."),
+            h2("div", { className: "sd-hint" }, t("Account \u25B8 My Maps\u2026 lists the map's links, how often each was opened, and removes them.")),
             status
           );
           try {
             await navigator.clipboard.writeText(linkAddress(ctx, link.token));
-            say("The link is on the clipboard.", "ok");
+            say(t("The link is on the clipboard."), "ok");
           } catch {
             say("");
           }
@@ -11915,14 +13156,14 @@ function openCopyLinkDialog(ctx, links) {
         }
       } });
       root2.append(
-        h2("div", { className: "sd-hint" }, stored ? `The open map is saved to your account as a new revision of ${stored.mapName}, and you get a link anyone can open a copy of it with, without signing in.` : "The open map is saved to your account as a new map, and you get a link anyone can open a copy of it with, without signing in."),
+        h2("div", { className: "sd-hint" }, stored ? t("The open map is saved to your account as a new revision of {name}, and you get a link anyone can open a copy of it with, without signing in.", { name: stored.mapName }) : t("The open map is saved to your account as a new map, and you get a link anyone can open a copy of it with, without signing in.")),
         follow,
-        h2("div", { className: "sd-hint" }, "The people who open it get their own copy. Nothing they change reaches yours; to edit it together, use Share this Map\u2026 instead."),
+        h2("div", { className: "sd-hint" }, t("The people who open it get their own copy. Nothing they change reaches yours; to edit it together, use Share this Map\u2026 instead.")),
         h2("div", { className: "sd-btns" }, make),
         status
       );
     },
-    buttons: [{ label: "Close" }]
+    buttons: [{ label: t("Close") }]
   });
 }
 function openCopyDialog(ctx, given, onOpened = () => {
@@ -11930,7 +13171,7 @@ function openCopyDialog(ctx, given, onOpened = () => {
   const { api, account } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "Open a Copy",
+    title: t("Open a Copy"),
     mount(body, dialog) {
       const root2 = styled2(body);
       const status = w.statusLine({ text: "" });
@@ -11938,7 +13179,7 @@ function openCopyDialog(ctx, given, onOpened = () => {
       const about = h2("div", null);
       let found = null;
       let looking = null;
-      const field = w.text({ value: given ?? "", placeholder: "Paste the link you were sent" });
+      const field = w.text({ value: given ?? "", placeholder: t("Paste the link you were sent") });
       const renderAbout = () => {
         clear2(about);
         const m = found;
@@ -11947,14 +13188,14 @@ function openCopyDialog(ctx, given, onOpened = () => {
         about.append(h2(
           "div",
           { className: "sd-map sd-card" },
-          h2("div", { className: "sd-thumb" }, m.meta.thumbnail ? h2("img", { src: m.meta.thumbnail, alt: "" }) : h2("span", null, "map")),
+          h2("div", { className: "sd-thumb" }, m.meta.thumbnail ? h2("img", { src: m.meta.thumbnail, alt: "" }) : h2("span", null, t("map"))),
           h2(
             "div",
             null,
             h2("div", { className: "sd-name" }, m.name),
-            m.owner ? h2("div", { className: "sd-sub" }, `Shared by ${m.owner}`) : null,
+            m.owner ? h2("div", { className: "sd-sub" }, t("Shared by {owner}", { owner: m.owner })) : null,
             line ? h2("div", { className: "sd-sub" }, line) : null,
-            h2("div", { className: "sd-sub", title: formatDate(m.savedAt) }, `Revision #${m.revision}, saved ${ago(m.savedAt)}`)
+            h2("div", { className: "sd-sub", title: formatDate(m.savedAt) }, t("Revision #{n}, saved {ago}", { n: m.revision, ago: ago(m.savedAt) }))
           )
         ));
         if (m.description) about.append(h2("div", { className: "sd-hint" }, m.description));
@@ -11966,12 +13207,12 @@ function openCopyDialog(ctx, given, onOpened = () => {
         open.disabled = true;
         const token = copyTokenFrom(field.value);
         if (!token) {
-          say(field.value.trim() ? "That is not a map link." : "");
+          say(field.value.trim() ? t("That is not a map link.") : "");
           return;
         }
         const ctl = new AbortController();
         looking = ctl;
-        status.busy("Looking it up\u2026");
+        status.busy(t("Looking it up\u2026"));
         try {
           found = (await account.client.linkedMap(token, ctl.signal)).map;
           renderAbout();
@@ -11981,22 +13222,22 @@ function openCopyDialog(ctx, given, onOpened = () => {
           if (!ctl.signal.aborted) say(describeError(err), "error");
         }
       };
-      const open = w.button("Open a copy", { primary: true, onClick: async () => {
+      const open = w.button(t("Open a copy"), { primary: true, onClick: async () => {
         const token = copyTokenFrom(field.value);
         if (!token) {
-          say("That is not a map link.", "error");
+          say(t("That is not a map link."), "error");
           return;
         }
         open.setBusy(true);
         try {
-          status.busy("Downloading\u2026");
+          status.busy(t("Downloading\u2026"));
           const { bytes, fileName } = await account.client.linkedFile(token);
           const opened = await api.document.open(bytes, found?.fileName ?? fileName);
           if (opened) {
             onOpened(token);
             dialog.close();
-            api.ui.toast({ kind: "ok", title: `Opened a copy of ${found?.name ?? fileName}`, detail: "It is yours: File \u25B8 Save asks where to keep it." });
-          } else say("Not opened.");
+            api.ui.toast({ kind: "ok", title: t("Opened a copy of {name}", { name: found?.name ?? fileName }), detail: t("It is yours: File \u25B8 Save asks where to keep it.") });
+          } else say(t("Not opened."));
         } catch (err) {
           say(describeError(err), "error");
         } finally {
@@ -12005,16 +13246,16 @@ function openCopyDialog(ctx, given, onOpened = () => {
       } });
       field.addEventListener("input", () => void lookUp());
       root2.append(
-        given ? h2("div", null) : w.form([{ label: "Link", field }]),
+        given ? h2("div", null) : w.form([{ label: t("Link"), field }]),
         about,
-        h2("div", { className: "sd-hint" }, "The map opens as a new file in your editor. It is your own copy: nothing you change reaches the person who shared it."),
+        h2("div", { className: "sd-hint" }, t("The map opens as a new file in your editor. It is your own copy: nothing you change reaches the person who shared it.")),
         h2("div", { className: "sd-btns" }, open),
         status
       );
       if (given) void lookUp();
       return () => looking?.abort();
     },
-    buttons: [{ label: "Cancel" }]
+    buttons: [{ label: t("Cancel") }]
   });
 }
 
@@ -12022,35 +13263,35 @@ function openCopyDialog(ctx, given, onOpened = () => {
 var PERSON_COLORS = ["#f40404", "#0c48cc", "#2cb494", "#88409c", "#f88c14", "#703014", "#cce0d0", "#fcfc38"];
 var personColor = (p) => PERSON_COLORS[p.color % PERSON_COLORS.length];
 var DIALOG_NAMES = {
-  mapProperties: "Map Properties",
-  resizeMap: "Resize Map",
-  mapRevision: "Map Revision",
-  playerSettings: "Player Settings",
-  forceSettings: "Forces",
-  playerColors: "Player Colors",
-  unitSettings: "Unit Settings",
-  upgradeSettings: "Upgrade Settings",
-  techSettings: "Tech Settings",
-  stringEditor: "the String Editor",
-  soundEditor: "the Sound Editor",
-  switches: "Switches",
-  locationList: "the location list",
-  unitProperties: "Unit Properties",
-  locationProperties: "Location Properties",
-  spriteProperties: "Sprite Properties",
-  triggerEditor: "the Trigger Editor",
-  missionBriefing: "Mission Briefing",
-  cuwpEditor: "Unit Properties Slots",
-  replaceTerrain: "Replace Terrain",
-  autoStarts: "Auto-place Start Locations",
-  importTriggers: "Import Triggers",
-  importStrings: "Import Strings",
-  gameData: "Game Data (getting the game's graphics)"
+  mapProperties: msg("Map Properties"),
+  resizeMap: msg("Resize Map"),
+  mapRevision: msg("Map Revision"),
+  playerSettings: msg("Player Settings"),
+  forceSettings: msg("Forces"),
+  playerColors: msg("Player Colors"),
+  unitSettings: msg("Unit Settings"),
+  upgradeSettings: msg("Upgrade Settings"),
+  techSettings: msg("Tech Settings"),
+  stringEditor: msg("the String Editor"),
+  soundEditor: msg("the Sound Editor"),
+  switches: msg("Switches"),
+  locationList: msg("the location list"),
+  unitProperties: msg("Unit Properties"),
+  locationProperties: msg("Location Properties"),
+  spriteProperties: msg("Sprite Properties"),
+  triggerEditor: msg("the Trigger Editor"),
+  missionBriefing: msg("Mission Briefing"),
+  cuwpEditor: msg("Unit Properties Slots"),
+  replaceTerrain: msg("Replace Terrain"),
+  autoStarts: msg("Auto-place Start Locations"),
+  importTriggers: msg("Import Triggers"),
+  importStrings: msg("Import Strings"),
+  gameData: msg("Game Data (getting the game's graphics)")
 };
 function doing(p) {
   if (!p?.dialog) return "";
   const name = DIALOG_NAMES[p.dialog];
-  return name ? `in ${name}` : "";
+  return name ? t("in {dialog}", { dialog: translate(name) }) : "";
 }
 function drawPeople(ctx, view, people, presence) {
   ctx.save();
@@ -12106,7 +13347,7 @@ var RECONNECT_FOR_MS = 12e4;
 var RECONNECT_MAX_WAIT_MS = 3e4;
 var PING_MS = 2e4;
 var QUIET_MS = 5e4;
-var LOST = "The connection to the shared map was lost. The map is still open here; save it, or join again.";
+var lost = () => t("The connection to the shared map was lost. The map is still open here; save it, or join again.");
 function toBase64(bytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
@@ -12118,13 +13359,22 @@ function fromBase64(text) {
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
   return out;
 }
-var ENDINGS = {
-  owner: "The person who shared the map ended the session.",
-  removed: "You were removed from the shared map.",
-  idle: "The shared map closed after nobody used it for a while.",
-  server: "The server restarted, which ends every shared map.",
-  expired: "The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps."
-};
+function ending(reason) {
+  switch (reason) {
+    case "owner":
+      return t("The person who shared the map ended the session.");
+    case "removed":
+      return t("You were removed from the shared map.");
+    case "idle":
+      return t("The shared map closed after nobody used it for a while.");
+    case "server":
+      return t("The server restarted, which ends every shared map.");
+    case "expired":
+      return t("The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps.");
+    default:
+      return t("The shared map ended.");
+  }
+}
 var SharedMap = class _SharedMap {
   phase = "connecting";
   room = null;
@@ -12186,9 +13436,9 @@ var SharedMap = class _SharedMap {
   }
   /** Send a line to the room's chat; false when there is no chat or nothing to say. */
   say(text) {
-    const t = text.trim();
-    if (!t || this.chat === null || this.phase !== "live") return false;
-    this.send({ type: "chat", text: t.slice(0, CHAT_MAX) });
+    const line = text.trim();
+    if (!line || this.chat === null || this.phase !== "live") return false;
+    this.send({ type: "chat", text: line.slice(0, CHAT_MAX) });
     return true;
   }
   emit(presenceOnly = false) {
@@ -12223,13 +13473,13 @@ var SharedMap = class _SharedMap {
     const s = new _SharedMap(deps);
     s.sharing = true;
     const session = deps.api.sync.start(s.syncOptions());
-    if (!session) throw new Error("A map is being shared already, or no map is open.");
+    if (!session) throw new Error(t("A map is being shared already, or no map is open."));
     s.session = session;
     s.documentId = session.documentId;
     const copy = session.snapshot();
     try {
       const bytes = await copy;
-      if (!bytes) throw new Error("The map could not be copied.");
+      if (!bytes) throw new Error(t("The map could not be copied."));
       const { room } = await deps.client.createRoom(name, toBase64(bytes), keep);
       s.room = room;
       s.invite = room.invite;
@@ -12263,10 +13513,10 @@ var SharedMap = class _SharedMap {
         if (this.welcomed && this.phase !== "reconnecting") this.send({ type: "op", op });
       },
       onEnd: (reason) => {
-        if (generation === this.generation && this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
+        if (generation === this.generation && this.phase !== "ended") this.end(reason === "closed" ? t("The shared map was closed in this editor.") : null);
       },
       onApplied: (report) => {
-        if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
+        if (report.lost > 0) this.deps.api.ui.status(t("Someone else's change came first; {n, plural, one {# part} other {# parts}} of yours no longer applied.", { n: report.lost }));
       }
     };
   }
@@ -12305,24 +13555,24 @@ var SharedMap = class _SharedMap {
       this.ws = ws;
       ws.onopen = () => ws.send(JSON.stringify(this.hello()));
       ws.onmessage = (ev) => {
-        const msg = this.parse(ev.data);
-        if (!msg) return;
-        if (msg.type === "welcome") {
-          this.welcome(msg).then(() => settle(), (err) => settle(err));
+        const msg2 = this.parse(ev.data);
+        if (!msg2) return;
+        if (msg2.type === "welcome") {
+          this.welcome(msg2).then(() => settle(), (err) => settle(err));
           return;
         }
-        if (!this.welcomed && msg.type === "error") {
-          settle(new Error(msg.message));
+        if (!this.welcomed && msg2.type === "error") {
+          settle(new Error(msg2.message));
           return;
         }
         if (this.held) {
-          this.held.push(msg);
+          this.held.push(msg2);
           return;
         }
-        this.handle(msg);
+        this.handle(msg2);
       };
       ws.onclose = (ev) => {
-        if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
+        if (!settled) settle(new Error(ev.reason === "origin" ? t("The server does not take shared maps from this page.") : t("Could not reach the shared map.")));
         this.dropped(ws);
       };
       ws.onerror = () => {
@@ -12337,32 +13587,32 @@ var SharedMap = class _SharedMap {
       return null;
     }
   }
-  async welcome(msg) {
-    this.you = msg.you;
-    this.room = { ...this.room ?? {}, ...msg.room };
-    if (msg.room.invite) this.invite = msg.room.invite;
+  async welcome(msg2) {
+    this.you = msg2.you;
+    this.room = { ...this.room ?? {}, ...msg2.room };
+    if (msg2.room.invite) this.invite = msg2.room.invite;
     this.people.clear();
     this.presence.clear();
-    for (const p of msg.people) this.people.set(p.id, p);
-    for (const p of msg.presence) this.presence.set(p.from, p.data);
-    this.chat = msg.chat ? [...msg.chat] : null;
-    this.resumeToken = msg.resume ?? null;
+    for (const p of msg2.people) this.people.set(p.id, p);
+    for (const p of msg2.presence) this.presence.set(p.from, p.data);
+    this.chat = msg2.chat ? [...msg2.chat] : null;
+    this.resumeToken = msg2.resume ?? null;
     if (this.sharing) {
       this.sharing = false;
       this.welcomed = true;
-      this.lastSeq = msg.snapshot.seq;
+      this.lastSeq = msg2.snapshot.seq;
       for (const op of this.unacked) this.send({ type: "op", op });
     } else {
-      const bytes = fromBase64(msg.snapshot.map);
-      const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
-      if (!opened) throw new Error("The shared map could not be opened.");
+      const bytes = fromBase64(msg2.snapshot.map);
+      const opened = await this.deps.api.document.open(bytes, `${msg2.room.name || "Shared map"}.scx`, { into: "new" });
+      if (!opened) throw new Error(t("The shared map could not be opened."));
       const session = this.deps.api.sync.start(this.syncOptions());
-      if (!session) throw new Error("Another map is being shared from this editor already.");
+      if (!session) throw new Error(t("Another map is being shared from this editor already."));
       this.session = session;
       this.documentId = session.documentId;
       this.welcomed = true;
-      this.lastSeq = msg.snapshot.seq;
-      for (const op of msg.ops) {
+      this.lastSeq = msg2.snapshot.seq;
+      for (const op of msg2.ops) {
         session.receive(op.op);
         this.lastSeq = op.seq;
       }
@@ -12400,7 +13650,7 @@ var SharedMap = class _SharedMap {
     if (ws !== this.ws || this.phase === "ended") return;
     this.ws = null;
     if (this.phase !== "live" || !this.resumeToken || !this.session) {
-      this.end(LOST);
+      this.end(lost());
       return;
     }
     this.phase = "reconnecting";
@@ -12417,7 +13667,7 @@ var SharedMap = class _SharedMap {
   retryLater() {
     const wait = Math.min(RECONNECT_MAX_WAIT_MS, 1e3 * 2 ** this.tries++);
     if (Date.now() + wait - this.lostAt > RECONNECT_FOR_MS) {
-      this.end(LOST);
+      this.end(lost());
       return;
     }
     this.retryTimer = setTimeout(() => {
@@ -12445,24 +13695,24 @@ var SharedMap = class _SharedMap {
     let back = false;
     ws.onopen = () => ws.send(JSON.stringify(this.hello()));
     ws.onmessage = (ev) => {
-      const msg = this.parse(ev.data);
-      if (!msg) return;
+      const msg2 = this.parse(ev.data);
+      if (!msg2) return;
       if (back) {
-        if (this.held) this.held.push(msg);
-        else this.handle(msg);
+        if (this.held) this.held.push(msg2);
+        else this.handle(msg2);
         return;
       }
-      if (msg.type === "resumed") {
+      if (msg2.type === "resumed") {
         back = true;
-        this.resumed(msg);
+        this.resumed(msg2);
         return;
       }
-      if (msg.type === "welcome") {
+      if (msg2.type === "welcome") {
         back = true;
-        this.fresh(msg).catch((err) => this.end(`The shared map could not be opened again (${describeError(err)}). The map is still open here; save it, or join again.`));
+        this.fresh(msg2).catch((err) => this.end(t("The shared map could not be opened again ({error}). The map is still open here; save it, or join again.", { error: describeError(err) })));
         return;
       }
-      if (msg.type === "error") this.end(msg.code === "not_found" ? "The shared map ended while you were away. The map is still open here; save it, or join again." : `${msg.message} The map is still open here; save it, or join again.`);
+      if (msg2.type === "error") this.end(msg2.code === "not_found" ? t("The shared map ended while you were away. The map is still open here; save it, or join again.") : t("{message} The map is still open here; save it, or join again.", { message: msg2.message }));
     };
     ws.onclose = () => {
       if (ws !== this.ws || this.phase === "ended") return;
@@ -12477,23 +13727,23 @@ var SharedMap = class _SharedMap {
     };
   }
   /** Back in time: the same person, and what happened meanwhile. */
-  resumed(msg) {
+  resumed(msg2) {
     const session = this.session;
     if (!session) {
-      this.end(LOST);
+      this.end(lost());
       return;
     }
-    this.you = msg.you;
-    this.room = { ...this.room ?? {}, ...msg.room };
-    if (msg.room.invite) this.invite = msg.room.invite;
+    this.you = msg2.you;
+    this.room = { ...this.room ?? {}, ...msg2.room };
+    if (msg2.room.invite) this.invite = msg2.room.invite;
     this.people.clear();
     this.presence.clear();
-    for (const p of msg.people) this.people.set(p.id, p);
-    for (const p of msg.presence) this.presence.set(p.from, p.data);
-    for (const op of msg.ops) {
-      if (op.from === msg.you.id) {
+    for (const p of msg2.people) this.people.set(p.id, p);
+    for (const p of msg2.presence) this.presence.set(p.from, p.data);
+    for (const op of msg2.ops) {
+      if (op.from === msg2.you.id) {
         if (!this.unacked.length) {
-          this.end("The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again.");
+          this.end(t("The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again."));
           return;
         }
         this.unacked.shift();
@@ -12505,9 +13755,9 @@ var SharedMap = class _SharedMap {
     }
     for (const op of this.unacked) this.send({ type: "op", op });
     if (this.chat !== null) {
-      for (const line of newLines(this.chat, msg.chat)) this.addChat(line);
+      for (const line of newLines(this.chat, msg2.chat)) this.addChat(line);
     }
-    this.deps.api.ui.status("Reconnected to the shared map.");
+    this.deps.api.ui.status(t("Reconnected to the shared map."));
     this.goLive();
   }
   /**
@@ -12515,7 +13765,7 @@ var SharedMap = class _SharedMap {
    * it is now. The map as this editor had it stays open in its tab, out of the shared
    * session; the fresh copy opens beside it.
    */
-  async fresh(msg) {
+  async fresh(msg2) {
     const unsent = this.unacked.length;
     this.generation++;
     const old = this.session;
@@ -12523,77 +13773,77 @@ var SharedMap = class _SharedMap {
     this.unacked.length = 0;
     old?.stop();
     this.held = [];
-    await this.welcome(msg);
+    await this.welcome(msg2);
     this.deps.api.ui.toast({
       kind: "warn",
-      title: "Shared map opened again",
-      detail: `You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab${unsent ? `, with ${unsent} change${unsent === 1 ? "" : "s"} the others never got` : ""}.`,
+      title: t("Shared map opened again"),
+      detail: unsent ? t("You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab, with {n, plural, one {# change} other {# changes}} the others never got.", { n: unsent }) : t("You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab."),
       ttl: 0
     });
   }
   /* ── Messages ───────────────────────────────────────────── */
-  send(msg) {
-    if (this.ws && this.ws.readyState === OPEN) this.ws.send(JSON.stringify(msg));
+  send(msg2) {
+    if (this.ws && this.ws.readyState === OPEN) this.ws.send(JSON.stringify(msg2));
   }
-  handle(msg) {
+  handle(msg2) {
     const { api } = this.deps;
-    switch (msg.type) {
+    switch (msg2.type) {
       case "op":
-        this.lastSeq = Math.max(this.lastSeq, msg.seq);
-        this.session?.receive(msg.op);
+        this.lastSeq = Math.max(this.lastSeq, msg2.seq);
+        this.session?.receive(msg2.op);
         return;
       case "ack":
-        this.lastSeq = Math.max(this.lastSeq, msg.seq);
+        this.lastSeq = Math.max(this.lastSeq, msg2.seq);
         this.unacked.shift();
         this.session?.confirm();
         return;
       case "joined":
-        this.people.set(msg.person.id, msg.person);
-        api.ui.toast({ kind: "info", title: `${msg.person.name} joined the shared map` });
+        this.people.set(msg2.person.id, msg2.person);
+        api.ui.toast({ kind: "info", title: t("{name} joined the shared map", { name: msg2.person.name }) });
         this.emit();
         return;
       case "left": {
-        const who = this.people.get(msg.person);
-        this.people.delete(msg.person);
-        this.presence.delete(msg.person);
-        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : msg.reason === "lost" ? "lost the connection to" : "left"} the shared map.`);
+        const who = this.people.get(msg2.person);
+        this.people.delete(msg2.person);
+        this.presence.delete(msg2.person);
+        if (who) api.ui.status(msg2.reason === "removed" ? t("{name} was removed from the shared map.", { name: who.name }) : msg2.reason === "lost" ? t("{name} lost the connection to the shared map.", { name: who.name }) : t("{name} left the shared map.", { name: who.name }));
         this.emit();
         return;
       }
       case "away": {
-        const who = this.people.get(msg.person);
+        const who = this.people.get(msg2.person);
         if (who) this.people.set(who.id, { ...who, away: true });
-        this.presence.delete(msg.person);
+        this.presence.delete(msg2.person);
         this.emit();
         return;
       }
       case "back":
-        this.people.set(msg.person.id, msg.person);
+        this.people.set(msg2.person.id, msg2.person);
         this.emit();
         return;
       case "presence":
-        this.presence.set(msg.from, msg.data);
+        this.presence.set(msg2.from, msg2.data);
         this.emit(true);
         return;
       case "chat":
-        this.addChat(msg.line);
+        this.addChat(msg2.line);
         return;
       case "snapshot-please":
         void this.answerCopy(0);
         return;
       case "link":
-        this.invite = msg.invite;
-        if (this.room) this.room = { ...this.room, invite: msg.invite };
+        this.invite = msg2.invite;
+        if (this.room) this.room = { ...this.room, invite: msg2.invite };
         this.emit();
         return;
       case "ended":
-        this.end(ENDINGS[msg.reason] ?? "The shared map ended.");
+        this.end(ending(msg2.reason));
         return;
       case "error":
-        if (msg.about === "op") {
-          this.end(`A change could not be shared (${msg.message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.`);
+        if (msg2.about === "op") {
+          this.end(t("A change could not be shared ({message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.", { message: msg2.message }));
         } else {
-          api.ui.status(msg.message);
+          api.ui.status(msg2.message);
         }
         return;
       default:
@@ -12735,11 +13985,11 @@ var CHAT_STYLE = `
 `;
 function chatButton(api, onClick) {
   if (typeof api.ui.mapButton === "function") {
-    const b = api.ui.mapButton({ label: "Chat", title: "Chat with the people on this shared map", onClick });
-    return { set: (label, badge, active) => b.set({ label, badge: badge || null, active }), remove: () => b.remove() };
+    const b = api.ui.mapButton({ label: t("Chat"), title: t("Chat with the people on this shared map"), onClick });
+    return { set: (label, title, badge, active) => b.set({ label, title, badge: badge || null, active }), remove: () => b.remove() };
   }
-  const s = api.ui.statusItem({ text: "Chat", title: "Chat with the people on this shared map", onClick });
-  return { set: (label, badge) => s.set({ text: badge ? `${label} (${badge})` : label }), remove: () => s.remove() };
+  const s = api.ui.statusItem({ text: t("Chat"), title: t("Chat with the people on this shared map"), onClick });
+  return { set: (label, title, badge) => s.set({ text: badge ? `${label} (${badge})` : label, title }), remove: () => s.remove() };
 }
 var clock = (iso) => {
   const d = new Date(iso);
@@ -12751,6 +14001,7 @@ var SharedChat = class {
   button = null;
   panel = null;
   lines = null;
+  body = null;
   unread = 0;
   unhook = [];
   constructor(api, shared) {
@@ -12759,6 +14010,8 @@ var SharedChat = class {
     this.unhook.push(shared.onChat((line) => this.arrived(line)));
     const onDocument = api.events.on("document", () => this.syncButton());
     this.unhook.push(() => onDocument.dispose());
+    const onLanguage = api.events.on("language", () => this.relabel());
+    this.unhook.push(() => onLanguage.dispose());
     this.syncButton();
   }
   /** The button shows only while the shared map is the one in front. */
@@ -12773,7 +14026,15 @@ var SharedChat = class {
     }
   }
   paintButton() {
-    this.button?.set("Chat", this.unread, !!this.panel?.isOpen());
+    this.button?.set(t("Chat"), t("Chat with the people on this shared map"), this.unread, !!this.panel?.isOpen());
+  }
+  /** The language changed: the button's words, and the panel built again if it is open. */
+  relabel() {
+    this.paintButton();
+    if (this.panel?.isOpen()) {
+      this.panel.setTitle(this.title());
+      this.fill();
+    }
   }
   arrived(line) {
     if (this.panel?.isOpen() && this.lines) {
@@ -12785,7 +14046,7 @@ var SharedChat = class {
     if (line.from === this.shared.you?.id) return;
     this.unread++;
     this.paintButton();
-    this.api.ui.toast({ kind: "info", title: `${line.name} in the chat`, detail: line.text.length > 140 ? `${line.text.slice(0, 139)}\u2026` : line.text });
+    this.api.ui.toast({ kind: "info", title: t("{name} in the chat", { name: line.name }), detail: line.text.length > 140 ? `${line.text.slice(0, 139)}\u2026` : line.text });
   }
   lineEl(line) {
     const mine = line.from === this.shared.you?.id;
@@ -12793,7 +14054,7 @@ var SharedChat = class {
       "div",
       { className: "sd-chat-line" },
       h2("span", { className: "sd-chat-at", title: new Date(line.at).toLocaleString() }, clock(line.at)),
-      h2("span", { className: "sd-chat-who", style: `color:${personColor({ id: line.from, name: line.name, color: line.color, owner: false })}` }, mine ? `${line.name} (you)` : line.name),
+      h2("span", { className: "sd-chat-who", style: `color:${personColor({ id: line.from, name: line.name, color: line.color, owner: false })}` }, mine ? t("{name} (you)", { name: line.name }) : line.name),
       line.text
     );
   }
@@ -12806,44 +14067,18 @@ var SharedChat = class {
   }
   open() {
     if (this.panel?.isOpen()) return;
-    const w = this.api.ui.widgets;
     this.unread = 0;
     this.panel = this.api.ui.panel({
-      title: `Chat \xB7 ${this.shared.room?.name ?? "shared map"}`,
+      title: this.title(),
       width: 320,
       height: 360,
       resizable: true,
       mount: (body) => {
-        const root2 = styled2(body);
-        root2.classList.add("sd-chat");
-        const style = document.createElement("style");
-        style.textContent = CHAT_STYLE;
-        body.prepend(style);
-        const lines = h2("div", { className: "sd-chat-lines" });
-        const past = this.shared.chat ?? [];
-        if (!past.length) lines.append(h2("div", { className: "sd-chat-empty" }, "Nothing said yet. Everyone on the shared map sees what you write here; it goes when the sharing ends."));
-        for (const line of past) lines.append(this.lineEl(line));
-        const input = w.text({ placeholder: "Say something to everyone here" });
-        input.maxLength = CHAT_MAX;
-        const send = () => {
-          if (this.shared.say(input.value)) input.value = "";
-          input.focus();
-        };
-        input.addEventListener("keydown", (e) => {
-          e.stopPropagation();
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
-          }
-        });
-        root2.append(lines, h2("div", { className: "sd-chat-input" }, input, w.button("Send", { onClick: send })));
-        this.lines = lines;
-        queueMicrotask(() => {
-          lines.scrollTop = lines.scrollHeight;
-          input.focus();
-        });
+        this.body = body;
+        this.fill();
         return () => {
           this.lines = null;
+          this.body = null;
         };
       },
       onClose: () => {
@@ -12852,6 +14087,46 @@ var SharedChat = class {
       }
     });
     this.paintButton();
+  }
+  title() {
+    return this.shared.room?.name ? t("Chat \xB7 {name}", { name: this.shared.room.name }) : t("Chat \xB7 shared map");
+  }
+  /** The panel's contents: the conversation so far and the line to type in. Run again on a change of language. */
+  fill() {
+    const body = this.body;
+    if (!body) return;
+    const w = this.api.ui.widgets;
+    const typed = body.querySelector(".sd-chat-input input")?.value ?? "";
+    body.replaceChildren();
+    const root2 = styled2(body);
+    root2.classList.add("sd-chat");
+    const style = document.createElement("style");
+    style.textContent = CHAT_STYLE;
+    body.prepend(style);
+    const lines = h2("div", { className: "sd-chat-lines" });
+    const past = this.shared.chat ?? [];
+    if (!past.length) lines.append(h2("div", { className: "sd-chat-empty" }, t("Nothing said yet. Everyone on the shared map sees what you write here; it goes when the sharing ends.")));
+    for (const line of past) lines.append(this.lineEl(line));
+    const input = w.text({ placeholder: t("Say something to everyone here") });
+    input.maxLength = CHAT_MAX;
+    input.value = typed;
+    const send = () => {
+      if (this.shared.say(input.value)) input.value = "";
+      input.focus();
+    };
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+    root2.append(lines, h2("div", { className: "sd-chat-input" }, input, w.button(t("Send"), { onClick: send })));
+    this.lines = lines;
+    queueMicrotask(() => {
+      lines.scrollTop = lines.scrollHeight;
+      input.focus();
+    });
   }
   dispose() {
     for (const u of this.unhook) u();
@@ -12884,20 +14159,20 @@ function openShareDialog(ctx, controls) {
   const w = api.ui.widgets;
   let unsubscribe = null;
   return api.ui.dialog({
-    title: "Share this Map",
+    title: t("Share this Map"),
     mount(body, dialog) {
       const box = root(body);
       const status = w.statusLine({ text: "" });
       const renderStart = () => {
         clear2(box);
         if (!api.document.isOpen()) {
-          box.append(w.hint("Open a map first."));
+          box.append(w.hint(t("Open a map first.")));
           return;
         }
         if (account.kind() !== "account") {
           box.append(
-            h2("div", { className: "sd-hint" }, "Sharing a map takes a scmjs.dev account. The people you share it with need only the link."),
-            h2("div", { className: "sd-btns" }, w.button("Sign in\u2026", { primary: true, onClick: () => {
+            h2("div", { className: "sd-hint" }, t("Sharing a map takes a scmjs.dev account. The people you share it with need only the link.")),
+            h2("div", { className: "sd-btns" }, w.button(t("Sign in\u2026"), { primary: true, onClick: () => {
               dialog.close();
               ctx.openAccount();
             } }))
@@ -12907,15 +14182,15 @@ function openShareDialog(ctx, controls) {
         const name = w.text({ value: api.document.info()?.name ?? "" });
         const canKeep = !!account.state().offers?.keptRooms;
         const hint = h2("div", { className: "sd-hint" }, keepHint("live"));
-        const keep = w.select(KEEP_CHOICES, { value: "live", onChange: (v) => {
+        const keep = w.select(keepChoices(), { value: "live", onChange: (v) => {
           hint.textContent = keepHint(v);
         } });
         hint.textContent = keepHint(keep.value);
         const full = h2("div", null);
-        const start2 = w.button("Start sharing", { primary: true, onClick: async () => {
+        const start2 = w.button(t("Start sharing"), { primary: true, onClick: async () => {
           start2.setBusy(true);
           const keepDays = canKeep ? keepDaysOf(keep.value) : void 0;
-          status.busy(keepDays === void 0 ? "Copying the map to scmjs.dev\u2026" : "Saving the map to My Maps\u2026");
+          status.busy(keepDays === void 0 ? t("Copying the map to scmjs.dev\u2026") : t("Saving the map to My Maps\u2026"));
           clear2(full);
           try {
             await controls.share(name.value.trim() || "Untitled map", keepDays);
@@ -12924,15 +14199,15 @@ function openShareDialog(ctx, controls) {
           } catch (err) {
             status.set(describeError(err), "error");
             if (err instanceof ScmjsError && err.code === "room_full" && /sharing/.test(err.message)) {
-              full.append(w.group("Your shared maps", sharedMapsList(ctx, controls, { onJoined: () => dialog.close() }).el));
+              full.append(w.group(t("Your shared maps"), sharedMapsList(ctx, controls, { onJoined: () => dialog.close() }).el));
             }
           } finally {
             start2.setBusy(false);
           }
         } });
         box.append(
-          h2("div", { className: "sd-hint" }, "Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map."),
-          w.form([{ label: "Name", field: name }, ...canKeep ? [{ label: "Keep it open", field: keep }] : []]),
+          h2("div", { className: "sd-hint" }, t("Anyone with the link can open this map in their own editor and change it with you, at the same time. Everyone sees the others' changes as they are made, and their pointers on the map.")),
+          w.form([{ label: t("Name"), field: name }, ...canKeep ? [{ label: t("Keep it open"), field: keep }] : []]),
           hint,
           h2("div", { className: "sd-btns" }, start2),
           status,
@@ -12944,47 +14219,47 @@ function openShareDialog(ctx, controls) {
         const room = shared.room;
         const invite = room?.invite;
         if (shared.phase === "connecting") {
-          box.append(w.spinner({ label: "Connecting\u2026" }));
+          box.append(w.spinner({ label: t("Connecting\u2026") }));
           return;
         }
         if (shared.phase === "reconnecting") {
           box.append(
-            w.spinner({ label: "Reconnecting\u2026" }),
-            h2("div", { className: "sd-hint" }, "The connection to the shared map dropped. Keep working: your changes are kept here and sent once it is back. The editor keeps trying for two minutes."),
-            h2("div", { className: "sd-btns" }, w.button("Leave", { onClick: () => shared.leave(false) }))
+            w.spinner({ label: t("Reconnecting\u2026") }),
+            h2("div", { className: "sd-hint" }, t("The connection to the shared map dropped. Keep working: your changes are kept here and sent once it is back. The editor keeps trying for two minutes.")),
+            h2("div", { className: "sd-btns" }, w.button(t("Leave"), { onClick: () => shared.leave(false) }))
           );
           return;
         }
         if (invite) {
           const link = w.text({ value: inviteLink(invite, account.serverUrl(), where2()) });
           link.readOnly = true;
-          const copy = w.button("Copy", { onClick: async () => {
+          const copy = w.button(t("Copy"), { onClick: async () => {
             try {
               await navigator.clipboard.writeText(link.value);
-              status.set("The link is on the clipboard.", "ok");
+              status.set(t("The link is on the clipboard."), "ok");
             } catch {
               link.select();
-              status.set("Select the link and copy it.", "warn");
+              status.set(t("Select the link and copy it."), "warn");
             }
           } });
           box.append(
-            h2("div", { className: "sd-hint" }, "Send this link to the people you want to edit with. Anyone who has it can join."),
+            h2("div", { className: "sd-hint" }, t("Send this link to the people you want to edit with. Anyone who has it can join.")),
             h2("div", { className: "sd-link" }, link, copy)
           );
           if (shared.owner) {
-            box.append(h2("div", { className: "sd-btns" }, w.button("New link", { ghost: true, onClick: () => {
+            box.append(h2("div", { className: "sd-btns" }, w.button(t("New link"), { ghost: true, onClick: () => {
               shared.relink();
-              status.set("The old link no longer works. Nobody in the map was sent out.", "ok");
+              status.set(t("The old link no longer works. Nobody in the map was sent out."), "ok");
             } })));
           }
         } else {
-          box.append(h2("div", { className: "sd-hint" }, `You are editing \u201C${room?.name ?? "a shared map"}\u201D with others.`));
+          box.append(h2("div", { className: "sd-hint" }, room?.name ? t("You are editing \u201C{name}\u201D with others.", { name: room.name }) : t("You are editing a shared map with others.")));
         }
         if (shared.kept && room) {
-          const line = h2("div", { className: "sd-hint" }, `Kept open: ${lower(endsLine(room))}. Each time everyone has left, it saves a new revision to ${shared.owner ? "your" : `${room.owner ?? "the owner"}'s`} My Maps.`);
+          const line = h2("div", { className: "sd-hint" }, shared.owner ? t("Kept open: {ends}. Each time everyone has left, it saves a new revision to your My Maps.", { ends: lower(endsLine(room)) }) : room.owner ? t("Kept open: {ends}. Each time everyone has left, it saves a new revision to {owner}'s My Maps.", { ends: lower(endsLine(room)), owner: room.owner }) : t("Kept open: {ends}. Each time everyone has left, it saves a new revision to the owner's My Maps.", { ends: lower(endsLine(room)) }));
           box.append(line);
           if (shared.owner) {
-            const how = w.select(KEEP_CHOICES.filter((c2) => c2.value !== "live"), { value: choiceOf(room.keepDays), title: "How long it stays open after its last edit", onChange: async (v) => {
+            const how = w.select(keepChoices(false), { value: choiceOf(room.keepDays), title: t("How long it stays open after its last edit"), onChange: async (v) => {
               try {
                 await shared.keepFor(keepDaysOf(v) ?? null);
                 status.set(`${endsLine(shared.room ?? {})}.`, "ok");
@@ -12992,14 +14267,14 @@ function openShareDialog(ctx, controls) {
                 status.set(describeError(err), "error");
               }
             } });
-            box.append(w.form([{ label: "Keep it open", field: how }]));
-            const embed = w.button("Embed\u2026", { title: "A picture of the map that links to it, for a forum, a README or a website", onClick: async () => {
+            box.append(w.form([{ label: t("Keep it open"), field: how }]));
+            const embed = w.button(t("Embed\u2026"), { title: t("A picture of the map that links to it, for a forum, a README or a website"), onClick: async () => {
               embed.setBusy(true);
               try {
                 const view = (await account.client.sharedMaps()).rooms.find((x) => x.id === room.id);
                 const target = view ? keptEmbedTarget(ctx, view) : null;
                 if (target) openEmbedDialog(ctx, target);
-                else status.set("This server has no pictures for shared maps yet.", "warn");
+                else status.set(t("This server has no pictures for shared maps yet."), "warn");
               } catch (err) {
                 status.set(describeError(err), "error");
               } finally {
@@ -13012,25 +14287,25 @@ function openShareDialog(ctx, controls) {
         const list2 = h2("div", { className: "sd-people" });
         for (const person of shared.people.values()) {
           const me = person.id === shared.you?.id;
-          const sub = [person.owner ? "shared the map" : "", me ? "you" : "", person.away ? "connection lost, may come back" : doing(shared.presence.get(person.id))].filter(Boolean).join(" \xB7 ");
+          const sub = [person.owner ? t("shared the map") : "", me ? t("you") : "", person.away ? t("connection lost, may come back") : doing(shared.presence.get(person.id))].filter(Boolean).join(" \xB7 ");
           list2.append(h2(
             "div",
             { className: "sd-person" },
             h2("span", { className: "sd-swatch", style: `background:${personColor(person)}` }),
             h2("div", null, h2("div", null, person.name), sub ? h2("div", { className: "sd-sub" }, sub) : null),
-            shared.owner && !me ? w.button("Remove", { ghost: true, onClick: () => shared.kick(person.id) }) : h2("span", null)
+            shared.owner && !me ? w.button(t("Remove"), { ghost: true, onClick: () => shared.kick(person.id) }) : h2("span", null)
           ));
         }
-        const leave = w.button("Leave", { onClick: () => void shared.leave(false), title: shared.kept ? "The map stays open for the others and at its link." : void 0 });
-        const stop = shared.owner ? w.button(shared.kept ? "End sharing" : "Stop sharing", { danger: true, onClick: async () => {
-          const text = shared.kept ? "End sharing this map? Everyone is sent out of it and the link stops working. The map and its revisions stay in My Maps." : "Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.";
+        const leave = w.button(t("Leave"), { onClick: () => void shared.leave(false), title: shared.kept ? t("The map stays open for the others and at its link.") : void 0 });
+        const stop = shared.owner ? w.button(shared.kept ? t("End sharing") : t("Stop sharing"), { danger: true, onClick: async () => {
+          const text = shared.kept ? t("End sharing this map? Everyone is sent out of it and the link stops working. The map and its revisions stay in My Maps.") : t("Stop sharing this map? Everyone is sent out of it; they keep their copy and can save it.");
           if (!await api.ui.confirm(text)) return;
           void shared.leave(true);
         } }) : null;
         const buttons = h2("div", { className: "sd-btns" });
         if (!shared.owner || shared.kept) buttons.append(leave);
         if (stop) buttons.append(stop);
-        box.append(h2("div", { className: "sd-k" }, `${shared.people.size} ${shared.people.size === 1 ? "person" : "people"} in the map`), list2, buttons, status);
+        box.append(h2("div", { className: "sd-k" }, t("{n, plural, one {# person} other {# people}} in the map", { n: shared.people.size })), list2, buttons, status);
       };
       const render = () => {
         unsubscribe?.();
@@ -13056,30 +14331,30 @@ function openJoinDialog(ctx, controls, given = null) {
   const { api, account } = ctx;
   const w = api.ui.widgets;
   return api.ui.dialog({
-    title: "Join a Shared Map",
+    title: t("Join a Shared Map"),
     mount(body, dialog) {
       const box = root(body);
       const status = w.statusLine({ text: "" });
       const about = h2("div", { className: "sd-hint" }, "");
       let room = null;
       let looking = null;
-      const link = w.text({ value: given ?? "", placeholder: "Paste the link you were sent" });
-      const name = w.text({ value: ctx.store.get().shareName || (account.kind() === "account" ? account.current()?.name ?? "" : ""), placeholder: "How the others see you" });
-      const join = w.button("Join", { primary: true, onClick: async () => {
+      const link = w.text({ value: given ?? "", placeholder: t("Paste the link you were sent") });
+      const name = w.text({ value: ctx.store.get().shareName || (account.kind() === "account" ? account.current()?.name ?? "" : ""), placeholder: t("How the others see you") });
+      const join = w.button(t("Join"), { primary: true, onClick: async () => {
         const invite = inviteFrom(link.value);
         if (!invite) {
-          status.set("That is not a shared map's link.", "error");
+          status.set(t("That is not a shared map's link."), "error");
           return;
         }
         const who = name.value.trim();
         if (!who) {
-          status.set("Type a name for the others to see.", "error");
+          status.set(t("Type a name for the others to see."), "error");
           name.focus();
           return;
         }
         ctx.store.set({ shareName: who });
         join.setBusy(true);
-        status.busy("Joining\u2026");
+        status.busy(t("Joining\u2026"));
         try {
           await controls.join(invite, who);
           dialog.close();
@@ -13094,15 +14369,15 @@ function openJoinDialog(ctx, controls, given = null) {
         room = null;
         const invite = inviteFrom(link.value);
         if (!invite) {
-          about.textContent = link.value.trim() ? "That is not a shared map's link." : "";
+          about.textContent = link.value.trim() ? t("That is not a shared map's link.") : "";
           return;
         }
         const ctl = new AbortController();
         looking = ctl;
-        about.textContent = "Looking it up\u2026";
+        about.textContent = t("Looking it up\u2026");
         try {
           room = (await account.client.lookupRoom(invite, ctl.signal)).room;
-          about.textContent = `\u201C${room.name}\u201D${room.owner ? `, shared by ${room.owner}` : ""} \xB7 ${room.people} of ${room.maxPeople} people editing now.`;
+          about.textContent = room.owner ? t("\u201C{name}\u201D, shared by {owner} \xB7 {n} of {max} people editing now.", { name: room.name, owner: room.owner, n: room.people, max: room.maxPeople }) : t("\u201C{name}\u201D \xB7 {n} of {max} people editing now.", { name: room.name, n: room.people, max: room.maxPeople });
         } catch (err) {
           if (!ctl.signal.aborted) about.textContent = describeError(err);
         }
@@ -13110,13 +14385,13 @@ function openJoinDialog(ctx, controls, given = null) {
       link.addEventListener("input", () => void lookUp());
       clear2(box);
       box.append(
-        w.form([{ label: "Link", field: link }, { label: "Your name", field: name }]),
+        w.form([{ label: t("Link"), field: link }, { label: t("Your name"), field: name }]),
         about,
-        h2("div", { className: "sd-hint" }, "The map opens beside the ones you have open. You edit it together with everyone in it; closing it leaves."),
+        h2("div", { className: "sd-hint" }, t("The map opens beside the ones you have open. You edit it together with everyone in it; closing it leaves.")),
         h2("div", { className: "sd-btns" }, join),
         status
       );
-      if (controls.current() && controls.current().phase !== "ended") status.set("You are in a shared map already; joining this one leaves it.", "warn");
+      if (controls.current() && controls.current().phase !== "ended") status.set(t("You are in a shared map already; joining this one leaves it."), "warn");
       if (given) void lookUp();
       return () => looking?.abort();
     }
@@ -13144,11 +14419,14 @@ function installShare(opts) {
       return;
     }
     const n2 = shared.people.size;
-    const text = shared.phase === "connecting" ? "Sharing\u2026" : shared.phase === "reconnecting" ? "Reconnecting\u2026" : `Shared \xB7 ${n2} ${n2 === 1 ? "person" : "people"}`;
-    const lines = [...shared.people.values()].map((p) => `${p.name}${p.id === shared.you?.id ? " (you)" : ""}${p.owner ? " \xB7 shared the map" : ""}${p.away ? " \xB7 connection lost" : doing(shared.presence.get(p.id)) ? ` \xB7 ${doing(shared.presence.get(p.id))}` : ""}`);
-    const spec = { text, title: `${shared.room?.name ?? "Shared map"}
+    const text = shared.phase === "connecting" ? t("Sharing\u2026") : shared.phase === "reconnecting" ? t("Reconnecting\u2026") : t("Shared \xB7 {n, plural, one {# person} other {# people}}", { n: n2 });
+    const lines = [...shared.people.values()].map((p) => {
+      const what = doing(shared.presence.get(p.id));
+      return [p.id === shared.you?.id ? t("{name} (you)", { name: p.name }) : p.name, p.owner ? t("shared the map") : "", p.away ? t("connection lost") : what].filter(Boolean).join(" \xB7 ");
+    });
+    const spec = { text, title: `${shared.room?.name ?? t("Shared map")}
 ${lines.join("\n")}
-Click to see the link and who is in.`, busy: shared.phase === "connecting" || shared.phase === "reconnecting", onClick: () => {
+${t("Click to see the link and who is in.")}`, busy: shared.phase === "connecting" || shared.phase === "reconnecting", onClick: () => {
       openShareDialog(ctx, controls);
     } };
     if (status) status.set(spec);
@@ -13172,7 +14450,7 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
     syncChat();
     unhook.push(s.onPresence(() => overlay?.redraw()));
     overlay = api.ui.overlay({
-      name: "People on the shared map",
+      name: msg("People on the shared map"),
       above: "everything",
       // Only over the shared map: with several open, the others' pointers mean nothing on the rest.
       draw: (c2, view) => {
@@ -13199,7 +14477,7 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
     overlay = null;
     shared = null;
     syncStatus();
-    if (s.ending) api.ui.toast({ kind: "warn", title: "Shared editing ended", detail: s.ending, ttl: 0 });
+    if (s.ending) api.ui.toast({ kind: "warn", title: t("Shared editing ended"), detail: s.ending, ttl: 0 });
   };
   const controls = {
     current: () => shared,
@@ -13231,20 +14509,24 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
       if (invite === pageInvite) pageInvite = null;
       if (s.kept && s.owner && s.room) opts.links.set({ mapId: s.room.id, mapName: s.room.name, fileName: `${s.room.name}.scx` });
       attach(s);
-      api.ui.toast({ kind: "ok", title: `Joined \u201C${s.room?.name ?? "the shared map"}\u201D`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
+      api.ui.toast({ kind: "ok", title: s.room?.name ? t("Joined \u201C{name}\u201D", { name: s.room.name }) : t("Joined the shared map"), detail: t("{n, plural, one {# person} other {# people}} editing it.", { n: s.people.size }) });
       return s;
     }
   };
-  disposables.push(api.commands.register({ id: "share", title: "Share this Map\u2026", enabled: () => api.document.isOpen() || !!shared, run: () => {
+  disposables.push(api.commands.register({ id: "share", title: msg("Share this Map\u2026"), enabled: () => api.document.isOpen() || !!shared, run: () => {
     openShareDialog(ctx, controls);
   } }));
-  disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map\u2026", run: () => {
+  disposables.push(api.commands.register({ id: "join", title: msg("Join a Shared Map\u2026"), run: () => {
     openJoinDialog(ctx, controls, pageInvite);
   } }));
-  disposables.push(api.menu.add("Account", { label: "Share this Map\u2026", icon: "plugin", command: "share", separator: true }));
-  disposables.push(api.menu.add("Account", { label: "Join a Shared Map\u2026", icon: "plugin", command: "join" }));
+  disposables.push(api.menu.add(msg("Account"), { label: msg("Share this Map\u2026"), icon: "plugin", command: "share", separator: true }));
+  disposables.push(api.menu.add(msg("Account"), { label: msg("Join a Shared Map\u2026"), icon: "plugin", command: "join" }));
   const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
   pageInvite = inviteOnPage(pathname);
+  disposables.push(api.events.on("language", () => {
+    syncStatus();
+    overlay?.redraw();
+  }));
   if (pageInvite) {
     forgetLinkOnPage();
     openJoinDialog(ctx, controls, pageInvite);
@@ -13262,6 +14544,7 @@ Click to see the link and who is in.`, busy: shared.phase === "connecting" || sh
 var SERVICE_NAME = "account";
 var CONTRACT_VERSION = 1;
 function activate(api) {
+  const unbindI18n = bindI18n(api);
   const store = settingsStore(api);
   const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session }));
   const account = new AccountManager(store, client);
@@ -13286,8 +14569,8 @@ function activate(api) {
       openSaveDialog(ctx, links);
     }
   };
-  api.commands.register({ id: "account", title: "scmjs.dev Account\u2026", run: ctx.openAccount });
-  api.commands.register({ id: "sign-in", title: "Sign in to scmjs.dev\u2026", run: async () => {
+  api.commands.register({ id: "account", title: msg("scmjs.dev Account\u2026"), run: ctx.openAccount });
+  api.commands.register({ id: "sign-in", title: msg("Sign in to scmjs.dev\u2026"), run: async () => {
     if (account.kind() === "account") {
       ctx.openAccount();
       return;
@@ -13297,37 +14580,37 @@ function activate(api) {
       const providers = account.offers()?.providers ?? [];
       if (providers.length === 1) {
         await account.signIn(providers[0].id);
-        api.ui.toast({ kind: "ok", title: `Signed in to scmjs.dev as ${account.current()?.name ?? "you"}` });
+        api.ui.toast({ kind: "ok", title: account.current()?.name ? t("Signed in to scmjs.dev as {name}", { name: account.current().name }) : t("Signed in to scmjs.dev") });
       } else ctx.openAccount();
     } catch (err) {
       if (err.code !== "aborted") ctx.openAccount();
     }
   } });
-  api.commands.register({ id: "sign-out", title: "Sign out of scmjs.dev", enabled: () => account.kind() !== "guest", run: async () => {
+  api.commands.register({ id: "sign-out", title: msg("Sign out of scmjs.dev"), enabled: () => account.kind() !== "guest", run: async () => {
     await account.signOut();
-    api.ui.toast({ kind: "info", title: "Signed out of scmjs.dev" });
+    api.ui.toast({ kind: "info", title: t("Signed out of scmjs.dev") });
   } });
-  api.commands.register({ id: "maps", title: "My Maps on scmjs.dev\u2026", run: ctx.openMaps });
-  api.commands.register({ id: "save", title: "Save to scmjs.dev\u2026", enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
-  api.commands.register({ id: "copy-link", title: "Copy Link to This Map\u2026", enabled: () => api.document.isOpen(), run: () => {
+  api.commands.register({ id: "maps", title: msg("My Maps on scmjs.dev\u2026"), run: ctx.openMaps });
+  api.commands.register({ id: "save", title: msg("Save to scmjs.dev\u2026"), enabled: () => api.document.isOpen(), run: ctx.saveToCloud });
+  api.commands.register({ id: "copy-link", title: msg("Copy Link to This Map\u2026"), enabled: () => api.document.isOpen(), run: () => {
     openCopyLinkDialog(ctx, links);
   } });
   let pageCopy = null;
   const openCopy = (token) => openCopyDialog(ctx, token, (used) => {
     if (used === pageCopy) pageCopy = null;
   });
-  api.commands.register({ id: "open-link", title: "Open a Map Link\u2026", run: () => {
+  api.commands.register({ id: "open-link", title: msg("Open a Map Link\u2026"), run: () => {
     openCopy(pageCopy);
   } });
-  api.menu.add("Account", { label: "Sign in to scmjs.dev\u2026", icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
-  api.menu.add("Account", { label: "Account\u2026", icon: "plugin", command: "account" });
-  api.menu.add("Account", { label: "My Maps\u2026", icon: "plugin", command: "maps", separator: true });
-  api.menu.add("Account", { label: "Save to scmjs.dev\u2026", icon: "plugin", command: "save" });
-  api.menu.add("Account", { label: "Copy Link to This Map\u2026", icon: "plugin", command: "copy-link" });
-  api.menu.add("Account", { label: "Open a Map Link\u2026", icon: "plugin", command: "open-link" });
-  api.menu.add("Account", { label: "Sign out", icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
-  api.menu.add("File", { label: "Open from scmjs.dev\u2026", icon: "plugin", after: "Open Recent", command: "maps" });
-  api.menu.add("File", { label: "Save to scmjs.dev\u2026", icon: "plugin", after: "Save Copy As\u2026", command: "save" });
+  api.menu.add(msg("Account"), { label: msg("Sign in to scmjs.dev\u2026"), icon: "plugin", command: "sign-in", enabled: () => account.kind() !== "account" });
+  api.menu.add(msg("Account"), { label: msg("Account\u2026"), icon: "plugin", command: "account" });
+  api.menu.add(msg("Account"), { label: msg("My Maps\u2026"), icon: "plugin", command: "maps", separator: true });
+  api.menu.add(msg("Account"), { label: msg("Save to scmjs.dev\u2026"), icon: "plugin", command: "save" });
+  api.menu.add(msg("Account"), { label: msg("Copy Link to This Map\u2026"), icon: "plugin", command: "copy-link" });
+  api.menu.add(msg("Account"), { label: msg("Open a Map Link\u2026"), icon: "plugin", command: "open-link" });
+  api.menu.add(msg("Account"), { label: msg("Sign out"), icon: "plugin", command: "sign-out", separator: true, enabled: () => account.kind() !== "guest" });
+  api.menu.add("File", { label: msg("Open from scmjs.dev\u2026"), icon: "plugin", after: "Open Recent", command: "maps" });
+  api.menu.add("File", { label: msg("Save to scmjs.dev\u2026"), icon: "plugin", after: "Save Copy As\u2026", command: "save" });
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
   ctx.shares = share.controls;
   pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
@@ -13339,10 +14622,10 @@ function activate(api) {
   const statusText = () => {
     switch (account.kind()) {
       case "guest":
-        return "Sign in to scmjs.dev";
+        return t("Sign in to scmjs.dev");
       case "trial": {
         const v = account.current();
-        return v ? `scmjs.dev trial \xB7 ${formatUsd(v.balanceUsd)}` : "scmjs.dev trial";
+        return v ? t("scmjs.dev trial \xB7 {balance}", { balance: formatUsd(v.balanceUsd) }) : t("scmjs.dev trial");
       }
       default: {
         const v = account.current();
@@ -13352,12 +14635,12 @@ function activate(api) {
   };
   const statusTitle = () => {
     const s = account.state();
-    if (s.kind === "guest") return "Not signed in to scmjs.dev. Click to sign in.";
+    if (s.kind === "guest") return t("Not signed in to scmjs.dev. Click to sign in.");
     const v = s.account;
     const lines = [account.summary()];
-    if (v?.resetsAt) lines.push(`Refills ${new Date(v.resetsAt).toLocaleDateString()}`);
-    if (s.storage) lines.push(`${Math.round(s.storage.usedBytes / 1048576)} MB of ${Math.round(s.storage.capBytes / 1048576)} MB of map storage used`);
-    lines.push("Click for your account.");
+    if (v?.resetsAt) lines.push(t("Refills {date}", { date: new Date(v.resetsAt).toLocaleDateString() }));
+    if (s.storage) lines.push(t("{used} MB of {cap} MB of map storage used", { used: Math.round(s.storage.usedBytes / 1048576), cap: Math.round(s.storage.capBytes / 1048576) }));
+    lines.push(t("Click for your account."));
     return lines.join("\n");
   };
   const syncStatus = () => {
@@ -13375,6 +14658,7 @@ function activate(api) {
   };
   syncStatus();
   account.onChange(syncStatus);
+  api.events.on("language", syncStatus);
   const provided = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
   let ai = null;
   let optionsPage = null;
@@ -13402,6 +14686,7 @@ function activate(api) {
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {
   });
   return () => {
+    unbindI18n();
     ai?.();
     optionsPage?.dispose();
     share.dispose();

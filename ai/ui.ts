@@ -9,6 +9,7 @@
 import type { PluginApi, StatusItemHandle, StatusLineElement } from "@scm-js/plugin-api";
 import type { RecipeInputs, RecipeName, RecipeOptions, Usage } from "../protocol";
 import type { AccountManager, Quality, Settings } from "../account";
+import { t } from "../i18n";
 import { ScmjsClient, ScmjsError, describeError, formatUsage, type Ledger, type RunHooks, type RunResult } from "../client";
 
 export interface Ctx {
@@ -189,10 +190,10 @@ export class Runner {
 
   constructor(ctx: Ctx) {
     this.ctx = ctx;
-    this.status = ctx.api.ui.widgets.statusLine({ text: "Ready." });
+    this.status = ctx.api.ui.widgets.statusLine({ text: t("Ready.") });
     this.latest = h("div", { className: "ai-hint ai-latest", hidden: true });
     this.thinkingBody = h("div", { className: "ai-body" });
-    this.thinking = h("details", { hidden: true }, h("summary", null, "Reasoning"), this.thinkingBody);
+    this.thinking = h("details", { hidden: true }, h("summary", null, t("Reasoning")), this.thinkingBody);
     this.el = h("div", { className: "ai-runner" }, this.status, this.latest, this.thinking);
   }
 
@@ -201,18 +202,18 @@ export class Runner {
   get seconds(): number { return Math.round((Date.now() - this.startedAt) / 1000); }
 
   /** Start a run; `label` says what is being asked for ("Designing the scenario"), so the wait is not a blank "asking". */
-  start(label = "Asking scmjs.dev") {
+  start(label?: string) {
     this.abort();
     this.controller = new AbortController();
     this.startedAt = Date.now();
-    this.label = label;
+    this.label = label ?? t("Asking scmjs.dev");
     this.thought = "";
     this.written = 0;
     this.tail = "";
     this.lastNamed = "";
     this.lastError = null;
     // "Stop", not Cancel: Cancel in a dialog means leaving it, and this leaves the dialog where it is.
-    this.status.cancel(() => this.abort(), "Stop");
+    this.status.cancel(() => this.abort(), t("Stop"));
     clear(this.thinkingBody);
     this.latest.hidden = true;
     this.latest.textContent = "";
@@ -225,7 +226,7 @@ export class Runner {
   private tick() {
     const s = this.seconds;
     // The model is the service's business: the strip says what is being asked for, not which model.
-    this.status.progress(`${this.label}… ${s} s`, null);
+    this.status.progress(t("{label}… {s} s", { label: this.label, s }), null);
     this.onTick?.(s);
   }
 
@@ -239,7 +240,7 @@ export class Runner {
     this.thinkingBody.append(document.createTextNode(text));
     this.thinkingBody.scrollTop = this.thinkingBody.scrollHeight;
     this.thought = (this.thought + text).slice(-4000);
-    const paragraphs = this.thought.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+    const paragraphs = this.thought.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     const current = paragraphs[paragraphs.length - 1] ?? "";
     if (current) { this.latest.textContent = current; this.latest.hidden = false; this.latest.scrollTop = this.latest.scrollHeight; }
   }
@@ -256,7 +257,8 @@ export class Runner {
     const last = names.length ? names[names.length - 1][1] : this.lastNamed;
     this.lastNamed = last;
     // The reasoning line stays while the model is still reasoning; once the answer flows it takes the line over.
-    this.latest.textContent = `Writing the answer… ${this.written >= 1000 ? `${(this.written / 1000).toFixed(1)}k` : this.written} characters${last ? ` · ${last}` : ""}`;
+    const size = this.written >= 1000 ? `${(this.written / 1000).toFixed(1)}k` : String(this.written);
+    this.latest.textContent = last ? t("Writing the answer… {size} characters · {last}", { size, last }) : t("Writing the answer… {size} characters", { size });
     this.latest.hidden = false;
   }
 
@@ -270,8 +272,8 @@ export class Runner {
   finish(usage: Usage, note?: string) {
     this.settle();
     this.status.set(h("span", null,
-      note ?? "Done.", " ", h("span", { className: "ai-dim" }, formatUsage(usage)),
-      " · ", h("span", { className: "ai-dim", title: "What this session has cost so far" }, this.ctx.ledger.summary()),
+      note ?? t("Done."), " ", h("span", { className: "ai-dim" }, formatUsage(usage)),
+      " · ", h("span", { className: "ai-dim", title: t("What this session has cost so far") }, this.ctx.ledger.summary()),
     ));
   }
 
@@ -282,15 +284,15 @@ export class Runner {
     // What to do about it is in the Account dialog: sign in when the trial is spent, top up when the balance is.
     const code = err instanceof ScmjsError ? err.code : null;
     const accountLink = code === "budget_exceeded" || code === "unauthorized"
-      ? h("a", { href: "#", onClick: (e: Event) => { e.preventDefault(); this.ctx.openAccount(); } }, code === "unauthorized" ? "Sign in" : this.ctx.account.signedIn() ? "Top up or wait" : "Sign in")
+      ? h("a", { href: "#", onClick: (e: Event) => { e.preventDefault(); this.ctx.openAccount(); } }, code === "unauthorized" ? t("Sign in") : this.ctx.account.signedIn() ? t("Top up or wait") : t("Sign in"))
       : null;
     // A line that carries a link is a node, not a string; the status line takes either.
     this.status.set(accountLink ? h("span", { title: text }, text, " ", accountLink) : text, "error");
   }
 
-  idle(text = "Ready.") {
+  idle(text?: string) {
     this.settle();
-    this.status.set(text);
+    this.status.set(text ?? t("Ready."));
   }
 
   abort() {
@@ -351,8 +353,8 @@ export async function runRecipe<N extends RecipeName>(ctx: Ctx, runner: Runner, 
   try {
     const r = await ctx.client.run(name, input, {
       ...rest,
-      onThinking: (t) => { runner.addThinking(t); hooks.onThinking?.(t); },
-      onDelta: (t) => { runner.addDelta(t); hooks.onDelta?.(t); },
+      onThinking: (x) => { runner.addThinking(x); hooks.onThinking?.(x); },
+      onDelta: (x) => { runner.addDelta(x); hooks.onDelta?.(x); },
       signal: runner.signal,
     }, options);
     runner.finish(r.usage);
@@ -376,7 +378,7 @@ export function ledgerLine(ctx: Ctx): HTMLElement {
 
 /** A findings/notes list. */
 export function noteList(items: string[], className = ""): HTMLElement {
-  return h("ul", { className: `ai-notes ${className}`.trim(), style: "margin: 0; padding-left: 18px; line-height: 1.4;" }, ...items.map((t) => h("li", null, t)));
+  return h("ul", { className: `ai-notes ${className}`.trim(), style: "margin: 0; padding-left: 18px; line-height: 1.4;" }, ...items.map((item) => h("li", null, item)));
 }
 
 /** `#rrggbb` for a packed 0xRRGGBB. */

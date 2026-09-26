@@ -18,6 +18,7 @@ import { bridgePairOf, bridgesOf, fitDoodad, fitRamp, rampPairsOf, rampsOf } fro
 import { BRIDGE_CHANNEL, BRIDGE_TAPER, shapesToLayout, stepOf } from "./shapes";
 import type { BridgePair, BridgePlan, LayoutPlan, MapPlan, TerrainVocab } from "../protocol";
 import type { TileRect } from "./grid";
+import { t } from "../i18n";
 
 /** Tiles of matching ground a scattered doodad must have around it. */
 const DOODAD_MARGIN = 2;
@@ -364,14 +365,14 @@ export function clearArea(api: PluginApi, tx: EditTransaction, area: TileRect) {
 export function summarizeRender(r: Rendered): string {
   const p = r.placed;
   const parts: string[] = [];
-  if (p.diamonds) parts.push(`${p.diamonds} diamonds painted`);
-  if (p.tiles) parts.push(`${p.tiles} tiles laid`);
-  if (p.starts) parts.push(`${p.starts} start location${p.starts === 1 ? "" : "s"}`);
-  if (p.resources) parts.push(`${p.resources} resources`);
-  if (p.ramps) parts.push(`${p.ramps} ramp${p.ramps === 1 ? "" : "s"}`);
-  if (p.bridges) parts.push(`${p.bridges} bridge${p.bridges === 1 ? "" : "s"}`);
-  if (p.doodads) parts.push(`${p.doodads} doodads`);
-  if (p.units) parts.push(`${p.units} unit${p.units === 1 ? "" : "s"}`);
-  if (p.locations) parts.push(`${p.locations} location${p.locations === 1 ? "" : "s"}`);
-  return parts.length ? parts.join(", ") : "nothing was placed";
+  if (p.diamonds) parts.push(t("{n, plural, one {# diamond painted} other {# diamonds painted}}", { n: p.diamonds }));
+  if (p.tiles) parts.push(t("{n, plural, one {# tile laid} other {# tiles laid}}", { n: p.tiles }));
+  if (p.starts) parts.push(t("{n, plural, one {# start location} other {# start locations}}", { n: p.starts }));
+  if (p.resources) parts.push(t("{n, plural, one {# resource} other {# resources}}", { n: p.resources }));
+  if (p.ramps) parts.push(t("{n, plural, one {# ramp} other {# ramps}}", { n: p.ramps }));
+  if (p.bridges) parts.push(t("{n, plural, one {# bridge} other {# bridges}}", { n: p.bridges }));
+  if (p.doodads) parts.push(t("{n, plural, one {# doodad} other {# doodads}}", { n: p.doodads }));
+  if (p.units) parts.push(t("{n, plural, one {# unit} other {# units}}", { n: p.units }));
+  if (p.locations) parts.push(t("{n, plural, one {# location} other {# locations}}", { n: p.locations }));
+  return parts.length ? parts.join(", ") : t("nothing was placed");
 }

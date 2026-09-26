@@ -7,6 +7,7 @@
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { AgentContent, AgentTool, ImageInput } from "../../protocol";
 import type { Ctx } from "../ui";
+import { t } from "../../i18n";
 
 export const TILE = 32;
 export const RESULT_CAP = 8_000;
@@ -98,7 +99,8 @@ export function paged<T>(rows: T[], input: Record<string, unknown>, defaultLimit
 export function pageReport(result: ToolResult): string {
   const r = jsonOf(result);
   if (!r || r.count === undefined) return "";
-  return `${num(r.count)} of ${num(r.matched ?? r.total)}${r.next !== undefined ? ", more follow" : ""}`;
+  const p = { count: num(r.count), total: num(r.matched ?? r.total) };
+  return r.next !== undefined ? t("{count} of {total}, more follow", p) : t("{count} of {total}", p);
 }
 
 /** JSON for a tool result, cut to the cap with a note. */
@@ -110,6 +112,26 @@ export function capResult(value: unknown, cap = RESULT_CAP): string {
 /** The 1-based player number a tool uses for a 0-based owner. */
 export function ownerName(o: number): string {
   return o < 8 ? `Player ${o + 1}` : o === 11 ? "Neutral" : `owner ${o + 1}`;
+}
+
+/** `ownerName` for the screen: the transcript's step lines, in the editor's language. */
+export function ownerLabel(o: number): string {
+  return o < 8 ? t("Player {n}", { n: o + 1 }) : o === 11 ? t("Neutral") : t("owner {n}", { n: o + 1 });
+}
+
+/** A compass point (`ne`) in words, for the step lines. */
+export function compassLabel(d: string): string {
+  switch (d) {
+    case "n": return t("north");
+    case "ne": return t("north-east");
+    case "e": return t("east");
+    case "se": return t("south-east");
+    case "s": return t("south");
+    case "sw": return t("south-west");
+    case "w": return t("west");
+    case "nw": return t("north-west");
+    default: return d;
+  }
 }
 
 /** A tool's 1-based player (12 = neutral) as a 0-based owner; `d` when missing. */
@@ -287,7 +309,7 @@ export function describeStep(tool: { describe?(input: Record<string, unknown>, c
 export function reportStep(tool: { report?(result: ToolResult): string } | undefined, result: ToolResult): string {
   if (isFailure(result)) return cut(result.error.split("\n")[0], 80);
   if (tool?.report) { try { const s = tool.report(result); if (s) return s; } catch { /* the fallback */ } }
-  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? "picture" : "";
+  if (typeof result !== "string") return result.text ? cut(result.text.split("\n")[0], 80) : result.image ? t("picture") : "";
   const text = result.trim();
   if (text.startsWith("{") || text.startsWith("[")) {
     try {
@@ -300,7 +322,7 @@ export function reportStep(tool: { report?(result: ToolResult): string } | undef
 }
 
 function describeShape(v: unknown): string {
-  if (Array.isArray(v)) return plural(v.length, "item");
+  if (Array.isArray(v)) return t("{n, plural, one {# item} other {# items}}", { n: v.length });
   if (!v || typeof v !== "object") return "";
   const parts: string[] = [];
   for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
@@ -317,7 +339,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 
 /** The first line of a result, for the transcript row's tooltip. */
 export function summarizeResult(result: ToolResult): string {
-  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? "(picture)" : "Done.");
+  const text = typeof result === "string" ? result : result.error ?? result.text ?? (result.image ? t("(picture)") : t("Done."));
   const line = text.split("\n")[0];
   return line.length > 160 ? `${line.slice(0, 160)}…` : line;
 }
@@ -359,7 +381,7 @@ export function tally(names: string[], max = 3): string {
   const counts = new Map<string, number>();
   for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
   const parts = [...counts].map(([n, c]) => (c === 1 ? n : `${n} ×${c}`));
-  return parts.length > max ? `${parts.slice(0, max).join(", ")} and ${parts.length - max} more` : parts.join(", ");
+  return parts.length > max ? t("{list} and {n} more", { list: parts.slice(0, max).join(", "), n: parts.length - max }) : parts.join(", ");
 }
 
 /** `#3, #7, #9` — the first few of a list of indices. */
@@ -382,6 +404,6 @@ export function placedReport(result: ToolResult): string {
   if (!r) return "";
   const placed = Array.isArray(r.placed) ? r.placed.length : 0;
   const refused = Array.isArray(r.refused) ? (r.refused as string[]) : [];
-  if (!placed && refused.length) return `nothing placed: ${refused[0]}`;
-  return refused.length ? `${placed} placed, ${refused.length} refused` : `${placed} placed`;
+  if (!placed && refused.length) return t("nothing placed: {reason}", { reason: refused[0]! });
+  return refused.length ? t("{placed} placed, {refused} refused", { placed, refused: refused.length }) : t("{placed} placed", { placed });
 }

@@ -7,9 +7,10 @@
 import type { PluginApi } from "@scm-js/plugin-api";
 import { guideById, guideFor, guideIndex } from "../guides";
 import { scriptBridge } from "../script";
+import { t } from "../../i18n";
 import { unitIdByName } from "../facts";
 import { buildSystem, dcUnitsFrom, kindsText, ToolkitError, type Params, type Placement, type Tempo, type ToolkitContext } from "../ums";
-import { capResult, fail, jsonOf, num, obj, plural, str, type Tool } from "./common";
+import { capResult, fail, jsonOf, num, obj, str, type Tool } from "./common";
 
 /**
  * Who is human and who is computer on the open map, which death-counter units and
@@ -134,7 +135,7 @@ export function umsTools(): Tool[] {
   return [
     {
       def: { name: "guide", description: "A guide to read once: \"terrain\" (how the brush, shapes, ramps, bridges, bases and doodads behave — before terrain work), \"basics\" (death counters, hyper triggers, locations, the game's limits), or a genre (madness, defense, rpg, bound, diplomacy, arena, survival; a free description picks the nearest). No id lists them.", inputSchema: obj({ id: { type: "string" } }) },
-      describe: (input) => str(input.id) ? `Read the guide: ${str(input.id)}` : "List the guides",
+      describe: (input) => str(input.id) ? t("Read the guide: {id}", { id: str(input.id) }) : t("List the guides"),
       writes: false,
       run: (input) => {
         const id = str(input.id);
@@ -150,8 +151,8 @@ export function umsTools(): Tool[] {
     },
     {
       def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings — names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
-      describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return `Build ${str(input.kind)}${p ? `: ${p}` : ""}`; },
-      report: (result) => { const r = jsonOf(result); return r ? `${plural(num(r.added), "trigger")} added, ${num(r.triggers)} in all` : ""; },
+      describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return p ? t("Build {kind}: {params}", { kind: str(input.kind), params: p }) : t("Build {kind}", { kind: str(input.kind) }); },
+      report: (result) => { const r = jsonOf(result); return r ? t("{n, plural, one {# trigger} other {# triggers}} added, {total} in all", { n: num(r.added), total: num(r.triggers) }) : ""; },
       writes: true,
       settings: true,
       run: (input, { api }) => {

@@ -17,6 +17,7 @@ import type { PluginApi } from "@scm-js/plugin-api";
 import type { AccountKind, AccountState, ScmjsAccountService } from "./contract";
 import type { AccountsInfo, AccountView, Allowance, LedgerEntry, StorageView } from "./protocol";
 import { formatUsd, ScmjsClient, ScmjsError } from "./client";
+import { t } from "./i18n";
 
 export const DEFAULT_SERVER_URL = "https://api.scmjs.dev";
 export const SITE_URL = "https://scmjs.dev";
@@ -204,14 +205,15 @@ export class AccountManager {
   summary(): string {
     const v = this.view;
     switch (this.kind()) {
-      case "guest": return this.aiOffered() && this.info?.trial !== false ? "Not signed in · the first AI request starts a free trial" : "Not signed in";
-      case "trial": return v ? `Free trial · ${formatUsd(v.balanceUsd)} left · sign in to keep it and get more` : "Free trial";
+      case "guest": return this.aiOffered() && this.info?.trial !== false ? t("Not signed in · the first AI request starts a free trial") : t("Not signed in");
+      case "trial": return v ? t("Free trial · {balance} left · sign in to keep it and get more", { balance: formatUsd(v.balanceUsd) }) : t("Free trial");
       default: {
-        if (!v) return "Signed in";
-        if (v.unlimited) return `${v.name ?? "Signed in"} · no balance is kept`;
-        const credit = v.creditUsd > 0 && v.weeklyUsd > 0 ? ` (${formatUsd(v.creditUsd)} of it credit)` : "";
-        const resets = v.resetsAt ? ` · refills ${shortDay(v.resetsAt)}` : "";
-        return `${v.name ?? "Signed in"} · ${formatUsd(v.balanceUsd)} left${credit}${resets}`;
+        if (!v) return t("Signed in");
+        const name = v.name ?? t("Signed in");
+        if (v.unlimited) return t("{name} · no balance is kept", { name });
+        const credit = v.creditUsd > 0 && v.weeklyUsd > 0 ? " " + t("({credit} of it credit)", { credit: formatUsd(v.creditUsd) }) : "";
+        const resets = v.resetsAt ? " · " + t("refills {day}", { day: shortDay(v.resetsAt) }) : "";
+        return t("{name} · {balance} left", { name, balance: formatUsd(v.balanceUsd) }) + credit + resets;
       }
     }
   }
@@ -290,7 +292,7 @@ export class AccountManager {
       this.changed();
     } catch (err) {
       if (err instanceof ScmjsError && (err.code === "forbidden" || err.code === "rate_limited")) {
-        throw new ScmjsError("budget_exceeded", `${err.message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.`);
+        throw new ScmjsError("budget_exceeded", t("{message} Sign in to scmjs.dev to keep a balance and get the sign-in credit.", { message: err.message }));
       }
       throw err;
     }
@@ -304,11 +306,11 @@ export class AccountManager {
    */
   async signIn(provider?: string): Promise<AccountView> {
     const id = provider ?? this.info?.providers[0]?.id;
-    if (!id) throw new ScmjsError("forbidden", "this server offers no sign-in.");
+    if (!id) throw new ScmjsError("forbidden", t("this server offers no sign-in."));
     const origin = new URL(this.client.base()).origin;
     const open = this.deps.openPopup ?? ((name) => window.open("", name, "width=540,height=720,popup=yes"));
     const popup = open("scmjs-signin");
-    if (!popup) throw new ScmjsError("network", "the browser blocked the sign-in window; allow popups for this site and try again.");
+    if (!popup) throw new ScmjsError("network", t("the browser blocked the sign-in window; allow popups for this site and try again."));
     let url: string;
     try {
       url = (await this.client.authStart(id, (this.deps.origin ?? (() => window.location.origin))())).url;
@@ -333,7 +335,7 @@ export class AccountManager {
         void this.refresh().catch(() => {});
       });
       const watch = setInterval(() => { if (popup.closed) finish(() => reject(new ScmjsError("aborted", "the sign-in window was closed."))); }, 500);
-      const limit = setTimeout(() => { finish(() => { try { popup.close(); } catch { /* gone */ } reject(new ScmjsError("network", "the sign-in did not finish in time.")); }); }, this.deps.signInTimeoutMs ?? 5 * 60_000);
+      const limit = setTimeout(() => { finish(() => { try { popup.close(); } catch { /* gone */ } reject(new ScmjsError("network", t("the sign-in did not finish in time."))); }); }, this.deps.signInTimeoutMs ?? 5 * 60_000);
     });
   }
 

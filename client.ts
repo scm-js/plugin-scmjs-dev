@@ -14,6 +14,7 @@ import type {
   StorageResponse, TrialResponse, Usage,
 } from "./protocol";
 import { PROTOCOL_VERSION } from "./protocol";
+import { t } from "./i18n";
 
 export interface Credentials {
   serverUrl: string;
@@ -37,25 +38,26 @@ export class ScmjsError extends Error {
 /** The sentence a dialog shows for a failure, with what to do about it. */
 export function describeError(err: unknown): string {
   if (err instanceof ScmjsError) {
-    const retry = err.retryAfterSec ? ` Try again in ${err.retryAfterSec >= 90 ? `${Math.ceil(err.retryAfterSec / 60)} minutes` : `${err.retryAfterSec} seconds`}.` : "";
+    const retry = err.retryAfterSec ? " " + (err.retryAfterSec >= 90 ? t("Try again in {n, plural, one {# minute} other {# minutes}}.", { n: Math.ceil(err.retryAfterSec / 60) }) : t("Try again in {n, plural, one {# second} other {# seconds}}.", { n: err.retryAfterSec })) : "";
+    const message = err.message;
     switch (err.code) {
-      case "unauthorized": return `The session has ended: ${err.message} Sign in again from the Account menu.`;
-      case "forbidden": return `The server refused: ${err.message}`;
-      case "rate_limited": return `Too many requests for now.${retry}`;
-      case "too_busy": return `The server is busy.${retry || " Try again in a moment."}`;
-      case "budget_exceeded": return `The balance is used up: ${err.message}`;
+      case "unauthorized": return t("The session has ended: {message} Sign in again from the Account menu.", { message });
+      case "forbidden": return t("The server refused: {message}", { message });
+      case "rate_limited": return t("Too many requests for now.") + retry;
+      case "too_busy": return t("The server is busy.") + (retry || " " + t("Try again in a moment."));
+      case "budget_exceeded": return t("The balance is used up: {message}", { message });
       case "task_ceiling": return err.message;
       case "storage_full": return err.message;
       case "room_full": return err.message;
       case "not_found": return err.message;
-      case "recipe_disabled": return "This feature is turned off on the server for now.";
-      case "model_not_allowed": return `The server does not allow that model: ${err.message}`;
-      case "refused": return `The model declined this request. ${err.message}`.trim();
-      case "invalid_input": return `The server rejected the request: ${err.message}`;
-      case "upstream": return `The model service failed: ${err.message}`;
-      case "network": return `scmjs.dev could not be reached: ${err.message} Check your connection and try again.`;
-      case "aborted": return "Stopped.";
-      case "protocol": return `The server answered in a form this plugin does not understand: ${err.message}`;
+      case "recipe_disabled": return t("This feature is turned off on the server for now.");
+      case "model_not_allowed": return t("The server does not allow that model: {message}", { message });
+      case "refused": return t("The model declined this request. {message}", { message }).trim();
+      case "invalid_input": return t("The server rejected the request: {message}", { message });
+      case "upstream": return t("The model service failed: {message}", { message });
+      case "network": return t("scmjs.dev could not be reached: {message} Check your connection and try again.", { message });
+      case "aborted": return t("Stopped.");
+      case "protocol": return t("The server answered in a form this plugin does not understand: {message}", { message });
       default: return err.message;
     }
   }
@@ -90,8 +92,11 @@ export function formatUsd(v: number): string {
 
 /** What a sign-in gets, worded from the server's offer: a one-time credit, a weekly allowance, both or neither. */
 export function signInGives(offers: { signupUsd: number; weeklyUsd: number }): string {
-  const gets = [offers.signupUsd > 0 ? `${formatUsd(offers.signupUsd)} of credit to start` : "", offers.weeklyUsd > 0 ? `${formatUsd(offers.weeklyUsd)} a week, refilled every Monday` : ""].filter(Boolean);
-  return gets.length ? `gives ${gets.join(" and ")}` : "keeps your balance across browsers";
+  const credit = formatUsd(offers.signupUsd), weekly = formatUsd(offers.weeklyUsd);
+  if (offers.signupUsd > 0 && offers.weeklyUsd > 0) return t("gives {credit} of credit to start and {weekly} a week, refilled every Monday", { credit, weekly });
+  if (offers.signupUsd > 0) return t("gives {credit} of credit to start", { credit });
+  if (offers.weeklyUsd > 0) return t("gives {weekly} a week, refilled every Monday", { weekly });
+  return t("keeps your balance across browsers");
 }
 
 export function formatBytes(n: number): string {
@@ -107,9 +112,9 @@ export function formatTokens(n: number): string {
 
 /** `$0.18 · 14 s · 6.2k in / 1.1k out`. */
 export function formatUsage(u: Usage): string {
-  const secs = u.durationMs >= 1000 ? `${Math.round(u.durationMs / 1000)} s` : `${u.durationMs} ms`;
+  const secs = u.durationMs >= 1000 ? t("{n} s", { n: Math.round(u.durationMs / 1000) }) : t("{n} ms", { n: u.durationMs });
   const inTokens = u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
-  return `${formatUsd(u.costUsd)} · ${secs} · ${formatTokens(inTokens)} in / ${formatTokens(u.outputTokens)} out`;
+  return t("{cost} · {time} · {input} in / {output} out", { cost: formatUsd(u.costUsd), time: secs, input: formatTokens(inTokens), output: formatTokens(u.outputTokens) });
 }
 
 /* ── SSE ────────────────────────────────────────────────── */
@@ -174,9 +179,9 @@ export class Ledger {
   }
 
   summary(): string {
-    const t = this.totals;
-    if (t.calls === 0) return "Nothing spent this session.";
-    return `Session: ${formatUsd(t.costUsd)} over ${t.calls} call${t.calls === 1 ? "" : "s"}`;
+    const totals = this.totals;
+    if (totals.calls === 0) return t("Nothing spent this session.");
+    return t("Session: {cost} over {n, plural, one {# call} other {# calls}}", { cost: formatUsd(totals.costUsd), n: totals.calls });
   }
 }
 
@@ -228,7 +233,7 @@ export class ScmjsClient {
 
   base(): string {
     const url = this.credentials().serverUrl.trim().replace(/\/+$/, "");
-    if (!url) throw new ScmjsError("network", "no server address is set.");
+    if (!url) throw new ScmjsError("network", t("no server address is set."));
     return url;
   }
 
@@ -256,7 +261,7 @@ export class ScmjsClient {
   /** `GET /v1/info`: what the server offers and what the caller has left; refuses a server speaking another protocol. */
   async info(signal?: AbortSignal): Promise<InfoResponse> {
     const info = await this.request<InfoResponse>("/v1/info", { signal });
-    if (info.protocol !== undefined && info.protocol !== PROTOCOL_VERSION) throw new ScmjsError("protocol", `it speaks protocol ${info.protocol}, this plugin speaks ${PROTOCOL_VERSION}.`);
+    if (info.protocol !== undefined && info.protocol !== PROTOCOL_VERSION) throw new ScmjsError("protocol", t("it speaks protocol {theirs}, this plugin speaks {ours}.", { theirs: String(info.protocol), ours: PROTOCOL_VERSION }));
     return info;
   }
 
@@ -451,7 +456,7 @@ export class ScmjsClient {
       if (r.remaining) this.onRemaining?.(r.remaining);
       return { output: r.output, usage: r.usage, remaining: r.remaining };
     }
-    if (!res.body) throw new ScmjsError("protocol", "the stream had no body.");
+    if (!res.body) throw new ScmjsError("protocol", t("the stream had no body."));
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     const parser = new SseParser();
@@ -481,7 +486,7 @@ export class ScmjsClient {
       if (err instanceof ScmjsError) throw err;
       throw toNetworkError(err);
     }
-    if (!result) throw new ScmjsError("protocol", "the stream ended without a result.");
+    if (!result) throw new ScmjsError("protocol", t("the stream ended without a result."));
     const r: RunResult<N> = result;
     this.ledger.add(r.usage);
     if (r.remaining) this.onRemaining?.(r.remaining);

@@ -6,6 +6,7 @@
  */
 import type { DesignSystem, UmsDesign } from "../protocol";
 import { buildSystem, countedUnit, Counters, paramsOf, ToolkitError, type Tempo, type ToolkitContext } from "./ums";
+import { t } from "../i18n";
 
 /**
  * The trigger rate a design's toolkit systems are built for. It follows from the design
@@ -102,8 +103,8 @@ export function counterBudget(d: Pick<UmsDesign, "target" | "systems">, ctx: Too
 
 /** The budget in a sentence: for the step's row when it fits, and for the failure when it does not. */
 export function budgetText(b: CounterBudget): string {
-  if (b.ok) return `${b.counters} of ${b.free} free death counters, ${b.switches} switch${b.switches === 1 ? "" : "es"}`;
-  return `the design's systems need ${b.counters} death counters and the map has ${b.free} free (${b.by.slice(0, 4).map((x) => `${x.name}: ${x.counters}`).join(", ")}${b.by.length > 4 ? ", …" : ""}). Remove or merge systems in the design — several obstacle stretches on one beat, one spawn with {p} instead of one per player — and build again`;
+  if (b.ok) return t("{counters} of {free} free death counters, {switches, plural, one {# switch} other {# switches}}", { counters: b.counters, free: b.free, switches: b.switches });
+  return t("the design's systems need {counters} death counters and the map has {free} free ({by}). Remove or merge systems in the design — several obstacle stretches on one beat, one spawn with {p} instead of one per player — and build again", { counters: b.counters, free: b.free, by: `${b.by.slice(0, 4).map((x) => `${x.name}: ${x.counters}`).join(", ")}${b.by.length > 4 ? ", …" : ""}`, p: "{p}" });
 }
 
 export interface BuildCounts {
@@ -126,13 +127,13 @@ export function buildOutcome(c: BuildCounts): BuildOutcome {
 /** The status line for a finished build, saying which of those it is. */
 export function outcomeText(name: string, c: BuildCounts): string {
   const parts: string[] = [];
-  if (c.failed) parts.push(`${c.failed} failed`);
-  if (c.waiting) parts.push(`${c.waiting} waiting`);
-  if (c.notRun) parts.push(`${c.notRun} not run`);
+  if (c.failed) parts.push(t("{n} failed", { n: c.failed }));
+  if (c.waiting) parts.push(t("{n} waiting", { n: c.waiting }));
+  if (c.notRun) parts.push(t("{n} not run", { n: c.notRun }));
   switch (buildOutcome(c)) {
-    case "built": return `Built ${name}.`;
-    case "waiting": return `Built ${name}, ${c.waiting} waiting for locations.`;
-    case "stopped": return `Stopped building ${name}: ${parts.join(", ") || "nothing left out"}. What was built stays.`;
-    case "failed": return `Built ${name} with ${parts.join(", ")}.`;
+    case "built": return t("Built {name}.", { name });
+    case "waiting": return t("Built {name}, {n} waiting for locations.", { name, n: c.waiting });
+    case "stopped": return t("Stopped building {name}: {parts}. What was built stays.", { name, parts: parts.join(", ") || t("nothing left out") });
+    case "failed": return t("Built {name} with {parts}.", { name, parts: parts.join(", ") });
   }
 }

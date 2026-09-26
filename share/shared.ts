@@ -25,6 +25,7 @@
 import type { PluginApi, Rect, SyncOp, SyncSession } from "@scm-js/plugin-api";
 import type { ScmjsClient } from "../client";
 import { describeError } from "../client";
+import { t } from "../i18n";
 import type { KeepDays, MapMeta, RoomChatLine, RoomClientMessage, RoomEndReason, RoomInfo, RoomPerson, RoomServerMessage } from "../protocol";
 import { ROOM_PROTOCOL } from "../protocol";
 
@@ -72,7 +73,7 @@ const RECONNECT_MAX_WAIT_MS = 30_000;
 /** A ping this often; nothing heard for `QUIET_MS` means the connection is gone, whatever the browser thinks. */
 const PING_MS = 20_000;
 const QUIET_MS = 50_000;
-const LOST = "The connection to the shared map was lost. The map is still open here; save it, or join again.";
+const lost = () => t("The connection to the shared map was lost. The map is still open here; save it, or join again.");
 
 export function toBase64(bytes: Uint8Array): string {
   let s = "";
@@ -87,13 +88,17 @@ export function fromBase64(text: string): Uint8Array {
   return out;
 }
 
-const ENDINGS: Record<RoomEndReason, string> = {
-  owner: "The person who shared the map ended the session.",
-  removed: "You were removed from the shared map.",
-  idle: "The shared map closed after nobody used it for a while.",
-  server: "The server restarted, which ends every shared map.",
-  expired: "The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps.",
-};
+/** Why a room ended, in words — a function, so the words are the language of the moment it ends. */
+function ending(reason: RoomEndReason): string {
+  switch (reason) {
+    case "owner": return t("The person who shared the map ended the session.");
+    case "removed": return t("You were removed from the shared map.");
+    case "idle": return t("The shared map closed after nobody used it for a while.");
+    case "server": return t("The server restarted, which ends every shared map.");
+    case "expired": return t("The shared map ended after going its time without an edit. The map and its revisions stay in the owner's My Maps.");
+    default: return t("The shared map ended.");
+  }
+}
 
 /** How long to keep a shared map open: a stored map, and where it goes. */
 export interface KeepOptions {
@@ -172,9 +177,9 @@ export class SharedMap {
 
   /** Send a line to the room's chat; false when there is no chat or nothing to say. */
   say(text: string): boolean {
-    const t = text.trim();
-    if (!t || this.chat === null || this.phase !== "live") return false;
-    this.send({ type: "chat", text: t.slice(0, CHAT_MAX) });
+    const line = text.trim();
+    if (!line || this.chat === null || this.phase !== "live") return false;
+    this.send({ type: "chat", text: line.slice(0, CHAT_MAX) });
     return true;
   }
 
@@ -212,14 +217,14 @@ export class SharedMap {
     const s = new SharedMap(deps);
     s.sharing = true;
     const session = deps.api.sync.start(s.syncOptions());
-    if (!session) throw new Error("A map is being shared already, or no map is open.");
+    if (!session) throw new Error(t("A map is being shared already, or no map is open."));
     s.session = session;
     s.documentId = session.documentId;
     // The copy is taken now, before any await: the session and the copy start together.
     const copy = session.snapshot();
     try {
       const bytes = await copy;
-      if (!bytes) throw new Error("The map could not be copied.");
+      if (!bytes) throw new Error(t("The map could not be copied."));
       const { room } = await deps.client.createRoom(name, toBase64(bytes), keep);
       s.room = room;
       s.invite = room.invite;
@@ -255,10 +260,10 @@ export class SharedMap {
         if (this.welcomed && this.phase !== "reconnecting") this.send({ type: "op", op });
       },
       onEnd: (reason: "closed" | "stopped") => {
-        if (generation === this.generation && this.phase !== "ended") this.end(reason === "closed" ? "The shared map was closed in this editor." : null);
+        if (generation === this.generation && this.phase !== "ended") this.end(reason === "closed" ? t("The shared map was closed in this editor.") : null);
       },
       onApplied: (report: { ops: number; dropped: number; lost: number }) => {
-        if (report.lost > 0) this.deps.api.ui.status(`Someone else's change came first; ${report.lost} part${report.lost === 1 ? "" : "s"} of yours no longer applied.`);
+        if (report.lost > 0) this.deps.api.ui.status(t("Someone else's change came first; {n, plural, one {# part} other {# parts}} of yours no longer applied.", { n: report.lost }));
       },
     };
   }
@@ -308,7 +313,7 @@ export class SharedMap {
         this.handle(msg);
       };
       ws.onclose = (ev) => {
-        if (!settled) settle(new Error(ev.reason === "origin" ? "The server does not take shared maps from this page." : "Could not reach the shared map."));
+        if (!settled) settle(new Error(ev.reason === "origin" ? t("The server does not take shared maps from this page.") : t("Could not reach the shared map.")));
         this.dropped(ws);
       };
       ws.onerror = () => { /* onclose follows and says it */ };
@@ -339,9 +344,9 @@ export class SharedMap {
     } else {
       const bytes = fromBase64(msg.snapshot.map);
       const opened = await this.deps.api.document.open(bytes, `${msg.room.name || "Shared map"}.scx`, { into: "new" });
-      if (!opened) throw new Error("The shared map could not be opened.");
+      if (!opened) throw new Error(t("The shared map could not be opened."));
       const session = this.deps.api.sync.start(this.syncOptions());
-      if (!session) throw new Error("Another map is being shared from this editor already.");
+      if (!session) throw new Error(t("Another map is being shared from this editor already."));
       this.session = session;
       this.documentId = session.documentId;
       this.welcomed = true;
@@ -385,7 +390,7 @@ export class SharedMap {
   private dropped(ws: SocketLike) {
     if (ws !== this.ws || this.phase === "ended") return;
     this.ws = null;
-    if (this.phase !== "live" || !this.resumeToken || !this.session) { this.end(LOST); return; }
+    if (this.phase !== "live" || !this.resumeToken || !this.session) { this.end(lost()); return; }
     this.phase = "reconnecting";
     this.lostAt = Date.now();
     this.tries = 0;
@@ -397,7 +402,7 @@ export class SharedMap {
 
   private retryLater() {
     const wait = Math.min(RECONNECT_MAX_WAIT_MS, 1000 * 2 ** this.tries++);
-    if (Date.now() + wait - this.lostAt > RECONNECT_FOR_MS) { this.end(LOST); return; }
+    if (Date.now() + wait - this.lostAt > RECONNECT_FOR_MS) { this.end(lost()); return; }
     this.retryTimer = setTimeout(() => { this.retryTimer = null; this.reconnect(); }, wait);
   }
 
@@ -432,10 +437,10 @@ export class SharedMap {
       if (msg.type === "resumed") { back = true; this.resumed(msg); return; }
       if (msg.type === "welcome") {
         back = true;
-        this.fresh(msg).catch((err) => this.end(`The shared map could not be opened again (${describeError(err)}). The map is still open here; save it, or join again.`));
+        this.fresh(msg).catch((err) => this.end(t("The shared map could not be opened again ({error}). The map is still open here; save it, or join again.", { error: describeError(err) })));
         return;
       }
-      if (msg.type === "error") this.end(msg.code === "not_found" ? "The shared map ended while you were away. The map is still open here; save it, or join again." : `${msg.message} The map is still open here; save it, or join again.`);
+      if (msg.type === "error") this.end(msg.code === "not_found" ? t("The shared map ended while you were away. The map is still open here; save it, or join again.") : t("{message} The map is still open here; save it, or join again.", { message: msg.message }));
     };
     ws.onclose = () => {
       if (ws !== this.ws || this.phase === "ended") return;
@@ -449,7 +454,7 @@ export class SharedMap {
   /** Back in time: the same person, and what happened meanwhile. */
   private resumed(msg: Extract<RoomServerMessage, { type: "resumed" }>) {
     const session = this.session;
-    if (!session) { this.end(LOST); return; }
+    if (!session) { this.end(lost()); return; }
     this.you = msg.you;
     this.room = { ...(this.room ?? {}), ...msg.room };
     if (msg.room.invite) this.invite = msg.room.invite;
@@ -460,7 +465,7 @@ export class SharedMap {
     for (const op of msg.ops) {
       if (op.from === msg.you.id) {
         // Ours, taken before the drop: the confirmation that never arrived.
-        if (!this.unacked.length) { this.end("The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again."); return; }
+        if (!this.unacked.length) { this.end(t("The shared map and this editor no longer agree on what was changed. The map is still open here; save it, or join again.")); return; }
         this.unacked.shift();
         session.confirm();
       } else {
@@ -473,7 +478,7 @@ export class SharedMap {
     if (this.chat !== null) {
       for (const line of newLines(this.chat, msg.chat)) this.addChat(line);
     }
-    this.deps.api.ui.status("Reconnected to the shared map.");
+    this.deps.api.ui.status(t("Reconnected to the shared map."));
     this.goLive();
   }
 
@@ -492,8 +497,10 @@ export class SharedMap {
     this.held = [];
     await this.welcome(msg);
     this.deps.api.ui.toast({
-      kind: "warn", title: "Shared map opened again",
-      detail: `You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab${unsent ? `, with ${unsent} change${unsent === 1 ? "" : "s"} the others never got` : ""}.`,
+      kind: "warn", title: t("Shared map opened again"),
+      detail: unsent
+        ? t("You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab, with {n, plural, one {# change} other {# changes}} the others never got.", { n: unsent })
+        : t("You were away too long to catch up, so the shared map opened again in a new tab. The map as you had it is still open in its own tab."),
       ttl: 0,
     });
   }
@@ -518,14 +525,14 @@ export class SharedMap {
         return;
       case "joined":
         this.people.set(msg.person.id, msg.person);
-        api.ui.toast({ kind: "info", title: `${msg.person.name} joined the shared map` });
+        api.ui.toast({ kind: "info", title: t("{name} joined the shared map", { name: msg.person.name }) });
         this.emit();
         return;
       case "left": {
         const who = this.people.get(msg.person);
         this.people.delete(msg.person);
         this.presence.delete(msg.person);
-        if (who) api.ui.status(`${who.name} ${msg.reason === "removed" ? "was removed from" : msg.reason === "lost" ? "lost the connection to" : "left"} the shared map.`);
+        if (who) api.ui.status(msg.reason === "removed" ? t("{name} was removed from the shared map.", { name: who.name }) : msg.reason === "lost" ? t("{name} lost the connection to the shared map.", { name: who.name }) : t("{name} left the shared map.", { name: who.name }));
         this.emit();
         return;
       }
@@ -556,11 +563,11 @@ export class SharedMap {
         this.emit();
         return;
       case "ended":
-        this.end(ENDINGS[msg.reason] ?? "The shared map ended.");
+        this.end(ending(msg.reason));
         return;
       case "error":
         if (msg.about === "op") {
-          this.end(`A change could not be shared (${msg.message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.`);
+          this.end(t("A change could not be shared ({message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.", { message: msg.message }));
         } else {
           api.ui.status(msg.message);
         }

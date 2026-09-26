@@ -1,6 +1,7 @@
 /** The trigger script, the view, the history and the selection. */
-import { capResult, fail, ints, num, obj, plural, rectOf, str, TILE, type Tool } from "./common";
+import { capResult, fail, ints, num, obj, rectOf, str, TILE, type Tool } from "./common";
 import { describeDiagnostic, NO_SCRIPT_PLUGIN, scriptBridge } from "../script";
+import { t } from "../../i18n";
 
 export const DECLARATIONS_WINDOW = 60_000;
 
@@ -34,7 +35,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "compile_script", description: "Check a TrigScript without building it: type-check, run, lower its programs. Returns diagnostics or the trigger count. `source` is main.ts.", inputSchema: obj({ source: { type: "string" } }, ["source"]) },
-      describe: (input) => `Type-check the script (${plural(str(input.source).split("\n").length, "line")})`,
+      describe: (input) => t("Type-check the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: false,
       run: async (input, { api }) => {
         const script = scriptBridge(api);
@@ -45,7 +46,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
-      describe: (input) => `Build the script (${plural(str(input.source).split("\n").length, "line")})${input.takeOver === true ? ", replacing every trigger" : ""}`,
+      describe: (input) => input.takeOver === true ? t("Build the script ({n, plural, one {# line} other {# lines}}), replacing every trigger", { n: str(input.source).split("\n").length }) : t("Build the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: true,
       settings: true,
       run: async (input, { api }) => {
@@ -70,7 +71,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "go_to", description: "Scroll the person's view to a tile, or to a unit / location by index.", inputSchema: obj({ x: { type: "integer" }, y: { type: "integer" }, unit: { type: "integer" }, location: { type: "integer" } }) },
-      describe: (input) => input.unit !== undefined ? `Go to unit #${num(input.unit)}` : input.location !== undefined ? `Go to location #${num(input.location)}` : `Go to ${num(input.x)},${num(input.y)}`,
+      describe: (input) => input.unit !== undefined ? t("Go to unit #{n}", { n: num(input.unit) }) : input.location !== undefined ? t("Go to location #{n}", { n: num(input.location) }) : t("Go to {x},{y}", { x: num(input.x), y: num(input.y) }),
       writes: false,
       run: (input, { api }) => {
         if (input.unit !== undefined) api.view.goTo({ kind: "unit", index: Math.round(num(input.unit)) });
@@ -81,7 +82,7 @@ export function scriptTools(): Tool[] {
     },
     {
       def: { name: "select", description: "Select units, sprites, doodads or locations by index for the person (switching layer), or mark a tile rect; an empty list clears.", inputSchema: obj({ units: { type: "array", items: { type: "integer" } }, sprites: { type: "array", items: { type: "integer" } }, doodads: { type: "array", items: { type: "integer" } }, locations: { type: "array", items: { type: "integer" } }, x0: { type: "integer" }, y0: { type: "integer" }, x1: { type: "integer" }, y1: { type: "integer" } }) },
-      describe: (input) => { const parts = (["units", "sprites", "doodads", "locations"] as const).filter((k) => Array.isArray(input[k])).map((k) => `${ints(input[k]).length} ${k}`); if (input.x0 !== undefined && input.x1 !== undefined) parts.push(`the area ${num(input.x0)},${num(input.y0)}–${num(input.x1)},${num(input.y1)}`); return parts.length ? `Select ${parts.join(", ")}` : "Clear the selection"; },
+      describe: (input) => { const count = (k: string) => ints(input[k]).length; const parts: string[] = []; if (Array.isArray(input.units)) parts.push(t("{n, plural, one {# unit} other {# units}}", { n: count("units") })); if (Array.isArray(input.sprites)) parts.push(t("{n, plural, one {# sprite} other {# sprites}}", { n: count("sprites") })); if (Array.isArray(input.doodads)) parts.push(t("{n, plural, one {# doodad} other {# doodads}}", { n: count("doodads") })); if (Array.isArray(input.locations)) parts.push(t("{n, plural, one {# location} other {# locations}}", { n: count("locations") })); if (input.x0 !== undefined && input.x1 !== undefined) parts.push(t("the area {rect}", { rect: `${num(input.x0)},${num(input.y0)}–${num(input.x1)},${num(input.y1)}` })); return parts.length ? t("Select {things}", { things: parts.join(", ") }) : t("Clear the selection"); },
       writes: false,
       run: (input, { api }) => {
         const done: string[] = [];

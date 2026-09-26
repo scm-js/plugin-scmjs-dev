@@ -6,9 +6,12 @@
  */
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { TriggerRecord } from "@scm-js/plugin-api";
+import { t } from "../i18n";
 
 export const SCRIPT_PLUGIN = "trigscript";
 export const NO_SCRIPT_PLUGIN = "The TrigScript plugin is off. Turn it on under Plugins ▸ Manage Plugins… to write, check or build trigger scripts.";
+/** `NO_SCRIPT_PLUGIN` for the screen, in the editor's language; the constant stays English for the model. */
+export const noScriptPluginMessage = () => t("The TrigScript plugin is off. Turn it on under Plugins ▸ Manage Plugins… to write, check or build trigger scripts.");
 
 export interface ScriptDiagnostic {
   /** The script file (`main.ts` for a one-file script). */
@@ -108,6 +111,12 @@ export function scriptBridge(api: PluginApi): ScriptBridge | null {
 /** "line 12" or "waves.ts line 12": where a diagnostic is, for a message or a repair round. */
 export function describeDiagnostic(d: ScriptDiagnostic): string {
   return `${d.file && d.file !== "main.ts" ? `${d.file} ` : ""}line ${d.line}:${d.column} — ${d.message}`;
+}
+
+/** `describeDiagnostic` for the screen: the frame in the editor's language, the compiler's message as it came. */
+export function diagnosticLabel(d: ScriptDiagnostic): string {
+  const p = { file: d.file, line: d.line, column: d.column, message: d.message };
+  return d.file && d.file !== "main.ts" ? t("{file} line {line}:{column} — {message}", p) : t("line {line}:{column} — {message}", p);
 }
 
 /** A diagnostic as the `triggers` recipe's repair round takes it: the file folded into the message when it is not the entry. */

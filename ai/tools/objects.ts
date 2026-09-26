@@ -1,8 +1,9 @@
 /** Writes on objects: units, doodads, sprites, locations, fog. Each is one undo step. */
 import type { PluginApi } from "@scm-js/plugin-api";
-import { bag, bool, capResult, doodadByName, fail, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerName, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
+import { bag, bool, capResult, doodadByName, fail, fieldsGiven, indexList, ints, isAnyMineralName, list, num, obj, ownerLabel, ownerOf, placedReport, plural, rectOf, rectSchema, rectText, spriteByName, str, tally, TILE, unitIdByName, type Tool } from "./common";
 import { mineralTypeAt } from "../layout";
 import type { TileRect } from "../grid";
+import { t } from "../../i18n";
 
 /**
  * The special-property tick each input key sets: the `stateFlags` bit and the
@@ -62,7 +63,7 @@ export function objectTools(): Tool[] {
   return [
     {
       def: { name: "place_units", description: "Place units by name at tile centres for a 1-based player (12 neutral); `amount` sets a resource. Refused positions are reported, not forced. One undo step.", inputSchema: obj({ units: { type: "array", items: obj({ unit: { type: "string" }, player: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" }, amount: { type: "integer" } }, ["unit", "player", "x", "y"]) } }, ["units"]) },
-      describe: (input) => { const u = list(input.units); return u.length ? `Place ${tally(u.map((x) => str(x.unit)))} for ${ownerName(ownerOf(u[0].player, 0))} near ${num(u[0].x)},${num(u[0].y)}` : "Place units"; },
+      describe: (input) => { const u = list(input.units); return u.length ? t("Place {units} for {owner} near {x},{y}", { units: tally(u.map((x) => str(x.unit))), owner: ownerLabel(ownerOf(u[0].player, 0)), x: num(u[0].x), y: num(u[0].y) }) : t("Place units"); },
       report: placedReport,
       writes: true,
       run: (input, { api }) => {
@@ -88,13 +89,13 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "remove_units", description: "Remove units by index (from list_units). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "unit")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# unit} other {# units}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: remove units", (tx) => { tx.removeUnits(ints(input.indices)); }); return `Removed ${plural(r.units, "unit")}.`; },
     },
     {
       def: { name: "move_units", description: "Move units by index to new tile centres. One undo step.", inputSchema: obj({ moves: { type: "array", items: obj({ index: { type: "integer" }, x: { type: "integer" }, y: { type: "integer" } }, ["index", "x", "y"]) } }, ["moves"]) },
-      describe: (input) => `Move ${plural(list(input.moves).length, "unit")}`,
+      describe: (input) => t("Move {n, plural, one {# unit} other {# units}}", { n: list(input.moves).length }),
       writes: true,
       run: (input, { api }) => {
         let n = 0;
@@ -110,7 +111,7 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "update_units", description: "Change fields of units by index: owner, hitPoints / shields / energy (%), resources, hangar, and the flags cloaked, burrowed, inTransit, hallucinated, invincible. Only the fields given change. One undo step.", inputSchema: bag({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Set ${fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || "properties"} on ${plural(ints(input.indices).length, "unit")}`,
+      describe: (input) => t("Set {fields} on {n, plural, one {# unit} other {# units}}", { fields: fieldsGiven(input, ["owner", "hitPoints", "shields", "energy", "resources", "hangar", "cloaked", "burrowed", "inTransit", "hallucinated", "invincible"]) || t("properties"), n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => {
         const indices = ints(input.indices);
@@ -144,7 +145,7 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "place_doodads", description: "Place doodads by name, id or category name with the top-left at a tile; one that does not fit is refused. One undo step.", inputSchema: obj({ doodads: { type: "array", items: obj({ doodad: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["doodad", "x", "y"]) } }, ["doodads"]) },
-      describe: (input) => { const d = list(input.doodads); return d.length ? `Place ${tally(d.map((x) => str(x.doodad)))} near ${num(d[0].x)},${num(d[0].y)}` : "Place doodads"; },
+      describe: (input) => { const d = list(input.doodads); return d.length ? t("Place {doodads} near {x},{y}", { doodads: tally(d.map((x) => str(x.doodad))), x: num(d[0].x), y: num(d[0].y) }) : t("Place doodads"); },
       report: placedReport,
       writes: true,
       run: (input, { api }) => {
@@ -164,19 +165,19 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "remove_doodads", description: "Remove doodads by index; the ground under them is restored. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "doodad")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# doodad} other {# doodads}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: remove doodads", (tx) => { tx.removeDoodads(ints(input.indices)); }); return `Removed ${plural(r.doodads, "doodad")}.`; },
     },
     {
       def: { name: "convert_doodads", description: "Turn doodads (by index) into plain terrain tiles, an overlay into a sprite — for touching a ramp or cliff piece up tile by tile. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Convert ${plural(ints(input.indices).length, "doodad")} to terrain`,
+      describe: (input) => t("Convert {n, plural, one {# doodad} other {# doodads}} to terrain", { n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: convert doodads to terrain", (tx) => { tx.convertDoodads(ints(input.indices)); }); return `Converted ${plural(r.doodads, "doodad")} to terrain.`; },
     },
     {
       def: { name: "scatter_doodads", description: "Scatter a category's doodads over a rect at density 0–1 where the editor's rule lets them stand (a category on its own ground: Water on water); refusals are counted. One undo step.", inputSchema: obj({ category: { type: "string" }, ...rectSchema, density: { type: "number" } }, ["category", "x0", "y0", "x1", "y1"]) },
-      describe: (input) => `Scatter ${str(input.category)} over ${rectText(input)}`,
+      describe: (input) => t("Scatter {category} over {rect}", { category: str(input.category), rect: rectText(input) }),
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);
@@ -191,7 +192,7 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "place_sprites", description: "Place sprites at tile centres: kind pure (a sprites.dat image by name or id) or unit (a unit drawn as a sprite); each may add player (1-based), flipped, disabled. One undo step.", inputSchema: obj({ sprites: { type: "array", items: bag({ kind: { type: "string", enum: ["pure", "unit"] }, sprite: { type: "string" }, x: { type: "integer" }, y: { type: "integer" } }, ["kind", "sprite", "x", "y"]) } }, ["sprites"]) },
-      describe: (input) => { const sp = list(input.sprites); return sp.length ? `Place sprites: ${tally(sp.map((x) => str(x.sprite)))} near ${num(sp[0].x)},${num(sp[0].y)}` : "Place sprites"; },
+      describe: (input) => { const sp = list(input.sprites); return sp.length ? t("Place sprites: {sprites} near {x},{y}", { sprites: tally(sp.map((x) => str(x.sprite))), x: num(sp[0].x), y: num(sp[0].y) }) : t("Place sprites"); },
       report: placedReport,
       writes: true,
       run: (input, { api }) => {
@@ -211,13 +212,13 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "remove_sprites", description: "Remove sprites by index (from list_sprites). One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "sprite")}`,
+      describe: (input) => t("Remove {n, plural, one {# sprite} other {# sprites}}", { n: ints(input.indices).length }),
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: remove sprites", (tx) => { tx.removeSprites(ints(input.indices)); }); return `Removed ${plural(r.sprites, "sprite")}.`; },
     },
     {
       def: { name: "add_location", description: "Add a named location over a tile rect. One undo step.", inputSchema: obj({ name: { type: "string" }, ...rectSchema }, ["name", "x0", "y0", "x1", "y1"]) },
-      describe: (input) => `Add location "${str(input.name, "Location")}" at ${rectText(input)}`,
+      describe: (input) => t("Add location \"{name}\" at {rect}", { name: str(input.name, "Location"), rect: rectText(input) }),
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);
@@ -228,7 +229,7 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "edit_location", description: "Edit a location by slot `index`: name, x0 / y0 / x1 / y1 (a tile rect), excludeLowGround / excludeMediumGround / excludeHighGround / excludeLowAir / excludeMediumAir / excludeHighAir. Only the fields given change. One undo step.", inputSchema: bag({ index: { type: "integer" } }, ["index"]) },
-      describe: (input) => `Edit location #${num(input.index)}: ${[input.name !== undefined && "name", input.x0 !== undefined && "area", Object.keys(input).some((k) => k.startsWith("exclude")) && "heights"].filter(Boolean).join(", ") || "nothing"}`,
+      describe: (input) => t("Edit location #{index}: {parts}", { index: num(input.index), parts: [input.name !== undefined && t("name"), input.x0 !== undefined && t("area"), Object.keys(input).some((k) => k.startsWith("exclude")) && t("heights")].filter(Boolean).join(", ") || t("nothing") }),
       writes: true,
       run: (input, { api }) => {
         const index = Math.round(num(input.index, -1));
@@ -250,13 +251,13 @@ export function objectTools(): Tool[] {
     },
     {
       def: { name: "remove_locations", description: "Remove locations by slot index. One undo step.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } } }, ["indices"]) },
-      describe: (input) => `Remove ${plural(ints(input.indices).length, "location")} ${indexList(ints(input.indices))}`,
+      describe: (input) => t("Remove {n, plural, one {# location} other {# locations}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       run: (input, { api }) => { const r = api.document.edit("AI: remove locations", (tx) => { tx.removeLocations(ints(input.indices).filter((i) => i !== api.consts.location.anywhere)); }); return `Removed ${plural(r.locations, "location")}.`; },
     },
     {
       def: { name: "set_fog", description: "Fog of war over a rect for 1-based players: mode fog (starts unexplored) or clear. One undo step.", inputSchema: obj({ ...rectSchema, players: { type: "array", items: { type: "integer" } }, mode: { type: "string", enum: ["fog", "clear"] } }, ["x0", "y0", "x1", "y1", "players", "mode"]) },
-      describe: (input) => `${str(input.mode) === "clear" ? "Clear" : "Fog"} ${rectText(input)} for player${ints(input.players).length === 1 ? "" : "s"} ${ints(input.players).join(", ")}`,
+      describe: (input) => { const one = ints(input.players).length === 1, p = { rect: rectText(input), players: ints(input.players).join(", ") }; return str(input.mode) === "clear" ? (one ? t("Clear {rect} for player {players}", p) : t("Clear {rect} for players {players}", p)) : (one ? t("Fog {rect} for player {players}", p) : t("Fog {rect} for players {players}", p)); },
       writes: true,
       run: (input, { api }) => {
         const rect = rectOf(input, api);

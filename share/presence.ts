@@ -6,6 +6,7 @@
 import type { MapView } from "@scm-js/plugin-api";
 import type { RoomPerson } from "../protocol";
 import type { Presence } from "./shared";
+import { msg, t, translate } from "../i18n";
 
 /** StarCraft's first eight player colours. */
 export const PERSON_COLORS = ["#f40404", "#0c48cc", "#2cb494", "#88409c", "#f88c14", "#703014", "#cce0d0", "#fcfc38"];
@@ -14,19 +15,19 @@ export const personColor = (p: RoomPerson) => PERSON_COLORS[p.color % PERSON_COL
 
 /** The built-in dialogs by id, in words, for "in Player Settings". */
 const DIALOG_NAMES: Record<string, string> = {
-  mapProperties: "Map Properties", resizeMap: "Resize Map", mapRevision: "Map Revision", playerSettings: "Player Settings", forceSettings: "Forces",
-  playerColors: "Player Colors", unitSettings: "Unit Settings", upgradeSettings: "Upgrade Settings", techSettings: "Tech Settings", stringEditor: "the String Editor",
-  soundEditor: "the Sound Editor", switches: "Switches", locationList: "the location list", unitProperties: "Unit Properties", locationProperties: "Location Properties",
-  spriteProperties: "Sprite Properties", triggerEditor: "the Trigger Editor", missionBriefing: "Mission Briefing", cuwpEditor: "Unit Properties Slots",
-  replaceTerrain: "Replace Terrain", autoStarts: "Auto-place Start Locations", importTriggers: "Import Triggers", importStrings: "Import Strings",
-  gameData: "Game Data (getting the game's graphics)",
+  mapProperties: msg("Map Properties"), resizeMap: msg("Resize Map"), mapRevision: msg("Map Revision"), playerSettings: msg("Player Settings"), forceSettings: msg("Forces"),
+  playerColors: msg("Player Colors"), unitSettings: msg("Unit Settings"), upgradeSettings: msg("Upgrade Settings"), techSettings: msg("Tech Settings"), stringEditor: msg("the String Editor"),
+  soundEditor: msg("the Sound Editor"), switches: msg("Switches"), locationList: msg("the location list"), unitProperties: msg("Unit Properties"), locationProperties: msg("Location Properties"),
+  spriteProperties: msg("Sprite Properties"), triggerEditor: msg("the Trigger Editor"), missionBriefing: msg("Mission Briefing"), cuwpEditor: msg("Unit Properties Slots"),
+  replaceTerrain: msg("Replace Terrain"), autoStarts: msg("Auto-place Start Locations"), importTriggers: msg("Import Triggers"), importStrings: msg("Import Strings"),
+  gameData: msg("Game Data (getting the game's graphics)"),
 };
 
 /** What a person is doing, in a few words, or "". */
 export function doing(p: Presence | undefined): string {
   if (!p?.dialog) return "";
   const name = DIALOG_NAMES[p.dialog];
-  return name ? `in ${name}` : "";
+  return name ? t("in {dialog}", { dialog: translate(name) }) : "";
 }
 
 export function drawPeople(ctx: CanvasRenderingContext2D, view: MapView, people: RoomPerson[], presence: Map<string, Presence>) {

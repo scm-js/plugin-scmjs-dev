@@ -28,6 +28,7 @@ import { openTriggers } from "./dialogs/triggers";
 import { openOptions } from "./options";
 import { installDialogSlots } from "./slots";
 import type { Ctx } from "./ui";
+import { msg, t } from "../i18n";
 
 export interface AiDeps {
   api: PluginApi;
@@ -51,34 +52,34 @@ export function installAi(deps: AiDeps): () => void {
     assistantPanel = openAssistant(ctx, conversations);
   };
   // The AI cell in the status bar: "AI" when idle, the assistant's phase while it works, a click opens the panel.
-  ctx.presence = api.ui.statusItem({ text: "AI", title: "AI Assistant (Ctrl+Shift+A)", onClick: toggleAssistant });
+  ctx.presence = api.ui.statusItem({ text: "AI", title: t("AI Assistant (Ctrl+Shift+A)"), onClick: toggleAssistant });
 
-  out.push(api.commands.register({ id: "generate", title: "AI: Generate Map", run: () => openGenerate(ctx) }));
-  out.push(api.commands.register({ id: "scenario", title: "AI: Make Scenario", run: (prompt?: unknown) => openScenario(ctx, typeof prompt === "string" ? prompt : undefined) }));
-  out.push(api.commands.register({ id: "assistant", title: "AI: Assistant", run: toggleAssistant }));
-  out.push(api.commands.register({ id: "ask", title: "AI: Ask about this", run: (text?: unknown) => { showAssistant().ask(typeof text === "string" ? text : "", false); } }));
-  out.push(api.commands.register({ id: "ai-options", title: "AI: Options", run: () => ctx.openSettings() }));
+  out.push(api.commands.register({ id: "generate", title: msg("AI: Generate Map"), run: () => openGenerate(ctx) }));
+  out.push(api.commands.register({ id: "scenario", title: msg("AI: Make Scenario"), run: (prompt?: unknown) => openScenario(ctx, typeof prompt === "string" ? prompt : undefined) }));
+  out.push(api.commands.register({ id: "assistant", title: msg("AI: Assistant"), run: toggleAssistant }));
+  out.push(api.commands.register({ id: "ask", title: msg("AI: Ask about this"), run: (text?: unknown) => { showAssistant().ask(typeof text === "string" ? text : "", false); } }));
+  out.push(api.commands.register({ id: "ai-options", title: msg("AI: Options"), run: () => ctx.openSettings() }));
 
   const menu = "Tools/AI" as const;
-  out.push(api.menu.add(menu, { label: "Make Scenario…", icon: "plugin", command: "scenario" }));
-  out.push(api.menu.add(menu, { label: "Generate Map…", icon: "plugin", command: "generate" }));
-  out.push(api.menu.add(menu, { label: "Redo Area…", icon: "plugin", enabled: open, run: () => void openRegion(ctx) }));
-  out.push(api.menu.add(menu, { label: "Write Triggers…", icon: "plugin", enabled: open, run: () => openTriggers(ctx) }));
-  out.push(api.menu.add(menu, { label: "Explain Triggers…", icon: "plugin", enabled: open, run: () => openExplain(ctx) }));
-  out.push(api.menu.add(menu, { label: "Name and Describe…", icon: "plugin", enabled: open, run: () => openDescribe(ctx) }));
-  out.push(api.menu.add(menu, { label: "Write Briefing…", icon: "plugin", enabled: open, run: () => openBriefing(ctx) }));
-  out.push(api.menu.add(menu, { label: "Review Map…", icon: "plugin", enabled: open, run: () => openReview(ctx) }));
-  out.push(api.menu.add(menu, { label: "Rewrite Strings…", icon: "plugin", enabled: open, run: () => openStrings(ctx) }));
-  out.push(api.menu.add(menu, { label: "Assistant", shortcut: "Ctrl+Shift+A", icon: "plugin", enabled: open, separator: true, command: "assistant" }));
-  out.push(api.menu.add(menu, { label: "Options…", icon: "plugin", separator: true, command: "ai-options" }));
+  out.push(api.menu.add(menu, { label: msg("Make Scenario…"), icon: "plugin", command: "scenario" }));
+  out.push(api.menu.add(menu, { label: msg("Generate Map…"), icon: "plugin", command: "generate" }));
+  out.push(api.menu.add(menu, { label: msg("Redo Area…"), icon: "plugin", enabled: open, run: () => void openRegion(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Write Triggers…"), icon: "plugin", enabled: open, run: () => openTriggers(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Explain Triggers…"), icon: "plugin", enabled: open, run: () => openExplain(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Name and Describe…"), icon: "plugin", enabled: open, run: () => openDescribe(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Write Briefing…"), icon: "plugin", enabled: open, run: () => openBriefing(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Review Map…"), icon: "plugin", enabled: open, run: () => openReview(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Rewrite Strings…"), icon: "plugin", enabled: open, run: () => openStrings(ctx) }));
+  out.push(api.menu.add(menu, { label: msg("Assistant"), shortcut: "Ctrl+Shift+A", icon: "plugin", enabled: open, separator: true, command: "assistant" }));
+  out.push(api.menu.add(menu, { label: msg("Options…"), icon: "plugin", separator: true, command: "ai-options" }));
 
   out.push(api.contextMenu.add("viewport", {
-    label: "Redo this area with AI…",
+    label: msg("Redo this area with AI…"),
     visible: (c) => c.markedArea !== null,
     run: (c) => void openRegion(ctx, c.markedArea),
   }));
   out.push(api.contextMenu.add("viewport", {
-    label: (c) => (c.markedArea ? "Ask AI about this area…" : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "Ask AI about the selection…" : "Ask AI about this spot…"),
+    label: (c) => (c.markedArea ? t("Ask AI about this area…") : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? t("Ask AI about the selection…") : t("Ask AI about this spot…")),
     enabled: open,
     run: (c) => {
       const where = c.markedArea

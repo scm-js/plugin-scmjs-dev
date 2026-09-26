@@ -9,6 +9,7 @@
 import type { PluginApi } from "@scm-js/plugin-api";
 import type { AccountManager } from "./account";
 import type { ShareControls } from "./share/dialogs";
+import { t } from "./i18n";
 
 export interface Ctx {
   api: PluginApi;
@@ -171,19 +172,19 @@ export function shortDay(iso: string): string {
 
 /** `4 days ago`, `yesterday`, `just now` — for the map list. */
 export function ago(iso: string, now = Date.now()): string {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return iso;
-  const s = Math.max(0, Math.round((now - t) / 1000));
-  if (s < 60) return "just now";
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return iso;
+  const s = Math.max(0, Math.round((now - time) / 1000));
+  if (s < 60) return t("just now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t("{n} min ago", { n: m });
   const hrs = Math.round(m / 60);
-  if (hrs < 24) return `${hrs} h ago`;
+  if (hrs < 24) return t("{n} h ago", { n: hrs });
   const d = Math.round(hrs / 24);
-  if (d === 1) return "yesterday";
-  if (d < 30) return `${d} days ago`;
+  if (d === 1) return t("yesterday");
+  if (d < 30) return t("{n} days ago", { n: d });
   const mo = Math.round(d / 30);
-  if (mo < 12) return `${mo} month${mo === 1 ? "" : "s"} ago`;
+  if (mo < 12) return t("{n, plural, one {# month ago} other {# months ago}}", { n: mo });
   const y = Math.round(mo / 12);
-  return `${y} year${y === 1 ? "" : "s"} ago`;
+  return t("{n, plural, one {# year ago} other {# years ago}}", { n: y });
 }

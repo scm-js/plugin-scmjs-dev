@@ -8,6 +8,7 @@ import type { Disposable, OverlayHandle, PluginApi, StatusItemHandle } from "@sc
 import type { AccountManager, SettingsStore } from "../account";
 import type { ScmjsClient } from "../client";
 import { metaOf, pictureOf, thumbnailOf, type Link } from "../maps";
+import { msg, t } from "../i18n";
 import type { KeepDays } from "../protocol";
 import { SharedChat } from "./chat";
 import { openJoinDialog, openShareDialog, type ShareControls, type ShareCtx } from "./dialogs";
@@ -51,9 +52,12 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
   const syncStatus = () => {
     if (!shared || shared.phase === "ended") { status?.remove(); status = null; return; }
     const n = shared.people.size;
-    const text = shared.phase === "connecting" ? "Sharing…" : shared.phase === "reconnecting" ? "Reconnecting…" : `Shared · ${n} ${n === 1 ? "person" : "people"}`;
-    const lines = [...shared.people.values()].map((p) => `${p.name}${p.id === shared!.you?.id ? " (you)" : ""}${p.owner ? " · shared the map" : ""}${p.away ? " · connection lost" : doing(shared!.presence.get(p.id)) ? ` · ${doing(shared!.presence.get(p.id))}` : ""}`);
-    const spec = { text, title: `${shared.room?.name ?? "Shared map"}\n${lines.join("\n")}\nClick to see the link and who is in.`, busy: shared.phase === "connecting" || shared.phase === "reconnecting", onClick: () => { openShareDialog(ctx, controls); } };
+    const text = shared.phase === "connecting" ? t("Sharing…") : shared.phase === "reconnecting" ? t("Reconnecting…") : t("Shared · {n, plural, one {# person} other {# people}}", { n });
+    const lines = [...shared.people.values()].map((p) => {
+      const what = doing(shared!.presence.get(p.id));
+      return [p.id === shared!.you?.id ? t("{name} (you)", { name: p.name }) : p.name, p.owner ? t("shared the map") : "", p.away ? t("connection lost") : what].filter(Boolean).join(" · ");
+    });
+    const spec = { text, title: `${shared.room?.name ?? t("Shared map")}\n${lines.join("\n")}\n${t("Click to see the link and who is in.")}`, busy: shared.phase === "connecting" || shared.phase === "reconnecting", onClick: () => { openShareDialog(ctx, controls); } };
     if (status) status.set(spec);
     else status = api.ui.statusItem(spec);
   };
@@ -77,7 +81,7 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
     syncChat();
     unhook.push(s.onPresence(() => overlay?.redraw()));
     overlay = api.ui.overlay({
-      name: "People on the shared map",
+      name: msg("People on the shared map"),
       above: "everything",
       // Only over the shared map: with several open, the others' pointers mean nothing on the rest.
       draw: (c, view) => { if (shared && onSharedMap()) drawPeople(c, view, others(), shared.presence); },
@@ -101,7 +105,7 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
     overlay = null;
     shared = null;
     syncStatus();
-    if (s.ending) api.ui.toast({ kind: "warn", title: "Shared editing ended", detail: s.ending, ttl: 0 });
+    if (s.ending) api.ui.toast({ kind: "warn", title: t("Shared editing ended"), detail: s.ending, ttl: 0 });
   };
 
   const controls: ShareControls = {
@@ -133,21 +137,23 @@ export function installShare(opts: ShareOptions): { dispose: () => void; control
       // The owner's own kept map (its room id is the stored map's): Save to scmjs.dev adds to it.
       if (s.kept && s.owner && s.room) opts.links.set({ mapId: s.room.id, mapName: s.room.name, fileName: `${s.room.name}.scx` });
       attach(s);
-      api.ui.toast({ kind: "ok", title: `Joined “${s.room?.name ?? "the shared map"}”`, detail: `${s.people.size} ${s.people.size === 1 ? "person" : "people"} editing it.` });
+      api.ui.toast({ kind: "ok", title: s.room?.name ? t("Joined “{name}”", { name: s.room.name }) : t("Joined the shared map"), detail: t("{n, plural, one {# person} other {# people}} editing it.", { n: s.people.size }) });
       return s;
     },
   };
 
-  disposables.push(api.commands.register({ id: "share", title: "Share this Map…", enabled: () => api.document.isOpen() || !!shared, run: () => { openShareDialog(ctx, controls); } }));
-  disposables.push(api.commands.register({ id: "join", title: "Join a Shared Map…", run: () => { openJoinDialog(ctx, controls, pageInvite); } }));
-  disposables.push(api.menu.add("Account", { label: "Share this Map…", icon: "plugin", command: "share", separator: true }));
-  disposables.push(api.menu.add("Account", { label: "Join a Shared Map…", icon: "plugin", command: "join" }));
+  disposables.push(api.commands.register({ id: "share", title: msg("Share this Map…"), enabled: () => api.document.isOpen() || !!shared, run: () => { openShareDialog(ctx, controls); } }));
+  disposables.push(api.commands.register({ id: "join", title: msg("Join a Shared Map…"), run: () => { openJoinDialog(ctx, controls, pageInvite); } }));
+  disposables.push(api.menu.add(msg("Account"), { label: msg("Share this Map…"), icon: "plugin", command: "share", separator: true }));
+  disposables.push(api.menu.add(msg("Account"), { label: msg("Join a Shared Map…"), icon: "plugin", command: "join" }));
 
   // Opened from a link: the invite comes off the address (a reload must not join twice) and the Join dialog goes up.
   // A `share/<invite>` path goes back to the editor's own, so a reload opens the editor and not the link again.
   const pathname = opts.pathname ?? (typeof location !== "undefined" ? location.pathname : "/");
   // The invite is kept until it is used, so closing the dialog does not lose it: Join a Shared Map… offers it again.
   pageInvite = inviteOnPage(pathname);
+  // The status cell and the pointers' labels are drawn from words: a change of language redraws them.
+  disposables.push(api.events.on("language", () => { syncStatus(); overlay?.redraw(); }));
   if (pageInvite) {
     forgetLinkOnPage();
     openJoinDialog(ctx, controls, pageInvite);
