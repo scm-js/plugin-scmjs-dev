@@ -17,8 +17,11 @@ import { capResult, fail, jsonOf, num, obj, str, type Tool } from "./common";
  * locations it has, and which counters and switches its triggers already use — read
  * afresh for every build, so the system built a moment ago counts as in use for the next.
  */
+/** As much of a trigger as the tempo check reads — the open map's own list, or a copy. */
+type Trigger = { readonly actions: readonly { readonly type: number; readonly time: number }[] };
+
 /** Whether the map's own triggers hold hyper triggers: a trigger of many Wait(0)s. */
-export function hasHyperTriggers(api: PluginApi, triggers = api.triggers.list()): boolean {
+export function hasHyperTriggers(api: PluginApi, triggers: readonly Trigger[] = api.triggers.list()): boolean {
   return triggers.some((t) => t.actions.filter((a) => a.type === api.consts.triggers.action.Wait && a.time <= 1).length >= 8);
 }
 
@@ -28,7 +31,7 @@ export function hasPrograms(api: PluginApi): boolean {
 }
 
 /** How often the map's triggers run as it stands: every frame with a program, fast with hyper triggers, slowly otherwise. */
-export function mapTempo(api: PluginApi, triggers = api.triggers.list()): Tempo {
+export function mapTempo(api: PluginApi, triggers: readonly Trigger[] = api.triggers.list()): Tempo {
   return hasPrograms(api) ? "turbo" : hasHyperTriggers(api, triggers) ? "hyper" : "plain";
 }
 

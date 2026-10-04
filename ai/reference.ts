@@ -20,7 +20,7 @@
  * every turn pays to read the layers and most turns need none of that.
  * `gatherReference` memoises per scenario object and the builders are deterministic.
  */
-import type { PluginApi, Scenario } from "@scm-js/plugin-api";
+import type { PluginApi } from "@scm-js/plugin-api";
 import { bridgePairOf, rampPairsOf } from "./ramps";
 import { BRIDGE_CHANNEL } from "./shapes";
 
@@ -313,7 +313,7 @@ function gatherMap(api: PluginApi): Pick<ReferenceParts, "mapName" | "descriptio
   };
 }
 
-const cache = new WeakMap<Scenario, { tileset: string; parts: ReferenceParts; layers: ReferenceLayers }>();
+const cache = new WeakMap<object, { tileset: string; parts: ReferenceParts; layers: ReferenceLayers }>();
 
 /**
  * The open map's parts and layers. The game and tileset layers are built once per
