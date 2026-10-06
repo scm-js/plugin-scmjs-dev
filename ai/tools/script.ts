@@ -45,7 +45,7 @@ export function scriptTools(): Tool[] {
       },
     },
     {
-      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => input.takeOver === true ? t("Build the script ({n, plural, one {# line} other {# lines}}), replacing every trigger", { n: str(input.source).split("\n").length }) : t("Build the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: true,
       settings: true,

@@ -928,7 +928,7 @@ var KO = {
   "{n, plural, one {# problem} other {# problems}}, {fixed} fixed": "\uBB38\uC81C {n}\uAC1C, {fixed}\uAC1C \uACE0\uCE68",
   "{n, plural, one {# ramp} other {# ramps}}": "\uACBD\uC0AC\uB85C {n}\uAC1C",
   "{n, plural, one {# resource} other {# resources}}": "\uC790\uC6D0 {n}\uAC1C",
-  "{n, plural, one {# settings change} other {# settings changes}} (not undoable)": "{n, plural, other {\uC124\uC815 \uBCC0\uACBD #\uAC1C}} (\uC2E4\uD589 \uCDE8\uC18C \uBD88\uAC00)",
+  "{n, plural, one {# settings change} other {# settings changes}}": "{n, plural, other {\uC124\uC815 \uBCC0\uACBD #\uAC1C}}",
   "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}": "\uC124\uC815 {n, plural, other {#\uAC1C}} \uC801\uC74C, \uC0AC\uB78C \uD50C\uB808\uC774\uC5B4 {humans, plural, other {#\uBA85}}",
   "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}, {keepers, plural, one {# keeper} other {# keepers}}": "\uC124\uC815 {n, plural, other {#\uAC1C}} \uC801\uC74C, \uC0AC\uB78C \uD50C\uB808\uC774\uC5B4 {humans, plural, other {#\uBA85}}, \uC720\uC9C0 \uC720\uB2DB {keepers, plural, other {#\uAC1C}}",
   "{n, plural, one {# site} other {# sites}}": "\uC790\uB9AC {n}\uACF3",
@@ -3633,7 +3633,7 @@ function gameLayer(p) {
   out.push("- Tools take tile coordinates (x right, y down, 0-based) and tile rects x0,y0 inclusive to x1,y1 exclusive. A unit's position is its centre.");
   out.push(`- Players in tools are 1\u20138; 12 is Neutral (resources, critters). Settings tools also take "default" for a table's default column.`);
   out.push("- Names are the editor's: units and terrains as listed, locations and switches as the map names them. Ids are accepted where names are.");
-  out.push("- Every writing tool is one undo step (settings changes are transactions outside undo). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
+  out.push("- Every writing tool is one undo step (an older editor leaves settings, trigger and string changes out of undo: read the history when it matters). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
   out.push('- The reference tool has the long tables this block leaves out: unit stats, costs and weapons (part "units"); every doodad by category ("doodads"); every trigger condition, action and briefing action with its arguments and their values, and the AI scripts ("triggers"). Read "triggers" before writing triggers you have not written in this conversation.');
   out.push("");
   out.push(`## Units (id: name | race | size in tiles | kind). Stats, costs and weapons: reference "units"; unit_type shows the map's own values.`);
@@ -6841,7 +6841,7 @@ ${guideIndex()}`;
       run: () => kindsText()
     },
     {
-      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings \u2014 names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
       describe: (input) => {
         const p = input.params && typeof input.params === "object" ? Object.entries(input.params).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : "";
         return p ? t("Build {kind}: {params}", { kind: str(input.kind), params: p }) : t("Build {kind}", { kind: str(input.kind) });
@@ -8635,7 +8635,7 @@ function scriptTools() {
       }
     },
     {
-      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map. Not undoable.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
+      def: { name: "build_script", description: "Run a TrigScript and, when clean, build it into the map, replacing the script's block; `takeOver` replaces every trigger (ask first). Stores main.ts with the map.", inputSchema: obj({ source: { type: "string" }, takeOver: { type: "boolean" } }, ["source"]) },
       describe: (input) => input.takeOver === true ? t("Build the script ({n, plural, one {# line} other {# lines}}), replacing every trigger", { n: str(input.source).split("\n").length }) : t("Build the script ({n, plural, one {# line} other {# lines}})", { n: str(input.source).split("\n").length }),
       writes: true,
       settings: true,
@@ -8729,7 +8729,7 @@ ${FIRST_PROGRAM}` : built;
 function settingsTools() {
   return [
     {
-      def: { name: "set_players", description: "Player Settings and Colors: entries of { player (1-based), type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race, color (a name or a COLR index), rgb ([r, g, b], Remastered), force 1\u20134 }. Only the fields given change. Not undoable.", inputSchema: obj({ players: { type: "array", items: bag({ player: { type: "integer" } }, ["player"]) } }, ["players"]) },
+      def: { name: "set_players", description: "Player Settings and Colors: entries of { player (1-based), type (Human, Computer, Rescuable, Neutral, Inactive \u2026), race, color (a name or a COLR index), rgb ([r, g, b], Remastered), force 1\u20134 }. Only the fields given change.", inputSchema: obj({ players: { type: "array", items: bag({ player: { type: "integer" } }, ["player"]) } }, ["players"]) },
       describe: (input) => {
         const ps = list(input.players);
         const q2 = { list: ps.map((p) => str(p.player)).join(", "), fields: fieldsGiven(Object.assign({}, ...ps), ["type", "race", "color", "rgb", "force"]) || t("nothing") };
@@ -8780,7 +8780,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_forces", description: "Force Settings: entries of { force 1\u20134, name, allied, alliedVictory, sharedVision, randomStart (booleans), players ([1-based]) }. Only the fields given change. Not undoable.", inputSchema: obj({ forces: { type: "array", items: bag({ force: { type: "integer" } }, ["force"]) } }, ["forces"]) },
+      def: { name: "set_forces", description: "Force Settings: entries of { force 1\u20134, name, allied, alliedVictory, sharedVision, randomStart (booleans), players ([1-based]) }. Only the fields given change.", inputSchema: obj({ forces: { type: "array", items: bag({ force: { type: "integer" } }, ["force"]) } }, ["forces"]) },
       describe: (input) => {
         const fs = list(input.forces);
         const q2 = { list: fs.map((f) => str(f.force)).join(", "), fields: fieldsGiven(Object.assign({}, ...fs), ["name", "allied", "alliedVictory", "sharedVision", "randomStart", "players"]) || t("nothing") };
@@ -8811,7 +8811,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_unit_type", description: 'Unit Settings for `unit`: hitPoints, shields, armor, buildTime (frames), mineralCost, gasCost, weapons [{id, damage, bonus}], name ("" restores), available [{player 1\u201312 or "default", value true / false / "default"}]. A number set turns use-default off; useDefault: true restores it. Not undoable.', inputSchema: bag({ unit: { type: "string" } }, ["unit"]) },
+      def: { name: "set_unit_type", description: 'Unit Settings for `unit`: hitPoints, shields, armor, buildTime (frames), mineralCost, gasCost, weapons [{id, damage, bonus}], name ("" restores), available [{player 1\u201312 or "default", value true / false / "default"}]. A number set turns use-default off; useDefault: true restores it.', inputSchema: bag({ unit: { type: "string" } }, ["unit"]) },
       describe: (input) => t("Unit settings for {unit}: {fields}", { unit: str(input.unit), fields: fieldsGiven(input, ["useDefault", "name", "hitPoints", "shields", "armor", "buildTime", "mineralCost", "gasCost", "weapons", "available"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
@@ -8843,7 +8843,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_upgrade", description: 'Upgrade Settings for `upgrade`: mineralCost, mineralFactor, gasCost, gasFactor, timeCost, timeFactor (frames), levels [{player 1\u201312 or "default", start, max, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ upgrade: { type: "string" } }, ["upgrade"]) },
+      def: { name: "set_upgrade", description: 'Upgrade Settings for `upgrade`: mineralCost, mineralFactor, gasCost, gasFactor, timeCost, timeFactor (frames), levels [{player 1\u201312 or "default", start, max, useDefault}]. useDefault: true restores the game\'s.', inputSchema: bag({ upgrade: { type: "string" } }, ["upgrade"]) },
       describe: (input) => t("Upgrade settings for {upgrade}: {fields}", { upgrade: str(input.upgrade), fields: fieldsGiven(input, ["useDefault", "mineralCost", "mineralFactor", "gasCost", "gasFactor", "timeCost", "timeFactor", "levels"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
@@ -8869,7 +8869,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_tech", description: 'Technology Settings for `tech`: mineralCost, gasCost, researchTime (frames), energyCost, state [{player 1\u201312 or "default", available, researched, useDefault}]. useDefault: true restores the game\'s. Not undoable.', inputSchema: bag({ tech: { type: "string" } }, ["tech"]) },
+      def: { name: "set_tech", description: 'Technology Settings for `tech`: mineralCost, gasCost, researchTime (frames), energyCost, state [{player 1\u201312 or "default", available, researched, useDefault}]. useDefault: true restores the game\'s.', inputSchema: bag({ tech: { type: "string" } }, ["tech"]) },
       describe: (input) => t("Technology settings for {tech}: {fields}", { tech: str(input.tech), fields: fieldsGiven(input, ["useDefault", "mineralCost", "gasCost", "researchTime", "energyCost", "state"]) || t("nothing") }),
       report: (result) => {
         const r = jsonOf(result);
@@ -8895,7 +8895,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "set_map_version", description: "Map Revision: original (.scm 1.00), hybrid (.scm 1.04), broodwar (.scx) or remastered. Ask first. Not undoable.", inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
+      def: { name: "set_map_version", description: "Map Revision: original (.scm 1.00), hybrid (.scm 1.04), broodwar (.scx) or remastered. Ask first.", inputSchema: obj({ version: { type: "string", enum: ["original", "hybrid", "broodwar", "remastered"] } }, ["version"]) },
       describe: (input) => t("Set the map revision to {version}", { version: str(input.version) }),
       writes: true,
       settings: true,
@@ -8909,7 +8909,7 @@ function settingsTools() {
       }
     },
     {
-      def: { name: "add_sound", description: "Add a WAV path to the sound table (the file must already be in the archive). Not undoable.", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
+      def: { name: "add_sound", description: "Add a WAV path to the sound table (the file must already be in the archive).", inputSchema: obj({ path: { type: "string" } }, ["path"]) },
       describe: (input) => t("Add the sound {path}", { path: str(input.path) }),
       writes: true,
       settings: true,
@@ -8993,7 +8993,7 @@ function terrainTools() {
 function triggerTools() {
   return [
     {
-      def: { name: "add_triggers_text", description: "Append triggers in the text format (grammar in the reference); on a parse error nothing is added. Not undoable.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
+      def: { name: "add_triggers_text", description: "Append triggers in the text format (grammar in the reference); on a parse error nothing is added.", inputSchema: obj({ text: { type: "string" }, briefing: { type: "boolean" } }, ["text"]) },
       describe: (input) => {
         const n2 = (str(input.text).match(/^\s*Trigger\s*\(/gm) ?? []).length;
         return !n2 ? t("Add triggers from text") : input.briefing === true ? t("Add {n, plural, one {# briefing trigger} other {# briefing triggers}} from text", { n: n2 }) : t("Add {n, plural, one {# trigger} other {# triggers}} from text", { n: n2 });
@@ -9015,7 +9015,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "replace_trigger", description: "Replace one trigger (1-based, as list_triggers_text numbers them) with text-format text. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
+      def: { name: "replace_trigger", description: "Replace one trigger (1-based, as list_triggers_text numbers them) with text-format text.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" }, briefing: { type: "boolean" } }, ["index", "text"]) },
       describe: (input) => t("Replace trigger #{n}", { n: num(input.index) }),
       writes: true,
       settings: true,
@@ -9036,7 +9036,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "remove_triggers", description: "Remove triggers by 1-based index. Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
+      def: { name: "remove_triggers", description: "Remove triggers by 1-based index.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, briefing: { type: "boolean" } }, ["indices"]) },
       describe: (input) => t("Remove {n, plural, one {# trigger} other {# triggers}} {list}", { n: ints(input.indices).length, list: indexList(ints(input.indices)) }),
       writes: true,
       settings: true,
@@ -9051,7 +9051,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "move_trigger", description: "Move a trigger from one 1-based position to another (triggers run in list order). Not undoable.", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }, ["from", "to"]) },
+      def: { name: "move_trigger", description: "Move a trigger from one 1-based position to another (triggers run in list order).", inputSchema: obj({ from: { type: "integer" }, to: { type: "integer" }, briefing: { type: "boolean" } }, ["from", "to"]) },
       describe: (input) => t("Move trigger #{from} to #{to}", { from: num(input.from), to: num(input.to) }),
       writes: true,
       settings: true,
@@ -9065,7 +9065,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "set_trigger_flags", description: "Preserve Trigger on or off for triggers by 1-based index (to disable one line, replace the trigger with a `;` before it). Not undoable.", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
+      def: { name: "set_trigger_flags", description: "Preserve Trigger on or off for triggers by 1-based index (to disable one line, replace the trigger with a `;` before it).", inputSchema: obj({ indices: { type: "array", items: { type: "integer" } }, preserved: { type: "boolean" } }, ["indices", "preserved"]) },
       describe: (input) => bool(input.preserved) === false ? t("Stop preserving {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }) : t("Preserve {n, plural, one {# trigger} other {# triggers}}", { n: ints(input.indices).length }),
       writes: true,
       settings: true,
@@ -9086,7 +9086,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "set_string", description: "Overwrite a string by index (everything pointing at it changes), or index 0 to add one and get its index. Not undoable.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
+      def: { name: "set_string", description: "Overwrite a string by index (everything pointing at it changes), or index 0 to add one and get its index.", inputSchema: obj({ index: { type: "integer" }, text: { type: "string" } }, ["index", "text"]) },
       describe: (input) => {
         const text = str(input.text).length > 40 ? `${str(input.text).slice(0, 40)}\u2026` : str(input.text);
         return num(input.index) > 0 ? t('Set string {index}: "{text}"', { index: num(input.index), text }) : t('Add a string: "{text}"', { text });
@@ -9105,7 +9105,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "name_switch", description: 'Name a switch (0-based index; "" clears the name). Not undoable.', inputSchema: obj({ index: { type: "integer" }, name: { type: "string" } }, ["index", "name"]) },
+      def: { name: "name_switch", description: 'Name a switch (0-based index; "" clears the name).', inputSchema: obj({ index: { type: "integer" }, name: { type: "string" } }, ["index", "name"]) },
       describe: (input) => t('Name switch {index} "{name}"', { index: num(input.index), name: str(input.name) }),
       writes: true,
       settings: true,
@@ -9117,7 +9117,7 @@ function triggerTools() {
       }
     },
     {
-      def: { name: "set_properties", description: "Set the scenario's name and/or description (Map Properties). Not undoable.", inputSchema: obj({ name: { type: "string" }, description: { type: "string" } }) },
+      def: { name: "set_properties", description: "Set the scenario's name and/or description (Map Properties).", inputSchema: obj({ name: { type: "string" }, description: { type: "string" } }) },
       describe: (input) => input.name !== void 0 && input.description !== void 0 ? t("Set the map's name and description") : input.name !== void 0 ? t("Set the map's name") : input.description !== void 0 ? t("Set the map's description") : t("Set the map's properties"),
       writes: true,
       settings: true,
@@ -9555,7 +9555,7 @@ function openAssistant(ctx, store) {
             if (count) parts.push(t("{n, plural, one {# step} other {# steps}}", { n: count }));
             else if (think) parts.push(t("Thought"));
             if (o.edits) parts.push(t("{n, plural, one {# edit} other {# edits}}", { n: o.edits }));
-            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}} (not undoable)", { n: o.settings }));
+            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}}", { n: o.settings }));
             if (failed) parts.push(h("span", { className: "error" }, t("{n} failed", { n: failed })));
             if (o.secs !== void 0) parts.push(t("{s} s", { s: o.secs }));
             if (o.cost) parts.push(formatUsd(o.cost));
@@ -10351,7 +10351,11 @@ function openGenerate(ctx) {
     target: info ? "open" : "new",
     plan: null,
     rendered: null,
-    /** The history as it stood right after the last render — while it still reads so, an undo takes exactly that render back. */
+    /**
+     * The history as it stood right after the last apply, and how many steps the apply put on
+     * it — the render, a doodad put-back, and the name where the editor records table writes.
+     * While the history still reads so, that many undos take exactly that apply back.
+     */
     mark: null,
     refine: ""
   };
@@ -10505,18 +10509,19 @@ Change this: ${state.refine.trim()}` : state.prompt,
           const now = api.document.history();
           const intact = now.undo === state.mark.undo && now.undoDepth === state.mark.undoDepth;
           if (!intact && !await api.ui.confirm(t("The map was edited since the last plan was applied. Apply the new plan on top of it?"), { title: t("Generate Map"), confirmLabel: t("Apply on top") })) return;
-          if (intact) api.document.undo();
+          if (intact) for (let i = 0; i < state.mark.steps; i++) api.document.undo();
         }
+        const depthBefore = api.document.history().undoDepth;
         const rendered = renderPlan(api, state.plan, { originX: 0, originY: 0, label: t("AI: {name}", { name: state.plan.name }), clearArea: true });
         if (!rendered) return;
         state.rendered = rendered;
-        const after = api.document.history();
-        state.mark = { undo: after.undo, undoDepth: after.undoDepth };
         if (state.plan.name || state.plan.description) {
           api.document.update(t("AI: name and description"), (tx) => {
             tx.properties({ name: state.plan.name, description: state.plan.description });
           });
         }
+        const after = api.document.history();
+        state.mark = { undo: after.undo, undoDepth: after.undoDepth, steps: Math.max(1, after.undoDepth - depthBefore) };
         showPlan(state.plan, rendered.findings);
         refineBox.hidden = false;
         runner.idle(t("Applied: {summary}. Edit \u25B8 Undo takes it back.", { summary: summarizeRender(rendered) }));

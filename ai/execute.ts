@@ -41,7 +41,7 @@ export interface ExecuteOutcome {
   results: AgentContent[];
   /** The names of the writing tools that ran and did not fail. */
   edits: string[];
-  /** The same for settings-style writes, which are not undoable. */
+  /** The same for settings-style writes (counted apart: an older editor keeps them out of the undo history). */
   settingsWrites: string[];
   stopped: boolean;
   mapChanged: boolean;

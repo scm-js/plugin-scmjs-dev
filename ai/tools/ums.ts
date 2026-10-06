@@ -153,7 +153,7 @@ export function umsTools(): Tool[] {
       run: () => kindsText(),
     },
     {
-      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings — names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added. Not undoable.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
+      def: { name: "ums_build", description: "Build one toolkit system (see ums_kinds) and append its triggers; `params` as strings — names, digits, comma lists; {p} in a location name is the player number. Problems are reported and nothing added.", inputSchema: obj({ kind: { type: "string" }, params: { type: "object", additionalProperties: { type: "string" } } }, ["kind"]) },
       describe: (input) => { const p = input.params && typeof input.params === "object" ? Object.entries(input.params as Record<string, unknown>).slice(0, 3).map(([k, v]) => `${k} ${String(v)}`).join(", ") : ""; return p ? t("Build {kind}: {params}", { kind: str(input.kind), params: p }) : t("Build {kind}", { kind: str(input.kind) }); },
       report: (result) => { const r = jsonOf(result); return r ? t("{n, plural, one {# trigger} other {# triggers}} added, {total} in all", { n: num(r.added), total: num(r.triggers) }) : ""; },
       writes: true,

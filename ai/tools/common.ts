@@ -23,7 +23,7 @@ export interface Tool {
   def: AgentTool;
   /** Whether it changes the map (shown differently in the transcript). */
   writes: boolean;
-  /** A settings-style write: not in the undo model. */
+  /** A settings-style write (`document.update`): its own undo step only on an editor with dialog undo. */
   settings?: boolean;
   /** For a tool that writes only when asked to (`scenario_rules` with `fix`): whether this call is one that does. Without it every call of a writing tool is. */
   writesWhen?(input: Record<string, unknown>): boolean;

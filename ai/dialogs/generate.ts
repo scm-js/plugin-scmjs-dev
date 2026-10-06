@@ -51,8 +51,12 @@ export function openGenerate(ctx: Ctx) {
     target: (info ? "open" : "new") as "new" | "open",
     plan: null as MapPlan | null,
     rendered: null as Rendered | null,
-    /** The history as it stood right after the last render — while it still reads so, an undo takes exactly that render back. */
-    mark: null as { undo: string | null; undoDepth: number } | null,
+    /**
+     * The history as it stood right after the last apply, and how many steps the apply put on
+     * it — the render, a doodad put-back, and the name where the editor records table writes.
+     * While the history still reads so, that many undos take exactly that apply back.
+     */
+    mark: null as { undo: string | null; undoDepth: number; steps: number } | null,
     refine: "",
   };
 
@@ -183,16 +187,18 @@ export function openGenerate(ctx: Ctx) {
           const now = api.document.history();
           const intact = now.undo === state.mark.undo && now.undoDepth === state.mark.undoDepth;
           if (!intact && !(await api.ui.confirm(t("The map was edited since the last plan was applied. Apply the new plan on top of it?"), { title: t("Generate Map"), confirmLabel: t("Apply on top") }))) return;
-          if (intact) api.document.undo();
+          if (intact) for (let i = 0; i < state.mark.steps; i++) api.document.undo();
         }
+        const depthBefore = api.document.history().undoDepth;
         const rendered = renderPlan(api, state.plan, { originX: 0, originY: 0, label: t("AI: {name}", { name: state.plan.name }), clearArea: true });
         if (!rendered) return;
         state.rendered = rendered;
-        const after = api.document.history();
-        state.mark = { undo: after.undo, undoDepth: after.undoDepth };
         if (state.plan.name || state.plan.description) {
           api.document.update(t("AI: name and description"), (tx) => { tx.properties({ name: state.plan!.name, description: state.plan!.description }); });
         }
+        // Marked after the name: on an editor that records table writes it is a step of this apply too.
+        const after = api.document.history();
+        state.mark = { undo: after.undo, undoDepth: after.undoDepth, steps: Math.max(1, after.undoDepth - depthBefore) };
         showPlan(state.plan, rendered.findings);
         refineBox.hidden = false;
         runner.idle(t("Applied: {summary}. Edit ▸ Undo takes it back.", { summary: summarizeRender(rendered) }));

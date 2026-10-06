@@ -921,7 +921,7 @@ export const KO: Record<string, string> = {
   "{n, plural, one {# problem} other {# problems}}, {fixed} fixed": "문제 {n}개, {fixed}개 고침",
   "{n, plural, one {# ramp} other {# ramps}}": "경사로 {n}개",
   "{n, plural, one {# resource} other {# resources}}": "자원 {n}개",
-  "{n, plural, one {# settings change} other {# settings changes}} (not undoable)": "{n, plural, other {설정 변경 #개}} (실행 취소 불가)",
+  "{n, plural, one {# settings change} other {# settings changes}}": "{n, plural, other {설정 변경 #개}}",
   "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}": "설정 {n, plural, other {#개}} 적음, 사람 플레이어 {humans, plural, other {#명}}",
   "{n, plural, one {# setting} other {# settings}} written, {humans, plural, one {# human player} other {# human players}}, {keepers, plural, one {# keeper} other {# keepers}}": "설정 {n, plural, other {#개}} 적음, 사람 플레이어 {humans, plural, other {#명}}, 유지 유닛 {keepers, plural, other {#개}}",
   "{n, plural, one {# site} other {# sites}}": "자리 {n}곳",

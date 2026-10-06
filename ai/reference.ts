@@ -152,7 +152,7 @@ function gameLayer(p: ReferenceParts): string {
   out.push("- Tools take tile coordinates (x right, y down, 0-based) and tile rects x0,y0 inclusive to x1,y1 exclusive. A unit's position is its centre.");
   out.push("- Players in tools are 1–8; 12 is Neutral (resources, critters). Settings tools also take \"default\" for a table's default column.");
   out.push("- Names are the editor's: units and terrains as listed, locations and switches as the map names them. Ids are accepted where names are.");
-  out.push("- Every writing tool is one undo step (settings changes are transactions outside undo). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
+  out.push("- Every writing tool is one undo step (an older editor leaves settings, trigger and string changes out of undo: read the history when it matters). Prefer one tool call per thing asked for, several calls per turn when they are independent.");
   out.push("- The reference tool has the long tables this block leaves out: unit stats, costs and weapons (part \"units\"); every doodad by category (\"doodads\"); every trigger condition, action and briefing action with its arguments and their values, and the AI scripts (\"triggers\"). Read \"triggers\" before writing triggers you have not written in this conversation.");
   out.push("");
   out.push("## Units (id: name | race | size in tiles | kind). Stats, costs and weapons: reference \"units\"; unit_type shows the map's own values.");

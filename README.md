@@ -124,9 +124,10 @@ shows what is used.
 Everything is under **Tools ▸ AI**, and *Use the AI features* — in the Account dialog's
 settings and at the top of Tools ▸ AI ▸ Options… — takes the whole menu, the assistant
 and the AI buttons in the editor's dialogs away again, leaving the account and the maps.
-Every change to the map is one undo step with an "AI: …" label, except the ones that
-write the tables the settings dialogs write (properties, strings, triggers, players, unit
-settings …), which say so and are not in the undo model, as in StarEdit.
+Every change to the map is one undo step with an "AI: …" label. That includes the ones
+that write the tables the settings dialogs write (properties, strings, triggers, players,
+unit settings …) on an editor that undoes dialogs; an older editor leaves those out of
+the undo history, as StarEdit does.
 
 **Make Scenario…** is the whole thing from a sentence: "a madness map", "an RPG about a
 marine lost on a Zerg world", "a two-lane tower defense". The model writes a *design

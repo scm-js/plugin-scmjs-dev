@@ -446,7 +446,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             const count = steps.count();
             if (count) parts.push(t("{n, plural, one {# step} other {# steps}}", { n: count })); else if (think) parts.push(t("Thought"));
             if (o.edits) parts.push(t("{n, plural, one {# edit} other {# edits}}", { n: o.edits }));
-            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}} (not undoable)", { n: o.settings }));
+            if (o.settings) parts.push(t("{n, plural, one {# settings change} other {# settings changes}}", { n: o.settings }));
             if (failed) parts.push(h("span", { className: "error" }, t("{n} failed", { n: failed })));
             if (o.secs !== undefined) parts.push(t("{s} s", { s: o.secs }));
             if (o.cost) parts.push(formatUsd(o.cost));
