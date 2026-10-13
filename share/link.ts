@@ -10,7 +10,7 @@
 import { DEFAULT_SERVER_URL, SERVER_QUERY } from "../account";
 
 /** Where the web editor lives, for a link made in the desktop editor (whose own address is `app://`). */
-export const WEB_EDITOR_URL = "https://editor.scmjs.dev/";
+export const WEB_EDITOR_URL = "https://scmjs.dev/editor/";
 
 /** An invite is URL-safe base64, 24 characters. */
 const INVITE = /^[A-Za-z0-9_-]{16,64}$/;

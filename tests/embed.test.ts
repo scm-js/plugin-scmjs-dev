@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { embedSnippets } from "../share/embed";
 
 const CARD = "https://api.scmjs.dev/v1/cards/AbCdEfGhIjKlMnOpQrSt.png";
-const LINK = "https://editor.scmjs.dev/map/tok123456789";
+const LINK = "https://scmjs.dev/editor/map/tok123456789";
 
 describe("embed snippets", () => {
   it("wrap the card in the link, for Markdown, BBCode and HTML", () => {
