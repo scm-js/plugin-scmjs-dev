@@ -11911,7 +11911,7 @@ function ago(iso, now = Date.now()) {
 }
 
 // share/link.ts
-var WEB_EDITOR_URL = "https://editor.scmjs.dev/";
+var WEB_EDITOR_URL = "https://scmjs.dev/editor/";
 var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
 var LINK_PATH = /^(.*\/)(share|map)\/([A-Za-z0-9_-]{16,64})\/?$/;
 function editorBase(pathname) {
