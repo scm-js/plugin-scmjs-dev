@@ -23,6 +23,8 @@
  *   and edits everything in it with you — plus the AI buttons inside the editor's own
  *   dialogs. The first request starts a free trial with no sign-in; `ai/install.ts`
  *   puts them in and takes them out.
+ * - **Tools ▸ Test Map in Browser** (`play.ts`): the open map handed to the site's play
+ *   page, where the editor is served beside one.
  * - The **`scmjs-dev.account` service** (`contract.d.ts`): the sign-in held out to
  *   other plugins through `api.services`.
  *
@@ -41,6 +43,7 @@ import { formatUsd, ScmjsClient } from "./client";
 import { openCopyDialog, openCopyLinkDialog } from "./copies";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
+import { installPlay } from "./play";
 import { installShare } from "./share/install";
 import { copyTokenOnPage, forgetLinkOnPage } from "./share/link";
 import type { Ctx } from "./ui";
@@ -113,6 +116,9 @@ export function activate(api: PluginApi) {
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
   ctx.shares = share.controls;
 
+  /* Tools ▸ Test Map in Browser, where the site's play page is beside the editor. */
+  const play = installPlay(api);
+
   /* Opened from a copy link (`map/<token>`): the address goes back to the editor's own and the Open a Copy dialog goes up. */
   pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
   if (pageCopy) {
@@ -179,5 +185,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); };
+  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); play.dispose(); status?.remove(); provided.dispose(); };
 }

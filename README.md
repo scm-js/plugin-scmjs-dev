@@ -119,6 +119,20 @@ shows what is used.
   changes meanwhile; if the map has moved on too far for it to catch up, the shared map
   opens again in a new tab and your copy stays open beside it.
 
+## Testing a map in the browser
+
+**Tools ▸ Test Map in Browser** opens the map you are editing on the site's play page,
+scmjs.dev/play, which runs the game itself in a browser tab. The map goes straight from the
+editor's tab to that one; it is not saved, uploaded or stored on the way. It is played with
+the map's own settings: its forces, units and triggers.
+
+The play page needs your own StarCraft, Remastered or Brood War 1.16.1. The first time it
+asks for the folder the game is installed in and copies what it needs into the browser;
+the map starts when that is done. Test again and the same tab gets the new version.
+
+The item is there in the editor at scmjs.dev. The desktop app and an editor hosted
+elsewhere have no play page beside them and do not show it; use Tools ▸ Test Map there.
+
 ## The AI
 
 Everything is under **Tools ▸ AI**, and *Use the AI features* — in the Account dialog's
