@@ -600,14 +600,12 @@ var KO = {
   "Terrain": "\uC9C0\uD615",
   "Terrain and locations": "\uC9C0\uD615\uACFC \uB85C\uCF00\uC774\uC158",
   "Terrain and locations ({preset} preset)": "\uC9C0\uD615\uACFC \uB85C\uCF00\uC774\uC158 ({preset} \uD504\uB9AC\uC14B)",
-  "Test Map in Browser": "\uBE0C\uB77C\uC6B0\uC800\uC5D0\uC11C \uB9F5 \uD14C\uC2A4\uD2B8",
   "That is not a map link.": "\uB9F5 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
   "That is not a shared map's link.": "\uACF5\uC720 \uB9F5\uC758 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
   "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB97C \uC4F0\uAC70\uB098 \uAC80\uC0AC\uD558\uAC70\uB098 \uBE4C\uB4DC\uD558\uB824\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
   "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uCF1C\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD234\uD0B7\uC774 \uB9CC\uB4E4 \uC218 \uC5C6\uB294 \uC2DC\uC2A4\uD15C\uC740 \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uC791\uC131\uD569\uB2C8\uB2E4.",
   "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.": "Trigger Script \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uC124\uACC4\uB294 \uD234\uD0B7\uC758 \uC2DC\uC2A4\uD15C(\uD558\uC774\uD37C \uD2B8\uB9AC\uAC70, \uC2A4\uD3F0, \uD0AC \uBCF4\uC0C1, \uC6E8\uC774\uBE0C, \uBAA9\uC228, \uC0C1\uC810 \uB4F1)\uB9CC \uC501\uB2C8\uB2E4. \uC9C1\uC811 \uB9CC\uB4E0 \uADDC\uCE59\uC774 \uD544\uC694\uD558\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
   "The balance is used up: {message}": "\uC794\uC561\uC744 \uB2E4 \uC37C\uC2B5\uB2C8\uB2E4: {message}",
-  "The browser did not let the play page open. Allow pop-ups for this site and try again.": "\uBE0C\uB77C\uC6B0\uC800\uAC00 \uD50C\uB808\uC774 \uD398\uC774\uC9C0\uB97C \uC5F4\uC9C0 \uBABB\uD558\uAC8C \uD588\uC2B5\uB2C8\uB2E4. \uC774 \uC0AC\uC774\uD2B8\uC758 \uD31D\uC5C5\uC744 \uD5C8\uC6A9\uD55C \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
   "The clipboard is not available here.": "\uC5EC\uAE30\uC11C\uB294 \uD074\uB9BD\uBCF4\uB4DC\uB97C \uC4F8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",
   "The connection to the shared map dropped. Keep working: your changes are kept here and sent once it is back. The editor keeps trying for two minutes.": "\uACF5\uC720 \uB9F5\uACFC\uC758 \uC5F0\uACB0\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4. \uACC4\uC18D \uC791\uC5C5\uD558\uC138\uC694. \uBCC0\uACBD \uB0B4\uC6A9\uC740 \uC5EC\uAE30\uC5D0 \uBCF4\uAD00\uD588\uB2E4\uAC00 \uC5F0\uACB0\uB418\uBA74 \uBCF4\uB0C5\uB2C8\uB2E4. \uC5D0\uB514\uD130\uB294 2\uBD84 \uB3D9\uC548 \uB2E4\uC2DC \uC2DC\uB3C4\uD569\uB2C8\uB2E4.",
   "The connection to the shared map was lost. The map is still open here; save it, or join again.": "\uACF5\uC720 \uB9F5\uACFC\uC758 \uC5F0\uACB0\uC774 \uB04A\uACBC\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
@@ -621,7 +619,6 @@ var KO = {
   "The map could not be copied.": "\uB9F5\uC744 \uBCF5\uC0AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
   "The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays.": "\uC2DC\uB098\uB9AC\uC624\uB97C \uBE4C\uB4DC\uD558\uB294 \uB3D9\uC548 \uC55E\uC5D0 \uC788\uB294 \uB9F5\uC774 \uBC14\uB00C\uC5B4\uC11C \uBE4C\uB4DC\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4. \uBE4C\uB4DC\uB97C \uC2DC\uC791\uD558\uC9C0 \uC54A\uC740 \uB9F5\uC5D0\uB294 \uC544\uBB34\uAC83\uB3C4 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8 \uB9F5\uC744 \uB2E4\uC2DC \uC55E\uC73C\uB85C \uAC00\uC838\uC640 \uBE4C\uB4DC\uD558\uC138\uC694. \uC774\uBBF8 \uBE4C\uB4DC\uD55C \uAC83\uC740 \uB0A8\uC544 \uC788\uC2B5\uB2C8\uB2E4.",
   "The map is on scmjs.dev only while it is shared: sharing ends when you stop it, half an hour after the last person leaves, or when the server restarts. Everyone keeps the map in their editor and can save it.": "\uB9F5\uC740 \uACF5\uC720\uB418\uB294 \uB3D9\uC548\uC5D0\uB9CC scmjs.dev\uC5D0 \uC788\uC2B5\uB2C8\uB2E4. \uACF5\uC720\uB294 \uC9C1\uC811 \uC911\uC9C0\uD558\uAC70\uB098, \uB9C8\uC9C0\uB9C9 \uC0AC\uB78C\uC774 \uB098\uAC00\uACE0 30\uBD84\uC774 \uC9C0\uB098\uAC70\uB098, \uC11C\uBC84\uAC00 \uB2E4\uC2DC \uC2DC\uC791\uB418\uBA74 \uB05D\uB0A9\uB2C8\uB2E4. \uBAA8\uB450 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0 \uB9F5\uC774 \uB0A8\uC544 \uC788\uC5B4 \uC800\uC7A5\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
-  "The map is running on the play page.": "\uB9F5\uC774 \uD50C\uB808\uC774 \uD398\uC774\uC9C0\uC5D0\uC11C \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4.",
   "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a day with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uD558\uB8E8 \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
   "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a month with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uD55C \uB2EC \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
   "The map is saved to My Maps and stays open at its link, so people can come and go. Each time everyone has left, it saves a new revision. It ends after a week with no edits, and the map stays in My Maps.": "\uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uC800\uC7A5\uB418\uACE0 \uB9C1\uD06C\uC5D0\uC11C \uACC4\uC18D \uC5F4\uB824 \uC788\uC5B4 \uC0AC\uB78C\uB4E4\uC774 \uB4DC\uB098\uB4E4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBAA8\uB450\uAC00 \uB098\uAC08 \uB54C\uB9C8\uB2E4 \uC0C8 \uBC84\uC804\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4. \uC77C\uC8FC\uC77C \uB3D9\uC548 \uD3B8\uC9D1\uC774 \uC5C6\uC73C\uBA74 \uB05D\uB098\uBA70, \uB9F5\uC740 \uB0B4 \uB9F5\uC5D0 \uB0A8\uC2B5\uB2C8\uB2E4.",
@@ -648,7 +645,6 @@ var KO = {
   "The picture on its own": "\uADF8\uB9BC\uB9CC",
   "The picture opens": "\uADF8\uB9BC\uC774 \uC5EC\uB294 \uAC83",
   "The plan": "\uACC4\uD68D",
-  "The play page could not start the map: {message}": "\uD50C\uB808\uC774 \uD398\uC774\uC9C0\uC5D0\uC11C \uB9F5\uC744 \uC2DC\uC791\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4: {message}",
   "The revised plan replaces the applied one: the previous render is undone first when nothing else was edited in between.": "\uACE0\uCE5C \uACC4\uD68D\uC774 \uC801\uC6A9\uB41C \uACC4\uD68D\uC744 \uB300\uC2E0\uD569\uB2C8\uB2E4. \uADF8 \uC0AC\uC774\uC5D0 \uB2E4\uB978 \uD3B8\uC9D1\uC774 \uC5C6\uC5C8\uB2E4\uBA74 \uC774\uC804 \uACB0\uACFC\uB97C \uBA3C\uC800 \uC2E4\uD589 \uCDE8\uC18C\uD569\uB2C8\uB2E4.",
   "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second and the hyper triggers in the list are left out.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC148\uD558\uACE0, \uBAA9\uB85D\uC758 \uD558\uC774\uD37C \uD2B8\uB9AC\uAC70\uB294 \uBE60\uC9D1\uB2C8\uB2E4.",
   "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC149\uB2C8\uB2E4.",
@@ -13268,65 +13264,6 @@ function openCopyDialog(ctx, given, onOpened = () => {
   });
 }
 
-// play.ts
-var TAB = "scmjs-play";
-function playAddress(at) {
-  if (at.origin === "https://scmjs.dev") return "https://scmjs.dev/play/";
-  if (/^(localhost|127\.0\.0\.1)$/.test(at.hostname) && at.pathname.startsWith("/editor/")) return `${at.origin}/play/`;
-  return null;
-}
-function installPlay(api) {
-  const address = typeof location === "undefined" ? null : playAddress(location);
-  if (!address) return { dispose() {
-  } };
-  const origin = new URL(address).origin;
-  let tab = null;
-  let map = null;
-  let ready = false;
-  const hand = () => {
-    if (!tab || tab.closed || !map || !ready) return;
-    tab.postMessage({ type: "scmjs.play", map: map.bytes.slice(), name: map.name, useMapSettings: true }, origin);
-  };
-  const heard = (e) => {
-    if (e.origin !== origin || !tab || e.source !== tab) return;
-    const m = e.data;
-    if (!m || typeof m.type !== "string") return;
-    if (m.type === "scmjs.play.ready") {
-      ready = true;
-      hand();
-    } else if (m.type === "scmjs.play.started") api.ui.status(t("The map is running on the play page."));
-    else if (m.type === "scmjs.play.error") api.ui.status(t("The play page could not start the map: {message}", { message: String(m.message ?? "") }));
-  };
-  window.addEventListener("message", heard);
-  const command = api.commands.register({
-    id: "play",
-    title: msg("Test Map in Browser"),
-    enabled: () => api.document.isOpen(),
-    run: async () => {
-      const reuse = tab !== null && !tab.closed;
-      if (!reuse) {
-        ready = false;
-        tab = window.open(address, TAB);
-      }
-      if (!tab) {
-        api.ui.status(t("The browser did not let the play page open. Allow pop-ups for this site and try again."));
-        return;
-      }
-      const file = await api.document.export({ format: "scx" });
-      if (!file) return;
-      map = { bytes: new Uint8Array(await file.arrayBuffer()), name: file.name };
-      if (reuse) tab.focus();
-      hand();
-    }
-  });
-  const item = api.menu.add("Tools", { label: msg("Test Map in Browser"), icon: "plugin", after: "Test Map Settings\u2026", command: "play" });
-  return { dispose() {
-    window.removeEventListener("message", heard);
-    command.dispose();
-    item.dispose();
-  } };
-}
-
 // share/presence.ts
 var PERSON_COLORS = ["#f40404", "#0c48cc", "#2cb494", "#88409c", "#f88c14", "#703014", "#cce0d0", "#fcfc38"];
 var personColor = (p) => PERSON_COLORS[p.color % PERSON_COLORS.length];
@@ -14681,7 +14618,6 @@ function activate(api) {
   api.menu.add("File", { label: msg("Save to scmjs.dev\u2026"), icon: "plugin", after: "Save Copy As\u2026", command: "save" });
   const share = installShare({ api, client, account, store, openAccount: ctx.openAccount, openMaps: ctx.openMaps, saveToCloud: ctx.saveToCloud, links });
   ctx.shares = share.controls;
-  const play = installPlay(api);
   pageCopy = copyTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
   if (pageCopy) {
     forgetLinkOnPage();
@@ -14759,7 +14695,6 @@ function activate(api) {
     ai?.();
     optionsPage?.dispose();
     share.dispose();
-    play.dispose();
     status?.remove();
     provided.dispose();
   };
