@@ -188,6 +188,9 @@ export class AccountManager {
   }
 
   /** Whether the server offers the AI: the account's role when there is a session, what a new account gets when not, and the last answer before the server has been asked. */
+  /** Whether the server writes replay casts for this caller (Aftermath makes them), and voices them; null for a server without. */
+  casts: { on: boolean; voiced: boolean } | null = null;
+
   aiOffered(): boolean {
     if (this.view) return this.view.ai ?? true;
     if (this.info && !this.store.get().session) return this.info.ai ?? true;
@@ -228,6 +231,9 @@ export class AccountManager {
   async connect(): Promise<void> {
     const info = await this.client.info();
     this.info = info.accounts ?? null;
+    // (Casts of replays are Aftermath's; the server says whether it writes them for this caller, and voices them.)
+    const cast = info.recipes?.find((r) => (r.name as string) === "cast");
+    this.casts = cast ? { on: cast.enabled, voiced: !!(info as { speech?: boolean }).speech } : null;
     this.serverName = info.name;
     if (info.caller.kind === "user" && info.caller.account) this.view = info.caller.account;
     else if (this.store.get().session && info.caller.kind === "anonymous") {

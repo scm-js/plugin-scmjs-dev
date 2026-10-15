@@ -995,7 +995,11 @@ var KO = {
   "{which} \xB7 opened {n}\xD7": "{which} \xB7 {n}\uD68C \uC5F4\uB9BC",
   "{w} \xD7 {h} tiles, {cell, plural, one {# tile} other {# tiles}} per cell. The model is shown the area with {margin} tiles of margin so the edges join.": "{w} \xD7 {h} \uD0C0\uC77C, \uCE78\uB2F9 {cell, plural, other {#\uD0C0\uC77C}}. \uAC00\uC7A5\uC790\uB9AC\uAC00 \uC774\uC5B4\uC9C0\uB3C4\uB85D \uBAA8\uB378\uC5D0\uAC8C \uC601\uC5ED \uB458\uB808 {margin}\uD0C0\uC77C\uAE4C\uC9C0 \uBCF4\uC5EC \uC90D\uB2C8\uB2E4.",
   "\u201C{name}\u201D \xB7 {n} of {max} people editing now.": "\u201C{name}\u201D \xB7 \uC9C0\uAE08 {max}\uBA85 \uC911 {n}\uBA85 \uD3B8\uC9D1 \uC911.",
-  "\u201C{name}\u201D, shared by {owner} \xB7 {n} of {max} people editing now.": "\u201C{name}\u201D, \uACF5\uC720\uD55C \uC0AC\uB78C {owner} \xB7 \uC9C0\uAE08 {max}\uBA85 \uC911 {n}\uBA85 \uD3B8\uC9D1 \uC911."
+  "\u201C{name}\u201D, shared by {owner} \xB7 {n} of {max} people editing now.": "\u201C{name}\u201D, \uACF5\uC720\uD55C \uC0AC\uB78C {owner} \xB7 \uC9C0\uAE08 {max}\uBA85 \uC911 {n}\uBA85 \uD3B8\uC9D1 \uC911.",
+  "Replay casts": "\uB9AC\uD50C\uB808\uC774 \uC911\uACC4",
+  "In Aftermath: a replay's timeline \u25B8 Cast\u2026, voiced.": "Aftermath\uC5D0\uC11C: \uB9AC\uD50C\uB808\uC774 \uD0C0\uC784\uB77C\uC778 \u25B8 \uC911\uACC4\u2026, \uC74C\uC131 \uD3EC\uD568.",
+  "In Aftermath: a replay's timeline \u25B8 Cast\u2026, as captions.": "Aftermath\uC5D0\uC11C: \uB9AC\uD50C\uB808\uC774 \uD0C0\uC784\uB77C\uC778 \u25B8 \uC911\uACC4\u2026, \uC790\uB9C9\uC73C\uB85C.",
+  "Not offered to this account for now.": "\uC9C0\uAE08\uC740 \uC774 \uACC4\uC815\uC5D0 \uC81C\uACF5\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
 };
 
 // i18n.ts
@@ -1630,6 +1634,8 @@ var AccountManager = class {
     };
   }
   /** Whether the server offers the AI: the account's role when there is a session, what a new account gets when not, and the last answer before the server has been asked. */
+  /** Whether the server writes replay casts for this caller (Aftermath makes them), and voices them; null for a server without. */
+  casts = null;
   aiOffered() {
     if (this.view) return this.view.ai ?? true;
     if (this.info && !this.store.get().session) return this.info.ai ?? true;
@@ -1674,6 +1680,8 @@ var AccountManager = class {
   async connect() {
     const info = await this.client.info();
     this.info = info.accounts ?? null;
+    const cast = info.recipes?.find((r) => r.name === "cast");
+    this.casts = cast ? { on: cast.enabled, voiced: !!info.speech } : null;
     this.serverName = info.name;
     if (info.caller.kind === "user" && info.caller.account) this.view = info.caller.account;
     else if (this.store.get().session && info.caller.kind === "anonymous") {
@@ -12331,7 +12339,9 @@ function openAccountDialog(ctx) {
           const features = [
             [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
             [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
-            [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)]
+            [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)],
+            // (Shown only by a server that writes casts at all.)
+            ...account.casts ? [[t("Replay casts"), account.casts.on ? [t("On"), "sd-ok", account.casts.voiced ? t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, voiced.") : t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, as captions.")] : state(false, t("Not offered to this account for now."), true)]] : []
           ];
           featuresBox.append(w.group(t("Status"), h2(
             "table",
