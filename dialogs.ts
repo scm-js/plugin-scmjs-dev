@@ -108,6 +108,10 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
             [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
             [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
             [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)],
+            // (Shown only by a server that writes casts at all.)
+            ...(account.casts ? [[t("Replay casts"), account.casts.on
+              ? [t("On"), "sd-ok", account.casts.voiced ? t("In Aftermath: a replay's timeline ▸ Cast…, voiced.") : t("In Aftermath: a replay's timeline ▸ Cast…, as captions.")]
+              : state(false, t("Not offered to this account for now."), true)] as [string, [string, string, string]]] : []),
           ];
           featuresBox.append(w.group(t("Status"), h("table", { className: "sd-ledger" },
             h("tbody", null, ...features.map(([name, [text, cls, note]]) => h("tr", null,

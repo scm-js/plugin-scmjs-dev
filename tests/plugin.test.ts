@@ -150,6 +150,25 @@ describe("the account manager", () => {
     expect((err as ScmjsError).message).toMatch(/Sign in to scmjs.dev/);
   });
 
+  it("learns whether the server casts replays for this caller, and voices them", async () => {
+    let cast: { name: string; enabled: boolean; model: string } | null = { name: "cast", enabled: true, model: "m" };
+    const accounts = { providers: [], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true };
+    const { fetchImpl } = fakeFetch({
+      "GET /v1/info": () => json({ name: "Test", version: "1", accounts, speech: true, recipes: cast ? [cast] : [], caller: { kind: "anonymous", remaining: {} } }),
+    });
+    const store = memoryStore({});
+    const account = new AccountManager(store, new ScmjsClient(() => ({ serverUrl: "https://api.example", session: "" }), fetchImpl));
+    await account.connect();
+    expect(account.casts).toEqual({ on: true, voiced: true });
+    cast = { name: "cast", enabled: false, model: "m" };
+    await account.connect();
+    expect(account.casts).toEqual({ on: false, voiced: true });
+    // A server that writes no casts at all: no line.
+    cast = null;
+    await account.connect();
+    expect(account.casts).toBeNull();
+  });
+
   it("offers the AI only where the server says the role may call it, and keeps the answer for the next start", async () => {
     let signedIn = false;
     const accounts = { providers: [{ id: "discord", name: "Discord" }], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true, ai: false };

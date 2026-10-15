@@ -989,4 +989,8 @@ export const KO: Record<string, string> = {
   "{w} × {h} tiles, {cell, plural, one {# tile} other {# tiles}} per cell. The model is shown the area with {margin} tiles of margin so the edges join.": "{w} × {h} 타일, 칸당 {cell, plural, other {#타일}}. 가장자리가 이어지도록 모델에게 영역 둘레 {margin}타일까지 보여 줍니다.",
   "“{name}” · {n} of {max} people editing now.": "“{name}” · 지금 {max}명 중 {n}명 편집 중.",
   "“{name}”, shared by {owner} · {n} of {max} people editing now.": "“{name}”, 공유한 사람 {owner} · 지금 {max}명 중 {n}명 편집 중.",
+  "Replay casts": "리플레이 중계",
+  "In Aftermath: a replay's timeline ▸ Cast…, voiced.": "Aftermath에서: 리플레이 타임라인 ▸ 중계…, 음성 포함.",
+  "In Aftermath: a replay's timeline ▸ Cast…, as captions.": "Aftermath에서: 리플레이 타임라인 ▸ 중계…, 자막으로.",
+  "Not offered to this account for now.": "지금은 이 계정에 제공되지 않습니다.",
 };
