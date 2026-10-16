@@ -7,6 +7,7 @@
  */
 import type { DialogHandle } from "@scm-js/plugin-api";
 import { SERVER_QUERY, SITE_URL } from "./account";
+import { openOptions } from "./ai/options";
 import { describeError, formatBytes, formatUsd, signInGives } from "./client";
 import { sharedMapsList } from "./share/kept";
 import { t, tc } from "./i18n";
@@ -102,16 +103,22 @@ export function openAccountDialog(ctx: Ctx): DialogHandle {
         // What the server offers this person, once it has answered: so nobody is left looking for a feature that is off.
         if (s.offers) {
           const signedIn = s.kind === "account";
-          const state = (on: boolean, off: string, needsSignIn: boolean): [string, string, string] =>
+          type Row = [string, string, string | Node];
+          const state = (on: boolean, off: string | Node, needsSignIn: boolean): Row =>
             !on ? [t("Off"), "sd-bad", off] : needsSignIn && !signedIn ? [t("Sign in to use"), "", ""] : [t("On"), "sd-ok", ""];
-          const features: [string, [string, string, string]][] = [
-            [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
+          // The AI runs on the person's own Anthropic key unless their role pays for it.
+          const ai: Row = account.ownKey() ? [t("On"), "sd-ok", t("On your own Anthropic key.")]
+            : account.aiOffered() ? [t("On"), "sd-ok", ""]
+            : account.keysAccepted() ? state(false, h("span", null, t("They run on your own Anthropic key."), " ", h("a", { href: "#", onClick: (e: Event) => { e.preventDefault(); dialog.close(); openOptions(api); } }, t("Add your key…"))), false)
+            : state(false, t("Off for now while I work out the tooling and costs."), false);
+          const features: [string, Row][] = [
+            [t("AI features"), ai],
             [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
             [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)],
-            // (Shown only by a server that writes casts at all.)
-            ...(account.casts ? [[t("Replay casts"), account.casts.on
+            // (Shown only by a server that writes casts at all, and not to someone on their own key whom it does not offer them: a key never unlocks casts.)
+            ...(account.casts && (account.casts.on || !account.ownKey()) ? [[t("Replay casts"), account.casts.on
               ? [t("On"), "sd-ok", account.casts.voiced ? t("In Aftermath: a replay's timeline ▸ Cast…, voiced.") : t("In Aftermath: a replay's timeline ▸ Cast…, as captions.")]
-              : state(false, t("Not offered to this account for now."), true)] as [string, [string, string, string]]] : []),
+              : state(false, t("Not offered to this account for now."), true)] as [string, Row]] : []),
           ];
           featuresBox.append(w.group(t("Status"), h("table", { className: "sd-ledger" },
             h("tbody", null, ...features.map(([name, [text, cls, note]]) => h("tr", null,

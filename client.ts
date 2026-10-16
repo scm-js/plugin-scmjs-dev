@@ -1,7 +1,8 @@
 /**
  * The typed client for scmjs.dev's server (an ai-server, https://github.com/scm-js/ai-server):
  * the account routes, the map storage routes, and the AI *recipes*. Every call is one
- * `fetch` under the server address with the session as a bearer; a failure is a
+ * `fetch` under the server address with the session as a bearer — and a recipe with the
+ * person's own Anthropic key too, when they gave one; a failure is a
  * `ScmjsError` carrying the server's error code (or `network`, `aborted`, `protocol` for
  * what never reached one). A recipe runs over `POST /v1/recipes/<name>` with
  * `Accept: text/event-stream` and an SSE parser that copes with frames split across
@@ -9,7 +10,7 @@
  * without a network, and nothing is sent until a method is called.
  */
 import type {
-  AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, MapLinkResponse, MapListResponse, MapMeta, MapPatch, MapResponse, PublicMapResponse,
+  AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, KeyCheckResponse, MapLinkResponse, MapListResponse, MapMeta, MapPatch, MapResponse, PublicMapResponse,
   RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateRequest, RoomCreateResponse, RoomLookupResponse, SharedMapResponse, SharedMapsResponse, KeepDays,
   StorageResponse, TrialResponse, Usage,
 } from "./protocol";
@@ -20,6 +21,11 @@ export interface Credentials {
   serverUrl: string;
   /** The session the server issued (a trial's or a signed-in account's); empty for a guest. */
   session: string;
+  /**
+   * The person's own Anthropic key, checked when it was given; empty for none. Sent with
+   * recipe calls only — never in `headers()`, which other plugins spread into theirs.
+   */
+  anthropicKey?: string;
 }
 
 export class ScmjsError extends Error {
@@ -265,6 +271,25 @@ export class ScmjsClient {
     return info;
   }
 
+  /**
+   * `POST /v1/key/check`: whether Anthropic takes `key` (the server asks for its model
+   * list on it, which costs nothing) and the recipes it unlocks there. Sent with the key
+   * alone, no session.
+   */
+  async checkKey(key: string, signal?: AbortSignal): Promise<KeyCheckResponse> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.base()}/v1/key/check`, { method: "POST", headers: { Accept: "application/json", "X-Anthropic-Key": key.trim() }, signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) {
+      const err = await errorOf(res);
+      throw err.code === "unauthorized" ? new ScmjsError("forbidden", t("Anthropic did not accept that key."), { status: err.status }) : err;
+    }
+    try { return (await res.json()) as KeyCheckResponse; } catch (err) { throw new ScmjsError("protocol", (err as Error).message); }
+  }
+
   /** `POST /v1/trial`: a session with the free trial on it, once per device id. */
   trial(deviceId: string): Promise<TrialResponse> {
     return this.request<TrialResponse>("/v1/trial", { method: "POST", json: { deviceId } });
@@ -436,18 +461,23 @@ export class ScmjsClient {
   async run<N extends RecipeName>(name: N, input: RecipeInputs[N], hooks: RunHooks = {}, options?: RecipeOptions): Promise<RunResult<N>> {
     if (this.prepare) await this.prepare();
     const body: RecipeRequest<N> = { protocol: PROTOCOL_VERSION, input, options };
+    const key = this.credentials().anthropicKey?.trim();
     let res: Response;
     try {
       res = await this.fetchImpl(`${this.base()}/v1/recipes/${name}`, {
         method: "POST",
-        headers: { Accept: "text/event-stream", ...this.headers(), "Content-Type": "application/json" },
+        headers: { Accept: "text/event-stream", ...this.headers(), ...(key ? { "X-Anthropic-Key": key } : {}), "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: hooks.signal,
       });
     } catch (err) {
       throw toNetworkError(err);
     }
-    if (!res.ok) throw await errorOf(res);
+    if (!res.ok) {
+      const err = await errorOf(res);
+      // (On an own key, a 401 is Anthropic turning the key down, not the session ending.)
+      throw key && err.code === "unauthorized" ? new ScmjsError("forbidden", t("Anthropic did not accept your key: {message} Check it in Preferences ▸ scmjs.dev.", { message: err.message }), { status: err.status }) : err;
+    }
     const type = res.headers.get("content-type") ?? "";
     if (!type.includes("text/event-stream")) {
       // A JSON answer (a server that does not stream): one result.
@@ -471,7 +501,9 @@ export class ScmjsClient {
         case "delta": hooks.onDelta?.(ev.text); break;
         case "tool_use": hooks.onToolUse?.(ev.id, ev.name); break;
         case "result": result = { output: ev.output, usage: ev.usage, remaining: ev.remaining }; break;
-        case "error": throw new ScmjsError(ev.error.code, ev.error.message, { retryAfterSec: ev.error.retryAfterSec });
+        case "error":
+          if (key && ev.error.code === "unauthorized") throw new ScmjsError("forbidden", t("Anthropic did not accept your key: {message} Check it in Preferences ▸ scmjs.dev.", { message: ev.error.message }));
+          throw new ScmjsError(ev.error.code, ev.error.message, { retryAfterSec: ev.error.retryAfterSec });
         case "done": break;
       }
     };

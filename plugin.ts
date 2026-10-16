@@ -52,7 +52,7 @@ export const CONTRACT_VERSION = 1;
 export function activate(api: PluginApi) {
   const unbindI18n = bindI18n(api);
   const store = settingsStore(api);
-  const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session }));
+  const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session, anthropicKey: store.get().keysAccepted ? store.get().anthropicKey : "" }));
   const account = new AccountManager(store, client);
 
   /** The stored map the open document is linked to, for the session; cleared when another file opens. */
@@ -152,16 +152,18 @@ export function activate(api: PluginApi) {
   const provided: Disposable = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
 
   /*
-   * The AI features, in while the tick says so and the server offers them. The options
-   * page in Edit ▸ Preferences follows the offer alone — the tick that turns the rest on
-   * is on it — so a person the server keeps off the AI sees none of it.
+   * The AI features, in while the tick says so and they are on offer: the person's role
+   * pays for them (an admin), or they gave their own Anthropic key. The options page in
+   * Edit ▸ Preferences is there while they are on offer or the server takes a key — the
+   * key field and the tick that turns the rest on are on it.
    */
   let ai: (() => void) | null = null;
   let optionsPage: Disposable | null = null;
   const syncAi = () => {
     const offered = store.get().aiOffered;
-    if (offered && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
-    else if (!offered && optionsPage) { optionsPage.dispose(); optionsPage = null; }
+    const page = offered || store.get().keysAccepted;
+    if (page && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
+    else if (!page && optionsPage) { optionsPage.dispose(); optionsPage = null; }
     const want = offered && store.get().ai;
     if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
     else if (!want && ai) { ai(); ai = null; }

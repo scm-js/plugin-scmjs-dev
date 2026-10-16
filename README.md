@@ -9,18 +9,26 @@ map laid out from a description, an area redone, triggers written and explained,
 and a briefing, a review, string rewrites, and an assistant beside the map that reads and
 edits everything in it with you.
 
-There is nothing to set up. The first AI request starts a free trial with no sign-in;
-when it is spent you sign in (Discord to start with) for the sign-in credit, and buy
-credit at cost when that runs out. The plugin holds no model key and has no field for a
-server, a token or a key: it talks to scmjs.dev and to nothing else, and it sends nothing
-until you press a button — with no session stored it makes no request at startup. Every
-menu item that reaches the network carries the plugin's mark.
+The AI runs on your own Anthropic API key. Paste one (made at
+[console.anthropic.com](https://console.anthropic.com)) under **Your Anthropic key** on
+the plugin's page in Edit ▸ Preferences — the Account dialog's *Add your key…* goes
+there. The server checks it with Anthropic first, which costs nothing, and only a key
+that passes is kept; from then on it goes with each AI request, Anthropic bills the
+requests to you, and the Tools ▸ AI menu, the assistant and the AI buttons are there.
+The key stays in this browser: scmjs.dev passes it on and keeps no copy. **Forget the
+key** on the same page takes it, and the AI features, away again. Replay casts in
+Aftermath are not offered on your own key.
 
-The server decides who gets the AI. When it keeps the AI to some accounts (scmjs.dev
-does for now), everyone else sees no Tools ▸ AI menu, assistant, AI buttons or AI page
-in Preferences; the account, map storage and shared maps are the same for everybody.
-The plugin remembers the server's last answer, so until it has asked once — a sign-in,
-or opening the Account dialog — the AI stays hidden.
+An account whose role the server pays for (an admin on scmjs.dev) gets the AI without a
+key, on its balance as before — the free trial and the sign-in credit are that path, on
+a server that offers them. Everyone else, without a key, sees no Tools ▸ AI menu,
+assistant or AI buttons; the account, map storage and shared maps are the same for
+everybody. The plugin remembers the server's last answer, so until it has asked once — a
+sign-in, or opening the Account dialog — the key field and the AI stay hidden.
+
+The plugin has no field for a server or a token: it talks to scmjs.dev and to nothing
+else, and it sends nothing until you press a button — with no session stored it makes no
+request at startup. Every menu item that reaches the network carries the plugin's mark.
 
 ## Install
 
@@ -313,7 +321,8 @@ model answers is the service's business and is never asked.
 Every AI dialog shows how long it has been waiting, and once the answer is back what it
 cost, what the session has cost so far, and what is left on the account. Roughly: a map
 plan is a few tens of cents, a trigger script and a review about the same, a name or a
-translation a few cents. The trial and the sign-in credit are what the Account dialog
+translation a few cents. On your own key those are Anthropic's charges to you, and the
+balance line says so instead. The trial and the sign-in credit are what the Account dialog
 says; credit bought on top is charged at cost, does not expire, and is spent after any
 weekly allowance. When the balance is empty the dialog says so and links to the Account
 dialog — sign in if you were on the trial, top up or wait for the refill if you were not.
@@ -342,9 +351,9 @@ api.services.watch<ScmjsAccountService>("scmjs-dev.account", (account) => {
 ## What is stored, and where
 
 In this browser (Preferences ▸ Browser storage, under the plugin): the session, a random
-device id the one free trial is keyed by, the ticks and the AI options, and the name you
-last joined a shared map under. On the server: your provider id and display name, a ledger
-of what your calls cost, the maps you stored and their links (a map behind a link can be
+device id the one free trial is keyed by, the ticks and the AI options, your Anthropic
+key if you gave one, and the name you last joined a shared map under. On the server: your provider id and display name, a ledger
+of what your calls cost (none for calls on your own key), the maps you stored and their links (a map behind a link can be
 downloaded by anyone who has the link) — and, only while a map is shared, a copy
 of it and the changes since in the server's memory. Nothing else — never a prompt, never a card. The account page on scmjs.dev
 deletes all of it.

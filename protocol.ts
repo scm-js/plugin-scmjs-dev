@@ -887,6 +887,12 @@ export interface AdminCallSummary {
   byCaller: CallStats[];
 }
 
+/** `POST /v1/key/check` with `X-Anthropic-Key` (from 0.25.0): Anthropic took the key; the recipes it unlocks on this server (never `cast`). */
+export interface KeyCheckResponse {
+  ok: true;
+  recipes: RecipeName[];
+}
+
 export interface InfoResponse {
   protocol: typeof PROTOCOL_VERSION;
   /** The server's package version. */
@@ -899,7 +905,7 @@ export interface InfoResponse {
   access: {
     /** Requests with no credentials are served. */
     anonymous: boolean;
-    /** `X-Anthropic-Key` is honoured. */
+    /** `X-Anthropic-Key` is honoured: every recipe but `cast`, and no `/v1/speech`. `POST /v1/key/check` checks a key. */
     byok: boolean;
   };
   /** Present when the server runs accounts (trial sessions, sign-in, balances). */

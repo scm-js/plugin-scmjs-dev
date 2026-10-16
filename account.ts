@@ -9,7 +9,8 @@
  *
  * Settings are the plugin's own `api.storage` (listed in Preferences ▸ Browser storage
  * under the plugin): the session, the device id the one trial is keyed by, the ticks in
- * the Account dialog, and the AI options. The server is `https://api.scmjs.dev` and
+ * the Account dialog, the AI options, and the person's own Anthropic key when they gave
+ * one — which is what the AI runs on for everyone but an admin. The server is `https://api.scmjs.dev` and
  * there is no field for it: `serverOverride` is the one way to point a development
  * build elsewhere, a `?scmjs-server=` query on the editor's address.
  */
@@ -59,12 +60,19 @@ export interface Settings {
    * the server nothing; off until the server has said so once.
    */
   aiOffered: boolean;
+  /**
+   * The person's own Anthropic key, stored only once the server has checked it with
+   * Anthropic. Sent with AI requests alone; scmjs.dev forwards it and keeps no copy.
+   */
+  anthropicKey: string;
+  /** The server takes an own key (`/v1/info`'s `access.byok`), from its last answer. */
+  keysAccepted: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   serverUrl: DEFAULT_SERVER_URL, session: "", deviceId: "", statusItem: true,
   ai: true, quality: "standard", showThinking: true, maxRounds: 24, ceilingUsd: 0.5, scenarioCeilingUsd: 1.5, attachView: false, dockAssistant: false, followMap: true,
-  shareName: "", aiOffered: false,
+  shareName: "", aiOffered: false, anthropicKey: "", keysAccepted: false,
 };
 
 const KEY = "settings";
@@ -155,8 +163,8 @@ export class AccountManager {
     this.store = store;
     this.client = client;
     this.deps = deps;
-    // An AI request with no session starts the trial first, and the balance follows every result.
-    client.prepare = () => this.ensureSession();
+    // An AI request with no session starts the trial first — unless it runs on the person's own key — and the balance follows every result.
+    client.prepare = () => this.ownKey() ? Promise.resolve() : this.ensureSession();
     client.onRemaining = (r) => this.noteRemaining(r);
   }
 
@@ -192,9 +200,36 @@ export class AccountManager {
   casts: { on: boolean; voiced: boolean } | null = null;
 
   aiOffered(): boolean {
+    if (this.ownKey()) return true;
     if (this.view) return this.view.ai ?? true;
     if (this.info && !this.store.get().session) return this.info.ai ?? true;
     return this.store.get().aiOffered;
+  }
+
+  /** The AI runs on the person's own Anthropic key: one is stored and the server takes it. */
+  ownKey(): boolean {
+    const s = this.store.get();
+    return !!s.anthropicKey && s.keysAccepted;
+  }
+
+  /** The server takes an own key, as it last said. */
+  keysAccepted(): boolean { return this.store.get().keysAccepted; }
+
+  /**
+   * Check `key` with the server (which asks Anthropic, at no cost) and keep it when it
+   * passes; a key that fails is not stored, and the error says why.
+   */
+  async useKey(key: string): Promise<void> {
+    const trimmed = key.trim();
+    if (!trimmed) throw new ScmjsError("invalid_input", t("Paste the key first."));
+    await this.client.checkKey(trimmed);
+    this.store.set({ anthropicKey: trimmed, keysAccepted: true });
+    this.changed();
+  }
+
+  forgetKey(): void {
+    this.store.set({ anthropicKey: "" });
+    this.changed();
   }
 
   private changed() {
@@ -208,9 +243,14 @@ export class AccountManager {
   summary(): string {
     const v = this.view;
     switch (this.kind()) {
-      case "guest": return this.aiOffered() && this.info?.trial !== false ? t("Not signed in · the first AI request starts a free trial") : t("Not signed in");
-      case "trial": return v ? t("Free trial · {balance} left · sign in to keep it and get more", { balance: formatUsd(v.balanceUsd) }) : t("Free trial");
+      case "guest":
+        if (this.ownKey()) return t("Not signed in · AI requests use your own Anthropic key");
+        return this.aiOffered() && this.info?.trial !== false ? t("Not signed in · the first AI request starts a free trial") : t("Not signed in");
+      case "trial":
+        if (this.ownKey()) return t("Not signed in · AI requests use your own Anthropic key");
+        return v ? t("Free trial · {balance} left · sign in to keep it and get more", { balance: formatUsd(v.balanceUsd) }) : t("Free trial");
       default: {
+        if (this.ownKey()) return t("{name} · AI requests use your own Anthropic key", { name: v?.name ?? t("Signed in") });
         if (!v) return t("Signed in");
         const name = v.name ?? t("Signed in");
         if (v.unlimited) return t("{name} · no balance is kept", { name });
@@ -235,6 +275,8 @@ export class AccountManager {
     const cast = info.recipes?.find((r) => (r.name as string) === "cast");
     this.casts = cast ? { on: cast.enabled, voiced: !!(info as { speech?: boolean }).speech } : null;
     this.serverName = info.name;
+    const accepted = !!info.access?.byok;
+    if (accepted !== this.store.get().keysAccepted) this.store.set({ keysAccepted: accepted });
     if (info.caller.kind === "user" && info.caller.account) this.view = info.caller.account;
     else if (this.store.get().session && info.caller.kind === "anonymous") {
       // The session was sent and not recognised: it has ended.
