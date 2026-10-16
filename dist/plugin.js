@@ -999,7 +999,25 @@ var KO = {
   "Replay casts": "\uB9AC\uD50C\uB808\uC774 \uC911\uACC4",
   "In Aftermath: a replay's timeline \u25B8 Cast\u2026, voiced.": "Aftermath\uC5D0\uC11C: \uB9AC\uD50C\uB808\uC774 \uD0C0\uC784\uB77C\uC778 \u25B8 \uC911\uACC4\u2026, \uC74C\uC131 \uD3EC\uD568.",
   "In Aftermath: a replay's timeline \u25B8 Cast\u2026, as captions.": "Aftermath\uC5D0\uC11C: \uB9AC\uD50C\uB808\uC774 \uD0C0\uC784\uB77C\uC778 \u25B8 \uC911\uACC4\u2026, \uC790\uB9C9\uC73C\uB85C.",
-  "Not offered to this account for now.": "\uC9C0\uAE08\uC740 \uC774 \uACC4\uC815\uC5D0 \uC81C\uACF5\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4."
+  "Not offered to this account for now.": "\uC9C0\uAE08\uC740 \uC774 \uACC4\uC815\uC5D0 \uC81C\uACF5\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Paste the key first.": "\uBA3C\uC800 \uD0A4\uB97C \uBD99\uC5EC \uB123\uC73C\uC138\uC694.",
+  "Not signed in \xB7 AI requests use your own Anthropic key": "\uB85C\uADF8\uC778\uD558\uC9C0 \uC54A\uC74C \xB7 AI \uC694\uCCAD\uC740 \uB0B4 Anthropic \uD0A4\uB97C \uC501\uB2C8\uB2E4",
+  "{name} \xB7 AI requests use your own Anthropic key": "{name} \xB7 AI \uC694\uCCAD\uC740 \uB0B4 Anthropic \uD0A4\uB97C \uC501\uB2C8\uB2E4",
+  "Your Anthropic key": "\uB0B4 Anthropic \uD0A4",
+  "In use: the key ending {end}.": "\uC0AC\uC6A9 \uC911: {end}(\uC73C)\uB85C \uB05D\uB098\uB294 \uD0A4.",
+  "Forget the key": "\uD0A4 \uC9C0\uC6B0\uAE30",
+  "The key is forgotten.": "\uD0A4\uB97C \uC9C0\uC6E0\uC2B5\uB2C8\uB2E4.",
+  "AI requests go to Anthropic on this key and are billed to your Anthropic account. It stays in this browser; scmjs.dev passes it on with each request and keeps no copy.": "AI \uC694\uCCAD\uC740 \uC774 \uD0A4\uB85C Anthropic\uC5D0 \uBCF4\uB0B4\uC9C0\uACE0 \uC694\uAE08\uC740 \uB0B4 Anthropic \uACC4\uC815\uC5D0 \uCCAD\uAD6C\uB429\uB2C8\uB2E4. \uD0A4\uB294 \uC774 \uBE0C\uB77C\uC6B0\uC800\uC5D0\uB9CC \uB0A8\uACE0, scmjs.dev\uB294 \uC694\uCCAD\uB9C8\uB2E4 \uD0A4\uB97C \uC804\uB2EC\uD560 \uBFD0 \uC0AC\uBCF8\uC744 \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Check and use": "\uD655\uC778\uD558\uACE0 \uC0AC\uC6A9",
+  "Checking the key with Anthropic\u2026": "Anthropic\uC5D0\uC11C \uD0A4\uB97C \uD655\uC778\uD558\uB294 \uC911\u2026",
+  "The key works. The AI features are on.": "\uD0A4\uAC00 \uC791\uB3D9\uD569\uB2C8\uB2E4. AI \uAE30\uB2A5\uC774 \uCF1C\uC84C\uC2B5\uB2C8\uB2E4.",
+  "The AI features run on your own Anthropic API key, made at console.anthropic.com. The key is checked with Anthropic first, which costs nothing; after that it goes with each AI request and Anthropic bills the requests to your account. It stays in this browser; scmjs.dev passes it on and keeps no copy.": "AI \uAE30\uB2A5\uC740 console.anthropic.com\uC5D0\uC11C \uB9CC\uB4E0 \uB0B4 Anthropic API \uD0A4\uB85C \uC791\uB3D9\uD569\uB2C8\uB2E4. \uD0A4\uB294 \uBA3C\uC800 Anthropic\uC5D0\uC11C \uD655\uC778\uD558\uBA70 \uC774 \uD655\uC778\uC5D0\uB294 \uBE44\uC6A9\uC774 \uB4E4\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8\uB2E4\uC74C\uBD80\uD130\uB294 AI \uC694\uCCAD\uB9C8\uB2E4 \uD0A4\uAC00 \uD568\uAED8 \uAC00\uACE0, Anthropic\uC774 \uC694\uCCAD \uC694\uAE08\uC744 \uB0B4 \uACC4\uC815\uC5D0 \uCCAD\uAD6C\uD569\uB2C8\uB2E4. \uD0A4\uB294 \uC774 \uBE0C\uB77C\uC6B0\uC800\uC5D0\uB9CC \uB0A8\uACE0, scmjs.dev\uB294 \uC804\uB2EC\uD560 \uBFD0 \uC0AC\uBCF8\uC744 \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "AI requests run on your own Anthropic key, below. The account is for the maps you store and the maps you share.": "AI \uC694\uCCAD\uC740 \uC544\uB798\uC758 \uB0B4 Anthropic \uD0A4\uB85C \uC2E4\uD589\uB429\uB2C8\uB2E4. \uACC4\uC815\uC740 \uBCF4\uAD00\uD558\uB294 \uB9F5\uACFC \uACF5\uC720\uD558\uB294 \uB9F5\uC744 \uC704\uD55C \uAC83\uC785\uB2C8\uB2E4.",
+  "Anthropic did not accept that key.": "Anthropic\uC774 \uADF8 \uD0A4\uB97C \uBC1B\uC544\uB4E4\uC774\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+  "Anthropic did not accept your key: {message} Check it in Preferences \u25B8 scmjs.dev.": "Anthropic\uC774 \uB0B4 \uD0A4\uB97C \uBC1B\uC544\uB4E4\uC774\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4: {message} \uD658\uACBD \uC124\uC815 \u25B8 scmjs.dev\uC5D0\uC11C \uD655\uC778\uD558\uC138\uC694.",
+  "On your own Anthropic key.": "\uB0B4 Anthropic \uD0A4\uB85C.",
+  "They run on your own Anthropic key.": "\uB0B4 Anthropic \uD0A4\uB85C \uC791\uB3D9\uD569\uB2C8\uB2E4.",
+  "Add your key\u2026": "\uD0A4 \uCD94\uAC00\u2026"
 };
 
 // i18n.ts
@@ -1287,6 +1305,28 @@ var ScmjsClient = class {
     if (info.protocol !== void 0 && info.protocol !== PROTOCOL_VERSION) throw new ScmjsError("protocol", t("it speaks protocol {theirs}, this plugin speaks {ours}.", { theirs: String(info.protocol), ours: PROTOCOL_VERSION }));
     return info;
   }
+  /**
+   * `POST /v1/key/check`: whether Anthropic takes `key` (the server asks for its model
+   * list on it, which costs nothing) and the recipes it unlocks there. Sent with the key
+   * alone, no session.
+   */
+  async checkKey(key, signal) {
+    let res;
+    try {
+      res = await this.fetchImpl(`${this.base()}/v1/key/check`, { method: "POST", headers: { Accept: "application/json", "X-Anthropic-Key": key.trim() }, signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) {
+      const err = await errorOf(res);
+      throw err.code === "unauthorized" ? new ScmjsError("forbidden", t("Anthropic did not accept that key."), { status: err.status }) : err;
+    }
+    try {
+      return await res.json();
+    } catch (err) {
+      throw new ScmjsError("protocol", err.message);
+    }
+  }
   /** `POST /v1/trial`: a session with the free trial on it, once per device id. */
   trial(deviceId) {
     return this.request("/v1/trial", { method: "POST", json: { deviceId } });
@@ -1426,18 +1466,22 @@ var ScmjsClient = class {
   async run(name, input, hooks = {}, options) {
     if (this.prepare) await this.prepare();
     const body = { protocol: PROTOCOL_VERSION, input, options };
+    const key = this.credentials().anthropicKey?.trim();
     let res;
     try {
       res = await this.fetchImpl(`${this.base()}/v1/recipes/${name}`, {
         method: "POST",
-        headers: { Accept: "text/event-stream", ...this.headers(), "Content-Type": "application/json" },
+        headers: { Accept: "text/event-stream", ...this.headers(), ...key ? { "X-Anthropic-Key": key } : {}, "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: hooks.signal
       });
     } catch (err) {
       throw toNetworkError(err);
     }
-    if (!res.ok) throw await errorOf(res);
+    if (!res.ok) {
+      const err = await errorOf(res);
+      throw key && err.code === "unauthorized" ? new ScmjsError("forbidden", t("Anthropic did not accept your key: {message} Check it in Preferences \u25B8 scmjs.dev.", { message: err.message }), { status: err.status }) : err;
+    }
     const type = res.headers.get("content-type") ?? "";
     if (!type.includes("text/event-stream")) {
       const r2 = await res.json();
@@ -1477,6 +1521,7 @@ var ScmjsClient = class {
           result = { output: ev.output, usage: ev.usage, remaining: ev.remaining };
           break;
         case "error":
+          if (key && ev.error.code === "unauthorized") throw new ScmjsError("forbidden", t("Anthropic did not accept your key: {message} Check it in Preferences \u25B8 scmjs.dev.", { message: ev.error.message }));
           throw new ScmjsError(ev.error.code, ev.error.message, { retryAfterSec: ev.error.retryAfterSec });
         case "done":
           break;
@@ -1531,7 +1576,9 @@ var DEFAULT_SETTINGS = {
   dockAssistant: false,
   followMap: true,
   shareName: "",
-  aiOffered: false
+  aiOffered: false,
+  anthropicKey: "",
+  keysAccepted: false
 };
 var KEY = "settings";
 function newDeviceId() {
@@ -1588,7 +1635,7 @@ var AccountManager = class {
     this.store = store;
     this.client = client;
     this.deps = deps;
-    client.prepare = () => this.ensureSession();
+    client.prepare = () => this.ownKey() ? Promise.resolve() : this.ensureSession();
     client.onRemaining = (r) => this.noteRemaining(r);
   }
   /* ── Reading ──────────────────────────────────────────── */
@@ -1637,9 +1684,34 @@ var AccountManager = class {
   /** Whether the server writes replay casts for this caller (Aftermath makes them), and voices them; null for a server without. */
   casts = null;
   aiOffered() {
+    if (this.ownKey()) return true;
     if (this.view) return this.view.ai ?? true;
     if (this.info && !this.store.get().session) return this.info.ai ?? true;
     return this.store.get().aiOffered;
+  }
+  /** The AI runs on the person's own Anthropic key: one is stored and the server takes it. */
+  ownKey() {
+    const s = this.store.get();
+    return !!s.anthropicKey && s.keysAccepted;
+  }
+  /** The server takes an own key, as it last said. */
+  keysAccepted() {
+    return this.store.get().keysAccepted;
+  }
+  /**
+   * Check `key` with the server (which asks Anthropic, at no cost) and keep it when it
+   * passes; a key that fails is not stored, and the error says why.
+   */
+  async useKey(key) {
+    const trimmed = key.trim();
+    if (!trimmed) throw new ScmjsError("invalid_input", t("Paste the key first."));
+    await this.client.checkKey(trimmed);
+    this.store.set({ anthropicKey: trimmed, keysAccepted: true });
+    this.changed();
+  }
+  forgetKey() {
+    this.store.set({ anthropicKey: "" });
+    this.changed();
   }
   changed() {
     const offered = this.aiOffered();
@@ -1658,10 +1730,13 @@ var AccountManager = class {
     const v = this.view;
     switch (this.kind()) {
       case "guest":
+        if (this.ownKey()) return t("Not signed in \xB7 AI requests use your own Anthropic key");
         return this.aiOffered() && this.info?.trial !== false ? t("Not signed in \xB7 the first AI request starts a free trial") : t("Not signed in");
       case "trial":
+        if (this.ownKey()) return t("Not signed in \xB7 AI requests use your own Anthropic key");
         return v ? t("Free trial \xB7 {balance} left \xB7 sign in to keep it and get more", { balance: formatUsd(v.balanceUsd) }) : t("Free trial");
       default: {
+        if (this.ownKey()) return t("{name} \xB7 AI requests use your own Anthropic key", { name: v?.name ?? t("Signed in") });
         if (!v) return t("Signed in");
         const name = v.name ?? t("Signed in");
         if (v.unlimited) return t("{name} \xB7 no balance is kept", { name });
@@ -1683,6 +1758,8 @@ var AccountManager = class {
     const cast = info.recipes?.find((r) => r.name === "cast");
     this.casts = cast ? { on: cast.enabled, voiced: !!info.speech } : null;
     this.serverName = info.name;
+    const accepted = !!info.access?.byok;
+    if (accepted !== this.store.get().keysAccepted) this.store.set({ keysAccepted: accepted });
     if (info.caller.kind === "user" && info.caller.account) this.view = info.caller.account;
     else if (this.store.get().session && info.caller.kind === "anonymous") {
       this.store.set({ session: "" });
@@ -11549,83 +11626,151 @@ function registerOptionsPage(deps) {
   return api.ui.preferencesPage({
     mount(body, page) {
       const root2 = styled(body);
-      const s = store.get();
-      const balance = h("div", { className: "ai-hint" }, account.summary());
+      const aiBox = h("div", null);
+      const keyBox = h("div", null);
+      root2.append(aiBox, keyBox);
+      let offAi = null;
+      const keyStatus = w.statusLine({ text: "" });
+      let keyShown = null;
+      const renderKey = () => {
+        const key = store.get().anthropicKey;
+        const state = `${account.keysAccepted()}:${key}`;
+        if (state === keyShown) return;
+        keyShown = state;
+        clear(keyBox);
+        if (!account.keysAccepted()) return;
+        if (key) {
+          keyBox.append(w.group(
+            t("Your Anthropic key"),
+            h(
+              "div",
+              { className: "ai-btns" },
+              h("span", null, t("In use: the key ending {end}.", { end: key.slice(-4) })),
+              w.button(t("Forget the key"), { onClick: () => {
+                account.forgetKey();
+                keyStatus.set(t("The key is forgotten."));
+              } })
+            ),
+            h("div", { className: "ai-hint" }, t("AI requests go to Anthropic on this key and are billed to your Anthropic account. It stays in this browser; scmjs.dev passes it on with each request and keeps no copy.")),
+            keyStatus
+          ));
+          return;
+        }
+        const field = w.text({ placeholder: "sk-ant-\u2026", password: true });
+        const check = w.button(t("Check and use"), { primary: true, onClick: async () => {
+          keyStatus.set(t("Checking the key with Anthropic\u2026"));
+          try {
+            await account.useKey(field.value);
+            keyStatus.set(t("The key works. The AI features are on."), "ok");
+            keyStatus.scrollIntoView({ block: "nearest" });
+          } catch (err) {
+            keyStatus.set(err instanceof ScmjsError && (err.code === "forbidden" || err.code === "invalid_input") ? err.message : describeError(err), "error");
+          }
+        } });
+        keyBox.append(w.group(
+          t("Your Anthropic key"),
+          h("div", { className: "ai-btns" }, field, check),
+          h("div", { className: "ai-hint" }, t("The AI features run on your own Anthropic API key, made at console.anthropic.com. The key is checked with Anthropic first, which costs nothing; after that it goes with each AI request and Anthropic bills the requests to your account. It stays in this browser; scmjs.dev passes it on and keeps no copy.")),
+          keyStatus
+        ));
+      };
+      let aiShown = null;
+      const renderAi = () => {
+        const offered = account.aiOffered();
+        const state = `${offered}:${account.ownKey()}`;
+        if (state === aiShown) return;
+        aiShown = state;
+        offAi?.();
+        offAi = null;
+        clear(aiBox);
+        if (offered) mountAi(aiBox);
+      };
       const offAccount = account.onChange(() => {
-        balance.textContent = account.summary();
+        renderAi();
+        renderKey();
       });
-      const accountBtn = w.button(account.signedIn() ? t("Account\u2026") : t("Sign in\u2026"), { primary: !account.signedIn(), onClick: () => {
-        page.close();
-        deps.openAccount();
-      } });
-      const aiBox = w.checkbox(t("Use the AI features"), { value: s.ai, onChange: (v) => {
-        store.set({ ai: v });
-      } });
-      const qualitySelect = w.select(QUALITY_CHOICES.map((c2) => ({ value: c2.value, label: translate(c2.label) })), { value: s.quality, onChange: (v) => {
-        store.set({ quality: v });
-      } });
-      const thinkingBox = w.checkbox(t("Show the model's reasoning summary while it works"), { value: s.showThinking, onChange: (v) => {
-        store.set({ showThinking: v });
-      } });
-      const dockBox = w.checkbox(t("Dock the assistant at the right, under the Properties panel, instead of floating over the map"), { value: s.dockAssistant, onChange: (v) => {
-        store.set({ dockAssistant: v });
-      } });
-      const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => {
-        store.set({ maxRounds: Math.max(1, Math.min(100, Math.round(v || 24))) });
-      } });
-      const usd = (v) => Math.max(0, Math.min(100, Math.round((Number.isFinite(v) ? v : 0) * 100) / 100));
-      const ceilingField = w.number({ value: s.ceilingUsd, min: 0, max: 100, step: 0.05, onChange: (v) => {
-        store.set({ ceilingUsd: usd(v) });
-      } });
-      const scenarioCeilingField = w.number({ value: s.scenarioCeilingUsd, min: 0, max: 100, step: 0.25, onChange: (v) => {
-        store.set({ scenarioCeilingUsd: usd(v) });
-      } });
-      const attachBox = w.checkbox(t("Send a picture of the visible area with every message"), { value: s.attachView, onChange: (v) => {
-        store.set({ attachView: v });
-      } });
-      const followBox2 = w.checkbox(t("Follow the assistant's work around the map"), { value: s.followMap, onChange: (v) => {
-        store.set({ followMap: v });
-      } });
-      root2.append(
-        w.group(
-          t("Account"),
-          h("div", { className: "ai-btns" }, accountBtn, balance),
-          h("div", { className: "ai-hint" }, t("The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity."))
-        ),
-        w.group(
-          t("AI features"),
-          aiBox,
-          h("div", { className: "ai-hint" }, t("Off takes the Tools \u25B8 AI menu, the assistant and the AI buttons in the editor's dialogs away. Your account and the maps stored on it stay."))
-        ),
-        w.group(
-          t("Quality"),
-          w.form([{ label: t("Quality"), field: qualitySelect }]),
-          h("div", { className: "ai-hint" }, t("How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer."))
-        ),
-        w.group(
-          t("Spending"),
-          w.form([{ label: t("Per assistant message ($)"), field: ceilingField }, { label: t("Per Make Scenario run ($)"), field: scenarioCeilingField }]),
-          h("div", { className: "ai-hint" }, t("A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one."))
-        ),
-        h(
-          "details",
-          null,
-          h("summary", null, t("Assistant")),
-          h(
-            "div",
-            { className: "ai-body" },
-            w.form([{ label: t("Rounds per message"), field: roundsField }]),
-            attachBox,
-            followBox2,
-            dockBox,
-            thinkingBox,
-            h("div", { className: "ai-hint" }, t("A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens."))
-          )
-        )
-      );
+      renderAi();
+      renderKey();
       return () => {
         offAccount();
+        offAi?.();
       };
+      function mountAi(root3) {
+        const s = store.get();
+        const balance = h("div", { className: "ai-hint" }, account.summary());
+        offAi = account.onChange(() => {
+          balance.textContent = account.summary();
+        });
+        const accountBtn = w.button(account.signedIn() ? t("Account\u2026") : t("Sign in\u2026"), { primary: !account.signedIn() && !account.ownKey(), onClick: () => {
+          page.close();
+          deps.openAccount();
+        } });
+        const aiBox2 = w.checkbox(t("Use the AI features"), { value: s.ai, onChange: (v) => {
+          store.set({ ai: v });
+        } });
+        const qualitySelect = w.select(QUALITY_CHOICES.map((c2) => ({ value: c2.value, label: translate(c2.label) })), { value: s.quality, onChange: (v) => {
+          store.set({ quality: v });
+        } });
+        const thinkingBox = w.checkbox(t("Show the model's reasoning summary while it works"), { value: s.showThinking, onChange: (v) => {
+          store.set({ showThinking: v });
+        } });
+        const dockBox = w.checkbox(t("Dock the assistant at the right, under the Properties panel, instead of floating over the map"), { value: s.dockAssistant, onChange: (v) => {
+          store.set({ dockAssistant: v });
+        } });
+        const roundsField = w.number({ value: s.maxRounds, min: 1, max: 100, step: 1, onChange: (v) => {
+          store.set({ maxRounds: Math.max(1, Math.min(100, Math.round(v || 24))) });
+        } });
+        const usd = (v) => Math.max(0, Math.min(100, Math.round((Number.isFinite(v) ? v : 0) * 100) / 100));
+        const ceilingField = w.number({ value: s.ceilingUsd, min: 0, max: 100, step: 0.05, onChange: (v) => {
+          store.set({ ceilingUsd: usd(v) });
+        } });
+        const scenarioCeilingField = w.number({ value: s.scenarioCeilingUsd, min: 0, max: 100, step: 0.25, onChange: (v) => {
+          store.set({ scenarioCeilingUsd: usd(v) });
+        } });
+        const attachBox = w.checkbox(t("Send a picture of the visible area with every message"), { value: s.attachView, onChange: (v) => {
+          store.set({ attachView: v });
+        } });
+        const followBox2 = w.checkbox(t("Follow the assistant's work around the map"), { value: s.followMap, onChange: (v) => {
+          store.set({ followMap: v });
+        } });
+        root3.append(
+          w.group(
+            t("Account"),
+            h("div", { className: "ai-btns" }, accountBtn, balance),
+            h("div", { className: "ai-hint" }, account.ownKey() ? t("AI requests run on your own Anthropic key, below. The account is for the maps you store and the maps you share.") : t("The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity."))
+          ),
+          w.group(
+            t("AI features"),
+            aiBox2,
+            h("div", { className: "ai-hint" }, t("Off takes the Tools \u25B8 AI menu, the assistant and the AI buttons in the editor's dialogs away. Your account and the maps stored on it stay."))
+          ),
+          w.group(
+            t("Quality"),
+            w.form([{ label: t("Quality"), field: qualitySelect }]),
+            h("div", { className: "ai-hint" }, t("How hard the model works on a request, and so how long it takes and what it costs. Standard gives each feature the setting it was tuned for \u2014 laying out maps and writing triggers already work at the highest one. Changing it in the middle of an assistant conversation makes the server re-read the whole conversation once; the next message is a little dearer."))
+          ),
+          w.group(
+            t("Spending"),
+            w.form([{ label: t("Per assistant message ($)"), field: ceilingField }, { label: t("Per Make Scenario run ($)"), field: scenarioCeilingField }]),
+            h("div", { className: "ai-hint" }, t("A ceiling on one message with its tool rounds, and on one design or build. At the ceiling the work stops with the map as edited so far, the assistant offers to continue for as much again, and a build says which step it stopped at. 0 is no ceiling. A message usually costs $0.10\u20130.30 and a build $0.50\u20131.00; the server holds the ceiling, so the last call can run a little over it, never a whole extra one."))
+          ),
+          h(
+            "details",
+            null,
+            h("summary", null, t("Assistant")),
+            h(
+              "div",
+              { className: "ai-body" },
+              w.form([{ label: t("Rounds per message"), field: roundsField }]),
+              attachBox,
+              followBox2,
+              dockBox,
+              thinkingBox,
+              h("div", { className: "ai-hint" }, t("A round is one answer from the model followed by the tool calls it asked for; the assistant stops at the limit and offers to continue. A picture costs about as much as a page of text each time. Following moves the view to each call's spot and zooms out when the spot is larger than the view, never in; scroll or zoom yourself during a turn and it stops until the next one. The dock setting applies the next time the assistant opens."))
+            )
+          )
+        );
+      }
     }
   });
 }
@@ -12338,12 +12483,17 @@ function openAccountDialog(ctx) {
         if (s.offers) {
           const signedIn = s.kind === "account";
           const state = (on, off2, needsSignIn) => !on ? [t("Off"), "sd-bad", off2] : needsSignIn && !signedIn ? [t("Sign in to use"), "", ""] : [t("On"), "sd-ok", ""];
+          const ai = account.ownKey() ? [t("On"), "sd-ok", t("On your own Anthropic key.")] : account.aiOffered() ? [t("On"), "sd-ok", ""] : account.keysAccepted() ? state(false, h2("span", null, t("They run on your own Anthropic key."), " ", h2("a", { href: "#", onClick: (e) => {
+            e.preventDefault();
+            dialog.close();
+            openOptions(api);
+          } }, t("Add your key\u2026"))), false) : state(false, t("Off for now while I work out the tooling and costs."), false);
           const features = [
-            [t("AI features"), state(account.aiOffered(), t("Off for now while I work out the tooling and costs."), false)],
+            [t("AI features"), ai],
             [t("Map storage"), state(s.offers.maps, t("This server keeps no maps."), true)],
             [t("Shared editing"), state(!!s.offers.rooms, t("This server has no shared map editing."), true)],
-            // (Shown only by a server that writes casts at all.)
-            ...account.casts ? [[t("Replay casts"), account.casts.on ? [t("On"), "sd-ok", account.casts.voiced ? t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, voiced.") : t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, as captions.")] : state(false, t("Not offered to this account for now."), true)]] : []
+            // (Shown only by a server that writes casts at all, and not to someone on their own key whom it does not offer them: a key never unlocks casts.)
+            ...account.casts && (account.casts.on || !account.ownKey()) ? [[t("Replay casts"), account.casts.on ? [t("On"), "sd-ok", account.casts.voiced ? t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, voiced.") : t("In Aftermath: a replay's timeline \u25B8 Cast\u2026, as captions.")] : state(false, t("Not offered to this account for now."), true)]] : []
           ];
           featuresBox.append(w.group(t("Status"), h2(
             "table",
@@ -14563,7 +14713,7 @@ var CONTRACT_VERSION = 1;
 function activate(api) {
   const unbindI18n = bindI18n(api);
   const store = settingsStore(api);
-  const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session }));
+  const client = new ScmjsClient(() => ({ serverUrl: store.get().serverUrl, session: store.get().session, anthropicKey: store.get().keysAccepted ? store.get().anthropicKey : "" }));
   const account = new AccountManager(store, client);
   let link = null;
   const links = { get: () => link, set: (l) => {
@@ -14681,8 +14831,9 @@ function activate(api) {
   let optionsPage = null;
   const syncAi = () => {
     const offered = store.get().aiOffered;
-    if (offered && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
-    else if (!offered && optionsPage) {
+    const page = offered || store.get().keysAccepted;
+    if (page && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
+    else if (!page && optionsPage) {
       optionsPage.dispose();
       optionsPage = null;
     }

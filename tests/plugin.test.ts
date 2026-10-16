@@ -227,6 +227,52 @@ describe("the account manager", () => {
     expect(store.get().aiOffered).toBe(false);
   });
 
+  it("unlocks the AI on the person's own key once the server has checked it, and sends it with recipes alone", async () => {
+    const accounts = { providers: [], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true, ai: false };
+    const usage = { model: "m", inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0, durationMs: 1 };
+    const { fetchImpl, calls } = fakeFetch({
+      "GET /v1/info": () => json({ name: "Test", version: "1", accounts, access: { anonymous: false, byok: true }, recipes: [], caller: { kind: "anonymous", remaining: {} } }),
+      "POST /v1/key/check": (init) => ((init.headers as Record<string, string>)["X-Anthropic-Key"] === "sk-good"
+        ? json({ ok: true, recipes: ["describe"] })
+        : new Response(JSON.stringify({ error: { code: "unauthorized", message: "Anthropic rejected the key you sent (401)." } }), { status: 401 })),
+      "POST /v1/recipes/describe": () => json({ id: "1", recipe: "describe", output: { name: "N", description: "D", alternatives: [] }, usage }),
+    });
+    const store = memoryStore();
+    const client = new ScmjsClient(() => ({ serverUrl: "https://api.example", session: store.get().session, anthropicKey: store.get().keysAccepted ? store.get().anthropicKey : "" }), fetchImpl);
+    const account = new AccountManager(store, client);
+    await account.connect();
+    expect(account.keysAccepted()).toBe(true);
+    expect(account.aiOffered()).toBe(false);
+
+    const bad = await account.useKey("sk-bad").catch((e: unknown) => e);
+    expect(bad).toMatchObject({ code: "forbidden", message: "Anthropic did not accept that key." });
+    expect(store.get().anthropicKey).toBe("");
+    expect(account.aiOffered()).toBe(false);
+
+    await account.useKey("  sk-good ");
+    expect(store.get().anthropicKey).toBe("sk-good");
+    expect(account.ownKey()).toBe(true);
+    expect(store.get().aiOffered).toBe(true);
+    expect(account.summary()).toBe("Not signed in · AI requests use your own Anthropic key");
+
+    // A recipe goes on the key with no trial first; what other plugins spread into their requests never carries it.
+    await client.run("describe", { facts: {} as never });
+    expect(calls.map((c) => `${c.method} ${c.path}`)).not.toContain("POST /v1/trial");
+    expect(calls.at(-1)!.headers["x-anthropic-key"]).toBe("sk-good");
+    expect(account.service(() => {}).headers()).toEqual({});
+
+    account.forgetKey();
+    expect(account.aiOffered()).toBe(false);
+    // A server that stops taking keys turns the key off too.
+    await account.useKey("sk-good");
+    accounts.ai = false;
+    const closed = fakeFetch({ "GET /v1/info": () => json({ name: "Test", version: "1", accounts, access: { anonymous: false, byok: false }, recipes: [], caller: { kind: "anonymous", remaining: {} } }) });
+    const later = new AccountManager(store, new ScmjsClient(() => ({ serverUrl: "https://api.example", session: "" }), closed.fetchImpl));
+    await later.connect();
+    expect(later.ownKey()).toBe(false);
+    expect(store.get().aiOffered).toBe(false);
+  });
+
   it("signs in through the popup, refreshes, follows a balance note, and signs out", async () => {
     const state = { session: null as string | null, account: null as AccountView | null, trials: 0 };
     const { fetchImpl, calls } = server(state);
