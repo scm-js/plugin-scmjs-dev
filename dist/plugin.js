@@ -1674,8 +1674,8 @@ var AccountManager = class {
   /* ── The server ───────────────────────────────────────── */
   /**
    * Ask the server what it offers and what it thinks of the session. Run when the
-   * dialog opens, before a sign-in, and at activation only when a session is stored;
-   * a session the server no longer knows is dropped.
+   * dialog opens, before and after a sign-in, after a sign-out, and at activation only
+   * when a session is stored; a session the server no longer knows is dropped.
    */
   async connect() {
     const info = await this.client.info();
@@ -1800,7 +1800,7 @@ var AccountManager = class {
         this.view = m.account;
         this.changed();
         finish(() => resolve(m.account));
-        void this.refresh().catch(() => {
+        void this.connect().then(() => this.refresh()).catch(() => {
         });
       });
       const watch = setInterval(() => {
@@ -1828,6 +1828,8 @@ var AccountManager = class {
     this.view = null;
     this.ledgerRows = [];
     this.changed();
+    await this.connect().catch(() => {
+    });
   }
   /** The payment page for a pack, in a new tab. */
   async topUp(pack) {
