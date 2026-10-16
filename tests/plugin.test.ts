@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AccountManager, memoryStore } from "../account";
 import { describeError, fileNameFrom, formatBytes, ScmjsClient, ScmjsError } from "../client";
 import { describeMeta, matchesSearch, metaOf } from "../maps";
@@ -169,6 +169,38 @@ describe("the account manager", () => {
     expect(account.casts).toBeNull();
   });
 
+  it("asks again what is offered after a sign-in and a sign-out, so a guest's answer does not stick", async () => {
+    const accounts = { providers: [{ id: "discord", name: "Discord" }], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true };
+    const admin = view({ role: "admin", unlimited: true, balanceUsd: 0, weeklyUsd: 0, creditUsd: 0 });
+    let session: string | null = null;
+    const signedIn = (init: RequestInit) => session !== null && ((init.headers ?? {}) as Record<string, string>).Authorization === `Bearer ${session}`;
+    const { fetchImpl } = fakeFetch({
+      // The server casts for a signed-in admin only.
+      "GET /v1/info": (init) => json({ name: "Test", version: "1", accounts, speech: true, recipes: [{ name: "cast", enabled: signedIn(init), model: "m" }], caller: signedIn(init) ? { kind: "user", remaining: {}, account: admin } : { kind: "anonymous", remaining: {} } }),
+      "POST /v1/auth/start": () => json({ url: "https://discord.com/oauth2/authorize?state=abc" }),
+      "POST /v1/auth/logout": () => { session = null; return json({ ok: true }); },
+      "GET /v1/account": () => json({ account: admin, ledger: [] }),
+    });
+    const store = memoryStore();
+    let handler: ((e: { origin: string; data: unknown }) => void) | null = null;
+    const popup = { closed: false, location: { href: "" }, close() { this.closed = true; } };
+    const account = new AccountManager(store, new ScmjsClient(() => ({ serverUrl: "https://api.example", session: store.get().session }), fetchImpl), {
+      openPopup: () => popup, origin: () => "https://editor.example", listen: (h) => { handler = h; return () => { handler = null; }; },
+    });
+    // The Account window was opened before signing in: a guest's answer.
+    await account.connect();
+    expect(account.casts).toEqual({ on: false, voiced: true });
+    const signing = account.signIn();
+    await new Promise((r) => setTimeout(r, 0));
+    session = "sess_admin";
+    handler!({ origin: "https://api.example", data: { type: "scmjs-ai-auth", session: "sess_admin", account: admin } });
+    await signing;
+    await vi.waitFor(() => expect(account.casts).toEqual({ on: true, voiced: true }));
+    expect(account.kind()).toBe("account");
+    await account.signOut();
+    expect(account.casts).toEqual({ on: false, voiced: true });
+  });
+
   it("offers the AI only where the server says the role may call it, and keeps the answer for the next start", async () => {
     let signedIn = false;
     const accounts = { providers: [{ id: "discord", name: "Discord" }], trial: false, trialUsd: 0, signupUsd: 0, weeklyUsd: 0, packs: [], accountUrl: "https://api.example/account", maps: true, ai: false };
@@ -176,7 +208,7 @@ describe("the account manager", () => {
     const { fetchImpl } = fakeFetch({
       "GET /v1/info": () => json({ name: "Test", version: "1", accounts, caller: signedIn ? { kind: "user", remaining: {}, account: admin } : { kind: "anonymous", remaining: {} } }),
       "GET /v1/account": () => json({ account: admin, ledger: [] }),
-      "POST /v1/auth/logout": () => json({ ok: true }),
+      "POST /v1/auth/logout": () => { signedIn = false; return json({ ok: true }); },
     });
     const store = memoryStore({ aiOffered: true });
     const account = new AccountManager(store, new ScmjsClient(() => ({ serverUrl: "https://api.example", session: store.get().session }), fetchImpl));

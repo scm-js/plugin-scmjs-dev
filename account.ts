@@ -225,8 +225,8 @@ export class AccountManager {
 
   /**
    * Ask the server what it offers and what it thinks of the session. Run when the
-   * dialog opens, before a sign-in, and at activation only when a session is stored;
-   * a session the server no longer knows is dropped.
+   * dialog opens, before and after a sign-in, after a sign-out, and at activation only
+   * when a session is stored; a session the server no longer knows is dropped.
    */
   async connect(): Promise<void> {
     const info = await this.client.info();
@@ -338,7 +338,8 @@ export class AccountManager {
         this.view = m.account;
         this.changed();
         finish(() => resolve(m.account!));
-        void this.refresh().catch(() => {});
+        // (What the server offers depends on who asks: the answer from before the sign-in was a guest's.)
+        void this.connect().then(() => this.refresh()).catch(() => {});
       });
       const watch = setInterval(() => { if (popup.closed) finish(() => reject(new ScmjsError("aborted", "the sign-in window was closed."))); }, 500);
       const limit = setTimeout(() => { finish(() => { try { popup.close(); } catch { /* gone */ } reject(new ScmjsError("network", t("the sign-in did not finish in time."))); }); }, this.deps.signInTimeoutMs ?? 5 * 60_000);
@@ -351,6 +352,8 @@ export class AccountManager {
     this.view = null;
     this.ledgerRows = [];
     this.changed();
+    // (Ask again as a guest, so nothing the account was offered stays on show.)
+    await this.connect().catch(() => {});
   }
 
   /** The payment page for a pack, in a new tab. */
