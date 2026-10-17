@@ -302,4 +302,35 @@ describe("replaying a transcript", () => {
     expect(calls.map((c) => [c.name, c.result, !!c.failed, !!c.image])).toEqual([["map_info", "{\"width\":64}", false, false], ["screenshot", "Tiles.", false, true], ["nope", "Error: no", true, false]]);
     expect(turns[1]).toEqual({ user: ["Thanks"], steps: [], answer: "Sure." });
   });
+
+  it("leaves the kept map-state blocks out of what the person asked", async () => {
+    const { groupTurns } = await import("../ai/assistant");
+    const turns = groupTurns([
+      { role: "user", content: [{ type: "text", text: "Hi" }, { type: "text", text: "<map_state>\nUnits on the map:\n</map_state>" }] },
+      { role: "assistant", content: [{ type: "text", text: "Hello." }] },
+    ]);
+    expect(turns).toEqual([{ user: ["Hi"], steps: [], answer: "Hello." }]);
+  });
+});
+
+describe("keeping the map state", () => {
+  const state = "<map_state>\nView: tiles 0,0\n</map_state>";
+  it("puts the server's block at the end of the message it was added to, without touching the one before", async () => {
+    const { keepState } = await import("../ai/assistant");
+    const sent: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "add marines" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "place_units", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", toolUseId: "t1", content: "placed" }] },
+    ];
+    const kept = keepState(sent, state);
+    expect(kept[2]).toEqual({ role: "user", content: [{ type: "tool_result", toolUseId: "t1", content: "placed" }, { type: "text", text: state }] });
+    expect(kept.slice(0, 2)).toEqual(sent.slice(0, 2));
+    expect(sent[2].content).toHaveLength(1);
+  });
+
+  it("changes nothing for a server that sends no state", async () => {
+    const { keepState } = await import("../ai/assistant");
+    const sent: AgentMessage[] = [{ role: "user", content: [{ type: "text", text: "hi" }] }];
+    expect(keepState(sent, undefined)).toBe(sent);
+  });
 });
