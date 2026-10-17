@@ -107,6 +107,22 @@ function countImages(messages: AgentMessage[]): number {
 }
 
 /**
+ * The history with the server's map-state block kept at the end of the message it was
+ * added to — the last one, the message just sent — so the next request sends that message
+ * as the model saw it. A message that differs from the one a thinking block was made after
+ * costs the model that block and every later one (the 5.5 models check), and before this
+ * the block was dropped from every message, which lost the reasoning of every round.
+ */
+export function keepState(messages: AgentMessage[], state: string | undefined): AgentMessage[] {
+  const last = messages[messages.length - 1];
+  if (!state || last?.role !== "user") return messages;
+  return [...messages.slice(0, -1), { ...last, content: [...last.content, { type: "text", text: state }] }];
+}
+
+/** A kept map-state block: the server's facts, never the person's words. */
+export const isMapState = (c: AgentContent): boolean => c.type === "text" && c.text.startsWith("<map_state>");
+
+/**
  * The history after a turn failed: a user message the model never answered goes, unless
  * it holds tool results — those record edits that were made, and the next request
  * continues from them.
@@ -241,7 +257,7 @@ export function groupTurns(messages: AgentMessage[]): ReplayTurn[] {
   let cur: ReplayTurn | null = null;
   for (const m of messages) {
     if (m.role === "user" && !m.content.some((c) => c.type === "tool_result")) {
-      cur = { user: m.content.filter(isText).map((c) => c.text), steps: [], answer: null };
+      cur = { user: m.content.filter(isWords).map((c) => c.text), steps: [], answer: null };
       turns.push(cur);
       continue;
     }
@@ -273,6 +289,8 @@ const PHASE_LABELS: Record<Phase, string> = { idle: msg("Ready"), waiting: msg("
 
 /** Whether a message content item is a turn's own text (not tool traffic). */
 const isText = (c: AgentContent): c is Extract<AgentContent, { type: "text" }> => c.type === "text";
+/** Text a person or the model wrote, not a map-state block kept with a message. */
+const isWords = (c: AgentContent): c is Extract<AgentContent, { type: "text" }> => isText(c) && !isMapState(c);
 
 /** The teal outline of what the assistant is about to touch, drawn by an overlay while a tool runs. */
 function intentOverlay(api: PluginApi): { handle: OverlayHandle; show(f: Footprint | null): void } {
@@ -528,7 +546,7 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
       });
       root.addEventListener("keydown", (e) => { if (e.key === "Escape" && running && e.target !== input) { e.preventDefault(); running.abort(); } });
 
-      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c) => (m.role === "user" ? t("You: {text}", { text: c.text }) : t("Assistant: {text}", { text: c.text }))).join("\n")).filter(Boolean).join("\n\n");
+      const transcript = () => state.messages.map((m) => m.content.filter(isWords).map((c) => (m.role === "user" ? t("You: {text}", { text: c.text }) : t("Assistant: {text}", { text: c.text }))).join("\n")).filter(Boolean).join("\n\n");
 
       // Replay what the conversation holds, a block per turn.
       const replay = () => {
@@ -720,8 +738,10 @@ export function openAssistant(ctx: Ctx, store: Conversations): AssistantHandle {
             turnCost += charged;
             setCost();
             // Kept exactly as returned — thinking blocks included — and sent back unchanged next
-            // turn, since the model refuses to continue a tool-using turn without them.
+            // turn, since the model refuses to continue a tool-using turn without them; and the
+            // message it answered keeps the map state the server added to it, for the same reason.
             const answer = r.output.content;
+            conv.messages = keepState(conv.messages, r.output.state);
             conv.messages.push({ role: "assistant", content: answer });
             const finalText = answer.filter(isText).map((c) => c.text).join("\n\n").trim();
             const calls = answer.filter((c): c is Extract<AgentContent, { type: "tool_use" }> => c.type === "tool_use");

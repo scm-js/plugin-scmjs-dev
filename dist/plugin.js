@@ -9279,6 +9279,12 @@ function countImages(messages) {
   }
   return n2;
 }
+function keepState(messages, state) {
+  const last = messages[messages.length - 1];
+  if (!state || last?.role !== "user") return messages;
+  return [...messages.slice(0, -1), { ...last, content: [...last.content, { type: "text", text: state }] }];
+}
+var isMapState = (c2) => c2.type === "text" && c2.text.startsWith("<map_state>");
 function afterFailedTurn(messages) {
   const last = messages[messages.length - 1];
   return last?.role === "user" && !last.content.some((c2) => c2.type === "tool_result") ? messages.slice(0, -1) : messages;
@@ -9389,7 +9395,7 @@ function groupTurns(messages) {
   let cur = null;
   for (const m of messages) {
     if (m.role === "user" && !m.content.some((c2) => c2.type === "tool_result")) {
-      cur = { user: m.content.filter(isText).map((c2) => c2.text), steps: [], answer: null };
+      cur = { user: m.content.filter(isWords).map((c2) => c2.text), steps: [], answer: null };
       turns.push(cur);
       continue;
     }
@@ -9427,6 +9433,7 @@ ${c2.text}` : c2.text;
 }
 var PHASE_LABELS = { idle: msg("Ready"), waiting: msg("Waiting for the model"), thinking: msg("Thinking"), writing: msg("Writing"), tools: msg("Working on the map"), stopped: msg("Stopped"), failed: msg("Failed") };
 var isText = (c2) => c2.type === "text";
+var isWords = (c2) => isText(c2) && !isMapState(c2);
 function intentOverlay(api) {
   let footprint = null;
   const handle = api.ui.overlay({
@@ -9751,7 +9758,7 @@ function openAssistant(ctx, store) {
           running.abort();
         }
       });
-      const transcript = () => state.messages.map((m) => m.content.filter(isText).map((c2) => m.role === "user" ? t("You: {text}", { text: c2.text }) : t("Assistant: {text}", { text: c2.text })).join("\n")).filter(Boolean).join("\n\n");
+      const transcript = () => state.messages.map((m) => m.content.filter(isWords).map((c2) => m.role === "user" ? t("You: {text}", { text: c2.text }) : t("Assistant: {text}", { text: c2.text })).join("\n")).filter(Boolean).join("\n\n");
       const replay = () => {
         chat.replaceChildren();
         pinned = true;
@@ -9978,6 +9985,7 @@ function openAssistant(ctx, store) {
             turnCost += charged;
             setCost();
             const answer = r.output.content;
+            conv.messages = keepState(conv.messages, r.output.state);
             conv.messages.push({ role: "assistant", content: answer });
             const finalText = answer.filter(isText).map((c2) => c2.text).join("\n\n").trim();
             const calls = answer.filter((c2) => c2.type === "tool_use");
