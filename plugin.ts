@@ -1,5 +1,5 @@
 /**
- * scmjs.dev — a plugin for the scmJS map editor (https://github.com/jeany55/scm-js).
+ * scmjs.dev — a plugin for the scmJS map editor (https://github.com/scm-js/scm-js).
  *
  * Your scmjs.dev account in the editor, and the AI that comes with it:
  *
