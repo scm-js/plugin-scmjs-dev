@@ -14,6 +14,7 @@ import { describeError, formatBytes, ScmjsError } from "./client";
 import { linksSection } from "./copies";
 import { storageBar } from "./dialogs";
 import type { MapDetail, MapMeta, MapResponse, MapRevisionView, MapSummary, SharedMapView } from "./protocol";
+import { replaysPart, type ReplaysPart } from "./replays";
 import { endsLine, lower } from "./share/kept";
 import { t } from "./i18n";
 import { ago, clear, formatDate, h, styled, textarea, type Ctx } from "./ui";
@@ -232,7 +233,7 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         clear(listBox);
         // With nothing stored, the list's own "save" invitation is the whole dialog.
         split.classList.toggle("sd-none", !maps.length);
-        saveHere.hidden = !maps.length;
+        saveHere.hidden = !maps.length || showing?.value === "replays";
         if (!maps.length) {
           listBox.append(h("div", { className: "sd-empty-state" },
             h("div", { className: "sd-empty-title" }, t("No maps yet")),
@@ -489,16 +490,35 @@ export function openMapsDialog(ctx: Ctx, link: { get(): Link | null; set(link: L
         }
       };
 
-      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void load() });
+      /* The account's replays, in place of the maps, from a server that keeps them. */
+      let replays: ReplaysPart | null = null;
+      const showing = account.state().offers?.replays ? w.select([{ value: "maps", label: t("Maps") }, { value: "replays", label: t("Replays") }], { value: "maps", onChange: () => show() }) : null;
+      showing?.classList.add("sd-showing");
+      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void (showing?.value === "replays" ? replays?.load() : load()) });
       const saveHere = w.button(t("Save the open map here…"), { disabled: !api.document.isOpen(), onClick: () => { dialog.close(); ctx.saveToCloud(); } });
+      const bottom = h("div", { className: "sd-btns" }, saveHere, h("div", { className: "sd-grow" }, status));
+      const show = () => {
+        const onReplays = showing?.value === "replays";
+        if (onReplays && !replays) {
+          replays = replaysPart(ctx, () => dialog.close(), say, (s) => { account.noteStorage(s); renderStorage(s); });
+          split.after(replays.element);
+          saveHere.after(replays.upload);
+          void replays.load();
+        }
+        split.hidden = onReplays;
+        search.hidden = onReplays;
+        saveHere.hidden = onReplays || !maps.length;
+        if (replays) { replays.element.hidden = !onReplays; replays.upload.hidden = !onReplays; }
+        say("");
+      };
       root.append(
-        h("div", { className: "sd-toolbar" }, search, storageBox, refresh),
+        h("div", { className: "sd-toolbar" }, showing, search, storageBox, refresh),
         split,
-        h("div", { className: "sd-btns" }, saveHere, h("div", { className: "sd-grow" }, status)),
+        bottom,
       );
       void load();
       queueMicrotask(() => search.focus());
-      return () => { loading?.abort(); picking?.abort(); };
+      return () => { loading?.abort(); picking?.abort(); replays?.abort(); };
     },
     buttons: [{ label: t("Close"), primary: true }],
   });

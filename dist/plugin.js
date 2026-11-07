@@ -16,6 +16,7 @@ var KO = {
   "A change could not be shared ({message}), so this copy no longer matches everyone else's. The map is still open here; save it, or join again.": "\uBCC0\uACBD\uC744 \uACF5\uC720\uD558\uC9C0 \uBABB\uD574 ({message}) \uC774 \uC0AC\uBCF8\uC774 \uB2E4\uB978 \uC0AC\uB78C\uB4E4\uC758 \uAC83\uACFC \uB354 \uC774\uC0C1 \uAC19\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uC5EC\uAE30\uC5D0 \uADF8\uB300\uB85C \uC5F4\uB824 \uC788\uC73C\uB2C8 \uC800\uC7A5\uD558\uAC70\uB098 \uB2E4\uC2DC \uCC38\uC5EC\uD558\uC138\uC694.",
   "A copy of the map: anyone can open their own": "\uB9F5 \uC0AC\uBCF8: \uB204\uAD6C\uB098 \uC790\uAE30 \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC74C",
   "A free trial of {amount} needs no sign-in.": "{amount} \uBB34\uB8CC \uCCB4\uD5D8\uC740 \uB85C\uADF8\uC778\uC774 \uD544\uC694 \uC5C6\uC2B5\uB2C8\uB2E4.",
+  "A link anyone can watch this replay with, without signing in": "\uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC774 \uB9AC\uD50C\uB808\uC774\uB97C \uBCFC \uC218 \uC788\uB294 \uB9C1\uD06C",
   "A link opens a map kept on your scmjs.dev account, so making one takes an account. The people who open it need only the link.": "\uB9C1\uD06C\uB294 scmjs.dev \uACC4\uC815\uC5D0 \uBCF4\uAD00\uB41C \uB9F5\uC744 \uC5EC\uB294 \uAC83\uC774\uB77C \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uB824\uBA74 \uACC4\uC815\uC774 \uC788\uC5B4\uC57C \uD569\uB2C8\uB2E4. \uB9C1\uD06C\uB97C \uC5EC\uB294 \uC0AC\uB78C\uC740 \uB9C1\uD06C\uB9CC \uC788\uC73C\uBA74 \uB429\uB2C8\uB2E4.",
   "A map is being shared already, or no map is open.": "\uC774\uBBF8 \uACF5\uC720 \uC911\uC778 \uB9F5\uC774 \uC788\uAC70\uB098 \uC5F4\uB9B0 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
   "A map keeps its last revision; delete the map to remove it.": "\uB9F5\uC5D0\uB294 \uB9C8\uC9C0\uB9C9 \uBC84\uC804\uC774 \uB0A8\uC544 \uC788\uC5B4\uC57C \uD569\uB2C8\uB2E4. \uC9C0\uC6B0\uB824\uBA74 \uB9F5\uC744 \uC0AD\uC81C\uD558\uC138\uC694.",
@@ -145,10 +146,13 @@ var KO = {
   "Delete": "\uC0AD\uC81C",
   "Delete map": "\uB9F5 \uC0AD\uC81C",
   "Delete map\u2026": "\uB9F5 \uC0AD\uC81C\u2026",
+  "Delete replay": "\uB9AC\uD50C\uB808\uC774 \uC0AD\uC81C",
   "Delete revision": "\uBC84\uC804 \uC0AD\uC81C",
   "Delete revision #{n}": "\uBC84\uC804 #{n} \uC0AD\uC81C",
   "Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it.": "{name}\uC758 #{n} \uBC84\uC804\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694? \uB2E4\uB978 \uBC84\uC804\uC774 \uAC19\uC740 \uD30C\uC77C\uC744 \uC4F0\uC9C0 \uC54A\uC73C\uBA74 \uD30C\uC77C\uC774 \uACC4\uC815\uC5D0\uC11C \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4.",
   "Delete revision #{n} of {name}? Its file is removed from the account when no other revision shares it. {links, plural, one {The link to it stops} other {The # links to it stop}} working too.": "{name}\uC758 #{n} \uBC84\uC804\uC744 \uC0AD\uC81C\uD560\uAE4C\uC694? \uB2E4\uB978 \uBC84\uC804\uC774 \uAC19\uC740 \uD30C\uC77C\uC744 \uC4F0\uC9C0 \uC54A\uC73C\uBA74 \uD30C\uC77C\uC774 \uACC4\uC815\uC5D0\uC11C \uC9C0\uC6CC\uC9D1\uB2C8\uB2E4. \uC774 \uBC84\uC804\uC744 \uAC00\uB9AC\uD0A4\uB294 \uB9C1\uD06C {links}\uAC1C\uB3C4 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "Delete this replay from the account?": "\uC774 \uB9AC\uD50C\uB808\uC774\uB97C \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694?",
+  "Delete this replay from the account? Its link stops working too.": "\uC774 \uB9AC\uD50C\uB808\uC774\uB97C \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694? \uB9C1\uD06C\uB3C4 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "Delete {name} and all {revisions} of its revisions from the account?": "{name|\uACFC} \uBC84\uC804 {revisions}\uAC1C\uB97C \uBAA8\uB450 \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694?",
   "Delete {name} and all {revisions} of its revisions from the account? {links, plural, one {Its link stops} other {Its # links stop}} working too.": "{name|\uACFC} \uBC84\uC804 {revisions}\uAC1C\uB97C \uBAA8\uB450 \uACC4\uC815\uC5D0\uC11C \uC0AD\uC81C\uD560\uAE4C\uC694? \uB9C1\uD06C {links}\uAC1C\uB3C4 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "Deleting\u2026": "\uC0AD\uC81C\uD558\uB294 \uC911\u2026",
@@ -165,6 +169,7 @@ var KO = {
   "Done.": "\uC644\uB8CC.",
   "Download": "\uB2E4\uC6B4\uB85C\uB4DC",
   "Downloading #{n}\u2026": "#{n} \uB0B4\uB824\uBC1B\uB294 \uC911\u2026",
+  "Downloading the replay\u2026": "\uB9AC\uD50C\uB808\uC774\uB97C \uB0B4\uB824\uBC1B\uB294 \uC911\u2026",
   "Downloading\u2026": "\uB0B4\uB824\uBC1B\uB294 \uC911\u2026",
   "Drag over the area to redo": "\uB2E4\uC2DC \uB9CC\uB4E4 \uC601\uC5ED\uC744 \uB4DC\uB798\uADF8\uD558\uC138\uC694",
   "Edit location #{index}: {parts}": "\uB85C\uCF00\uC774\uC158 #{index} \uD3B8\uC9D1: {parts}",
@@ -250,6 +255,7 @@ var KO = {
   "Joining\u2026": "\uCC38\uC5EC\uD558\uB294 \uC911\u2026",
   "Jump to latest": "\uCD5C\uC2E0\uC73C\uB85C \uC774\uB3D9",
   "Jungle": "\uC815\uAE00",
+  "Keep a .rep on your account": ".rep \uD30C\uC77C\uC744 \uACC4\uC815\uC5D0 \uBCF4\uAD00\uD569\uB2C8\uB2E4",
   "Keep it open": "\uC5F4\uC5B4 \uB458 \uAE30\uAC04",
   "Keep the units, sprites and doodads that are there now": "\uC9C0\uAE08 \uC788\uB294 \uC720\uB2DB, \uC2A4\uD504\uB77C\uC774\uD2B8, \uC7A5\uC2DD\uBB3C \uC720\uC9C0",
   "Kept open": "\uC5F4\uC5B4 \uB460",
@@ -269,11 +275,13 @@ var KO = {
   "Let the link follow my later saves to this map": "\uC774\uD6C4 \uC774 \uB9F5\uC5D0 \uC800\uC7A5\uD55C \uB0B4\uC6A9\uC744 \uB9C1\uD06C\uAC00 \uB530\uB77C\uAC00\uAC8C \uD558\uAE30",
   "Let the model choose": "\uBAA8\uB378\uC774 \uACE0\uB974\uAC8C \uD558\uAE30",
   "Link": "\uB9C1\uD06C",
+  "Link made and copied.": "\uB9C1\uD06C\uB97C \uB9CC\uB4E4\uC5B4 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
   "Link removed.": "\uB9C1\uD06C\uB97C \uC81C\uAC70\uD588\uC2B5\uB2C8\uB2E4.",
   "Link to #{n}": "#{n} \uB9C1\uD06C",
   "Link to the newest": "\uCD5C\uC2E0 \uBC84\uC804 \uB9C1\uD06C",
   "Link to {which} made and copied.": "{which} \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uC5B4 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
   "Link to {which} made.": "{which} \uB9C1\uD06C\uB97C \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4.",
+  "Linked \xB7 opened {n}\xD7": "\uB9C1\uD06C \uC788\uC74C \xB7 {n}\uBC88 \uC5F4\uB9BC",
   "Links": "\uB9C1\uD06C",
   "List": "\uBAA9\uB85D",
   "List the guides": "\uAC00\uC774\uB4DC \uBAA9\uB85D",
@@ -299,6 +307,7 @@ var KO = {
   "Made {date}": "{date}\uC5D0 \uB9CC\uB4E6",
   "Make Scenario": "\uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30",
   "Make Scenario\u2026": "\uC2DC\uB098\uB9AC\uC624 \uB9CC\uB4E4\uAE30\u2026",
+  "Make a link": "\uB9C1\uD06C \uB9CC\uB4E4\uAE30",
   "Making a link\u2026": "\uB9C1\uD06C\uB97C \uB9CC\uB4DC\uB294 \uC911\u2026",
   "Making the link\u2026": "\uB9C1\uD06C\uB97C \uB9CC\uB4DC\uB294 \uC911\u2026",
   "Manage": "\uAD00\uB9AC",
@@ -307,6 +316,7 @@ var KO = {
   "Map Revision": "\uB9F5 \uBC84\uC804",
   "Map deleted.": "\uB9F5\uC744 \uC0AD\uC81C\uD588\uC2B5\uB2C8\uB2E4.",
   "Map storage": "\uB9F5 \uC800\uC7A5 \uACF5\uAC04",
+  "Maps": "\uB9F5",
   "Maps are kept on a signed-in account; a trial cannot store them.": "\uB9F5\uC740 \uB85C\uADF8\uC778\uD55C \uACC4\uC815\uC5D0 \uBCF4\uAD00\uB429\uB2C8\uB2E4. \uCCB4\uD5D8\uC73C\uB85C\uB294 \uBCF4\uAD00\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",
   "Maps you save to scmjs.dev show up here, with every revision and its note.": "scmjs.dev\uC5D0 \uC800\uC7A5\uD55C \uB9F5\uC774 \uBAA8\uB4E0 \uBC84\uC804\uACFC \uBA54\uBAA8\uC640 \uD568\uAED8 \uC5EC\uAE30\uC5D0 \uB098\uD0C0\uB0A9\uB2C8\uB2E4.",
   "Markdown \u2014 GitHub, Discourse, Reddit": "Markdown \u2014 GitHub, Discourse, Reddit",
@@ -338,6 +348,7 @@ var KO = {
   'No map matches "{query}".': '"{query}"\uC5D0 \uB9DE\uB294 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.',
   "No maps yet": "\uC544\uC9C1 \uB9F5\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
   "No note": "\uBA54\uBAA8 \uC5C6\uC74C",
+  "No replays yet": "\uC544\uC9C1 \uB9AC\uD50C\uB808\uC774\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4",
   "No strings in that scope.": "\uADF8 \uBC94\uC704\uC5D0\uB294 \uBB38\uC790\uC5F4\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
   "Nobody in it now": "\uC9C0\uAE08 \uC544\uBB34\uB3C4 \uC5C6\uC74C",
   "None": "\uC5C6\uC74C",
@@ -377,10 +388,12 @@ var KO = {
   "Open from scmjs.dev\u2026": "scmjs.dev\uC5D0\uC11C \uC5F4\uAE30\u2026",
   "Open revision #{n} in the editor": "#{n} \uBC84\uC804\uC744 \uC5D0\uB514\uD130\uC5D0\uC11C \uC5FD\uB2C8\uB2E4",
   "Open the assistant": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8 \uC5F4\uAE30",
+  "Open the replay": "\uB9AC\uD50C\uB808\uC774 \uC5F4\uAE30",
   "Open the shared map and edit it with whoever is in it": "\uACF5\uC720 \uB9F5\uC744 \uC5F4\uACE0 \uADF8 \uC548\uC5D0 \uC788\uB294 \uC0AC\uB78C\uB4E4\uACFC \uD568\uAED8 \uD3B8\uC9D1\uD569\uB2C8\uB2E4",
   "Open this revision on its own, apart from the shared map": "\uACF5\uC720 \uB9F5\uACFC \uBCC4\uAC1C\uB85C \uC774 \uBC84\uC804\uB9CC \uB530\uB85C \uC5FD\uB2C8\uB2E4",
   "Open until everyone leaves": "\uBAA8\uB450 \uB098\uAC08 \uB54C\uAE4C\uC9C0 \uC5F4\uB9BC",
   "Opened a copy of {name}": "{name} \uC0AC\uBCF8\uC744 \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4",
+  "Opened the replay: {players}": "\uB9AC\uD50C\uB808\uC774\uB97C \uC5F4\uC5C8\uC2B5\uB2C8\uB2E4: {players}",
   "Opened {name} #{n}": "{name} #{n} \uC5F4\uB9BC",
   "Options\u2026": "\uC635\uC158\u2026",
   "Or: {names}": "\uB2E4\uB978 \uC548: {names}",
@@ -439,12 +452,14 @@ var KO = {
   "Refreshing\u2026": "\uC0C8\uB85C \uACE0\uCE58\uB294 \uC911\u2026",
   "Remove": "\uC81C\uAC70",
   "Remove link": "\uB9C1\uD06C \uC81C\uAC70",
+  "Remove the link to this replay? Anyone who has it can no longer open it. The replay stays on your account.": "\uC774 \uB9AC\uD50C\uB808\uC774\uC758 \uB9C1\uD06C\uB97C \uC81C\uAC70\uD560\uAE4C\uC694? \uB9C1\uD06C\uB97C \uAC00\uC9C4 \uC0AC\uB78C\uC740 \uB354 \uC774\uC0C1 \uC5F4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB9AC\uD50C\uB808\uC774\uB294 \uACC4\uC815\uC5D0 \uADF8\uB300\uB85C \uB0A8\uC2B5\uB2C8\uB2E4.",
   "Remove this link to {name}? Anyone who has it can no longer open the map. The map stays on your account.": "{name} \uB9F5\uC758 \uC774 \uB9C1\uD06C\uB97C \uC81C\uAC70\uD560\uAE4C\uC694? \uB9C1\uD06C\uB97C \uAC00\uC9C4 \uC0AC\uB78C\uC740 \uB354 \uC774\uC0C1 \uB9F5\uC744 \uC5F4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uB9F5\uC740 \uACC4\uC815\uC5D0 \uADF8\uB300\uB85C \uB0A8\uC2B5\uB2C8\uB2E4.",
   "Remove {n, plural, one {# doodad} other {# doodads}} {list}": "\uC7A5\uC2DD\uBB3C {n}\uAC1C \uC81C\uAC70 {list}",
   "Remove {n, plural, one {# location} other {# locations}} {list}": "\uB85C\uCF00\uC774\uC158 {n}\uAC1C \uC81C\uAC70 {list}",
   "Remove {n, plural, one {# sprite} other {# sprites}}": "\uC2A4\uD504\uB77C\uC774\uD2B8 {n}\uAC1C \uC81C\uAC70",
   "Remove {n, plural, one {# trigger} other {# triggers}} {list}": "\uD2B8\uB9AC\uAC70 {n}\uAC1C \uC81C\uAC70 {list}",
   "Remove {n, plural, one {# unit} other {# units}} {list}": "\uC720\uB2DB {n}\uAC1C \uC81C\uAC70 {list}",
+  "Removing\u2026": "\uC81C\uAC70\uD558\uB294 \uC911\u2026",
   "Rename": "\uC774\uB984 \uBC14\uAFB8\uAE30",
   "Rename map": "\uB9F5 \uC774\uB984 \uBC14\uAFB8\uAE30",
   "Renamed.": "\uC774\uB984\uC744 \uBC14\uAFE8\uC2B5\uB2C8\uB2E4.",
@@ -458,6 +473,11 @@ var KO = {
   "Replace the shared map with revision #{n}? Everyone in it gets #{n} at once, and everyone's undo history starts again, as after a resize. The map as it is now is not kept unless you save it first.": "\uACF5\uC720 \uB9F5\uC744 #{n} \uBC84\uC804\uC73C\uB85C \uBC14\uAFC0\uAE4C\uC694? \uC548\uC5D0 \uC788\uB294 \uBAA8\uB450\uC5D0\uAC8C \uC989\uC2DC #{n} \uBC84\uC804\uC774 \uC801\uC6A9\uB418\uACE0, \uD06C\uAE30 \uBCC0\uACBD \uD6C4\uCC98\uB7FC \uBAA8\uB450\uC758 \uC2E4\uD589 \uCDE8\uC18C \uAE30\uB85D\uC774 \uCC98\uC74C\uBD80\uD130 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uBA3C\uC800 \uC800\uC7A5\uD558\uC9C0 \uC54A\uC73C\uBA74 \uC9C0\uAE08\uC758 \uB9F5\uC740 \uB0A8\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "Replace the shared map with this revision, for everyone in it": "\uACF5\uC720 \uB9F5\uC744 \uC774 \uBC84\uC804\uC73C\uB85C \uBC14\uAFC9\uB2C8\uB2E4. \uC548\uC5D0 \uC788\uB294 \uBAA8\uB450\uC5D0\uAC8C \uC801\uC6A9\uB429\uB2C8\uB2E4",
   "Replace trigger #{n}": "\uD2B8\uB9AC\uAC70 #{n} \uAD50\uCCB4",
+  "Replay deleted.": "\uB9AC\uD50C\uB808\uC774\uB97C \uC0AD\uC81C\uD588\uC2B5\uB2C8\uB2E4.",
+  "Replay link": "\uB9AC\uD50C\uB808\uC774 \uB9C1\uD06C",
+  "Replays": "\uB9AC\uD50C\uB808\uC774",
+  "Replays open in the Aftermath plugin, which is not running in this editor. Turn it on under Plugins \u25B8 Manage Plugins\u2026 and open the link again, or save the replay and open it later.": "\uB9AC\uD50C\uB808\uC774\uB294 Aftermath \uD50C\uB7EC\uADF8\uC778\uC5D0\uC11C \uC5F4\uB9AC\uB294\uB370, \uC774 \uD3B8\uC9D1\uAE30\uC5D0\uC11C\uB294 \uC2E4\uD589 \uC911\uC774 \uC544\uB2D9\uB2C8\uB2E4. \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uACE0 \uB9C1\uD06C\uB97C \uB2E4\uC2DC \uC5F4\uAC70\uB098, \uB9AC\uD50C\uB808\uC774\uB97C \uC800\uC7A5\uD574 \uB450\uC5C8\uB2E4\uAC00 \uB098\uC911\uC5D0 \uC5EC\uC138\uC694.",
+  "Replays you upload show up here. Each can have a link that anyone can watch it with in their editor, without signing in.": "\uC62C\uB9B0 \uB9AC\uD50C\uB808\uC774\uAC00 \uC5EC\uAE30\uC5D0 \uB098\uC635\uB2C8\uB2E4. \uB9AC\uD50C\uB808\uC774\uB9C8\uB2E4 \uB9C1\uD06C\uB97C \uB9CC\uB4E4 \uC218 \uC788\uACE0, \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC790\uAE30 \uD3B8\uC9D1\uAE30\uC5D0\uC11C \uADF8 \uB9C1\uD06C\uB85C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
   "Resize Map": "\uB9F5 \uD06C\uAE30 \uBCC0\uACBD",
   "Resize the map to {width} \xD7 {height}": "\uB9F5 \uD06C\uAE30\uB97C {width} \xD7 {height|\uB85C} \uBCC0\uACBD",
   "Review": "\uAC80\uD1A0",
@@ -482,6 +502,7 @@ var KO = {
   "Save as": "\uC800\uC7A5 \uC704\uCE58",
   "Save revision #{n} as a file": "#{n} \uBC84\uC804\uC744 \uD30C\uC77C\uB85C \uC800\uC7A5\uD569\uB2C8\uB2E4",
   "Save the open map here\u2026": "\uC5F4\uB9B0 \uB9F5\uC744 \uC5EC\uAE30\uC5D0 \uC800\uC7A5\u2026",
+  "Save the replay\u2026": "\uB9AC\uD50C\uB808\uC774 \uC800\uC7A5\u2026",
   "Save to scmjs.dev": "scmjs.dev\uC5D0 \uC800\uC7A5",
   "Save to scmjs.dev\u2026": "scmjs.dev\uC5D0 \uC800\uC7A5\u2026",
   "Saved as {name} #{n}. Anyone with this link can open a copy of it in their editor, without signing in:": "{name} #{n} \uBC84\uC804\uC73C\uB85C \uC800\uC7A5\uD588\uC2B5\uB2C8\uB2E4. \uC774 \uB9C1\uD06C\uAC00 \uC788\uC73C\uBA74 \uB204\uAD6C\uB098 \uB85C\uADF8\uC778 \uC5C6\uC774 \uC790\uAE30 \uC5D0\uB514\uD130\uC5D0\uC11C \uC0AC\uBCF8\uC744 \uC5F4 \uC218 \uC788\uC2B5\uB2C8\uB2E4:",
@@ -602,6 +623,7 @@ var KO = {
   "Terrain and locations ({preset} preset)": "\uC9C0\uD615\uACFC \uB85C\uCF00\uC774\uC158 ({preset} \uD504\uB9AC\uC14B)",
   "That is not a map link.": "\uB9F5 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
   "That is not a shared map's link.": "\uACF5\uC720 \uB9F5\uC758 \uB9C1\uD06C\uAC00 \uC544\uB2D9\uB2C8\uB2E4.",
+  "That replay is already on your account.": "\uADF8 \uB9AC\uD50C\uB808\uC774\uB294 \uC774\uBBF8 \uACC4\uC815\uC5D0 \uC788\uC2B5\uB2C8\uB2E4.",
   "The TrigScript plugin is off. Turn it on under Plugins \u25B8 Manage Plugins\u2026 to write, check or build trigger scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD2B8\uB9AC\uAC70 \uC2A4\uD06C\uB9BD\uD2B8\uB97C \uC4F0\uAC70\uB098 \uAC80\uC0AC\uD558\uAC70\uB098 \uBE4C\uB4DC\uD558\uB824\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
   "The TrigScript plugin is on: systems the toolkit cannot build are written as scripts.": "TrigScript \uD50C\uB7EC\uADF8\uC778\uC774 \uCF1C\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uD234\uD0B7\uC774 \uB9CC\uB4E4 \uC218 \uC5C6\uB294 \uC2DC\uC2A4\uD15C\uC740 \uC2A4\uD06C\uB9BD\uD2B8\uB85C \uC791\uC131\uD569\uB2C8\uB2E4.",
   "The Trigger Script plugin is off: the design will use only the toolkit's systems (hyper triggers, spawns, kill-to-cash, waves, lives, shops, \u2026). Turn it on under Plugins \u25B8 Manage Plugins\u2026 for custom mechanics.": "Trigger Script \uD50C\uB7EC\uADF8\uC778\uC774 \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4. \uC124\uACC4\uB294 \uD234\uD0B7\uC758 \uC2DC\uC2A4\uD15C(\uD558\uC774\uD37C \uD2B8\uB9AC\uAC70, \uC2A4\uD3F0, \uD0AC \uBCF4\uC0C1, \uC6E8\uC774\uBE0C, \uBAA9\uC228, \uC0C1\uC810 \uB4F1)\uB9CC \uC501\uB2C8\uB2E4. \uC9C1\uC811 \uB9CC\uB4E0 \uADDC\uCE59\uC774 \uD544\uC694\uD558\uBA74 \uD50C\uB7EC\uADF8\uC778 \u25B8 \uD50C\uB7EC\uADF8\uC778 \uAD00\uB9AC\u2026\uC5D0\uC11C \uCF1C\uC138\uC694.",
@@ -615,6 +637,7 @@ var KO = {
   "The first AI request starts a free trial with no sign-in. Signing in keeps the balance across browsers and adds the sign-in credit; the Account dialog has the balance, the top-up and the activity.": "\uCCAB AI \uC694\uCCAD\uC744 \uD558\uBA74 \uB85C\uADF8\uC778 \uC5C6\uC774 \uBB34\uB8CC \uCCB4\uD5D8\uC774 \uC2DC\uC791\uB429\uB2C8\uB2E4. \uB85C\uADF8\uC778\uD558\uBA74 \uC794\uC561\uC774 \uBE0C\uB77C\uC6B0\uC800 \uC0AC\uC774\uC5D0\uC11C \uC720\uC9C0\uB418\uACE0 \uB85C\uADF8\uC778 \uD06C\uB808\uB527\uC774 \uB354\uD574\uC9D1\uB2C8\uB2E4. \uC794\uC561, \uCDA9\uC804, \uC0AC\uC6A9 \uB0B4\uC5ED\uC740 \uACC4\uC815 \uB300\uD654 \uC0C1\uC790\uC5D0 \uC788\uC2B5\uB2C8\uB2E4.",
   "The link always opens this revision.": "\uC774 \uB9C1\uD06C\uB294 \uD56D\uC0C1 \uC774 \uBC84\uC804\uC744 \uC5FD\uB2C8\uB2E4.",
   "The link is on the clipboard.": "\uB9C1\uD06C\uB97C \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.",
+  "The link is {link}": "\uB9C1\uD06C: {link}",
   "The link opens whichever revision is newest when it is opened.": "\uC774 \uB9C1\uD06C\uB294 \uC5F4 \uB54C \uAC00\uC7A5 \uCD5C\uC2E0\uC778 \uBC84\uC804\uC744 \uC5FD\uB2C8\uB2E4.",
   "The map could not be copied.": "\uB9F5\uC744 \uBCF5\uC0AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
   "The map in front changed while the scenario was being built, so the build stopped there: nothing is written into a map it did not start on. Bring the map back to the front and build again; what was built stays.": "\uC2DC\uB098\uB9AC\uC624\uB97C \uBE4C\uB4DC\uD558\uB294 \uB3D9\uC548 \uC55E\uC5D0 \uC788\uB294 \uB9F5\uC774 \uBC14\uB00C\uC5B4\uC11C \uBE4C\uB4DC\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4. \uBE4C\uB4DC\uB97C \uC2DC\uC791\uD558\uC9C0 \uC54A\uC740 \uB9F5\uC5D0\uB294 \uC544\uBB34\uAC83\uB3C4 \uC801\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uADF8 \uB9F5\uC744 \uB2E4\uC2DC \uC55E\uC73C\uB85C \uAC00\uC838\uC640 \uBE4C\uB4DC\uD558\uC138\uC694. \uC774\uBBF8 \uBE4C\uB4DC\uD55C \uAC83\uC740 \uB0A8\uC544 \uC788\uC2B5\uB2C8\uB2E4.",
@@ -645,6 +668,7 @@ var KO = {
   "The picture on its own": "\uADF8\uB9BC\uB9CC",
   "The picture opens": "\uADF8\uB9BC\uC774 \uC5EC\uB294 \uAC83",
   "The plan": "\uACC4\uD68D",
+  "The replay could not be opened. {reason}": "\uB9AC\uD50C\uB808\uC774\uB97C \uC5F4 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. {reason}",
   "The revised plan replaces the applied one: the previous render is undone first when nothing else was edited in between.": "\uACE0\uCE5C \uACC4\uD68D\uC774 \uC801\uC6A9\uB41C \uACC4\uD68D\uC744 \uB300\uC2E0\uD569\uB2C8\uB2E4. \uADF8 \uC0AC\uC774\uC5D0 \uB2E4\uB978 \uD3B8\uC9D1\uC774 \uC5C6\uC5C8\uB2E4\uBA74 \uC774\uC804 \uACB0\uACFC\uB97C \uBA3C\uC800 \uC2E4\uD589 \uCDE8\uC18C\uD569\uB2C8\uB2E4.",
   "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second and the hyper triggers in the list are left out.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC148\uD558\uACE0, \uBAA9\uB85D\uC758 \uD558\uC774\uD37C \uD2B8\uB9AC\uAC70\uB294 \uBE60\uC9D1\uB2C8\uB2E4.",
   "The saved map is built by eudplib and needs Remastered. Every trigger runs each frame, so timers are counted at about 24 cycles a second.": "\uC800\uC7A5\uD55C \uB9F5\uC740 eudplib\uB85C \uBE4C\uB4DC\uB418\uBA70 \uB9AC\uB9C8\uC2A4\uD130\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4. \uBAA8\uB4E0 \uD2B8\uB9AC\uAC70\uAC00 \uB9E4 \uD504\uB808\uC784 \uC2E4\uD589\uB418\uBBC0\uB85C \uD0C0\uC774\uBA38\uB294 \uCD08\uB2F9 \uC57D 24\uD68C\uB85C \uC149\uB2C8\uB2E4.",
@@ -672,7 +696,9 @@ var KO = {
   "There are no triggers to explain.": "\uC124\uBA85\uD560 \uD2B8\uB9AC\uAC70\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
   "These systems belong to the map the scenario was built on; bring it to the front first.": "\uC774 \uC2DC\uC2A4\uD15C\uB4E4\uC740 \uC2DC\uB098\uB9AC\uC624\uB97C \uBE4C\uB4DC\uD55C \uB9F5\uC758 \uAC83\uC785\uB2C8\uB2E4. \uBA3C\uC800 \uADF8 \uB9F5\uC744 \uC55E\uC73C\uB85C \uAC00\uC838\uC624\uC138\uC694.",
   "Thinking": "\uC0DD\uAC01\uD558\uB294 \uC911",
+  "This browser cannot hand the replay to the replay viewer. Save it, then drop it on the editor or open it with File \u25B8 Open Replay\u2026.": "\uC774 \uBE0C\uB77C\uC6B0\uC800\uC5D0\uC11C\uB294 \uB9AC\uD50C\uB808\uC774\uB97C \uB9AC\uD50C\uB808\uC774 \uBDF0\uC5B4\uB85C \uB118\uAE38 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uC800\uC7A5\uD55C \uB2E4\uC74C \uD3B8\uC9D1\uAE30\uC5D0 \uB04C\uC5B4 \uB193\uAC70\uB098 \uD30C\uC77C \u25B8 \uB9AC\uD50C\uB808\uC774 \uC5F4\uAE30\u2026\uB85C \uC5EC\uC138\uC694.",
   "This feature is turned off on the server for now.": "\uC774 \uAE30\uB2A5\uC740 \uC9C0\uAE08 \uC11C\uBC84\uC5D0\uC11C \uAEBC\uC838 \uC788\uC2B5\uB2C8\uB2E4.",
+  "This replay link no longer works: the replay was deleted, or its link was removed. The editor is here as usual.": "\uC774 \uB9AC\uD50C\uB808\uC774 \uB9C1\uD06C\uB294 \uB354 \uC774\uC0C1 \uC791\uB3D9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uB9AC\uD50C\uB808\uC774\uAC00 \uC0AD\uC81C\uB418\uC5C8\uAC70\uB098 \uB9C1\uD06C\uAC00 \uC81C\uAC70\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uD3B8\uC9D1\uAE30\uB294 \uD3C9\uC18C\uCC98\uB7FC \uC4F8 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
   "This server has no pictures for shared maps yet.": "\uC774 \uC11C\uBC84\uB294 \uC544\uC9C1 \uACF5\uC720 \uB9F5 \uADF8\uB9BC\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "This server has no shared map editing.": "\uC774 \uC11C\uBC84\uB294 \uACF5\uC720 \uB9F5 \uD3B8\uC9D1\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "This server keeps no maps.": "\uC774 \uC11C\uBC84\uB294 \uB9F5\uC744 \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
@@ -710,6 +736,9 @@ var KO = {
   "Until you end it": "\uC9C1\uC811 \uB05D\uB0BC \uB54C\uAE4C\uC9C0",
   "Upgrade Settings": "\uC5C5\uADF8\uB808\uC774\uB4DC \uC124\uC815",
   "Upgrade settings for {upgrade}: {fields}": "{upgrade} \uC5C5\uADF8\uB808\uC774\uB4DC \uC124\uC815: {fields}",
+  "Upload a replay\u2026": "\uB9AC\uD50C\uB808\uC774 \uC62C\uB9AC\uAE30\u2026",
+  "Uploaded {date}": "{date}\uC5D0 \uC62C\uB9BC",
+  "Uploaded {name}.": "{name} \uC62C\uB9BC.",
   "Uploading\u2026": "\uC62C\uB9AC\uB294 \uC911\u2026",
   "Use the AI features": "AI \uAE30\uB2A5 \uC0AC\uC6A9",
   "Use the AI features (Tools \u25B8 AI, the assistant, the AI buttons in the editor's dialogs)": "AI \uAE30\uB2A5 \uC0AC\uC6A9 (\uB3C4\uAD6C \u25B8 AI, \uC5B4\uC2DC\uC2A4\uD134\uD2B8, \uC5D0\uB514\uD130 \uB300\uD654 \uC0C1\uC790\uC758 AI \uBC84\uD2BC)",
@@ -719,6 +748,7 @@ var KO = {
   "Waiting for the server\u2026": "\uC11C\uBC84\uB97C \uAE30\uB2E4\uB9AC\uB294 \uC911\u2026",
   "Waiting for {provider}\u2026": "{provider} \uB85C\uADF8\uC778\uC744 \uAE30\uB2E4\uB9AC\uB294 \uC911\u2026",
   "Walk through what these triggers do in play": "\uAC8C\uC784\uC5D0\uC11C \uC774 \uD2B8\uB9AC\uAC70\uB4E4\uC774 \uD558\uB294 \uC77C\uC744 \uCC28\uB840\uB85C \uC124\uBA85\uD569\uB2C8\uB2E4",
+  "Watch it in the replay viewer": "\uB9AC\uD50C\uB808\uC774 \uBDF0\uC5B4\uC5D0\uC11C \uBCF4\uAE30",
   "What": "\uB0B4\uC6A9",
   "What changed, or what this version is for (optional)": "\uBB34\uC5C7\uC774 \uBC14\uB00C\uC5C8\uB294\uC9C0, \uB610\uB294 \uC774 \uBC84\uC804\uC758 \uC6A9\uB3C4 (\uC120\uD0DD)",
   "What kind of map? Say how many players, the feel of the terrain, where the bases go, anything the layout should have.": "\uC5B4\uB5A4 \uB9F5\uC778\uAC00\uC694? \uD50C\uB808\uC774\uC5B4 \uC218, \uC9C0\uD615\uC758 \uB290\uB08C, \uAE30\uC9C0 \uC704\uCE58 \uB4F1 \uBC30\uCE58\uC5D0 \uB4E4\uC5B4\uAC00\uC57C \uD560 \uAC83\uC744 \uC801\uC73C\uC138\uC694.",
@@ -830,9 +860,11 @@ var KO = {
   "over {list}": "\uB36E\uC740 \uAC83: {list}",
   "owner {n}": "\uC18C\uC720\uC790 {n}",
   "picture": "\uADF8\uB9BC",
+  "played {date}": "{date} \uD50C\uB808\uC774",
   "problem": "\uBB38\uC81C",
   "properties": "\uC18D\uC131",
   "refills {day}": "{day} \uCDA9\uC804",
+  "replay": "\uB9AC\uD50C\uB808\uC774",
   "revision #{n}": "\uBC84\uC804 #{n}",
   "round {n}": "{n}\uBC88\uC9F8 \uB77C\uC6B4\uB4DC",
   "scmjs.dev Account": "scmjs.dev \uACC4\uC815",
@@ -1043,6 +1075,9 @@ function msg(text) {
 }
 function translate(text, params) {
   return t(text, params);
+}
+function language() {
+  return bound?.i18n.language ?? "en";
 }
 function matchBrace(s, open) {
   let depth = 0;
@@ -1460,6 +1495,53 @@ var ScmjsClient = class {
     if (!res.ok) throw await errorOf(res);
     const bytes = new Uint8Array(await res.arrayBuffer());
     return { bytes, fileName: fileNameFrom(res.headers.get("content-disposition")) ?? "map.scx" };
+  }
+  /* ── Replays ─────────────────────────────────────────── */
+  /** `GET /v1/replays`: the account's replays, newest upload first. */
+  listReplays(signal) {
+    return this.request("/v1/replays", { signal });
+  }
+  /**
+   * `POST /v1/replays`: keep a `.rep` on the account (the server reads its header and refuses
+   * what is not a replay). The same bytes again answer the replay already kept, `existing`.
+   * With `link`, the answer carries the replay's first link, made if it has none.
+   */
+  uploadReplay(bytes, fields, signal) {
+    const fd = new FormData();
+    fd.append("file", bytes instanceof Blob ? bytes : new Blob([bytes], { type: "application/octet-stream" }), fields.fileName);
+    fd.append("fileName", fields.fileName);
+    if (fields.note) fd.append("note", fields.note);
+    if (fields.link) fd.append("link", "1");
+    return this.request("/v1/replays", { method: "POST", body: fd, signal });
+  }
+  deleteReplay(id) {
+    return this.request(`/v1/replays/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  /** `GET /v1/replays/:id/file`: the owner's own copy. */
+  replayFile(id, signal) {
+    return this.file(`/v1/replays/${encodeURIComponent(id)}/file`, this.headers(), signal);
+  }
+  /** `POST /v1/replays/:id/links`: a link anyone can watch the replay with. */
+  createReplayLink(id) {
+    return this.request(`/v1/replays/${encodeURIComponent(id)}/links`, { method: "POST", json: {} });
+  }
+  deleteReplayLink(id, token) {
+    return this.request(`/v1/replays/${encodeURIComponent(id)}/links/${encodeURIComponent(token)}`, { method: "DELETE" });
+  }
+  /** `GET /v1/replay-links/:token`: what a replay link opens. Needs no sign-in, and sends none. */
+  async linkedReplay(token, signal) {
+    let res;
+    try {
+      res = await this.fetchImpl(`${this.base()}/v1/replay-links/${encodeURIComponent(token)}`, { signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) throw await errorOf(res);
+    return await res.json();
+  }
+  /** `GET /v1/replay-links/:token/file`: the replay a link opens. */
+  linkedReplayFile(token, signal) {
+    return this.file(`/v1/replay-links/${encodeURIComponent(token)}/file`, {}, signal);
   }
   /* ── Recipes ──────────────────────────────────────────── */
   /** Run one recipe, streaming events to the hooks; resolves with the output and what it cost. */
@@ -6745,9 +6827,9 @@ function indexTriggers(rows, budget = TRIGGERS_BLOCK_CHARS) {
   const groups = [...shapes.values()];
   const line = (g, width) => {
     const r = g.first;
-    const where3 = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
+    const where4 = g.at.length === 1 ? `#${r.index}` : `#${g.at.slice(0, 6).join(", ")}${g.at.length > 6 ? ", \u2026" : ""} (${g.at.length} of this shape)`;
     const body = `${r.comment ? `"${r.comment}": ` : ""}[${r.players}] ${r.conditions || "Always()"} -> ${foldItems(r.actions)}`;
-    return `${where3} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
+    return `${where4} ${body.length > width ? `${body.slice(0, width - 1)}\u2026` : body}`;
   };
   const head = `${rows.length} triggers in ${groups.length} shapes; a line is one shape \u2014 triggers that differ only by player or number \u2014 with the first one's text and the numbers of the rest:`;
   for (const width of [400, 240, 160]) {
@@ -11900,8 +11982,8 @@ function installAi(deps) {
     label: (c2) => c2.markedArea ? t("Ask AI about this area\u2026") : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? t("Ask AI about the selection\u2026") : t("Ask AI about this spot\u2026"),
     enabled: open,
     run: (c2) => {
-      const where3 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
-      showAssistant().ask(`About ${where3}: `, false);
+      const where4 = c2.markedArea ? `the marked area, tiles ${Math.min(c2.markedArea.x0, c2.markedArea.x1)},${Math.min(c2.markedArea.y0, c2.markedArea.y1)} to ${Math.max(c2.markedArea.x0, c2.markedArea.x1)},${Math.max(c2.markedArea.y0, c2.markedArea.y1)}` : api.selection.units().length || api.selection.locations().length || api.selection.sprites().length || api.selection.doodads().length ? "what I have selected" : c2.tile ? `the spot at tile ${c2.tile.x},${c2.tile.y}` : "here";
+      showAssistant().ask(`About ${where4}: `, false);
     }
   }));
   out.push(api.hotkeys.add("Ctrl+Shift+A", { command: "assistant" }));
@@ -12024,6 +12106,12 @@ var STYLE2 = `
 .sd .sd-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .sd .sd-hero { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
 .sd .sd-thumb.sd-thumb-big { width: 112px; height: 112px; }
+.sd.sd-fill > .sd-replays { flex: 1; }
+.sd .sd-replays .sd-map { cursor: default; }
+.sd .sd-replays .sd-map:hover { background: none; }
+.sd .sd-replays .sd-thumb span { font-size: 15px; font-weight: 600; color: var(--text-dim, #99a2b3); }
+.sd .sd-replays .sd-btns { margin-top: 5px; }
+.sd .sd-toolbar .sd-showing { flex: none; width: auto; }
 .sd .sd-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sd .sd-hero-text .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
 .sd .sd-title { font-size: 16px; font-weight: 600; color: var(--gold, #e6b95c); }
@@ -12076,22 +12164,25 @@ function ago(iso, now = Date.now()) {
 // share/link.ts
 var WEB_EDITOR_URL = "https://scmjs.dev/editor/";
 var INVITE = /^[A-Za-z0-9_-]{16,64}$/;
-var LINK_PATH = /^(.*\/)(share|map)\/([A-Za-z0-9_-]{16,64})\/?$/;
+var LINK_PATH = /^(.*\/)(share|map|replay)\/([A-Za-z0-9_-]{16,64})\/?$/;
 function editorBase(pathname) {
   const m = LINK_PATH.exec(pathname);
   if (m) return m[1];
   return pathname.replace(/[^/]*$/, "") || "/";
 }
-function linkTo(kind, token, serverUrl, where3) {
-  const base = where3 && (where3.protocol === "http:" || where3.protocol === "https:") ? `${where3.origin}${editorBase(where3.pathname)}` : WEB_EDITOR_URL;
+function linkTo(kind, token, serverUrl, where4) {
+  const base = where4 && (where4.protocol === "http:" || where4.protocol === "https:") ? `${where4.origin}${editorBase(where4.pathname)}` : WEB_EDITOR_URL;
   const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
   return `${base}${kind}/${token}${query}`;
 }
-function inviteLink(invite, serverUrl, where3) {
-  return linkTo("share", invite, serverUrl, where3);
+function inviteLink(invite, serverUrl, where4) {
+  return linkTo("share", invite, serverUrl, where4);
 }
-function copyLink(token, serverUrl, where3) {
-  return linkTo("map", token, serverUrl, where3);
+function copyLink(token, serverUrl, where4) {
+  return linkTo("map", token, serverUrl, where4);
+}
+function replayLink(token, serverUrl, where4) {
+  return linkTo("replay", token, serverUrl, where4);
 }
 function inviteFrom(text) {
   const t2 = text.trim();
@@ -12112,6 +12203,10 @@ function inviteOnPage(pathname) {
 function copyTokenOnPage(pathname) {
   const m = LINK_PATH.exec(pathname);
   return m?.[2] === "map" ? m[3] : null;
+}
+function replayTokenOnPage(pathname) {
+  const m = LINK_PATH.exec(pathname);
+  return m?.[2] === "replay" ? m[3] : null;
 }
 function forgetLinkOnPage() {
   if (typeof history === "undefined" || typeof location === "undefined") return;
@@ -12597,6 +12692,234 @@ function openAccountDialog(ctx) {
   });
 }
 
+// replays.ts
+var VIEWER_COMMAND = "aftermath.open-replay";
+var VIEWER_WAIT_MS = 2e4;
+var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+function replayAddress(ctx, token) {
+  return replayLink(token, ctx.account.serverUrl(), where());
+}
+function formatLength(sec) {
+  const s = Math.max(0, Math.round(sec));
+  const hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
+  const two = (n2) => String(n2).padStart(2, "0");
+  return hh ? `${hh}:${two(mm)}:${two(ss)}` : `${mm}:${two(ss)}`;
+}
+var LETTER = { zerg: "Z", terran: "T", protoss: "P" };
+function playersLine(f) {
+  const one = (p) => `${p.name} (${p.race ? LETTER[p.race] : "?"})`;
+  const teams = [...new Set(f.players.map((p) => p.team))].sort((a2, b) => a2 - b);
+  if (teams.length <= 1) return f.players.map(one).join(" vs ");
+  return teams.map((team) => f.players.filter((p) => p.team === team).map(one).join(" & ")).join(" vs ");
+}
+function factsLine(f) {
+  const when = f.playedAt ? t("played {date}", { date: new Date(f.playedAt).toLocaleDateString(language(), { day: "numeric", month: "short", year: "numeric" }) }) : "";
+  return [f.matchup, formatLength(f.durationSec), f.gameTypeName, when].filter(Boolean).join(" \xB7 ");
+}
+async function openAsDropped(ctx, bytes, fileName, waitMs = VIEWER_WAIT_MS) {
+  const { api } = ctx;
+  const until = Date.now() + waitMs;
+  while (!api.commands.has(VIEWER_COMMAND)) {
+    if (Date.now() >= until) return "no-viewer";
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  let event;
+  try {
+    const data = new DataTransfer();
+    data.items.add(new File([bytes], fileName, { type: "application/octet-stream" }));
+    event = new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: data });
+  } catch {
+    return "no-drop";
+  }
+  document.dispatchEvent(event);
+  return "opened";
+}
+async function noViewer(ctx, bytes, fileName, reason) {
+  const { api } = ctx;
+  const message = reason === "no-viewer" ? t("Replays open in the Aftermath plugin, which is not running in this editor. Turn it on under Plugins \u25B8 Manage Plugins\u2026 and open the link again, or save the replay and open it later.") : t("This browser cannot hand the replay to the replay viewer. Save it, then drop it on the editor or open it with File \u25B8 Open Replay\u2026.");
+  if (await api.ui.confirm(message, { title: t("Open the replay"), confirmLabel: t("Save the replay\u2026") })) {
+    const out = await api.ui.saveFile(bytes, fileName);
+    if (out) api.ui.toast({ kind: "ok", title: t("Saved {name}.", { name: out.fileName }) });
+  }
+}
+async function openReplay(ctx, bytes, facts) {
+  const done = await openAsDropped(ctx, bytes, facts.fileName);
+  if (done !== "opened") {
+    await noViewer(ctx, bytes, facts.fileName, done);
+    return false;
+  }
+  ctx.api.ui.toast({ kind: "ok", title: t("Opened the replay: {players}", { players: playersLine(facts) }), detail: `${facts.mapName} \xB7 ${factsLine(facts)}` });
+  return true;
+}
+async function openReplayLink(ctx, token) {
+  const { api, account } = ctx;
+  let found;
+  try {
+    found = (await account.client.linkedReplay(token)).replay;
+  } catch (err) {
+    if (err instanceof ScmjsError && err.code === "not_found") {
+      await api.ui.alert(t("This replay link no longer works: the replay was deleted, or its link was removed. The editor is here as usual."), { title: t("Replay link") });
+    } else {
+      await api.ui.alert(t("The replay could not be opened. {reason}", { reason: describeError(err) }), { title: t("Replay link") });
+    }
+    return;
+  }
+  const progress = api.ui.progress(t("Downloading the replay\u2026"));
+  let bytes;
+  try {
+    bytes = (await account.client.linkedReplayFile(token)).bytes;
+  } catch (err) {
+    await api.ui.alert(t("The replay could not be opened. {reason}", { reason: describeError(err) }), { title: t("Replay link") });
+    return;
+  } finally {
+    progress.done();
+  }
+  await openReplay(ctx, bytes, found);
+}
+function replaysPart(ctx, dialogClose, say, noteStorage) {
+  const { api, account } = ctx;
+  const w = api.ui.widgets;
+  const client = account.client;
+  const box = h2("div", { className: "sd-pane sd-maps sd-replays" });
+  let replays = [];
+  let loading = null;
+  const busy = async (row2, label, work) => {
+    const cover = w.busy(row2, label);
+    try {
+      await work();
+    } catch (err) {
+      say(describeError(err), "error");
+    } finally {
+      cover.done();
+    }
+  };
+  const replace = (r) => {
+    const i = replays.findIndex((x) => x.id === r.id);
+    if (i >= 0) replays[i] = r;
+    else replays.unshift(r);
+    render();
+  };
+  const copy = async (text, done) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      say(done, "ok");
+    } catch {
+      say(t("The link is {link}", { link: text }), "ok");
+    }
+  };
+  const row = (r) => {
+    const el = h2("div", { className: "sd-map sd-replay", "data-id": r.id });
+    const link = r.links[0] ?? null;
+    const open = w.button(t("Open"), { primary: true, title: t("Watch it in the replay viewer"), onClick: () => void busy(el, t("Downloading\u2026"), async () => {
+      const { bytes } = await client.replayFile(r.id);
+      if (await openReplay(ctx, bytes, r)) dialogClose();
+    }) });
+    const copyLink2 = w.button(link ? t("Copy link") : t("Make a link"), { title: t("A link anyone can watch this replay with, without signing in"), onClick: () => void busy(el, t("Making the link\u2026"), async () => {
+      if (link) {
+        await copy(replayAddress(ctx, link.token), t("The link is on the clipboard."));
+        return;
+      }
+      const res = await client.createReplayLink(r.id);
+      replace(res.replay);
+      await copy(replayAddress(ctx, res.link.token), t("Link made and copied."));
+    }) });
+    const unlink = link ? w.button(t("Remove link"), { ghost: true, onClick: async () => {
+      if (!await api.ui.confirm(t("Remove the link to this replay? Anyone who has it can no longer open it. The replay stays on your account."), { title: t("Remove link"), confirmLabel: t("Remove"), danger: true })) return;
+      await busy(el, t("Removing\u2026"), async () => {
+        let res = null;
+        for (const l of r.links) res = await client.deleteReplayLink(r.id, l.token);
+        if (res) {
+          noteStorage(res.storage);
+          replace(res.replay);
+        }
+        say(t("Link removed."), "ok");
+      });
+    } }) : null;
+    const del = w.button(t("Delete"), { ghost: true, danger: true, onClick: async () => {
+      const question = link ? t("Delete this replay from the account? Its link stops working too.") : t("Delete this replay from the account?");
+      if (!await api.ui.confirm(question, { title: t("Delete replay"), confirmLabel: t("Delete"), danger: true })) return;
+      await busy(el, t("Deleting\u2026"), async () => {
+        const res = await client.deleteReplay(r.id);
+        noteStorage(res.storage);
+        replays = replays.filter((x) => x.id !== r.id);
+        render();
+        say(t("Replay deleted."), "ok");
+      });
+    } });
+    const opens = r.links.reduce((n2, l) => n2 + l.opens, 0);
+    el.append(
+      h2("div", { className: "sd-thumb" }, h2("span", null, r.matchup || t("replay"))),
+      h2(
+        "div",
+        { className: "sd-map-text" },
+        h2(
+          "div",
+          { className: "sd-name-row" },
+          h2("span", { className: "sd-name", title: r.mapName }, r.mapName),
+          h2("span", { className: "sd-when", title: t("Uploaded {date}", { date: formatDate(r.uploadedAt) }) }, ago(r.uploadedAt))
+        ),
+        h2("div", { className: "sd-sub" }, playersLine(r)),
+        h2("div", { className: "sd-sub" }, `${factsLine(r)} \xB7 ${formatBytes(r.sizeBytes)}`),
+        r.note ? h2("div", { className: "sd-sub" }, r.note) : null,
+        link ? h2("div", { className: "sd-badge" }, t("Linked \xB7 opened {n}\xD7", { n: opens })) : null,
+        h2("div", { className: "sd-btns" }, open, copyLink2, unlink, del)
+      )
+    );
+    return el;
+  };
+  const render = () => {
+    clear2(box);
+    if (!replays.length) {
+      box.append(h2(
+        "div",
+        { className: "sd-empty-state" },
+        h2("div", { className: "sd-empty-title" }, t("No replays yet")),
+        h2("div", { className: "sd-hint" }, t("Replays you upload show up here. Each can have a link that anyone can watch it with in their editor, without signing in.")),
+        w.button(t("Upload a replay\u2026"), { primary: true, onClick: () => void pick() })
+      ));
+      return;
+    }
+    for (const r of replays) box.append(row(r));
+  };
+  const pick = async () => {
+    const [file] = await api.ui.pickFiles({ accept: ".rep" });
+    if (!file) return;
+    const cover = w.busy(box, t("Uploading\u2026"));
+    try {
+      const res = await client.uploadReplay(file, { fileName: file.name });
+      noteStorage(res.storage);
+      replace(res.replay);
+      say(res.existing ? t("That replay is already on your account.") : t("Uploaded {name}.", { name: res.replay.fileName }), "ok");
+    } catch (err) {
+      say(describeError(err), "error");
+    } finally {
+      cover.done();
+    }
+  };
+  const load = async () => {
+    loading?.abort();
+    const ac = loading = new AbortController();
+    clear2(box);
+    box.append(w.skeleton({ lines: 4 }));
+    try {
+      const r = await client.listReplays(ac.signal);
+      replays = r.replays;
+      noteStorage(r.storage);
+      render();
+    } catch (err) {
+      if (err instanceof ScmjsError && err.code === "aborted") return;
+      clear2(box);
+      box.append(h2("div", { className: "sd-empty-list" }, h2("div", { className: "sd-bad" }, describeError(err)), w.button(t("Try again"), { onClick: () => void load() })));
+    }
+  };
+  return {
+    element: box,
+    upload: w.button(t("Upload a replay\u2026"), { title: t("Keep a .rep on your account"), onClick: () => void pick() }),
+    load,
+    abort: () => loading?.abort()
+  };
+}
+
 // maps.ts
 function metaOf(info, stats, players2) {
   const seated = players2.filter((p) => p.typeName === "Human" || p.typeName === "Computer" || p.typeName === "Rescuable" || p.typeName === "Computer (game)" || p.typeName === "Occupied");
@@ -12789,7 +13112,7 @@ function openMapsDialog(ctx, link) {
       const renderList = () => {
         clear2(listBox);
         split.classList.toggle("sd-none", !maps.length);
-        saveHere.hidden = !maps.length;
+        saveHere.hidden = !maps.length || showing?.value === "replays";
         if (!maps.length) {
           listBox.append(h2(
             "div",
@@ -13101,21 +13424,46 @@ function openMapsDialog(ctx, link) {
           }
         }
       };
-      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void load() });
+      let replays = null;
+      const showing = account.state().offers?.replays ? w.select([{ value: "maps", label: t("Maps") }, { value: "replays", label: t("Replays") }], { value: "maps", onChange: () => show() }) : null;
+      showing?.classList.add("sd-showing");
+      const refresh = w.button(t("Refresh"), { ghost: true, title: t("Load the list again"), onClick: () => void (showing?.value === "replays" ? replays?.load() : load()) });
       const saveHere = w.button(t("Save the open map here\u2026"), { disabled: !api.document.isOpen(), onClick: () => {
         dialog.close();
         ctx.saveToCloud();
       } });
+      const bottom = h2("div", { className: "sd-btns" }, saveHere, h2("div", { className: "sd-grow" }, status));
+      const show = () => {
+        const onReplays = showing?.value === "replays";
+        if (onReplays && !replays) {
+          replays = replaysPart(ctx, () => dialog.close(), say, (s) => {
+            account.noteStorage(s);
+            renderStorage(s);
+          });
+          split.after(replays.element);
+          saveHere.after(replays.upload);
+          void replays.load();
+        }
+        split.hidden = onReplays;
+        search.hidden = onReplays;
+        saveHere.hidden = onReplays || !maps.length;
+        if (replays) {
+          replays.element.hidden = !onReplays;
+          replays.upload.hidden = !onReplays;
+        }
+        say("");
+      };
       root2.append(
-        h2("div", { className: "sd-toolbar" }, search, storageBox, refresh),
+        h2("div", { className: "sd-toolbar" }, showing, search, storageBox, refresh),
         split,
-        h2("div", { className: "sd-btns" }, saveHere, h2("div", { className: "sd-grow" }, status))
+        bottom
       );
       void load();
       queueMicrotask(() => search.focus());
       return () => {
         loading?.abort();
         picking?.abort();
+        replays?.abort();
       };
     },
     buttons: [{ label: t("Close"), primary: true }]
@@ -13199,9 +13547,9 @@ function openSaveDialog(ctx, link) {
 }
 
 // copies.ts
-var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+var where2 = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
 function linkAddress(ctx, token) {
-  return copyLink(token, ctx.account.serverUrl(), where());
+  return copyLink(token, ctx.account.serverUrl(), where2());
 }
 function linkField(ctx, address, say) {
   const w = ctx.api.ui.widgets;
@@ -14328,7 +14676,7 @@ function root(body) {
   body.prepend(style);
   return r;
 }
-var where2 = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
+var where3 = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
 function openShareDialog(ctx, controls) {
   const { api, account } = ctx;
   const w = api.ui.widgets;
@@ -14406,7 +14754,7 @@ function openShareDialog(ctx, controls) {
           return;
         }
         if (invite) {
-          const link = w.text({ value: inviteLink(invite, account.serverUrl(), where2()) });
+          const link = w.text({ value: inviteLink(invite, account.serverUrl(), where3()) });
           link.readOnly = true;
           const copy = w.button(t("Copy"), { onClick: async () => {
             try {
@@ -14792,6 +15140,11 @@ function activate(api) {
   if (pageCopy) {
     forgetLinkOnPage();
     openCopy(pageCopy);
+  }
+  const pageReplay = replayTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
+  if (pageReplay) {
+    forgetLinkOnPage();
+    void openReplayLink(ctx, pageReplay);
   }
   let status = null;
   const statusText = () => {

@@ -13,6 +13,8 @@
  *   among them the one tick that turns the AI features off.
  * - **Map storage** (`maps.ts`): maps kept on the account with numbered revisions and
  *   notes, opened back into the editor.
+ * - **Replays** (`replays.ts`): replays kept on the account (the Replays part of My Maps),
+ *   and replay links — `<editor>/replay/<token>` opens one in the replay viewer.
  * - **Shared maps** (`share/`): Account ▸ Share this Map… puts the open map in a room on
  *   the server and gives a link; anyone who opens it edits the map with you at the same
  *   time, and everyone's pointer shows on the map. The editor's `api.sync` keeps the
@@ -42,7 +44,8 @@ import { openCopyDialog, openCopyLinkDialog } from "./copies";
 import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
 import { installShare } from "./share/install";
-import { copyTokenOnPage, forgetLinkOnPage } from "./share/link";
+import { copyTokenOnPage, forgetLinkOnPage, replayTokenOnPage } from "./share/link";
+import { openReplayLink } from "./replays";
 import type { Ctx } from "./ui";
 import { bindI18n, msg, t } from "./i18n";
 
@@ -118,6 +121,13 @@ export function activate(api: PluginApi) {
   if (pageCopy) {
     forgetLinkOnPage();
     openCopy(pageCopy);
+  }
+
+  /* Opened from a replay link (`replay/<token>`): the address goes back to the editor's own and the replay opens in the viewer. */
+  const pageReplay = replayTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
+  if (pageReplay) {
+    forgetLinkOnPage();
+    void openReplayLink(ctx, pageReplay);
   }
 
   /* The status bar cell. */

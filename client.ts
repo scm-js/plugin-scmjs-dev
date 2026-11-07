@@ -11,7 +11,7 @@
  */
 import type {
   AccountResponse, Allowance, AuthStartResponse, CheckoutResponse, ErrorBody, ErrorCode, InfoResponse, KeyCheckResponse, MapLinkResponse, MapListResponse, MapMeta, MapPatch, MapResponse, PublicMapResponse,
-  RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, RevisionPatch, RoomCreateRequest, RoomCreateResponse, RoomLookupResponse, SharedMapResponse, SharedMapsResponse, KeepDays,
+  PublicReplayResponse, RecipeEvent, RecipeInputs, RecipeName, RecipeOptions, RecipeOutputs, RecipeRequest, RecipeResponse, ReplayLinkResponse, ReplayListResponse, ReplayResponse, RevisionPatch, RoomCreateRequest, RoomCreateResponse, RoomLookupResponse, SharedMapResponse, SharedMapsResponse, KeepDays,
   StorageResponse, TrialResponse, Usage,
 } from "./protocol";
 import { PROTOCOL_VERSION } from "./protocol";
@@ -453,6 +453,62 @@ export class ScmjsClient {
     if (!res.ok) throw await errorOf(res);
     const bytes = new Uint8Array(await res.arrayBuffer());
     return { bytes, fileName: fileNameFrom(res.headers.get("content-disposition")) ?? "map.scx" };
+  }
+
+  /* ── Replays ─────────────────────────────────────────── */
+
+  /** `GET /v1/replays`: the account's replays, newest upload first. */
+  listReplays(signal?: AbortSignal): Promise<ReplayListResponse> {
+    return this.request<ReplayListResponse>("/v1/replays", { signal });
+  }
+
+  /**
+   * `POST /v1/replays`: keep a `.rep` on the account (the server reads its header and refuses
+   * what is not a replay). The same bytes again answer the replay already kept, `existing`.
+   * With `link`, the answer carries the replay's first link, made if it has none.
+   */
+  uploadReplay(bytes: Uint8Array | Blob, fields: { fileName: string; note?: string; link?: boolean }, signal?: AbortSignal): Promise<ReplayResponse> {
+    const fd = new FormData();
+    fd.append("file", bytes instanceof Blob ? bytes : new Blob([bytes as BlobPart], { type: "application/octet-stream" }), fields.fileName);
+    fd.append("fileName", fields.fileName);
+    if (fields.note) fd.append("note", fields.note);
+    if (fields.link) fd.append("link", "1");
+    return this.request<ReplayResponse>("/v1/replays", { method: "POST", body: fd, signal });
+  }
+
+  deleteReplay(id: string): Promise<StorageResponse> {
+    return this.request<StorageResponse>(`/v1/replays/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  /** `GET /v1/replays/:id/file`: the owner's own copy. */
+  replayFile(id: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+    return this.file(`/v1/replays/${encodeURIComponent(id)}/file`, this.headers(), signal);
+  }
+
+  /** `POST /v1/replays/:id/links`: a link anyone can watch the replay with. */
+  createReplayLink(id: string): Promise<ReplayLinkResponse> {
+    return this.request<ReplayLinkResponse>(`/v1/replays/${encodeURIComponent(id)}/links`, { method: "POST", json: {} });
+  }
+
+  deleteReplayLink(id: string, token: string): Promise<ReplayResponse> {
+    return this.request<ReplayResponse>(`/v1/replays/${encodeURIComponent(id)}/links/${encodeURIComponent(token)}`, { method: "DELETE" });
+  }
+
+  /** `GET /v1/replay-links/:token`: what a replay link opens. Needs no sign-in, and sends none. */
+  async linkedReplay(token: string, signal?: AbortSignal): Promise<PublicReplayResponse> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.base()}/v1/replay-links/${encodeURIComponent(token)}`, { signal });
+    } catch (err) {
+      throw toNetworkError(err);
+    }
+    if (!res.ok) throw await errorOf(res);
+    return (await res.json()) as PublicReplayResponse;
+  }
+
+  /** `GET /v1/replay-links/:token/file`: the replay a link opens. */
+  linkedReplayFile(token: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; fileName: string }> {
+    return this.file(`/v1/replay-links/${encodeURIComponent(token)}/file`, {}, signal);
   }
 
   /* ── Recipes ──────────────────────────────────────────── */
