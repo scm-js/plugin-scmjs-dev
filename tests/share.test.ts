@@ -61,3 +61,18 @@ describe("presence", () => {
     expect(fromBase64(toBase64(bytes))).toEqual(bytes);
   });
 });
+
+describe("replay links", () => {
+  it("are replay/<token> beside the others, and the page path is read as one", async () => {
+    const { replayLink, replayTokenOnPage } = await import("../share/link");
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "https:", origin: "https://scmjs.dev", pathname: "/editor/" })).toBe(`https://scmjs.dev/editor/replay/${INVITE}`);
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "app:", origin: "app://scmjs", pathname: "/index.html" })).toBe(`${WEB_EDITOR_URL}replay/${INVITE}`);
+    expect(replayLink(INVITE, "http://localhost:8787", { protocol: "http:", origin: "http://localhost:5173", pathname: `/replay/${INVITE}` })).toBe(`http://localhost:5173/replay/${INVITE}?scmjs-server=http%3A%2F%2Flocalhost%3A8787`);
+    expect(replayTokenOnPage(`/editor/replay/${INVITE}`)).toBe(INVITE);
+    expect(replayTokenOnPage(`/nightly/replay/${INVITE}/`)).toBe(INVITE);
+    expect(replayTokenOnPage(`/editor/map/${INVITE}`)).toBeNull();
+    expect(copyTokenOnPage(`/editor/replay/${INVITE}`)).toBeNull();
+    expect(inviteOnPage(`/editor/replay/${INVITE}`)).toBeNull();
+    expect(editorBase(`/editor/replay/${INVITE}`)).toBe("/editor/");
+  });
+});

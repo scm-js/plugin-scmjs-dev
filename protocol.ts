@@ -247,6 +247,8 @@ export interface AccountsInfo {
    * with a second file part is refused.
    */
   cards?: boolean;
+  /** Replays (`/v1/replays`) are on: a signed-in account can keep replays and hand out links to watch them (from 0.36.0). */
+  replays?: boolean;
   /** A trial or a newly signed-in account may use the AI (the default role allows a recipe); absent from a server before 0.11.0, which always did. */
   ai?: boolean;
 }
@@ -286,10 +288,13 @@ export interface AccountView {
 /* ── Map storage ────────────────────────────────────────── */
 
 export interface StorageView {
+  /** Everything the account keeps: maps' revisions and pictures, kept shared maps, replays. */
   usedBytes: number;
   capBytes: number;
   maps: number;
   revisions: number;
+  /** Replays kept (from 0.36.0). */
+  replays?: number;
 }
 
 /**
@@ -426,6 +431,125 @@ export interface MapUploadFields {
   note?: string;
   /** `MapMeta` as JSON. */
   meta?: string;
+}
+
+/* ── Replays ────────────────────────────────────────────── */
+
+/** A race as a replay's header has it; null for a value the reader does not name. */
+export type ReplayRace = "zerg" | "terran" | "protoss" | null;
+
+export interface ReplayPlayerView {
+  /** As the game wrote it, colour codes taken out. */
+  name: string;
+  race: ReplayRace;
+  /** The team number the header gives (0 when the game had none). */
+  team: number;
+  /** `#rrggbb`: the player's colour in the game. */
+  color: string;
+}
+
+/**
+ * What the server read from a replay's header when it was uploaded (`@scm-js/replay`): the
+ * same for the owner and for anyone with a link. Text has the game's colour codes taken out.
+ */
+export interface ReplayFacts {
+  /** The map the game was played on. */
+  mapName: string;
+  mapWidth: number;
+  mapHeight: number;
+  /** The players who took part, in slot order. */
+  players: ReplayPlayerView[];
+  /** `PvT`, `ZvZvT`, `PPvTT`: each team's races (by initial), teams joined with `v`; a player with no team is a team of one. */
+  matchup: string;
+  /** Length of the game in frames; a frame is 42 ms at Fastest. */
+  frames: number;
+  /** The same in whole seconds at Fastest. */
+  durationSec: number;
+  /** The game type's number (2 Melee, 3 Free For All, 4 One on One, 10 Use Map Settings, 15 Top vs Bottom, …) and its name. */
+  gameType: number;
+  gameTypeName: string;
+  /** The game's name in the lobby. */
+  title: string;
+  /** When the game started, ISO 8601; null when the header says nothing. */
+  playedAt: string | null;
+  /** `legacy` (1.16 and before), `1.18` (Remastered 1.18 to 1.20) or `1.21` (Remastered 1.21 on). */
+  format: string;
+}
+
+/** A replay link: `<editor>/replay/<token>` opens the replay in whoever's editor it is opened in, no sign-in. */
+export interface ReplayLinkView {
+  token: string;
+  replayId: string;
+  /** How many times the file was fetched through the link. */
+  opens: number;
+  createdAt: string;
+  /** The link's card image (a JPEG; `?w=600` for the small one), by its own id, which opens nothing. */
+  card?: string;
+}
+
+/** One of the account's replays. */
+export interface ReplayView extends ReplayFacts {
+  id: string;
+  fileName: string;
+  /** The owner's note; empty for none. */
+  note: string;
+  sizeBytes: number;
+  sha256: string;
+  /** When it was uploaded. */
+  uploadedAt: string;
+  /** It carries a picture its card is drawn with. */
+  picture?: boolean;
+  /** Oldest first. A link lives until it is removed or the replay is deleted. */
+  links: ReplayLinkView[];
+}
+
+/** `GET /v1/replays` — newest upload first. */
+export interface ReplayListResponse {
+  replays: ReplayView[];
+  storage: StorageView;
+}
+
+/**
+ * `POST /v1/replays` (201; 200 with `existing` when the account already had these bytes),
+ * `GET /v1/replays/:id`, `DELETE /v1/replays/:id/links/:token`.
+ */
+export interface ReplayResponse {
+  replay: ReplayView;
+  storage: StorageView;
+  /** The upload asked for a link (`link=1`): the replay's first link, made now if it had none. */
+  link?: ReplayLinkView;
+  /** The account already kept a replay with these bytes; it is answered instead of a second copy. */
+  existing?: boolean;
+}
+
+/** `POST /v1/replays/:id/links` (201). */
+export interface ReplayLinkResponse {
+  link: ReplayLinkView;
+  replay: ReplayView;
+}
+
+/** The fields beside the file in `POST /v1/replays` (multipart; `file` is the `.rep`). */
+export interface ReplayUploadFields {
+  /** The file's name; `replay.rep` when absent. */
+  fileName?: string;
+  note?: string;
+  /** `1` or `true`: answer with a link too (the replay's first, made if it has none). */
+  link?: string;
+}
+
+/** `GET /v1/replay-links/:token` — what a replay link opens, for anyone. Nothing about the account that keeps it. */
+export interface PublicReplayView extends ReplayFacts {
+  token: string;
+  fileName: string;
+  sizeBytes: number;
+  note: string;
+  uploadedAt: string;
+  /** The link's card image, by its own id. */
+  card?: string;
+}
+
+export interface PublicReplayResponse {
+  replay: PublicReplayView;
 }
 
 /** `PATCH /v1/maps/:id`. */

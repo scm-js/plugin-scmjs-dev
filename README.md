@@ -6,6 +6,7 @@ Brood War map editor. The editor ships with it, turned on. It connects the edito
 
 - sign in and see your balance
 - keep maps on your account, with numbered revisions and notes
+- keep replays on your account and hand out links to watch them
 - share the open map so other people can edit it with you at the same time
 - use the AI tools, on your own Anthropic API key
 
@@ -29,7 +30,7 @@ In an editor that does not list it, open **Plugins ▸ Browse Plugins…** and p
 https://github.com/scm-js/plugin-scmjs-dev
 ```
 
-To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.39.0`.
+To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.40.0`.
 
 ## Turning on the AI
 
@@ -118,6 +119,34 @@ to keep it.
   or make a new one.
 
 Deleting a revision or a map removes its links too.
+
+### Replays
+
+A replay link, `https://scmjs.dev/editor/replay/<token>`, opens a replay kept on
+scmjs.dev in the replay viewer (the Aftermath plugin), for anyone who has it, signed in or
+not. Opening the editor from one downloads the replay and opens it as if it had been
+dropped on the editor. If the link was removed or the replay deleted, the editor says so
+and opens as usual. If Aftermath is turned off, it says that instead and offers to save
+the replay.
+
+To keep replays, pick **Replays** at the top of My Maps (on a server that keeps them). The
+list shows each replay's map, players and races, length, game type, when it was played
+and its size. For each you can:
+
+- **Open** it in the replay viewer
+- **Make a link** (or **Copy link** once it has one) and **Remove link**
+- **Delete** it, which ends its link too
+
+**Upload a replay…** adds a `.rep` from your computer. The server reads its header and
+refuses a file that is not a replay. Replays count toward the same storage as your maps;
+uploading the same file again keeps one copy. A link lives until you remove it or delete
+the replay, and anyone who has it can watch the replay. Pasted into Discord or Slack, the
+link shows a card with the map, the players, the length and the date, but not who
+uploaded it.
+
+The replay open in the viewer cannot be uploaded from the editor: the editor gives a
+plugin no access to a replay's file once it is open. Upload the `.rep` itself from My Maps
+(or, later, from the `scmjs` command line).
 
 ## Editing a map together
 
@@ -341,6 +370,8 @@ On the server:
 - your provider id and display name
 - a ledger of what your calls cost (none for calls on your own key)
 - the maps you stored and their links (anyone with a link can download the map behind it)
+- the replays you stored, what their headers say, and their links (anyone with a link can
+  download the replay behind it)
 - while a map is shared, a copy of it and the changes since, in memory
 
 Nothing else is kept: no prompts and no card details. The account page on scmjs.dev
@@ -379,7 +410,8 @@ Where things are:
 
 - `client.ts`: the typed client for the server's routes
 - `account.ts`: the session, the settings, and the state every surface reads
-- `dialogs.ts`: the Account dialog; `maps.ts`: My Maps and Save to scmjs.dev
+- `dialogs.ts`: the Account dialog; `maps.ts`: My Maps and Save to scmjs.dev;
+  `replays.ts`: replay links and the Replays part of My Maps
 - `share/`: shared maps (the room's socket, pointers, links, chat, embeds, the Share and
   Join dialogs)
 - `protocol.ts`: the wire shapes, copied from the server's `src/protocol.ts` (keep them

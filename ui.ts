@@ -133,6 +133,12 @@ export const STYLE = `
 .sd .sd-detail { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .sd .sd-hero { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
 .sd .sd-thumb.sd-thumb-big { width: 112px; height: 112px; }
+.sd.sd-fill > .sd-replays { flex: 1; }
+.sd .sd-replays .sd-map { cursor: default; }
+.sd .sd-replays .sd-map:hover { background: none; }
+.sd .sd-replays .sd-thumb span { font-size: 15px; font-weight: 600; color: var(--text-dim, #99a2b3); }
+.sd .sd-replays .sd-btns { margin-top: 5px; }
+.sd .sd-toolbar .sd-showing { flex: none; width: auto; }
 .sd .sd-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sd .sd-hero-text .sd-sub { color: var(--text-dim, #99a2b3); font-size: 11px; line-height: 1.4; }
 .sd .sd-title { font-size: 16px; font-weight: 600; color: var(--gold, #e6b95c); }
