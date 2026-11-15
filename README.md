@@ -30,7 +30,7 @@ In an editor that does not list it, open **Plugins ▸ Browse Plugins…** and p
 https://github.com/scm-js/plugin-scmjs-dev
 ```
 
-To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.40.0`.
+To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.41.0`.
 
 ## Turning on the AI
 
@@ -122,12 +122,15 @@ Deleting a revision or a map removes its links too.
 
 ### Replays
 
-A replay link, `https://scmjs.dev/editor/replay/<token>`, opens a replay kept on
-scmjs.dev in the replay viewer (the Aftermath plugin), for anyone who has it, signed in or
-not. Opening the editor from one downloads the replay and opens it as if it had been
-dropped on the editor. If the link was removed or the replay deleted, the editor says so
-and opens as usual. If Aftermath is turned off, it says that instead and offers to save
-the replay.
+A replay link, `https://scmjs.dev/replay/<token>`, opens a replay kept on scmjs.dev in the
+replay viewer (the Aftermath plugin), for anyone who has it, signed in or not. The site
+sends it on to the editor, `https://scmjs.dev/editor/replay/<token>`, which downloads the
+replay and opens it in the viewer. With `?t=6:42` (or `?t=1:02:03`, or seconds) it opens at
+that moment of the game, paused; a time it cannot read is left out, and one past the end is
+the end. With `&play=<slot>` the site sends it to the play page instead, to play on from that
+moment. If the link was removed or the replay deleted, the editor says so and opens as
+usual. If Aftermath is turned off, it says that instead and offers to save the replay.
+Once the replay is open the address goes back to the editor's own, without the moment.
 
 To keep replays, pick **Replays** at the top of My Maps (on a server that keeps them). The
 list shows each replay's map, players and races, length, game type, when it was played
@@ -144,9 +147,13 @@ the replay, and anyone who has it can watch the replay. Pasted into Discord or S
 link shows a card with the map, the players, the length and the date, but not who
 uploaded it.
 
-The replay open in the viewer cannot be uploaded from the editor: the editor gives a
-plugin no access to a replay's file once it is open. Upload the `.rep` itself from My Maps
-(or, later, from the `scmjs` command line).
+**Share** on Aftermath's timeline copies a link to the replay open there, from the start or
+from a moment. The link comes from this plugin: it signs you in first if need be, keeps the
+replay on your account unless the account has it already (it is known by its contents, so
+the same file is never sent twice), and makes its link if it has none. A replay opened from
+a link already has one, and shares it without a sign-in. On the nightly and on a
+development server the link is the editor's own address, `…/replay/<token>`, not the
+site's.
 
 ## Editing a map together
 
@@ -397,6 +404,12 @@ api.services.watch<ScmjsAccountService>("scmjs-dev.account", (account) => {
 });
 ```
 
+A replay viewer reaches replay links through a second service, `scmjs-dev.replays`
+(`ScmjsReplaysService` in the same file): `status()` says where a replay stands (nobody
+signed in, not on the account, kept) without sending it, and `link()` gives its link,
+signing in, keeping the replay and making the link as needed. It is there while the plugin
+is on. Aftermath's Share uses it, so the viewer never talks to the server itself.
+
 ## Development
 
 ```sh
@@ -411,7 +424,8 @@ Where things are:
 - `client.ts`: the typed client for the server's routes
 - `account.ts`: the session, the settings, and the state every surface reads
 - `dialogs.ts`: the Account dialog; `maps.ts`: My Maps and Save to scmjs.dev;
-  `replays.ts`: replay links and the Replays part of My Maps
+  `replays.ts`: replay links, the Replays part of My Maps and the `scmjs-dev.replays`
+  service; `moment.ts`: the moment a link's `?t=` opens at
 - `share/`: shared maps (the room's socket, pointers, links, chat, embeds, the Share and
   Join dialogs)
 - `protocol.ts`: the wire shapes, copied from the server's `src/protocol.ts` (keep them

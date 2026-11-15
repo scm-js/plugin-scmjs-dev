@@ -65,14 +65,28 @@ describe("presence", () => {
 describe("replay links", () => {
   it("are replay/<token> beside the others, and the page path is read as one", async () => {
     const { replayLink, replayTokenOnPage } = await import("../share/link");
-    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "https:", origin: "https://scmjs.dev", pathname: "/editor/" })).toBe(`https://scmjs.dev/editor/replay/${INVITE}`);
-    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "app:", origin: "app://scmjs", pathname: "/index.html" })).toBe(`${WEB_EDITOR_URL}replay/${INVITE}`);
+    // On the site and in the desktop editor: the site's own address, which the site sends on to the analysis.
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "https:", origin: "https://scmjs.dev", pathname: "/editor/" })).toBe(`https://scmjs.dev/replay/${INVITE}`);
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "https:", origin: "https://scmjs.dev", pathname: `/editor/replay/${INVITE}` })).toBe(`https://scmjs.dev/replay/${INVITE}`);
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "app:", origin: "app://scmjs", pathname: "/index.html" })).toBe(`https://scmjs.dev/replay/${INVITE}`);
+    expect(replayLink(INVITE, "http://localhost:8787", { protocol: "http:", origin: "http://localhost:5220", pathname: "/editor/" })).toBe(`http://localhost:5220/replay/${INVITE}?scmjs-server=http%3A%2F%2Flocalhost%3A8787`);
+    // Anywhere else (the nightly, a development server at its root): the editor's own.
+    expect(replayLink(INVITE, "https://api.scmjs.dev", { protocol: "https:", origin: "https://scmjs.dev", pathname: "/nightly/" })).toBe(`https://scmjs.dev/nightly/replay/${INVITE}`);
     expect(replayLink(INVITE, "http://localhost:8787", { protocol: "http:", origin: "http://localhost:5173", pathname: `/replay/${INVITE}` })).toBe(`http://localhost:5173/replay/${INVITE}?scmjs-server=http%3A%2F%2Flocalhost%3A8787`);
+    expect(WEB_EDITOR_URL).toBe("https://scmjs.dev/editor/");
     expect(replayTokenOnPage(`/editor/replay/${INVITE}`)).toBe(INVITE);
     expect(replayTokenOnPage(`/nightly/replay/${INVITE}/`)).toBe(INVITE);
     expect(replayTokenOnPage(`/editor/map/${INVITE}`)).toBeNull();
     expect(copyTokenOnPage(`/editor/replay/${INVITE}`)).toBeNull();
     expect(inviteOnPage(`/editor/replay/${INVITE}`)).toBeNull();
     expect(editorBase(`/editor/replay/${INVITE}`)).toBe("/editor/");
+  });
+
+  it("leave the editor's own address behind, without the moment the link opened at", async () => {
+    const { editorAddress } = await import("../share/link");
+    expect(editorAddress(`https://scmjs.dev/editor/replay/${INVITE}?t=6:42`)).toBe("https://scmjs.dev/editor/");
+    expect(editorAddress(`https://scmjs.dev/editor/replay/${INVITE}?t=6%3A42&play=1`)).toBe("https://scmjs.dev/editor/");
+    expect(editorAddress(`http://localhost:5220/editor/replay/${INVITE}?scmjs-server=http%3A%2F%2Flocalhost%3A8787&t=402`)).toBe("http://localhost:5220/editor/?scmjs-server=http%3A%2F%2Flocalhost%3A8787");
+    expect(editorAddress(`https://scmjs.dev/editor/map/${INVITE}`)).toBe("https://scmjs.dev/editor/");
   });
 });

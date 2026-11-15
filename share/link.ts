@@ -1,6 +1,7 @@
 /**
  * The links the plugin hands out. A shared map's is the editor's own address with
- * `share/<invite>` on the end, a copy link's `map/<token>`, a replay link's `replay/<token>` (and each carries the
+ * `share/<invite>` on the end, a copy link's `map/<token>`, a replay link's `replay/<token>` (on the site the
+ * site's own, `scmjs.dev/replay/<token>`, which the site sends on to the editor's; see `replayLink`) (and each carries the
  * `?scmjs-server=` a development build is pointed at, so the link reaches the same server);
  * opening one starts the editor with the Join dialog, or the Open a Copy dialog, up. The
  * editor answers any path with its one page (GitHub Pages through 404.html, nginx and Vite
@@ -29,8 +30,12 @@ type Where = { protocol: string; origin: string; pathname: string } | null;
 
 function linkTo(kind: "share" | "map" | "replay", token: string, serverUrl: string, where: Where): string {
   const base = where && (where.protocol === "http:" || where.protocol === "https:") ? `${where.origin}${editorBase(where.pathname)}` : WEB_EDITOR_URL;
-  const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
-  return `${base}${kind}/${token}${query}`;
+  return `${base}${kind}/${token}${serverQuery(serverUrl)}`;
+}
+
+/** `?scmjs-server=…` for a server other than scmjs.dev's, so the link reaches the same one; empty for scmjs.dev's. */
+function serverQuery(serverUrl: string): string {
+  return serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
 }
 
 export function inviteLink(invite: string, serverUrl: string, where: Where): string {
@@ -42,9 +47,17 @@ export function copyLink(token: string, serverUrl: string, where: Where): string
   return linkTo("map", token, serverUrl, where);
 }
 
-/** A replay link: `<editor>/replay/<token>`. */
+/**
+ * A replay link. On the site (the editor at `<origin>/editor/`) and in the desktop editor it is the site's own,
+ * `https://scmjs.dev/replay/<token>`, which the site sends on to the analysis, or to the play page when it says to play
+ * from a moment; anywhere else (the nightly, a development server) the editor's own, `<editor>/replay/<token>`.
+ */
 export function replayLink(token: string, serverUrl: string, where: Where): string {
-  return linkTo("replay", token, serverUrl, where);
+  const web = !!where && (where.protocol === "http:" || where.protocol === "https:");
+  const base = web ? editorBase(where.pathname) : null;
+  if (base !== null && !base.endsWith("/editor/")) return linkTo("replay", token, serverUrl, where);
+  const site = base !== null ? `${where!.origin}${base.slice(0, -"editor/".length)}` : `${new URL(WEB_EDITOR_URL).origin}/`;
+  return `${site}replay/${token}${serverQuery(serverUrl)}`;
 }
 
 /** The invite in what was pasted, or null. */
@@ -81,10 +94,20 @@ export function replayTokenOnPage(pathname: string): string | null {
   return m?.[2] === "replay" ? m[3]! : null;
 }
 
-/** Put the address back to the editor's own, so a reload opens the editor and not the link again. */
+/**
+ * The editor's own address for one opened from a link: the link's path taken off, and the moment a replay link
+ * opened at (`t`, and `play`, which only the play page reads), so a reload opens the editor and not the link again.
+ */
+export function editorAddress(href: string): string {
+  const url = new URL(href);
+  url.pathname = editorBase(url.pathname);
+  url.searchParams.delete("t");
+  url.searchParams.delete("play");
+  return url.toString();
+}
+
+/** Put the address back to the editor's own (`editorAddress`). */
 export function forgetLinkOnPage(): void {
   if (typeof history === "undefined" || typeof location === "undefined") return;
-  const url = new URL(location.href);
-  url.pathname = editorBase(url.pathname);
-  history.replaceState(history.state, "", url.toString());
+  history.replaceState(history.state, "", editorAddress(location.href));
 }

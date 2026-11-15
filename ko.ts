@@ -695,6 +695,7 @@ export const KO: Record<string, string> = {
   "This server has no pictures for shared maps yet.": "이 서버는 아직 공유 맵 그림을 지원하지 않습니다.",
   "This server has no shared map editing.": "이 서버는 공유 맵 편집을 지원하지 않습니다.",
   "This server keeps no maps.": "이 서버는 맵을 보관하지 않습니다.",
+  "This server keeps no replays.": "이 서버는 리플레이를 보관하지 않습니다.",
   "This server offers no sign-in.": "이 서버는 로그인을 제공하지 않습니다.",
   "Thorough — the highest setting; slower and dearer": "꼼꼼하게 — 가장 높은 설정, 더 느리고 비쌈",
   "Thought": "생각함",
