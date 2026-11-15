@@ -14,7 +14,9 @@
  * - **Map storage** (`maps.ts`): maps kept on the account with numbered revisions and
  *   notes, opened back into the editor.
  * - **Replays** (`replays.ts`): replays kept on the account (the Replays part of My Maps),
- *   and replay links — `<editor>/replay/<token>` opens one in the replay viewer.
+ *   and replay links — `scmjs.dev/replay/<token>` (`?t=6:42` for a moment) opens one in
+ *   the replay viewer — and the `scmjs-dev.replays` service the viewer's Share asks for a
+ *   replay's link through.
  * - **Shared maps** (`share/`): Account ▸ Share this Map… puts the open map in a room on
  *   the server and gives a link; anyone who opens it edits the map with you at the same
  *   time, and everyone's pointer shows on the map. The editor's `api.sync` keeps the
@@ -45,7 +47,8 @@ import { openAccountDialog } from "./dialogs";
 import { openMapsDialog, openSaveDialog, type Link } from "./maps";
 import { installShare } from "./share/install";
 import { copyTokenOnPage, forgetLinkOnPage, replayTokenOnPage } from "./share/link";
-import { openReplayLink } from "./replays";
+import { openReplayLink, replaysService } from "./replays";
+import { momentOnPage } from "./moment";
 import type { Ctx } from "./ui";
 import { bindI18n, msg, t } from "./i18n";
 
@@ -123,11 +126,15 @@ export function activate(api: PluginApi) {
     openCopy(pageCopy);
   }
 
-  /* Opened from a replay link (`replay/<token>`): the address goes back to the editor's own and the replay opens in the viewer. */
+  /*
+   * Opened from a replay link (`replay/<token>`, `?t=6:42` for a moment): the address goes back to the editor's own,
+   * the moment with it, and the replay opens in the viewer at that moment.
+   */
   const pageReplay = replayTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
   if (pageReplay) {
+    const at = momentOnPage(location.search);
     forgetLinkOnPage();
-    void openReplayLink(ctx, pageReplay);
+    void openReplayLink(ctx, pageReplay, at);
   }
 
   /* The status bar cell. */
@@ -160,6 +167,8 @@ export function activate(api: PluginApi) {
 
   /* The service for other plugins. */
   const provided: Disposable = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
+  /* A replay's link, for the replay viewer's Share: there while the plugin is on, whatever the sign-in tick says. */
+  const replays: Disposable = api.services.provide("replays", replaysService(ctx), { version: 1 });
 
   /*
    * The AI features, in while the tick says so and they are on offer: the person's role
@@ -191,5 +200,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); };
+  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); replays.dispose(); };
 }

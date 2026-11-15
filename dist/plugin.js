@@ -702,6 +702,7 @@ var KO = {
   "This server has no pictures for shared maps yet.": "\uC774 \uC11C\uBC84\uB294 \uC544\uC9C1 \uACF5\uC720 \uB9F5 \uADF8\uB9BC\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "This server has no shared map editing.": "\uC774 \uC11C\uBC84\uB294 \uACF5\uC720 \uB9F5 \uD3B8\uC9D1\uC744 \uC9C0\uC6D0\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "This server keeps no maps.": "\uC774 \uC11C\uBC84\uB294 \uB9F5\uC744 \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+  "This server keeps no replays.": "\uC774 \uC11C\uBC84\uB294 \uB9AC\uD50C\uB808\uC774\uB97C \uBCF4\uAD00\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "This server offers no sign-in.": "\uC774 \uC11C\uBC84\uB294 \uB85C\uADF8\uC778\uC744 \uC81C\uACF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "Thorough \u2014 the highest setting; slower and dearer": "\uAF3C\uAF3C\uD558\uAC8C \u2014 \uAC00\uC7A5 \uB192\uC740 \uC124\uC815, \uB354 \uB290\uB9AC\uACE0 \uBE44\uC308",
   "Thought": "\uC0DD\uAC01\uD568",
@@ -12172,8 +12173,10 @@ function editorBase(pathname) {
 }
 function linkTo(kind, token, serverUrl, where4) {
   const base = where4 && (where4.protocol === "http:" || where4.protocol === "https:") ? `${where4.origin}${editorBase(where4.pathname)}` : WEB_EDITOR_URL;
-  const query = serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
-  return `${base}${kind}/${token}${query}`;
+  return `${base}${kind}/${token}${serverQuery(serverUrl)}`;
+}
+function serverQuery(serverUrl) {
+  return serverUrl.replace(/\/+$/, "") !== DEFAULT_SERVER_URL ? `?${new URLSearchParams({ [SERVER_QUERY]: serverUrl }).toString()}` : "";
 }
 function inviteLink(invite, serverUrl, where4) {
   return linkTo("share", invite, serverUrl, where4);
@@ -12182,7 +12185,11 @@ function copyLink(token, serverUrl, where4) {
   return linkTo("map", token, serverUrl, where4);
 }
 function replayLink(token, serverUrl, where4) {
-  return linkTo("replay", token, serverUrl, where4);
+  const web = !!where4 && (where4.protocol === "http:" || where4.protocol === "https:");
+  const base = web ? editorBase(where4.pathname) : null;
+  if (base !== null && !base.endsWith("/editor/")) return linkTo("replay", token, serverUrl, where4);
+  const site = base !== null ? `${where4.origin}${base.slice(0, -"editor/".length)}` : `${new URL(WEB_EDITOR_URL).origin}/`;
+  return `${site}replay/${token}${serverQuery(serverUrl)}`;
 }
 function inviteFrom(text) {
   const t2 = text.trim();
@@ -12208,11 +12215,16 @@ function replayTokenOnPage(pathname) {
   const m = LINK_PATH.exec(pathname);
   return m?.[2] === "replay" ? m[3] : null;
 }
+function editorAddress(href) {
+  const url = new URL(href);
+  url.pathname = editorBase(url.pathname);
+  url.searchParams.delete("t");
+  url.searchParams.delete("play");
+  return url.toString();
+}
 function forgetLinkOnPage() {
   if (typeof history === "undefined" || typeof location === "undefined") return;
-  const url = new URL(location.href);
-  url.pathname = editorBase(url.pathname);
-  history.replaceState(history.state, "", url.toString());
+  history.replaceState(history.state, "", editorAddress(location.href));
 }
 
 // share/embed.ts
@@ -12694,6 +12706,7 @@ function openAccountDialog(ctx) {
 
 // replays.ts
 var VIEWER_COMMAND = "aftermath.open-replay";
+var VIEWER_SERVICE = "aftermath.replays";
 var VIEWER_WAIT_MS = 2e4;
 var where = () => typeof location !== "undefined" ? { protocol: location.protocol, origin: location.origin, pathname: location.pathname } : null;
 function replayAddress(ctx, token) {
@@ -12716,13 +12729,22 @@ function factsLine(f) {
   const when = f.playedAt ? t("played {date}", { date: new Date(f.playedAt).toLocaleDateString(language(), { day: "numeric", month: "short", year: "numeric" }) }) : "";
   return [f.matchup, formatLength(f.durationSec), f.gameTypeName, when].filter(Boolean).join(" \xB7 ");
 }
-async function openAsDropped(ctx, bytes, fileName, waitMs = VIEWER_WAIT_MS) {
-  const { api } = ctx;
+async function viewerStarted(ctx, waitMs) {
   const until = Date.now() + waitMs;
-  while (!api.commands.has(VIEWER_COMMAND)) {
-    if (Date.now() >= until) return "no-viewer";
+  while (!ctx.api.commands.has(VIEWER_COMMAND)) {
+    if (Date.now() >= until) return false;
     await new Promise((r) => setTimeout(r, 200));
   }
+  return true;
+}
+async function handToViewer(ctx, bytes, fileName, from = {}, waitMs = VIEWER_WAIT_MS) {
+  if (!await viewerStarted(ctx, waitMs)) return "no-viewer";
+  const viewer = ctx.api.services.get(VIEWER_SERVICE);
+  if (!viewer) return drop(bytes, fileName);
+  await viewer.open(new File([bytes], fileName, { type: "application/octet-stream" }), from);
+  return "opened";
+}
+function drop(bytes, fileName) {
   let event;
   try {
     const data = new DataTransfer();
@@ -12742,8 +12764,8 @@ async function noViewer(ctx, bytes, fileName, reason) {
     if (out) api.ui.toast({ kind: "ok", title: t("Saved {name}.", { name: out.fileName }) });
   }
 }
-async function openReplay(ctx, bytes, facts) {
-  const done = await openAsDropped(ctx, bytes, facts.fileName);
+async function openReplay(ctx, bytes, facts, from = {}) {
+  const done = await handToViewer(ctx, bytes, facts.fileName, from);
   if (done !== "opened") {
     await noViewer(ctx, bytes, facts.fileName, done);
     return false;
@@ -12751,7 +12773,7 @@ async function openReplay(ctx, bytes, facts) {
   ctx.api.ui.toast({ kind: "ok", title: t("Opened the replay: {players}", { players: playersLine(facts) }), detail: `${facts.mapName} \xB7 ${factsLine(facts)}` });
   return true;
 }
-async function openReplayLink(ctx, token) {
+async function openReplayLink(ctx, token, at = null) {
   const { api, account } = ctx;
   let found;
   try {
@@ -12774,7 +12796,7 @@ async function openReplayLink(ctx, token) {
   } finally {
     progress.done();
   }
-  await openReplay(ctx, bytes, found);
+  await openReplay(ctx, bytes, found, { link: replayAddress(ctx, token), ...at !== null ? { at } : {} });
 }
 function replaysPart(ctx, dialogClose, say, noteStorage) {
   const { api, account } = ctx;
@@ -12812,7 +12834,7 @@ function replaysPart(ctx, dialogClose, say, noteStorage) {
     const link = r.links[0] ?? null;
     const open = w.button(t("Open"), { primary: true, title: t("Watch it in the replay viewer"), onClick: () => void busy(el, t("Downloading\u2026"), async () => {
       const { bytes } = await client.replayFile(r.id);
-      if (await openReplay(ctx, bytes, r)) dialogClose();
+      if (await openReplay(ctx, bytes, r, r.links[0] ? { link: replayAddress(ctx, r.links[0].token) } : {})) dialogClose();
     }) });
     const copyLink2 = w.button(link ? t("Copy link") : t("Make a link"), { title: t("A link anyone can watch this replay with, without signing in"), onClick: () => void busy(el, t("Making the link\u2026"), async () => {
       if (link) {
@@ -12917,6 +12939,89 @@ function replaysPart(ctx, dialogClose, say, noteStorage) {
     upload: w.button(t("Upload a replay\u2026"), { title: t("Keep a .rep on your account"), onClick: () => void pick() }),
     load,
     abort: () => loading?.abort()
+  };
+}
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+var LIST_FRESH_MS = 6e4;
+function replaysService(ctx) {
+  const { account } = ctx;
+  const client = account.client;
+  const hashes = /* @__PURE__ */ new WeakMap();
+  let list2 = null;
+  const hashOf = (bytes) => {
+    let h3 = hashes.get(bytes);
+    if (!h3) hashes.set(bytes, h3 = sha256Hex(bytes));
+    return h3;
+  };
+  const replays = (fresh) => {
+    const session = account.session();
+    if (!fresh && list2 && list2.session === session && Date.now() - list2.at < LIST_FRESH_MS) return list2.replays;
+    const asked = { session, at: Date.now(), replays: client.listReplays().then((r) => {
+      account.noteStorage(r.storage);
+      return r.replays;
+    }) };
+    asked.replays.catch(() => {
+      if (list2 === asked) list2 = null;
+    });
+    list2 = asked;
+    return asked.replays;
+  };
+  const note = (r) => {
+    if (!list2 || list2.session !== account.session()) return;
+    list2 = { ...list2, replays: list2.replays.then((all) => [r, ...all.filter((x) => x.id !== r.id)]) };
+  };
+  const failed = (err) => {
+    const e = new Error(describeError(err));
+    if (err instanceof ScmjsError) e.code = err.code;
+    return e;
+  };
+  return {
+    async status(replay) {
+      try {
+        if (!account.offers()) await account.connect();
+        const offers = account.offers();
+        if (offers && offers.replays === false) return { state: "unavailable", reason: t("This server keeps no replays.") };
+        if (account.kind() !== "account") return { state: "signed-out", providers: offers?.providers ?? [] };
+        const [sha, all] = await Promise.all([hashOf(replay.bytes), replays(true)]);
+        const kept = all.find((r) => r.sha256 === sha);
+        if (!kept) return { state: "not-kept" };
+        return { state: "kept", link: kept.links[0] ? replayAddress(ctx, kept.links[0].token) : null };
+      } catch (err) {
+        return { state: "unavailable", reason: describeError(err) };
+      }
+    },
+    async link(replay, provider) {
+      try {
+        if (account.kind() !== "account") await account.signIn(provider);
+        const [sha, all] = await Promise.all([hashOf(replay.bytes), replays(false)]);
+        const kept = all.find((r) => r.sha256 === sha);
+        if (kept?.links[0]) return replayAddress(ctx, kept.links[0].token);
+        if (kept) {
+          const made = await client.createReplayLink(kept.id);
+          note(made.replay);
+          return replayAddress(ctx, made.link.token);
+        }
+        const res = await client.uploadReplay(replay.bytes, { fileName: replay.fileName, link: true });
+        account.noteStorage(res.storage);
+        note(res.replay);
+        const token = res.link?.token ?? res.replay.links[0]?.token ?? (await client.createReplayLink(res.replay.id)).link.token;
+        return replayAddress(ctx, token);
+      } catch (err) {
+        throw failed(err);
+      }
+    },
+    onChange(listener) {
+      let was = `${account.kind()}:${account.session()}`;
+      return account.onChange(() => {
+        const now = `${account.kind()}:${account.session()}`;
+        if (now === was) return;
+        was = now;
+        listener();
+      });
+    }
   };
 }
 
@@ -15063,6 +15168,19 @@ ${t("Click to see the link and who is in.")}`, busy: shared.phase === "connectin
   };
 }
 
+// moment.ts
+function readMoment(value) {
+  if (value === null || value === void 0) return null;
+  const s = value.trim();
+  if (/^\d+(?:\.\d+)?$/.test(s)) return Number(s);
+  const m = /^(?:(\d+):([0-5]\d)|(\d+):([0-5]\d):([0-5]\d))$/.exec(s);
+  if (!m) return null;
+  return m[1] !== void 0 ? Number(m[1]) * 60 + Number(m[2]) : Number(m[3]) * 3600 + Number(m[4]) * 60 + Number(m[5]);
+}
+function momentOnPage(search) {
+  return readMoment(new URLSearchParams(search).get("t"));
+}
+
 // plugin.ts
 var SERVICE_NAME = "account";
 var CONTRACT_VERSION = 1;
@@ -15143,8 +15261,9 @@ function activate(api) {
   }
   const pageReplay = replayTokenOnPage(typeof location !== "undefined" ? location.pathname : "/");
   if (pageReplay) {
+    const at = momentOnPage(location.search);
     forgetLinkOnPage();
-    void openReplayLink(ctx, pageReplay);
+    void openReplayLink(ctx, pageReplay, at);
   }
   let status = null;
   const statusText = () => {
@@ -15188,6 +15307,7 @@ function activate(api) {
   account.onChange(syncStatus);
   api.events.on("language", syncStatus);
   const provided = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
+  const replays = api.services.provide("replays", replaysService(ctx), { version: 1 });
   let ai = null;
   let optionsPage = null;
   const syncAi = () => {
@@ -15221,6 +15341,7 @@ function activate(api) {
     share.dispose();
     status?.remove();
     provided.dispose();
+    replays.dispose();
   };
 }
 export {

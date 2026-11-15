@@ -1,21 +1,30 @@
 /**
- * Replays on the account, and replay links: `<editor>/replay/<token>` opens a replay kept
- * on scmjs.dev in whoever's editor the link is opened in, signed in or not, in the replay
- * viewer (the Aftermath plugin).
+ * Replays on the account, and replay links: `scmjs.dev/replay/<token>` (which the site sends
+ * on to `<editor>/replay/<token>`) opens a replay kept on scmjs.dev in whoever's editor the
+ * link is opened in, signed in or not, in the replay viewer (the Aftermath plugin), at the
+ * moment its `?t=` says.
  *
- * The plugin cannot hand a replay to the viewer through the API: `document.open` reads any
+ * The plugin cannot hand a replay to the viewer through the editor: `document.open` reads any
  * file as a map, and the host routes a file to the plugin that claimed its extension only
  * when it is dropped, picked in File ▸ Open or handed over by the command line. So a
- * replay is opened the way a dropped one is: a `drop` event with the file in it, on the
- * page (`openAsDropped`). That waits for the viewer to be there — Aftermath registers its
- * file type when it starts, which may be after this plugin — and says so when it is not.
+ * replay goes to the viewer's own service, `aftermath.replays` (Aftermath 0.27.0), with
+ * where it came from: its link, and the moment a link's `?t=` opens it at. A viewer from
+ * before that gets it the way a dropped one is: a `drop` event with the file in it, on the
+ * page (`openAsDropped`), and opens it at its start. Both wait for the viewer to be there —
+ * Aftermath registers its file type when it starts, which may be after this plugin — and
+ * say so when it is not.
+ *
+ * The viewer's Share asks for a replay's link through this plugin's `scmjs-dev.replays`
+ * service (`replaysService`): sign in, keep the replay (by its hash: never a second copy),
+ * make the link.
  *
  * The owner's side is the Replays part of My Maps (`replaysPart`): the list, Open, Copy
- * link, Remove link, Delete, and Upload a Replay…. A replay open in the viewer cannot be
- * uploaded from here: the viewer's document is the map the game was played on, and the
- * API gives a plugin no way to the `.rep` it came from.
+ * link, Remove link, Delete, and Upload a Replay…. A replay open in the viewer is kept from
+ * the viewer's Share, which has its bytes: the viewer's document is the map the game was
+ * played on, and the editor gives this plugin no way to the `.rep` it came from.
  */
 import { describeError, formatBytes, ScmjsError } from "./client";
+import type { ReplayFile, ReplayStatus, ScmjsReplaysService } from "./contract";
 import type { PublicReplayView, ReplayFacts, ReplayView, StorageView } from "./protocol";
 import { replayLink } from "./share/link";
 import { language, t } from "./i18n";
@@ -23,6 +32,19 @@ import { ago, clear, formatDate, h, type Ctx } from "./ui";
 
 /** The viewer's command, which is there once it has started (and with it its claim on `.rep`). */
 const VIEWER_COMMAND = "aftermath.open-replay";
+/** The viewer's service, which takes a replay with where it came from (Aftermath 0.27.0). */
+const VIEWER_SERVICE = "aftermath.replays";
+
+/** Where a replay handed to the viewer came from: its link, and the moment to open it at, in seconds of game time. */
+export interface ReplayFrom {
+  link?: string;
+  at?: number;
+}
+
+/** The part of Aftermath's `aftermath.replays` service this plugin uses. */
+interface ViewerService {
+  open(file: File, from?: ReplayFrom): Promise<void>;
+}
 /** How long a replay link waits at startup for the viewer to start. */
 const VIEWER_WAIT_MS = 20_000;
 
@@ -63,12 +85,33 @@ export function factsLine(f: ReplayFacts): string {
  * none); `"no-drop"` when the browser cannot build the event.
  */
 export async function openAsDropped(ctx: Ctx, bytes: Uint8Array, fileName: string, waitMs = VIEWER_WAIT_MS): Promise<"opened" | "no-viewer" | "no-drop"> {
-  const { api } = ctx;
+  if (!(await viewerStarted(ctx, waitMs))) return "no-viewer";
+  return drop(bytes, fileName);
+}
+
+/** Whether the viewer is there, waiting up to `waitMs` for it to start. */
+async function viewerStarted(ctx: Ctx, waitMs: number): Promise<boolean> {
   const until = Date.now() + waitMs;
-  while (!api.commands.has(VIEWER_COMMAND)) {
-    if (Date.now() >= until) return "no-viewer";
+  while (!ctx.api.commands.has(VIEWER_COMMAND)) {
+    if (Date.now() >= until) return false;
     await new Promise((r) => setTimeout(r, 200));
   }
+  return true;
+}
+
+/**
+ * Hand a replay to the viewer with where it came from (`from`): through its service, or, from a viewer without one,
+ * as a dropped file, which opens at its start.
+ */
+export async function handToViewer(ctx: Ctx, bytes: Uint8Array, fileName: string, from: ReplayFrom = {}, waitMs = VIEWER_WAIT_MS): Promise<"opened" | "no-viewer" | "no-drop"> {
+  if (!(await viewerStarted(ctx, waitMs))) return "no-viewer";
+  const viewer = ctx.api.services.get<ViewerService>(VIEWER_SERVICE);
+  if (!viewer) return drop(bytes, fileName);
+  await viewer.open(new File([bytes as BlobPart], fileName, { type: "application/octet-stream" }), from);
+  return "opened";
+}
+
+function drop(bytes: Uint8Array, fileName: string): "opened" | "no-drop" {
   let event: DragEvent;
   try {
     const data = new DataTransfer();
@@ -95,18 +138,20 @@ async function noViewer(ctx: Ctx, bytes: Uint8Array, fileName: string, reason: "
 }
 
 /** Open a replay's bytes in the viewer; a toast says what happened. */
-async function openReplay(ctx: Ctx, bytes: Uint8Array, facts: ReplayFacts & { fileName: string }): Promise<boolean> {
-  const done = await openAsDropped(ctx, bytes, facts.fileName);
+async function openReplay(ctx: Ctx, bytes: Uint8Array, facts: ReplayFacts & { fileName: string }, from: ReplayFrom = {}): Promise<boolean> {
+  const done = await handToViewer(ctx, bytes, facts.fileName, from);
   if (done !== "opened") { await noViewer(ctx, bytes, facts.fileName, done); return false; }
   ctx.api.ui.toast({ kind: "ok", title: t("Opened the replay: {players}", { players: playersLine(facts) }), detail: `${facts.mapName} · ${factsLine(facts)}` });
   return true;
 }
 
 /**
- * The editor was opened from a replay link: look the link up, fetch the file and open it.
- * A link that no longer works says so and leaves the editor as it is.
+ * The editor was opened from a replay link: look the link up, fetch the file and open it, at
+ * `at` (seconds of game time, the link's `?t=`) when it says one. The viewer gets the link
+ * with it, so sharing the replay from there needs no sign-in and sends nothing. A link that
+ * no longer works says so and leaves the editor as it is.
  */
-export async function openReplayLink(ctx: Ctx, token: string): Promise<void> {
+export async function openReplayLink(ctx: Ctx, token: string, at: number | null = null): Promise<void> {
   const { api, account } = ctx;
   let found: PublicReplayView;
   try {
@@ -129,7 +174,7 @@ export async function openReplayLink(ctx: Ctx, token: string): Promise<void> {
   } finally {
     progress.done();
   }
-  await openReplay(ctx, bytes, found);
+  await openReplay(ctx, bytes, found, { link: replayAddress(ctx, token), ...(at !== null ? { at } : {}) });
 }
 
 /* ── In My Maps ───────────────────────────────────────────── */
@@ -176,7 +221,7 @@ export function replaysPart(ctx: Ctx, dialogClose: () => void, say: (text: strin
     const link = r.links[0] ?? null;
     const open = w.button(t("Open"), { primary: true, title: t("Watch it in the replay viewer"), onClick: () => void busy(el, t("Downloading…"), async () => {
       const { bytes } = await client.replayFile(r.id);
-      if (await openReplay(ctx, bytes, r)) dialogClose();
+      if (await openReplay(ctx, bytes, r, r.links[0] ? { link: replayAddress(ctx, r.links[0].token) } : {})) dialogClose();
     }) });
     const copyLink = w.button(link ? t("Copy link") : t("Make a link"), { title: t("A link anyone can watch this replay with, without signing in"), onClick: () => void busy(el, t("Making the link…"), async () => {
       if (link) { await copy(replayAddress(ctx, link.token), t("The link is on the clipboard.")); return; }
@@ -272,5 +317,103 @@ export function replaysPart(ctx: Ctx, dialogClose: () => void, say: (text: strin
     upload: w.button(t("Upload a replay…"), { title: t("Keep a .rep on your account"), onClick: () => void pick() }),
     load,
     abort: () => loading?.abort(),
+  };
+}
+
+/* ── The viewer's Share: `scmjs-dev.replays` ──────────────── */
+
+/** The SHA-256 of a replay's bytes in hex, as the server keeps it (`ReplayView.sha256`). */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** How long the account's list of replays is taken as it stands, between asking where a replay stands and sharing it. */
+const LIST_FRESH_MS = 60_000;
+
+/**
+ * The service the replay viewer's Share reaches (`contract.d.ts`, `ScmjsReplaysService`): where a replay stands with
+ * the account, and its link, signing in, keeping it and making the link as needed. Whether the account has a replay
+ * goes by its hash against the account's list, so a replay kept once is never sent again.
+ */
+export function replaysService(ctx: Ctx): ScmjsReplaysService {
+  const { account } = ctx;
+  const client = account.client;
+  const hashes = new WeakMap<Uint8Array, Promise<string>>();
+  let list: { session: string; at: number; replays: Promise<ReplayView[]> } | null = null;
+
+  const hashOf = (bytes: Uint8Array) => {
+    let h = hashes.get(bytes);
+    if (!h) hashes.set(bytes, (h = sha256Hex(bytes)));
+    return h;
+  };
+  const replays = (fresh: boolean): Promise<ReplayView[]> => {
+    const session = account.session();
+    if (!fresh && list && list.session === session && Date.now() - list.at < LIST_FRESH_MS) return list.replays;
+    const asked = { session, at: Date.now(), replays: client.listReplays().then((r) => { account.noteStorage(r.storage); return r.replays; }) };
+    asked.replays.catch(() => { if (list === asked) list = null; });
+    list = asked;
+    return asked.replays;
+  };
+  /** The list as it stands after a replay was kept or linked. */
+  const note = (r: ReplayView) => {
+    if (!list || list.session !== account.session()) return;
+    list = { ...list, replays: list.replays.then((all) => [r, ...all.filter((x) => x.id !== r.id)]) };
+  };
+  const failed = (err: unknown): Error => {
+    const e = new Error(describeError(err)) as Error & { code?: string };
+    if (err instanceof ScmjsError) e.code = err.code;
+    return e;
+  };
+
+  return {
+    async status(replay: ReplayFile): Promise<ReplayStatus> {
+      try {
+        // (The ways to sign in come from the server, asked once; a sign-in window is opened at once on the press.)
+        if (!account.offers()) await account.connect();
+        const offers = account.offers();
+        if (offers && offers.replays === false) return { state: "unavailable", reason: t("This server keeps no replays.") };
+        if (account.kind() !== "account") return { state: "signed-out", providers: offers?.providers ?? [] };
+        const [sha, all] = await Promise.all([hashOf(replay.bytes), replays(true)]);
+        const kept = all.find((r) => r.sha256 === sha);
+        if (!kept) return { state: "not-kept" };
+        return { state: "kept", link: kept.links[0] ? replayAddress(ctx, kept.links[0].token) : null };
+      } catch (err) {
+        return { state: "unavailable", reason: describeError(err) };
+      }
+    },
+
+    async link(replay: ReplayFile, provider?: string): Promise<string> {
+      try {
+        // (Before anything is awaited: the sign-in window opens on the press that asked.)
+        if (account.kind() !== "account") await account.signIn(provider);
+        const [sha, all] = await Promise.all([hashOf(replay.bytes), replays(false)]);
+        const kept = all.find((r) => r.sha256 === sha);
+        if (kept?.links[0]) return replayAddress(ctx, kept.links[0].token);
+        if (kept) {
+          const made = await client.createReplayLink(kept.id);
+          note(made.replay);
+          return replayAddress(ctx, made.link.token);
+        }
+        const res = await client.uploadReplay(replay.bytes, { fileName: replay.fileName, link: true });
+        account.noteStorage(res.storage);
+        note(res.replay);
+        const token = res.link?.token ?? res.replay.links[0]?.token ?? (await client.createReplayLink(res.replay.id)).link.token;
+        return replayAddress(ctx, token);
+      } catch (err) {
+        throw failed(err);
+      }
+    },
+
+    onChange(listener: () => void): () => void {
+      // (A sign-in or a sign-out only: the account changes on every answer that carries its storage, this service's own among them.)
+      let was = `${account.kind()}:${account.session()}`;
+      return account.onChange(() => {
+        const now = `${account.kind()}:${account.session()}`;
+        if (now === was) return;
+        was = now;
+        listener();
+      });
+    },
   };
 }

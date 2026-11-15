@@ -61,3 +61,38 @@ export interface ScmjsAccountService {
    */
   noteBalance(balanceUsd: number): void;
 }
+
+/**
+ * `scmjs-dev.replays` (version 1): a replay's link, for the replay viewer's Share. The viewer hands over the replay's
+ * bytes and name and gets the link back; it never talks to the server itself. Provided while the plugin is on.
+ *
+ *     api.services.watch<ScmjsReplaysService>("scmjs-dev.replays", (replays) => { … });
+ */
+export interface ScmjsReplaysService {
+  /**
+   * Where a replay stands, asked without sending it: nobody signed in (with the ways to sign in), signed in without
+   * it on the account, or kept (with its link, if it has one). `unavailable` when the server keeps no replays, or
+   * could not be asked (`reason`, a sentence to show).
+   */
+  status(replay: ReplayFile): Promise<ReplayStatus>;
+  /**
+   * The replay's link, `https://scmjs.dev/replay/<token>`: signs in first when nobody is (in `provider`'s window,
+   * opened at once, so call this from the press), keeps the replay on the account when it does not have it (by its
+   * hash: one it has already is never sent again), and makes it a link when it has none. Rejects with the sentence
+   * to show as the message, and `code` `"aborted"` when the sign-in window was closed.
+   */
+  link(replay: ReplayFile, provider?: string): Promise<string>;
+  /** Called on a sign-in and a sign-out; returns the unsubscribe. */
+  onChange(listener: () => void): () => void;
+}
+
+export interface ReplayFile {
+  bytes: Uint8Array;
+  fileName: string;
+}
+
+export type ReplayStatus =
+  | { state: "signed-out"; providers: { id: string; name: string }[] }
+  | { state: "not-kept" }
+  | { state: "kept"; link: string | null }
+  | { state: "unavailable"; reason: string };
