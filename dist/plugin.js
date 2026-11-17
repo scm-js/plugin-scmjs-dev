@@ -85,6 +85,7 @@ var KO = {
   "Ask the AI for a name and description from what is on the map; fills the fields, OK writes them": "\uB9F5\uC5D0 \uC788\uB294 \uAC83\uC744 \uBCF4\uACE0 AI\uC5D0\uAC8C \uC774\uB984\uACFC \uC124\uBA85\uC744 \uBC1B\uC2B5\uB2C8\uB2E4. \uCE78\uC744 \uCC44\uC6B0\uAE30\uB9CC \uD558\uACE0, \uD655\uC778\uC744 \uB20C\uB7EC\uC57C \uC800\uC7A5\uB429\uB2C8\uB2E4",
   "Ask the assistant about the triggers": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8\uC5D0\uAC8C \uD2B8\uB9AC\uAC70\uC5D0 \uB300\uD574 \uBB3B\uC2B5\uB2C8\uB2E4",
   "Asking scmjs.dev": "scmjs.dev\uC5D0 \uC694\uCCAD\uD558\uB294 \uC911",
+  "Asking scmjs.dev what it offers\u2026": "scmjs.dev\uAC00 \uC81C\uACF5\uD558\uB294 \uAE30\uB2A5\uC744 \uBB3B\uB294 \uC911\u2026",
   "Asking\u2026": "\uBB3B\uB294 \uC911\u2026",
   "Assistant": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8",
   "Assistant: {text}": "\uC5B4\uC2DC\uC2A4\uD134\uD2B8: {text}",
@@ -680,6 +681,7 @@ var KO = {
   "The server does not allow that model: {message}": "\uC11C\uBC84\uAC00 \uADF8 \uBAA8\uB378\uC744 \uD5C8\uC6A9\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4: {message}",
   "The server does not take shared maps from this page.": "\uC11C\uBC84\uAC00 \uC774 \uD398\uC774\uC9C0\uC5D0\uC11C \uC624\uB294 \uACF5\uC720 \uB9F5\uC744 \uBC1B\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "The server is busy.": "\uC11C\uBC84\uAC00 \uBC14\uC069\uB2C8\uB2E4.",
+  "The server offers no AI features at the moment.": "\uC9C0\uAE08\uC740 \uC11C\uBC84\uAC00 AI \uAE30\uB2A5\uC744 \uC81C\uACF5\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
   "The server refused: {message}": "\uC11C\uBC84\uAC00 \uAC70\uBD80\uD588\uC2B5\uB2C8\uB2E4: {message}",
   "The server rejected the request: {message}": "\uC11C\uBC84\uAC00 \uC694\uCCAD\uC744 \uAC70\uBD80\uD588\uC2B5\uB2C8\uB2E4: {message}",
   "The server restarted, which ends every shared map.": "\uC11C\uBC84\uAC00 \uB2E4\uC2DC \uC2DC\uC791\uB418\uC5B4 \uBAA8\uB4E0 \uACF5\uC720 \uB9F5\uC774 \uB05D\uB0AC\uC2B5\uB2C8\uB2E4.",
@@ -11717,9 +11719,10 @@ function registerOptionsPage(deps) {
   return api.ui.preferencesPage({
     mount(body, page) {
       const root2 = styled(body);
+      const askBox = h("div", null);
       const aiBox = h("div", null);
       const keyBox = h("div", null);
-      root2.append(aiBox, keyBox);
+      root2.append(askBox, aiBox, keyBox);
       let offAi = null;
       const keyStatus = w.statusLine({ text: "" });
       let keyShown = null;
@@ -11776,13 +11779,56 @@ function registerOptionsPage(deps) {
         clear(aiBox);
         if (offered) mountAi(aiBox);
       };
+      let asking = false;
+      let askError = null;
+      let askShown = null;
+      const renderAsk = () => {
+        const nothing = !asking && !askError && !account.aiOffered() && !account.keysAccepted();
+        const state = `${asking}:${askError}:${nothing}`;
+        if (state === askShown) return;
+        askShown = state;
+        clear(askBox);
+        if (asking) askBox.append(h("div", { className: "ai-hint" }, t("Asking scmjs.dev what it offers\u2026")));
+        else if (askError) {
+          askBox.append(w.group(
+            t("AI features"),
+            h("div", { className: "ai-hint" }, askError),
+            h("div", { className: "ai-btns" }, w.button(t("Try again"), { onClick: () => {
+              void ask();
+            } }))
+          ));
+        } else if (nothing) {
+          askBox.append(w.group(
+            t("AI features"),
+            h("div", { className: "ai-hint" }, t("The server offers no AI features at the moment."))
+          ));
+        }
+      };
+      let live = true;
+      const ask = async () => {
+        asking = true;
+        askError = null;
+        renderAsk();
+        try {
+          await account.connect();
+        } catch (err) {
+          askError = describeError(err);
+        }
+        if (!live) return;
+        asking = false;
+        renderAsk();
+      };
       const offAccount = account.onChange(() => {
+        renderAsk();
         renderAi();
         renderKey();
       });
       renderAi();
       renderKey();
+      if (!account.offers()) void ask();
+      else renderAsk();
       return () => {
+        live = false;
         offAccount();
         offAi?.();
       };
@@ -15309,15 +15355,9 @@ function activate(api) {
   const provided = api.services.provide(SERVICE_NAME, account.service(ctx.openAccount), { version: CONTRACT_VERSION });
   const replays = api.services.provide("replays", replaysService(ctx), { version: 1 });
   let ai = null;
-  let optionsPage = null;
+  const optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
   const syncAi = () => {
     const offered = store.get().aiOffered;
-    const page = offered || store.get().keysAccepted;
-    if (page && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
-    else if (!page && optionsPage) {
-      optionsPage.dispose();
-      optionsPage = null;
-    }
     const want = offered && store.get().ai;
     if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
     else if (!want && ai) {
@@ -15337,7 +15377,7 @@ function activate(api) {
   return () => {
     unbindI18n();
     ai?.();
-    optionsPage?.dispose();
+    optionsPage.dispose();
     share.dispose();
     status?.remove();
     provided.dispose();

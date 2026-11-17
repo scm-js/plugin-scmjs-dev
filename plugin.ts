@@ -173,16 +173,14 @@ export function activate(api: PluginApi) {
   /*
    * The AI features, in while the tick says so and they are on offer: the person's role
    * pays for them (an admin), or they gave their own Anthropic key. The options page in
-   * Edit ▸ Preferences is there while they are on offer or the server takes a key — the
-   * key field and the tick that turns the rest on are on it.
+   * Edit ▸ Preferences is always there: it holds the key field and the tick that turns the
+   * rest on, and a person new to the editor (who has not asked the server anything yet)
+   * looks for it there first. The page asks the server itself when it opens.
    */
   let ai: (() => void) | null = null;
-  let optionsPage: Disposable | null = null;
+  const optionsPage: Disposable = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
   const syncAi = () => {
     const offered = store.get().aiOffered;
-    const page = offered || store.get().keysAccepted;
-    if (page && !optionsPage) optionsPage = registerOptionsPage({ api, store, account, openAccount: ctx.openAccount });
-    else if (!page && optionsPage) { optionsPage.dispose(); optionsPage = null; }
     const want = offered && store.get().ai;
     if (want && !ai) ai = installAi({ api, store, client, account, openAccount: ctx.openAccount });
     else if (!want && ai) { ai(); ai = null; }
@@ -200,5 +198,5 @@ export function activate(api: PluginApi) {
    */
   if (store.get().session) void account.connect().then(() => account.refresh()).catch(() => {});
 
-  return () => { unbindI18n(); ai?.(); optionsPage?.dispose(); share.dispose(); status?.remove(); provided.dispose(); replays.dispose(); };
+  return () => { unbindI18n(); ai?.(); optionsPage.dispose(); share.dispose(); status?.remove(); provided.dispose(); replays.dispose(); };
 }

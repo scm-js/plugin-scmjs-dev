@@ -6,8 +6,11 @@
  * is nothing to configure about *how* the plugin reaches the model — the service is
  * scmjs.dev's, the account is the Account dialog's — so the page opens on the balance
  * line and a button to that dialog, which is where a person who came here for the
- * sign-in wants to be. Registered whether the AI features are on or off — the tick that
- * turns them back on lives here — while the server offers the AI or takes an own key.
+ * sign-in wants to be. Always registered, whether the AI features are on or off — the
+ * tick that turns them back on lives here, and the key field. What the page shows depends
+ * on what the server offers, and the plugin asks nothing of the network until the person
+ * does something, so the page asks the server itself when it opens and it has not been
+ * asked yet; until the answer comes it says so.
  *
  * The AI runs on the person's own Anthropic key unless their role pays for it (an admin),
  * so the page ends on that key: pasted, checked with the server (which asks Anthropic, at
@@ -47,9 +50,10 @@ export function registerOptionsPage(deps: OptionsDeps): Disposable {
   return api.ui.preferencesPage({
     mount(body, page) {
       const root = styled(body);
+      const askBox = h("div", null);
       const aiBox = h("div", null);
       const keyBox = h("div", null);
-      root.append(aiBox, keyBox);
+      root.append(askBox, aiBox, keyBox);
       /** The AI part's own listener, while it is mounted. */
       let offAi: (() => void) | null = null;
 
@@ -105,10 +109,43 @@ export function registerOptionsPage(deps: OptionsDeps): Disposable {
         if (offered) mountAi(aiBox);
       };
 
-      const offAccount = account.onChange(() => { renderAi(); renderKey(); });
+      /* What the server offers: asked here when nothing has asked it yet this session. */
+      let asking = false;
+      let askError: string | null = null;
+      let askShown: string | null = null;
+      const renderAsk = () => {
+        const nothing = !asking && !askError && !account.aiOffered() && !account.keysAccepted();
+        const state = `${asking}:${askError}:${nothing}`;
+        if (state === askShown) return;
+        askShown = state;
+        clear(askBox);
+        if (asking) askBox.append(h("div", { className: "ai-hint" }, t("Asking scmjs.dev what it offers…")));
+        else if (askError) {
+          askBox.append(w.group(t("AI features"),
+            h("div", { className: "ai-hint" }, askError),
+            h("div", { className: "ai-btns" }, w.button(t("Try again"), { onClick: () => { void ask(); } })),
+          ));
+        } else if (nothing) {
+          askBox.append(w.group(t("AI features"),
+            h("div", { className: "ai-hint" }, t("The server offers no AI features at the moment.")),
+          ));
+        }
+      };
+      let live = true;
+      const ask = async () => {
+        asking = true; askError = null; renderAsk();
+        try { await account.connect(); }
+        catch (err) { askError = describeError(err); }
+        if (!live) return;
+        asking = false; renderAsk();
+      };
+
+      const offAccount = account.onChange(() => { renderAsk(); renderAi(); renderKey(); });
       renderAi();
       renderKey();
-      return () => { offAccount(); offAi?.(); };
+      if (!account.offers()) void ask();
+      else renderAsk();
+      return () => { live = false; offAccount(); offAi?.(); };
 
       function mountAi(root: HTMLElement): void {
         const s = store.get();
