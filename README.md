@@ -30,7 +30,7 @@ In an editor that does not list it, open **Plugins ▸ Browse Plugins…** and p
 https://github.com/scm-js/plugin-scmjs-dev
 ```
 
-To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.41.0`.
+To pin a version, add a ref: `github:scm-js/plugin-scmjs-dev@v1.41.1`.
 
 ## Turning on the AI
 
